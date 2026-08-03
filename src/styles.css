@@ -299,10 +299,10 @@ textarea:hover { border-color: var(--border-bright); }
   position: absolute;
   transition: transform 190ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-.self-filter-label { left: 11px; }
-.self-filter .avatar { left: 47px; }
-.self-filter[aria-pressed="true"] .self-filter-label { transform: translateX(39px); }
-.self-filter[aria-pressed="true"] .avatar { transform: translateX(-42px); }
+.self-filter-label { left: 17px; }
+.self-filter .avatar { left: 33px; }
+.self-filter[aria-pressed="true"] .self-filter-label { transform: translateX(26px); }
+.self-filter[aria-pressed="true"] .avatar { transform: translateX(-16px); }
 .card-search { width: min(260px, 100%); }
 .card-search input { height: 30px; font-size: 9px; }
 
