@@ -47,7 +47,7 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
   const filteredCards = useMemo(
     () => board.cards.filter((card) => {
       if (people.size > 0 && !people.has(card.assigneeId ?? "unassigned")) return false;
-      if (normalizedQuery && !`${card.title}\n${card.description}\n${card.assigneeName ?? "unassigned"}`.toLowerCase().includes(normalizedQuery)) return false;
+      if (normalizedQuery && !`${card.title}\n${card.description}\n${card.category ?? "uncategorized"}\n${card.assigneeName ?? "unassigned"}`.toLowerCase().includes(normalizedQuery)) return false;
       return true;
     }),
     [board.cards, normalizedQuery, people],
@@ -232,39 +232,48 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
                   <span className="column-count">{cards.length}</span>
                 </header>
                 <div className="card-list">
-                  {cards.map((card) => (
-                    <article
-                      className={`board-card ${draggedId === card.id ? "dragging" : ""}`}
-                      draggable
-                      key={card.id}
-                      onDragEnd={() => setDraggedId(null)}
-                      onDragOver={(event) => event.preventDefault()}
-                      onDragStart={(event) => {
-                        setDraggedId(card.id);
-                        event.dataTransfer.effectAllowed = "move";
-                        event.dataTransfer.setData("text/plain", card.id);
-                      }}
-                      onDrop={(event) => {
-                        event.stopPropagation();
-                        void moveCard(event, status, card.position);
-                      }}
-                    >
-                      <button
-                        aria-label={`Open ${card.title}${card.description ? `. ${card.description}` : ""}. ${card.assigneeName ?? "unassigned"}`}
-                        className="card-open"
+                  {cards.map((card) => {
+                    const blockers = card.blockedBy
+                      .map((id) => board.cards.find((candidate) => candidate.id === id))
+                      .filter((candidate): candidate is Card => Boolean(candidate && candidate.status !== "done"));
+                    return (
+                      <article
+                        className={`board-card category-${card.category ?? "none"} ${draggedId === card.id ? "dragging" : ""}`}
                         draggable
-                        onClick={() => setSelectedId(card.id)}
-                        type="button"
+                        key={card.id}
+                        onDragEnd={() => setDraggedId(null)}
+                        onDragOver={(event) => event.preventDefault()}
+                        onDragStart={(event) => {
+                          setDraggedId(card.id);
+                          event.dataTransfer.effectAllowed = "move";
+                          event.dataTransfer.setData("text/plain", card.id);
+                        }}
+                        onDrop={(event) => {
+                          event.stopPropagation();
+                          void moveCard(event, status, card.position);
+                        }}
                       >
-                        <span className="drag-grip" aria-hidden="true">⠿</span>
-                        <strong>{card.title}</strong>
-                        {card.description && <p>{card.description}</p>}
-                        <span className={`assignee ${card.assigneeId ? "assigned" : ""}`}>
-                          {card.assigneeName ? <><span className="avatar tiny">{initials(card.assigneeName)}</span>{card.assigneeName}</> : "unassigned"}
-                        </span>
-                      </button>
-                    </article>
-                  ))}
+                        <button
+                          aria-label={`Open ${card.title}${card.description ? `. ${card.description}` : ""}. ${card.category ?? "uncategorized"}. ${blockers.length ? `Blocked by ${blockers.map((blocker) => blocker.title).join(", ")}. ` : ""}${card.assigneeName ?? "unassigned"}`}
+                          className="card-open"
+                          draggable
+                          onClick={() => setSelectedId(card.id)}
+                          type="button"
+                        >
+                          <span className="drag-grip" aria-hidden="true">⠿</span>
+                          {(card.category || blockers.length > 0) && <span className="card-signals">
+                            {card.category && <span className={`category-pill category-${card.category}`}>{card.category}</span>}
+                            {blockers.length > 0 && <span className="card-blocked">blocked by {blockers.length}</span>}
+                          </span>}
+                          <strong>{card.title}</strong>
+                          {card.description && <p>{card.description}</p>}
+                          <span className={`assignee ${card.assigneeId ? "assigned" : ""}`}>
+                            {card.assigneeName ? <><span className="avatar tiny">{initials(card.assigneeName)}</span>{card.assigneeName}</> : "unassigned"}
+                          </span>
+                        </button>
+                      </article>
+                    );
+                  })}
                   {cards.length === 0 && <div className="empty-column">drop a card here</div>}
                 </div>
                 {addingTo === status ? (
@@ -302,6 +311,7 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
 
       {selectedCard && (
         <CardDialog
+          cards={board.cards}
           card={selectedCard}
           members={board.members}
           onArchive={async () => { await onArchive(selectedCard.id); setSelectedId(null); }}

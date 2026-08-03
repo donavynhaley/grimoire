@@ -15,6 +15,8 @@ SQLite stores operational collaboration data:
 The configured project directory stores all work card and idea domain data:
 
 - Title and board status.
+- One optional game-development category.
+- Links to cards that block other cards.
 - Ordering within a status.
 - Assignment and authorship.
 - Creation, update, and archival timestamps.
@@ -47,12 +49,14 @@ Filenames use record UUIDs so changing a title does not create Git rename noise 
 
 ## Card format
 
-Every card contains strict scalar YAML frontmatter followed by its Markdown notes.
+Every card contains strict YAML frontmatter followed by its Markdown notes.
 
 ```md
 ---
 id: 8b09c17f-8a5e-49f7-99a7-6f0dc7028b47
 title: Create the potion workbench
+category: code
+blocked_by: ["3c651c53-a350-4a01-850c-12242b01e60d"]
 status: in_progress
 position: 2
 assignee: owner@example.com
@@ -71,6 +75,12 @@ Build the first interactive version of the potion workbench.
 ```
 
 The supported status values are `backlog`, `ready`, `in_progress`, and `done`.
+The supported category values are `design`, `code`, `modeling`, `texturing`, `animation`, `narrative`, `audio`, `ui`, `vfx`, and `production`.
+The `category` value can be `null`, and older files without the field are treated as uncategorized.
+The `blocked_by` value is an inline array of card UUIDs, and older files without the field are treated as having no dependencies.
+A card is blocked while at least one referenced card is not `done`.
+Self-links, missing cards, duplicate links, and dependency cycles are rejected.
+An unfinished card cannot be archived while unfinished work depends on it.
 The `position` value is a zero-based integer within that status.
 The `assignee` value is either a project member email or `null`.
 The `created_by` value is the creator email.
@@ -100,6 +110,7 @@ Ideas deliberately omit assignment and work status fields.
 After promotion, the archived idea contains `promoted_to` with the created card UUID and `promoted_at` with the promotion timestamp.
 
 Strings containing YAML punctuation are emitted as double-quoted JSON strings.
+Frontmatter arrays use JSON-compatible inline YAML syntax and contain only strings.
 Unknown, duplicate, missing, or invalid frontmatter fields are rejected and logged with the exact file path rather than being silently discarded.
 
 ## Read and write behavior

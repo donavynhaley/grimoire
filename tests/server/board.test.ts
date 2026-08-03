@@ -115,6 +115,53 @@ describe("card board", () => {
     expect(inProgress.map((card) => card.position)).toEqual([0, 1]);
   });
 
+  it("categorizes cards and derives blocking from other active cards", async () => {
+    const server = await startTestServer();
+    await bootstrap(server);
+    const blocker = await server.request<{ card: Card }>("/api/cards", {
+      method: "POST",
+      body: JSON.stringify({ title: "Model the ritual table", category: "modeling" }),
+    });
+    const dependent = await server.request<{ card: Card }>("/api/cards", {
+      method: "POST",
+      body: JSON.stringify({ title: "Texture the ritual table", category: "texturing" }),
+    });
+
+    const linked = await server.request<{ card: Card }>(`/api/cards/${dependent.body.card.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ blockedBy: [blocker.body.card.id] }),
+    });
+
+    expect(linked.response.status).toBe(200);
+    expect(linked.body.card).toMatchObject({ category: "texturing", blockedBy: [blocker.body.card.id] });
+    const markdown = readFileSync(
+      join(server.cardsDirectory, "wizard-simulator", "cards", `${dependent.body.card.id}.md`),
+      "utf8",
+    );
+    expect(markdown).toContain("category: texturing");
+    expect(markdown).toContain(`blocked_by: ["${blocker.body.card.id}"]`);
+
+    const cycle = await server.request(`/api/cards/${blocker.body.card.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ blockedBy: [dependent.body.card.id] }),
+    });
+    expect(cycle.response.status).toBe(400);
+    expect(cycle.body).toEqual({ error: "Card dependencies cannot form a cycle" });
+
+    const archive = await server.request(`/api/cards/${blocker.body.card.id}`, { method: "DELETE" });
+    expect(archive.response.status).toBe(409);
+    expect(archive.body).toEqual({ error: "This card blocks active work and cannot be archived" });
+
+    await server.request(`/api/cards/${blocker.body.card.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "done" }),
+    });
+    const finished = await board(server);
+    expect(finished.cards.find((card) => card.id === dependent.body.card.id)?.blockedBy).toEqual([
+      blocker.body.card.id,
+    ]);
+  });
+
   it("persists cards after the server restarts", async () => {
     const directory = mkdtempSync(join(tmpdir(), "grimoire-board-persistence-"));
     directories.push(directory);

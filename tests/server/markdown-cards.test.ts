@@ -22,6 +22,8 @@ function card(overrides: Partial<StoredCard> = {}): StoredCard {
     id: "9c46098a-7e85-48de-8a58-213236a8cf0d",
     title: "Research potion reactions",
     description: "- [ ] Test moonwort\n- [ ] Record the result",
+    category: "code",
+    blockedBy: ["8d3e49fa-2ce5-4cc1-80e7-b3f6d49435f9"],
     status: "backlog",
     position: 0,
     assignee: "owner@example.com",
@@ -41,6 +43,8 @@ describe("MarkdownCardStore", () => {
     const path = join(directory, "wizard-simulator", "cards", "9c46098a-7e85-48de-8a58-213236a8cf0d.md");
     const markdown = readFileSync(path, "utf8");
     expect(markdown).toContain('title: "Research: potion reactions"');
+    expect(markdown).toContain("category: code");
+    expect(markdown).toContain('blocked_by: ["8d3e49fa-2ce5-4cc1-80e7-b3f6d49435f9"]');
     expect(markdown).toContain("assignee: owner@example.com");
     expect(markdown).toContain("\n---\n\n- [ ] Test moonwort\n- [ ] Record the result\n");
     expect(store.list("wizard-simulator")).toEqual([card({ title: "Research: potion reactions" })]);
@@ -107,7 +111,7 @@ describe("MarkdownCardStore", () => {
       .run(card().id, projectId, card().title, card().description, "backlog", 0, userId, userId, timestamp, timestamp);
 
     expect(store.migrateLegacyCards(database)).toBe(1);
-    expect(store.list("wizard-simulator")).toEqual([card()]);
+    expect(store.list("wizard-simulator")).toEqual([card({ category: null, blockedBy: [] })]);
     expect(database.prepare("SELECT COUNT(*) AS count FROM cards").get()).toEqual({ count: 0 });
     expect(store.migrateLegacyCards(database)).toBe(0);
     database.close();

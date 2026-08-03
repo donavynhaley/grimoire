@@ -19,10 +19,26 @@ export type Member = User & {
 export const CARD_STATUSES = ["backlog", "ready", "in_progress", "done"] as const;
 export type CardStatus = (typeof CARD_STATUSES)[number];
 
+export const CARD_CATEGORIES = [
+  "design",
+  "code",
+  "modeling",
+  "texturing",
+  "animation",
+  "narrative",
+  "audio",
+  "ui",
+  "vfx",
+  "production",
+] as const;
+export type CardCategory = (typeof CARD_CATEGORIES)[number];
+
 export type Card = {
   id: string;
   title: string;
   description: string;
+  category: CardCategory | null;
+  blockedBy: string[];
   status: CardStatus;
   position: number;
   assigneeId: string | null;

@@ -19,6 +19,12 @@ Grimoire has four columns:
 Cards can be dragged between columns and reordered within a column.
 Every card can contain a title, optional notes, and one assignee.
 Assignees are visible directly on the board so the current team focus is clear at a glance.
+Each card can also have one game-development category: Design, Code, Modeling, Texturing, Animation, Narrative, Audio, UI, VFX, or Production.
+Category color rails and compact labels make different disciplines visible without turning categories into another workflow.
+
+Cards can be blocked by other cards.
+The board shows a blocked marker while any linked blocker is not Done, and the marker resolves automatically when the blocking work is completed.
+Dependency cycles, self-links, and archiving an unfinished blocker with active dependents are rejected.
 
 Status and assignee changes use direct buttons instead of dropdown menus.
 On touch devices, the same compact status buttons provide an alternative to dragging.
@@ -78,7 +84,7 @@ npm test
 npm run build
 ```
 
-The test suite covers authentication, secure password changes, invitations, Markdown persistence, legacy migration, external edits, assignments, filtering, idea ranking, promotion, archiving, ordering, and drag-and-drop interaction.
+The test suite covers authentication, secure password changes, invitations, Markdown persistence, legacy migration, external edits, categories, card dependencies, assignments, filtering, idea ranking, promotion, archiving, ordering, and drag-and-drop interaction.
 
 ## Self-hosting
 

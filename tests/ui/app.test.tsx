@@ -200,6 +200,50 @@ describe("Grimoire board", () => {
     );
   });
 
+  it("shows card categories and links blockers without a dropdown", async () => {
+    const initial = boardFixture();
+    const card = initial.cards[0];
+    const categorized = { ...card, category: "code" as const };
+    const afterCategory = { ...initial, cards: [categorized, initial.cards[1]] };
+    const blocked = { ...categorized, blockedBy: [initial.cards[1].id] };
+    const afterBlocker = { ...initial, cards: [blocked, initial.cards[1]] };
+    const fetchMock = authenticatedFetch(initial)
+      .mockImplementationOnce(() => response({ card: categorized }))
+      .mockImplementationOnce(() => response(afterCategory))
+      .mockImplementationOnce(() => response({ card: blocked }))
+      .mockImplementationOnce(() => response(afterBlocker));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    const openCard = await screen.findByRole("button", { name: new RegExp(`Open ${card.title}`, "i") });
+    expect(openCard).toHaveTextContent("narrative");
+    await userEvent.click(openCard);
+
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Categorize as Code" }));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/cards/${card.id}`,
+        expect.objectContaining({ method: "PATCH", body: JSON.stringify({ category: "code" }) }),
+      ),
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Add blocking card" }));
+    await userEvent.type(screen.getByRole("searchbox", { name: "Find a blocking card" }), "potion");
+    await userEvent.click(screen.getByRole("button", { name: `Blocked by ${initial.cards[1].title}` }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/cards/${card.id}`,
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ blockedBy: [initial.cards[1].id] }),
+        }),
+      ),
+    );
+    expect(await screen.findByText("blocked by 1")).toBeInTheDocument();
+  });
+
   it("automatically saves title and notes without a save button", async () => {
     const initial = boardFixture();
     const card = initial.cards[0];

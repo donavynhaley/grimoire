@@ -3,10 +3,11 @@ import { createReadStream, existsSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { dirname, extname, join, normalize } from "node:path";
 import { z, ZodError } from "zod";
-import type { User } from "../shared/types";
+import { CARD_CATEGORIES, type User } from "../shared/types";
 import { createWizardSimulatorProject, openDatabase } from "./database";
 import {
   archiveCard,
+  CardDependencyError,
   createCard,
   findUserByEmail,
   findUserById,
@@ -68,6 +69,8 @@ const cardStatus = z.enum(["backlog", "ready", "in_progress", "done"]);
 const cardSchema = z.object({
   title: z.string().trim().min(1).max(240),
   description: z.string().trim().max(20_000).optional(),
+  category: z.enum(CARD_CATEGORIES).nullable().optional(),
+  blockedBy: z.array(z.string().uuid()).max(20).optional(),
   status: cardStatus.optional(),
   assigneeId: z.string().uuid().nullable().optional(),
 });
@@ -95,6 +98,10 @@ export function createGrimoireServer(options: Options) {
     void handle(request, response).catch((error) => {
       if (error instanceof ZodError) {
         json(response, 400, { error: "Invalid request", details: error.issues });
+        return;
+      }
+      if (error instanceof CardDependencyError) {
+        json(response, error.status, { error: error.message });
         return;
       }
       if (error instanceof HttpError) {

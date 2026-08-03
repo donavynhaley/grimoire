@@ -4,6 +4,7 @@ import {
   CARD_STATUSES,
   type BoardWorkspace,
   type Card,
+  type CardCategory,
   type CardStatus,
   type Member,
   type User,
@@ -57,18 +58,22 @@ export function getBoard(database: DatabaseSync, cardStore: MarkdownCardStore, u
   if (!project) return null;
 
   const members = membersForProject(database, projectId);
+  const cards = cardStore.list(String(project.slug));
+  validateDependencyGraph(cards);
 
   return {
     project: { id: String(project.id), name: String(project.name) },
     currentUser: user,
     members,
-    cards: cardStore.list(String(project.slug)).map((card) => publicCard(card, members)),
+    cards: cards.map((card) => publicCard(card, members)),
   };
 }
 
 type CardInput = {
   title: string;
   description?: string;
+  category?: CardCategory | null;
+  blockedBy?: string[];
   status?: CardStatus;
   assigneeId?: string | null;
 };
@@ -88,11 +93,14 @@ export function createCard(
   const id = randomUUID();
   const now = new Date().toISOString();
   const status = input.status ?? "backlog";
-  const position = cardStore.list(String(project.slug)).filter((card) => card.status === status).length;
+  const cards = cardStore.list(String(project.slug));
+  const position = cards.filter((card) => card.status === status).length;
   const card: StoredCard = {
     id,
     title: input.title,
     description: input.description ?? "",
+    category: input.category ?? null,
+    blockedBy: input.blockedBy ?? [],
     status,
     position,
     assignee: assignee?.email.toLowerCase() ?? null,
@@ -101,6 +109,7 @@ export function createCard(
     updatedAt: now,
     archivedAt: null,
   };
+  validateDependencyGraph([...cards, card]);
   cardStore.save(String(project.slug), card);
   return publicCard(card, members);
 }
@@ -129,10 +138,13 @@ export function updateCard(
     ...current,
     title: input.title ?? current.title,
     description: input.description ?? current.description,
+    category: input.category === undefined ? current.category : input.category,
+    blockedBy: input.blockedBy ?? current.blockedBy,
     status: nextStatus,
     assignee: input.assigneeId === undefined ? current.assignee : assignee?.email.toLowerCase() ?? null,
     updatedAt: now,
   };
+  validateDependencyGraph(cards.map((card) => card.id === cardId ? updated : card));
 
   if (!shouldMove) {
     cardStore.save(projectSlug, updated);
@@ -165,7 +177,19 @@ export function archiveCard(
   const projectSlug = String(project.slug);
   const current = cardStore.get(projectSlug, cardId);
   if (!current) return false;
+  const cards = cardStore.list(projectSlug);
+  const dependents = cards.filter((card) => card.id !== cardId && card.blockedBy.includes(cardId));
+  if (current.status !== "done" && dependents.some((card) => card.status !== "done")) {
+    throw new CardDependencyError("This card blocks active work and cannot be archived", 409);
+  }
   const now = new Date().toISOString();
+  dependents.forEach((card) => {
+    cardStore.save(projectSlug, {
+      ...card,
+      blockedBy: card.blockedBy.filter((dependencyId) => dependencyId !== cardId),
+      updatedAt: now,
+    });
+  });
   cardStore.archive(projectSlug, { ...current, archivedAt: now, updatedAt: now });
   cardStore
     .list(projectSlug)
@@ -206,6 +230,8 @@ function publicCard(value: StoredCard, members: Member[]): Card {
     id: value.id,
     title: value.title,
     description: value.description,
+    category: value.category,
+    blockedBy: value.blockedBy,
     status: value.status,
     position: value.position,
     assigneeId: assignee?.id ?? null,
@@ -215,4 +241,35 @@ function publicCard(value: StoredCard, members: Member[]): Card {
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
   };
+}
+
+export class CardDependencyError extends Error {
+  constructor(message: string, readonly status: 400 | 409 = 400) {
+    super(message);
+  }
+}
+
+function validateDependencyGraph(cards: StoredCard[]): void {
+  const cardsById = new Map(cards.map((card) => [card.id, card]));
+  for (const card of cards) {
+    if (new Set(card.blockedBy).size !== card.blockedBy.length) {
+      throw new CardDependencyError("A blocking card can only be linked once");
+    }
+    for (const dependencyId of card.blockedBy) {
+      if (dependencyId === card.id) throw new CardDependencyError("A card cannot block itself");
+      if (!cardsById.has(dependencyId)) throw new CardDependencyError("A blocking card could not be found");
+    }
+  }
+
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  const visit = (cardId: string) => {
+    if (visiting.has(cardId)) throw new CardDependencyError("Card dependencies cannot form a cycle");
+    if (visited.has(cardId)) return;
+    visiting.add(cardId);
+    for (const dependencyId of cardsById.get(cardId)?.blockedBy ?? []) visit(dependencyId);
+    visiting.delete(cardId);
+    visited.add(cardId);
+  };
+  for (const card of cards) visit(card.id);
 }

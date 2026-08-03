@@ -2,13 +2,15 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync } from "no
 import { basename, join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
-import { CARD_STATUSES, type CardStatus } from "../shared/types";
-import { isTimestamp, parseMarkdown, serializeMarkdown, writeAtomic } from "./markdown-files";
+import { CARD_CATEGORIES, CARD_STATUSES, type CardCategory, type CardStatus } from "../shared/types";
+import { isTimestamp, parseMarkdown, serializeMarkdown, writeAtomic, type FrontmatterValue } from "./markdown-files";
 
 export type StoredCard = {
   id: string;
   title: string;
   description: string;
+  category: CardCategory | null;
+  blockedBy: string[];
   status: CardStatus;
   position: number;
   assignee: string | null;
@@ -24,6 +26,8 @@ const metadataSchema = z
   .object({
     id: z.string().uuid(),
     title: z.string().trim().min(1).max(240),
+    category: z.enum(CARD_CATEGORIES).nullable().optional(),
+    blocked_by: z.array(z.string().uuid()).optional(),
     status: z.enum(CARD_STATUSES),
     position: z.number().int().min(0),
     assignee: z.string().email().nullable(),
@@ -150,6 +154,8 @@ function parseCard(markdown: string): StoredCard {
     id: metadata.id,
     title: metadata.title,
     description: parsed.body,
+    category: metadata.category ?? null,
+    blockedBy: metadata.blocked_by ?? [],
     status: metadata.status,
     position: metadata.position,
     assignee: metadata.assignee?.toLowerCase() ?? null,
@@ -161,9 +167,11 @@ function parseCard(markdown: string): StoredCard {
 }
 
 function serializeCard(card: StoredCard): string {
-  const metadata: Array<[string, string | number | null]> = [
+  const metadata: Array<[string, FrontmatterValue]> = [
     ["id", card.id],
     ["title", card.title],
+    ["category", card.category],
+    ["blocked_by", card.blockedBy],
     ["status", card.status],
     ["position", card.position],
     ["assignee", card.assignee],
@@ -180,6 +188,8 @@ function legacyRowToCard(row: LegacyCardRow): StoredCard {
     id: String(row.id),
     title: String(row.title),
     description: String(row.description),
+    category: null,
+    blockedBy: [],
     status: row.status as CardStatus,
     position: Number(row.position),
     assignee: row.assignee_email ? String(row.assignee_email).toLowerCase() : null,

@@ -11,7 +11,7 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 
-export type FrontmatterScalar = string | number | null;
+export type FrontmatterValue = string | number | null | string[];
 
 export function parseMarkdown(markdown: string): { metadata: Record<string, unknown>; body: string } {
   const match = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)([\s\S]*)$/);
@@ -30,7 +30,7 @@ export function parseMarkdown(markdown: string): { metadata: Record<string, unkn
   return { metadata, body };
 }
 
-export function serializeMarkdown(metadata: Array<[string, FrontmatterScalar]>, body: string): string {
+export function serializeMarkdown(metadata: Array<[string, FrontmatterValue]>, body: string): string {
   const frontmatter = metadata.map(([key, value]) => `${key}: ${serializeScalar(value)}`).join("\n");
   const trailingNewline = body && !body.endsWith("\n") ? "\n" : "";
   return `---\n${frontmatter}\n---\n\n${body}${trailingNewline}`;
@@ -62,9 +62,16 @@ export function isTimestamp(value: string): boolean {
   );
 }
 
-function parseScalar(value: string): FrontmatterScalar {
+function parseScalar(value: string): FrontmatterValue {
   if (value === "null" || value === "~") return null;
   if (/^-?\d+$/.test(value)) return Number(value);
+  if (value.startsWith("[")) {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed) || !parsed.every((item) => typeof item === "string")) {
+      throw new Error("Frontmatter arrays must contain only strings");
+    }
+    return parsed;
+  }
   if (value.startsWith('"')) {
     const parsed = JSON.parse(value) as unknown;
     if (typeof parsed !== "string") throw new Error("Quoted frontmatter values must be strings");
@@ -74,9 +81,10 @@ function parseScalar(value: string): FrontmatterScalar {
   return value;
 }
 
-function serializeScalar(value: FrontmatterScalar): string {
+function serializeScalar(value: FrontmatterValue): string {
   if (value === null) return "null";
   if (typeof value === "number") return String(value);
+  if (Array.isArray(value)) return JSON.stringify(value);
   const unsafe =
     value.trim() !== value ||
     value.length === 0 ||
