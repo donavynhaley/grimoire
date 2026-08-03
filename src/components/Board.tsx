@@ -71,6 +71,26 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
     history.replaceState({}, "", `${location.pathname}${initialParams.size ? `?${initialParams}` : ""}`);
   }, [initialParams]);
 
+  useEffect(() => {
+    const switchWorkspace = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.repeat || event.isComposing || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      const nextView = event.key === "1" ? "work" : event.key === "2" ? "ideas" : null;
+      if (!nextView) return;
+      const target = event.target;
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || (target instanceof HTMLElement && target.isContentEditable)) {
+        const isEmptyCapture =
+          target instanceof HTMLInputElement &&
+          (target.id === "quick-card" || target.id === "capture-idea") &&
+          target.value.length === 0;
+        if (!isEmptyCapture) return;
+      }
+      event.preventDefault();
+      void onViewChange(nextView);
+    };
+    window.addEventListener("keydown", switchWorkspace);
+    return () => window.removeEventListener("keydown", switchWorkspace);
+  }, [onViewChange]);
+
   const updateUrl = (nextQuery: string, nextPeople: Set<string>) => {
     const params = new URLSearchParams(location.search);
     params.delete("focus");
@@ -129,8 +149,8 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
           <span className="brand-mark">g</span>
           <span className="brand-word">grimoire</span>
           <nav className="workspace-tabs" aria-label="Project spaces">
-            <button aria-current={view === "work" ? "page" : undefined} onClick={() => void onViewChange("work")} type="button">work</button>
-            <button aria-current={view === "ideas" ? "page" : undefined} onClick={() => void onViewChange("ideas")} type="button">ideas</button>
+            <button aria-current={view === "work" ? "page" : undefined} aria-label="work" onClick={() => void onViewChange("work")} title="Work (1)" type="button">work <kbd aria-hidden="true">1</kbd></button>
+            <button aria-current={view === "ideas" ? "page" : undefined} aria-label="ideas" onClick={() => void onViewChange("ideas")} title="Ideas (2)" type="button">ideas <kbd aria-hidden="true">2</kbd></button>
           </nav>
         </div>
         <div className="board-project">

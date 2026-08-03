@@ -71,6 +71,28 @@ describe("Grimoire board", () => {
     expect(screen.getByRole("heading", { name: "Wizard Simulator" }).parentElement).toHaveClass("board-project");
   });
 
+  it("switches between Work and Ideas with 1 and 2 from an empty capture field", async () => {
+    const initial = boardFixture();
+    const fetchMock = authenticatedFetch(initial).mockImplementationOnce(() => response(ideaFixture()));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    expect(await screen.findByLabelText(/add a card to backlog/i)).toHaveFocus();
+
+    await userEvent.keyboard("2");
+    expect(await screen.findByRole("heading", { name: "Idea garden" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Capture an idea")).toHaveFocus();
+    expect(window.location.search).toContain("view=ideas");
+
+    await userEvent.keyboard("1");
+    expect(screen.getByRole("region", { name: "Backlog" })).toBeInTheDocument();
+    expect(screen.getByLabelText(/add a card to backlog/i)).toHaveFocus();
+    expect(window.location.search).not.toContain("view=ideas");
+
+    await userEvent.type(screen.getByLabelText(/add a card to backlog/i), "room 2");
+    expect(screen.getByLabelText(/add a card to backlog/i)).toHaveValue("room 2");
+  });
+
   it("captures a thought directly as a backlog card", async () => {
     const initial = boardFixture();
     const created = {

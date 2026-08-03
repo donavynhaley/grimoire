@@ -133,8 +133,11 @@ textarea:focus-visible {
   border-left: 1px solid var(--border);
 }
 .workspace-tabs button {
+  display: inline-flex;
   min-height: 30px;
   padding: 0 10px;
+  align-items: center;
+  gap: 7px;
   color: var(--faint);
   background: transparent;
   border: 0;
@@ -145,6 +148,13 @@ textarea:focus-visible {
 }
 .workspace-tabs button:hover { color: var(--text); background: var(--surface-soft); }
 .workspace-tabs button[aria-current="page"] { color: var(--accent); background: var(--accent-soft); }
+.workspace-tabs kbd {
+  color: var(--faint);
+  font: inherit;
+  font-size: 7px;
+  opacity: 0.72;
+}
+.workspace-tabs button[aria-current="page"] kbd { color: var(--accent); }
 
 .board-actions { justify-content: flex-end; gap: 10px; }
 .member-faces { padding-left: 7px; }
@@ -276,17 +286,23 @@ textarea:hover { border-color: var(--border-bright); }
 .people-filters button.active { color: var(--accent); background: var(--accent-soft); border-color: #465f3c; }
 .people-filters button:has(.avatar) { width: 30px; padding: 4px; justify-content: center; }
 .people-filters button.self-filter {
-  width: 59px;
-  padding: 3px 4px 3px 9px;
-  justify-content: space-between;
+  position: relative;
+  width: 72px;
+  min-height: 32px;
+  padding: 0;
+  overflow: hidden;
   background: var(--surface-soft);
-  transition: background 120ms ease, border-color 120ms ease;
+  transition: background 180ms ease, border-color 180ms ease;
 }
-.self-filter-label { order: 0; }
-.self-filter .avatar { order: 1; }
-.self-filter[aria-pressed="true"] { padding: 3px 9px 3px 4px; }
-.self-filter[aria-pressed="true"] .self-filter-label { order: 1; }
-.self-filter[aria-pressed="true"] .avatar { order: 0; }
+.self-filter-label,
+.self-filter .avatar {
+  position: absolute;
+  transition: transform 190ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.self-filter-label { left: 11px; }
+.self-filter .avatar { left: 47px; }
+.self-filter[aria-pressed="true"] .self-filter-label { transform: translateX(39px); }
+.self-filter[aria-pressed="true"] .avatar { transform: translateX(-42px); }
 .card-search { width: min(260px, 100%); }
 .card-search input { height: 30px; font-size: 9px; }
 
@@ -803,4 +819,9 @@ textarea:hover { border-color: var(--border-bright); }
   .shortlist-section { min-height: 260px; }
   .shortlist-card { grid-template-columns: 34px 1fr; }
   .shortlist-card .idea-actions { grid-column: 1 / -1; flex-direction: row; border-top: 1px solid var(--border); border-left: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .self-filter-label,
+  .self-filter .avatar { transition: none; }
 }
