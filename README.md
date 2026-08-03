@@ -1,5 +1,7 @@
 # Grimoire
 
+Production: [grimoire.example.test](https://grimoire.example.test)
+
 Grimoire is a small collaborative project space for the Wizard Simulator team.
 It separates possible ideas from committed work while keeping both fast to capture and easy to understand.
 The website is a visual editing layer over portable Markdown files.
@@ -83,6 +85,7 @@ Canonical project files are stored beneath `data/cards` by default.
 Set `GRIMOIRE_CARDS_DIRECTORY` to a directory inside the Wizard Simulator repository if the work and ideas should share its Git history.
 
 See [docs/architecture.md](docs/architecture.md) for the storage boundary, card format, migration behavior, and editing guarantees.
+See [docs/deployment.md](docs/deployment.md) for the isolated Proxmox VM, Cloudflare Tunnel, automatic deployment, and backup procedure.
 
 ## Verification
 

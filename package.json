@@ -7,11 +7,12 @@
     "dev": "concurrently -k -n api,web -c green,cyan \"npm:dev:server\" \"npm:dev:web\"",
     "dev:web": "vite --host 127.0.0.1",
     "dev:server": "tsx watch server/index.ts",
-    "start": "tsx server/index.ts",
+    "start": "node --enable-source-maps server-dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "tsc --noEmit",
-    "build": "npm run check && vite build",
+    "build": "npm run check && vite build && npm run build:server",
+    "build:server": "esbuild server/index.ts --bundle --format=esm --packages=external --platform=node --sourcemap --outfile=server-dist/index.js",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -28,6 +29,7 @@
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^5.0.0",
     "concurrently": "^10.0.4",
+    "esbuild": "~0.28.0",
     "jsdom": "^30.0.1",
     "tsx": "^4.23.5",
     "typescript": "~5.9.0",
