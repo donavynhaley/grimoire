@@ -91,7 +91,7 @@ textarea:focus-visible {
   top: 0;
   z-index: 20;
   display: grid;
-  grid-template-columns: 220px 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   min-height: 66px;
   align-items: center;
   padding: 0 24px;
@@ -120,14 +120,19 @@ textarea:focus-visible {
 .brand-lockup { gap: 10px; }
 .brand-word { font-size: 12px; font-weight: 800; letter-spacing: 0.04em; }
 
-.board-project { display: grid; gap: 4px; justify-items: center; }
+.board-project { display: grid; justify-items: center; }
 .board-project h1 { margin: 0; font-size: 13px; text-transform: lowercase; }
-.board-project .eyebrow { font-size: 7px; }
 
-.workspace-tabs { display: flex; gap: 3px; }
+.workspace-tabs {
+  display: flex;
+  margin-left: 6px;
+  padding-left: 14px;
+  gap: 3px;
+  border-left: 1px solid var(--border);
+}
 .workspace-tabs button {
-  min-height: 22px;
-  padding: 0 8px;
+  min-height: 30px;
+  padding: 0 10px;
   color: var(--faint);
   background: transparent;
   border: 0;

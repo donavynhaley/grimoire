@@ -56,6 +56,17 @@ describe("Grimoire board", () => {
     expect(screen.queryByText(/design pillar/i)).not.toBeInTheDocument();
   });
 
+  it("places the Work and Ideas switcher beside the product identity", async () => {
+    const fetchMock = authenticatedFetch();
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+
+    const navigation = await screen.findByRole("navigation", { name: "Project spaces" });
+    expect(navigation.parentElement).toHaveClass("brand-lockup");
+    expect(screen.getByRole("heading", { name: "Wizard Simulator" }).parentElement).toHaveClass("board-project");
+  });
+
   it("captures a thought directly as a backlog card", async () => {
     const initial = boardFixture();
     const created = {

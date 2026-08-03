@@ -135,12 +135,12 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
         <div className="brand-lockup">
           <span className="brand-mark">g</span>
           <span className="brand-word">grimoire</span>
-        </div>
-        <div className="board-project">
           <nav className="workspace-tabs" aria-label="Project spaces">
             <button aria-current={view === "work" ? "page" : undefined} onClick={() => void onViewChange("work")} type="button">work</button>
             <button aria-current={view === "ideas" ? "page" : undefined} onClick={() => void onViewChange("ideas")} type="button">ideas</button>
           </nav>
+        </div>
+        <div className="board-project">
           <h1>{board.project.name}</h1>
         </div>
         <div className="board-actions">
