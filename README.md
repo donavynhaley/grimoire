@@ -94,4 +94,3 @@ npm run build
 
 Grimoire is at the product-foundation and interface-prototype stage.
 The current work is focused on validating the project overview, idea capture, individual work view, and cross-discipline asset handoffs before implementing the collaborative backend.
-
