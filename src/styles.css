@@ -287,22 +287,47 @@ textarea:hover { border-color: var(--border-bright); }
 .people-filters button:has(.avatar) { width: 30px; padding: 4px; justify-content: center; }
 .people-filters button.self-filter {
   position: relative;
-  width: 72px;
+  width: 62px;
   min-height: 32px;
   padding: 0;
   overflow: hidden;
-  background: var(--surface-soft);
-  transition: background 180ms ease, border-color 180ms ease;
+  background: #181c1f;
+  border-color: #3b4348;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 2%);
+  transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
 }
 .self-filter-label,
 .self-filter .avatar {
   position: absolute;
-  transition: transform 190ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  top: 3px;
+  width: 24px;
+  height: 24px;
+  transition: color 190ms ease, background 190ms ease, transform 190ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-.self-filter-label { left: 17px; }
-.self-filter .avatar { left: 33px; }
-.self-filter[aria-pressed="true"] .self-filter-label { transform: translateX(26px); }
-.self-filter[aria-pressed="true"] .avatar { transform: translateX(-16px); }
+.self-filter-label {
+  display: grid;
+  left: 4px;
+  place-items: center;
+  font-weight: 800;
+}
+.self-filter .avatar {
+  left: 34px;
+  background: #c8d0c2;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 40%);
+}
+.self-filter[aria-pressed="true"] {
+  background: var(--accent-soft);
+  border-color: #5e7d4e;
+  box-shadow: inset 0 0 0 1px rgb(184 217 155 / 8%);
+}
+.self-filter[aria-pressed="true"] .self-filter-label {
+  color: var(--accent);
+  transform: translateX(30px);
+}
+.self-filter[aria-pressed="true"] .avatar {
+  background: var(--accent);
+  transform: translateX(-30px);
+}
 .card-search { width: min(260px, 100%); }
 .card-search input { height: 30px; font-size: 9px; }
 
