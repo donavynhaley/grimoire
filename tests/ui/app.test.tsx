@@ -28,6 +28,14 @@ function authenticatedFetch(board = boardFixture()) {
 }
 
 describe("Grimoire board", () => {
+  it("prefills the default owner email during first-run setup", async () => {
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockImplementationOnce(() => response({ status: "setup_required" })));
+
+    render(<App />);
+
+    expect(await screen.findByLabelText("Email")).toHaveValue("owner@example.com");
+  });
+
   it("lands directly on one compact four-column board", async () => {
     const fetchMock = authenticatedFetch();
     vi.stubGlobal("fetch", fetchMock);
@@ -178,6 +186,34 @@ describe("Grimoire board", () => {
       expect.objectContaining({
         method: "PATCH",
         body: JSON.stringify({ title, description: card.description }),
+      }),
+    );
+  });
+
+  it("changes the signed-in user's password from account settings", async () => {
+    const initial = boardFixture();
+    const fetchMock = authenticatedFetch(initial).mockImplementationOnce(() => response({ ok: true }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    await userEvent.click(await screen.findByRole("button", { name: /open account settings/i }));
+
+    expect(screen.getByRole("heading", { name: "Account settings" })).toBeInTheDocument();
+    expect(screen.getByText("owner@example.com")).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Current password"), "correct horse wizard tower");
+    await userEvent.type(screen.getByLabelText(/^New password/i), "an even newer secure wizard password");
+    await userEvent.type(screen.getByLabelText("Confirm new password"), "an even newer secure wizard password");
+    await userEvent.click(screen.getByRole("button", { name: "change password" }));
+
+    await waitFor(() => expect(screen.getByText("password changed")).toBeInTheDocument());
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/account/password",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          currentPassword: "correct horse wizard tower",
+          newPassword: "an even newer secure wizard password",
+        }),
       }),
     );
   });

@@ -70,6 +70,10 @@ export function App() {
     return `${location.origin}${location.pathname}?invite=${encodeURIComponent(result.code)}`;
   };
 
+  const changePassword = async (currentPassword: string, newPassword: string) => {
+    await mutate("/api/account/password", "POST", { currentPassword, newPassword });
+  };
+
   const logout = async () => {
     await request("/api/auth/logout", { method: "POST", body: JSON.stringify({}) });
     setBoard(null);
@@ -97,6 +101,7 @@ export function App() {
       <Board
         board={board}
         busy={busy}
+        onChangePassword={changePassword}
         onArchive={archiveCard}
         onCreate={createCard}
         onCreateInvite={createInvite}

@@ -39,6 +39,37 @@ describe("authentication", () => {
     expect(login.body.user).not.toHaveProperty("password_hash");
   });
 
+  it("changes an authenticated password only after verifying the current password", async () => {
+    const server = await startTestServer();
+    await bootstrap(server);
+    const newPassword = "an even newer secure wizard password";
+
+    const denied = await server.request("/api/account/password", {
+      method: "POST",
+      body: JSON.stringify({ currentPassword: "wrong password", newPassword }),
+    });
+    expect(denied.response.status).toBe(401);
+
+    const changed = await server.request("/api/account/password", {
+      method: "POST",
+      body: JSON.stringify({ currentPassword: ownerAccount.password, newPassword }),
+    });
+    expect(changed.response.status).toBe(200);
+
+    await server.request("/api/auth/logout", { method: "POST" });
+    const oldLogin = await server.request("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email: ownerAccount.email, password: ownerAccount.password }),
+    });
+    expect(oldLogin.response.status).toBe(401);
+
+    const newLogin = await server.request("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email: ownerAccount.email, password: newPassword }),
+    });
+    expect(newLogin.response.status).toBe(200);
+  });
+
   it("allows an owner to invite a collaborator", async () => {
     const server = await startTestServer();
     await bootstrap(server);

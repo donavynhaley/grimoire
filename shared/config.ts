@@ -1,4 +1,5 @@
 export const DEFAULT_SERVER_PORT = 8080;
+export const DEFAULT_OWNER_EMAIL = "owner@example.com";
 
 export function resolveServerPort(environment: Record<string, string | undefined>): number {
   const configured = environment.GRIMOIRE_API_PORT ?? environment.PORT;

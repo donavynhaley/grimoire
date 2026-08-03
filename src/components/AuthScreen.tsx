@@ -1,4 +1,5 @@
 import { FormEvent, useState } from "react";
+import { DEFAULT_OWNER_EMAIL } from "../../shared/config";
 import type { User } from "../../shared/types";
 import { ApiError, mutate } from "../api/client";
 
@@ -11,7 +12,7 @@ type Props = {
 export function AuthScreen({ mode: initialMode, inviteCode, onAuthenticated }: Props) {
   const [mode, setMode] = useState(initialMode);
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(initialMode === "setup" ? DEFAULT_OWNER_EMAIL : "");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");

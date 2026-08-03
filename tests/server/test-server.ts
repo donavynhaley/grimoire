@@ -57,7 +57,7 @@ export async function startTestServer(existingDirectory?: string): Promise<TestS
 
 export const ownerAccount = {
   name: "Donavyn",
-  email: "donavyn@example.com",
+  email: "owner@example.com",
   password: "correct horse wizard tower",
 };
 

@@ -25,11 +25,14 @@ On touch devices, the same compact status buttons provide an alternative to drag
 ## Collaboration
 
 The first person to open a new Grimoire installation creates the owner account.
+The first-run form prefills `owner@example.com` as the owner email, while still allowing it to be edited before setup.
 The owner can create one-use invitation links from the Team dialog.
 Invitation links expire after seven days.
 
 Accounts, sessions, membership, and cards are stored in a local SQLite database.
 Passwords are protected with scrypt, and browser sessions use HttpOnly SameSite cookies.
+After signing in, open the account menu from the top-right avatar to change your password or sign out.
+Changing a password requires the current password and signs the account out on other devices.
 
 ## Local development
 
@@ -53,7 +56,7 @@ npm test
 npm run build
 ```
 
-The test suite covers authentication, invitations, card persistence, assignments, editing, archiving, ordering, drag-and-drop interaction, and the card-only product boundary.
+The test suite covers authentication, secure password changes, invitations, card persistence, assignments, editing, archiving, ordering, drag-and-drop interaction, and the card-only product boundary.
 
 ## Self-hosting
 

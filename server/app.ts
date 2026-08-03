@@ -50,6 +50,16 @@ const registerSchema = accountSchema.extend({
   inviteCode: z.string().min(20).max(200),
 });
 
+const passwordChangeSchema = z
+  .object({
+    currentPassword: z.string().min(1).max(256),
+    newPassword: z.string().min(12).max(256),
+  })
+  .refine((input) => input.currentPassword !== input.newPassword, {
+    message: "New password must be different from the current password",
+    path: ["newPassword"],
+  });
+
 const cardStatus = z.enum(["backlog", "ready", "in_progress", "done"]);
 const cardSchema = z.object({
   title: z.string().trim().min(1).max(240),
@@ -152,6 +162,31 @@ export function createGrimoireServer(options: Options) {
     if (method === "POST" && url.pathname === "/api/auth/logout") {
       if (context.sessionToken) database.prepare("DELETE FROM sessions WHERE token_hash = ?").run(hashToken(context.sessionToken));
       clearSession(response);
+      json(response, 200, { ok: true });
+      return;
+    }
+
+    if (method === "POST" && url.pathname === "/api/account/password") {
+      const user = requireUser(context);
+      const input = passwordChangeSchema.parse(await readJson(request));
+      const stored = findUserById(database, user.id)!;
+      if (!(await verifyPassword(input.currentPassword, String(stored.password_hash)))) {
+        throw new HttpError(401, "Current password is incorrect");
+      }
+      const passwordHash = await hashPassword(input.newPassword);
+      database.exec("BEGIN IMMEDIATE");
+      try {
+        database.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(passwordHash, user.id);
+        if (context.sessionToken) {
+          database
+            .prepare("DELETE FROM sessions WHERE user_id = ? AND token_hash != ?")
+            .run(user.id, hashToken(context.sessionToken));
+        }
+        database.exec("COMMIT");
+      } catch (error) {
+        database.exec("ROLLBACK");
+        throw error;
+      }
       json(response, 200, { ok: true });
       return;
     }

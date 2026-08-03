@@ -1,5 +1,6 @@
 import { type DragEvent, type FormEvent, useMemo, useState } from "react";
 import { CARD_STATUSES, type BoardWorkspace, type Card, type CardStatus } from "../../shared/types";
+import { AccountDialog } from "./AccountDialog";
 import { CardDialog } from "./CardDialog";
 import { TeamDialog } from "./TeamDialog";
 
@@ -17,16 +18,18 @@ type Props = {
   onUpdate: (id: string, input: Record<string, unknown>) => Promise<void>;
   onArchive: (id: string) => Promise<void>;
   onCreateInvite: () => Promise<string>;
+  onChangePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   onLogout: () => Promise<void>;
 };
 
-export function Board({ board, busy, onCreate, onUpdate, onArchive, onCreateInvite, onLogout }: Props) {
+export function Board({ board, busy, onCreate, onUpdate, onArchive, onCreateInvite, onChangePassword, onLogout }: Props) {
   const [quickTitle, setQuickTitle] = useState("");
   const [addingTo, setAddingTo] = useState<CardStatus | null>(null);
   const [columnTitle, setColumnTitle] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [teamOpen, setTeamOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const selectedCard = board.cards.find((card) => card.id === selectedId) ?? null;
   const openCount = board.cards.filter((card) => card.status !== "done").length;
 
@@ -87,7 +90,7 @@ export function Board({ board, busy, onCreate, onUpdate, onArchive, onCreateInvi
             ))}
           </div>
           <button className="quiet-button" onClick={() => setTeamOpen(true)} type="button">team</button>
-          <button className="account-button" onClick={onLogout} title="Sign out" type="button">
+          <button aria-label={`Open account settings for ${board.currentUser.name}`} className="account-button" onClick={() => setAccountOpen(true)} title="Account settings" type="button">
             <span className="avatar current">{initials(board.currentUser.name)}</span>
             <span>{board.currentUser.name}</span>
           </button>
@@ -202,6 +205,14 @@ export function Board({ board, busy, onCreate, onUpdate, onArchive, onCreateInvi
           members={board.members}
           onClose={() => setTeamOpen(false)}
           onCreateInvite={onCreateInvite}
+        />
+      )}
+      {accountOpen && (
+        <AccountDialog
+          onChangePassword={onChangePassword}
+          onClose={() => setAccountOpen(false)}
+          onLogout={onLogout}
+          user={board.currentUser}
         />
       )}
       {busy && <div className="saving-indicator"><span className="connection-dot" />saving</div>}

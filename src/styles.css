@@ -368,7 +368,8 @@ textarea:hover { border-color: var(--border-bright); }
 }
 
 .card-dialog,
-.team-dialog {
+.team-dialog,
+.account-dialog {
   width: min(620px, 100%);
   max-height: min(840px, calc(100vh - 48px));
   padding: 22px;
@@ -379,7 +380,8 @@ textarea:hover { border-color: var(--border-bright); }
   box-shadow: 0 24px 80px rgb(0 0 0 / 45%);
 }
 
-.team-dialog { width: min(560px, 100%); }
+.team-dialog,
+.account-dialog { width: min(560px, 100%); }
 .dialog-header { justify-content: space-between; margin-bottom: 22px; }
 .dialog-header > div { display: grid; gap: 6px; }
 .dialog-header h2 { margin: 0; font-size: 18px; }
@@ -477,6 +479,53 @@ textarea:hover { border-color: var(--border-bright); }
 .invite-box p { margin: 6px 0 0; color: var(--muted); font-size: 8px; }
 .invite-link { grid-column: 1 / -1; gap: 8px; }
 
+.account-identity {
+  display: grid;
+  margin-bottom: 22px;
+  padding: 14px;
+  gap: 5px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+
+.account-identity strong { font-size: 11px; }
+.account-identity span { color: var(--muted); font-size: 9px; }
+
+.password-form {
+  display: grid;
+  padding-top: 20px;
+  gap: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.password-form label { display: grid; gap: 7px; color: var(--muted); font-size: 9px; }
+.password-form small { color: var(--faint); }
+.password-form .primary-button { justify-self: end; }
+
+.success-banner {
+  padding: 10px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid #465f3c;
+  border-radius: 6px;
+  font-size: 9px;
+}
+
+.account-footer {
+  display: flex;
+  min-height: 54px;
+  margin-top: 22px;
+  padding-top: 18px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--faint);
+  border-top: 1px solid var(--border);
+  font-size: 8px;
+  line-height: 1.6;
+}
+
 .saving-indicator,
 .global-error {
   position: fixed;
@@ -572,7 +621,9 @@ textarea:hover { border-color: var(--border-bright); }
   .kanban-column { min-height: calc(100vh - 145px); scroll-snap-align: start; }
   .modal-backdrop { padding: 0; align-items: end; }
   .card-dialog,
-  .team-dialog { width: 100%; max-height: 92vh; padding: 20px; border-radius: 12px 12px 0 0; }
+  .team-dialog,
+  .account-dialog { width: 100%; max-height: 92vh; padding: 20px; border-radius: 12px 12px 0 0; }
   .dialog-footer { align-items: flex-start; flex-direction: column; }
   .invite-box { grid-template-columns: 1fr; }
+  .account-footer { align-items: flex-start; flex-direction: column; }
 }

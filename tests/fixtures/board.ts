@@ -9,14 +9,14 @@ export function boardFixture(): BoardWorkspace {
     currentUser: {
       id: "00000000-0000-4000-8000-000000000010",
       name: "Donavyn",
-      email: "donavyn@example.com",
+      email: "owner@example.com",
       role: "owner",
     },
     members: [
       {
         id: "00000000-0000-4000-8000-000000000010",
         name: "Donavyn",
-        email: "donavyn@example.com",
+        email: "owner@example.com",
         role: "owner",
         projectRole: "owner",
       },
