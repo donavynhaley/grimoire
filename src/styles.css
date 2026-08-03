@@ -249,12 +249,16 @@ textarea:focus-visible {
 .quick-capture > .primary-button { grid-row: 1; }
 
 .capture-toolbar {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
   display: flex;
   min-width: 0;
-  grid-column: 1 / -1;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  animation: capture-tools-in 140ms ease-out;
 }
 
 .capture-fields {
@@ -302,7 +306,7 @@ textarea:focus-visible {
 
 .capture-picker {
   position: absolute;
-  top: calc(100% + 6px);
+  top: calc(100% + 39px);
   right: 94px;
   display: grid;
   width: min(390px, calc(100% - 94px));
@@ -312,6 +316,11 @@ textarea:focus-visible {
   border: 1px solid var(--border-bright);
   border-radius: 8px;
   box-shadow: 0 18px 48px rgb(0 0 0 / 48%);
+}
+
+@keyframes capture-tools-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .capture-picker > header {
@@ -1331,7 +1340,7 @@ textarea:hover { border-color: var(--border-bright); }
     grid-template-columns: repeat(3, 300px);
   }
   .board-main { overflow-x: auto; overflow-y: hidden; }
-  .board-intro { position: sticky; left: 0; width: calc(100vw - 48px); }
+  .board-intro { position: sticky; left: 0; width: calc(100vw - 48px); padding-bottom: 35px; }
   .work-filters { position: sticky; left: 0; width: calc(100vw - 48px); }
   .idea-layout { grid-template-columns: 1fr; }
   .shortlist-section { grid-row: auto; }
@@ -1383,6 +1392,7 @@ textarea:hover { border-color: var(--border-bright); }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .capture-toolbar { animation: none; }
   .self-filter-label,
   .self-filter .avatar { transition: none; }
 }
