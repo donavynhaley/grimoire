@@ -25,11 +25,12 @@ type Props = {
   onChangePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   onLogout: () => Promise<void>;
   onPromoteIdea: (id: string) => Promise<void>;
+  onRemoveMember: (id: string) => Promise<void>;
   onUpdateIdea: (id: string, input: { title?: string; description?: string; state?: IdeaState; position?: number }) => Promise<void>;
   onViewChange: (view: "work" | "ideas") => Promise<void>;
 };
 
-export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive, onCreateInvite, onCreateIdea, onChangePassword, onLogout, onPromoteIdea, onUpdateIdea, onViewChange }: Props) {
+export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive, onCreateInvite, onCreateIdea, onChangePassword, onLogout, onPromoteIdea, onRemoveMember, onUpdateIdea, onViewChange }: Props) {
   const [quickTitle, setQuickTitle] = useState("");
   const [addingTo, setAddingTo] = useState<CardStatus | null>(null);
   const [columnTitle, setColumnTitle] = useState("");
@@ -325,6 +326,7 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
           members={board.members}
           onClose={() => setTeamOpen(false)}
           onCreateInvite={onCreateInvite}
+          onRemoveMember={onRemoveMember}
         />
       )}
       {accountOpen && (

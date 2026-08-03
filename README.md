@@ -55,8 +55,9 @@ Ideas do not have assignees or work statuses because they are not work yet.
 
 The first person to open a new Grimoire installation creates the owner account.
 The first-run form prefills `owner@example.com` as the owner email, while still allowing it to be edited before setup.
-The owner can create one-use invitation links from the Team dialog.
-Invitation links expire after seven days.
+The owner can create single-use invitation links from the Team dialog.
+Only the newest unused invitation remains valid, and invitation links expire after seven days.
+The owner can also remove members from the Team dialog, which revokes their sessions and live connections and clears their card assignments without erasing their authorship history.
 
 Accounts, sessions, invitations, and project membership are stored in a local SQLite database.
 Cards and ideas are stored as Markdown files with validated YAML frontmatter.
@@ -94,7 +95,7 @@ npm test
 npm run build
 ```
 
-The test suite covers authentication, secure password changes, invitations, Markdown persistence, legacy migration, external edits, live project events, reversible archives and promotions, categories, card dependencies, assignments, filtering, idea ranking, ordering, and drag-and-drop interaction.
+The test suite covers authentication, secure password changes, single-use invitations, member removal, Markdown persistence, legacy migration, external edits, live project events, reversible archives and promotions, categories, card dependencies, assignments, filtering, idea ranking, ordering, and drag-and-drop interaction.
 
 ## Self-hosting
 

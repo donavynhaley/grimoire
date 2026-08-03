@@ -65,7 +65,7 @@ export function getBoard(database: DatabaseSync, cardStore: MarkdownCardStore, u
     project: { id: String(project.id), name: String(project.name) },
     currentUser: user,
     members,
-    cards: cards.map((card) => publicCard(card, members)),
+    cards: cards.map((card) => publicCard(database, card, members)),
   };
 }
 
@@ -112,7 +112,7 @@ export function createCard(
   };
   validateDependencyGraph([...cards, card]);
   cardStore.save(String(project.slug), card);
-  return publicCard(card, members);
+  return publicCard(database, card, members);
 }
 
 export function updateCard(
@@ -149,7 +149,7 @@ export function updateCard(
 
   if (!shouldMove) {
     cardStore.save(projectSlug, updated);
-    return publicCard(updated, members);
+    return publicCard(database, updated, members);
   }
 
   for (const status of CARD_STATUSES) {
@@ -164,7 +164,7 @@ export function updateCard(
       if (card.id === cardId) updated.position = position;
     });
   }
-  return publicCard(updated, members);
+  return publicCard(database, updated, members);
 }
 
 export function archiveCard(
@@ -242,7 +242,7 @@ export function restoreCard(
     if (card.position !== position) cardStore.save(projectSlug, { ...card, position });
     if (card.id === restored.id) restored.position = position;
   });
-  return publicCard(restored, membersForProject(database, projectId));
+  return publicCard(database, restored, membersForProject(database, projectId));
 }
 
 export function projectById(database: DatabaseSync, projectId: string): Row | undefined {
@@ -264,13 +264,48 @@ export function membersForProject(database: DatabaseSync, projectId: string): Me
   );
 }
 
-function publicCard(value: StoredCard, members: Member[]): Card {
+export type RemoveMemberResult = "removed" | "not_found" | "owner";
+
+export function removeProjectMember(
+  database: DatabaseSync,
+  cardStore: MarkdownCardStore,
+  projectId: string,
+  memberId: string,
+): RemoveMemberResult {
+  const project = projectById(database, projectId);
+  const member = membersForProject(database, projectId).find((candidate) => candidate.id === memberId);
+  if (!project || !member) return "not_found";
+  if (member.projectRole === "owner") return "owner";
+
+  const now = new Date().toISOString();
+  cardStore.list(String(project.slug)).forEach((card) => {
+    if (card.assignee?.toLowerCase() !== member.email.toLowerCase()) return;
+    cardStore.save(String(project.slug), { ...card, assignee: null, updatedAt: now });
+  });
+
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    database.prepare("DELETE FROM sessions WHERE user_id = ?").run(memberId);
+    const removed = database
+      .prepare("DELETE FROM project_members WHERE project_id = ? AND user_id = ? AND role != 'owner'")
+      .run(projectId, memberId);
+    if (Number(removed.changes) !== 1) throw new Error("Project membership changed while it was being removed");
+    database.exec("COMMIT");
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
+  return "removed";
+}
+
+function publicCard(database: DatabaseSync, value: StoredCard, members: Member[]): Card {
   const assignee = value.assignee
     ? members.find((member) => member.email.toLowerCase() === value.assignee?.toLowerCase())
     : null;
-  const creator = members.find((member) => member.email.toLowerCase() === value.createdBy.toLowerCase());
+  const currentCreator = members.find((member) => member.email.toLowerCase() === value.createdBy.toLowerCase());
+  const historicalCreator = currentCreator ?? findUserByEmail(database, value.createdBy);
   if (value.assignee && !assignee) throw new Error(`Card ${value.id} references a non-member assignee`);
-  if (!creator) throw new Error(`Card ${value.id} references a non-member creator`);
+  if (!historicalCreator) throw new Error(`Card ${value.id} references an unknown creator`);
   return {
     id: value.id,
     title: value.title,
@@ -281,8 +316,8 @@ function publicCard(value: StoredCard, members: Member[]): Card {
     position: value.position,
     assigneeId: assignee?.id ?? null,
     assigneeName: assignee?.name ?? null,
-    createdById: creator.id,
-    createdByName: creator.name,
+    createdById: String(historicalCreator.id),
+    createdByName: String(historicalCreator.name),
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
   };

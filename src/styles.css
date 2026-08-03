@@ -86,7 +86,14 @@ textarea:focus-visible {
   font-weight: 900;
 }
 
-.board-shell { min-height: 100vh; }
+.board-shell {
+  display: flex;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
 
 .board-topbar {
   position: sticky;
@@ -100,6 +107,7 @@ textarea:focus-visible {
   background: color-mix(in srgb, var(--background) 92%, transparent);
   border-bottom: 1px solid var(--border);
   backdrop-filter: blur(18px);
+  flex: 0 0 66px;
 }
 
 .brand-lockup,
@@ -200,12 +208,21 @@ textarea:focus-visible {
 
 .quiet-button:hover { color: var(--text); border-color: var(--border-bright); }
 
-.board-main { width: 100%; padding: 30px 24px 38px; }
+.board-main {
+  display: flex;
+  width: 100%;
+  min-height: 0;
+  padding: 24px 24px 18px;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
 
 .board-intro {
   display: flex;
   max-width: 1600px;
-  margin: 0 auto 22px;
+  width: 100%;
+  margin: 0 auto 14px;
   align-items: start;
   justify-content: space-between;
   gap: 24px;
@@ -258,9 +275,10 @@ textarea:hover { border-color: var(--border-bright); }
 
 .work-filters {
   display: flex;
+  width: 100%;
   max-width: 1600px;
-  min-height: 46px;
-  margin: -8px auto 14px;
+  min-height: 38px;
+  margin: 0 auto 10px;
   align-items: center;
   gap: 9px;
   flex-wrap: wrap;
@@ -333,17 +351,22 @@ textarea:hover { border-color: var(--border-bright); }
 
 .kanban {
   display: grid;
+  width: 100%;
   max-width: 1600px;
-  min-height: calc(100vh - 190px);
+  min-height: 0;
   margin: 0 auto;
+  flex: 1;
   grid-template-columns: repeat(4, minmax(230px, 1fr));
   gap: 10px;
+  overflow: hidden;
 }
 
 .ideas-main {
   width: 100%;
-  min-height: calc(100vh - 66px);
+  min-height: 0;
   padding: 30px 24px 48px;
+  flex: 1;
+  overflow-y: auto;
 }
 
 .ideas-intro {
@@ -437,7 +460,8 @@ textarea:hover { border-color: var(--border-bright); }
 .kanban-column {
   display: flex;
   min-width: 0;
-  min-height: 480px;
+  min-height: 0;
+  height: 100%;
   padding: 12px;
   flex-direction: column;
   background: color-mix(in srgb, var(--surface) 78%, var(--background));
@@ -481,7 +505,17 @@ textarea:hover { border-color: var(--border-bright); }
   font-size: 9px;
 }
 
-.card-list { display: grid; padding: 10px 0; gap: 8px; align-content: start; }
+.card-list {
+  display: grid;
+  min-height: 0;
+  padding: 10px 3px 10px 0;
+  align-content: start;
+  flex: 1;
+  gap: 8px;
+  grid-auto-rows: max-content;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
 
 .board-card {
   --category-color: var(--border-bright);
@@ -786,10 +820,26 @@ textarea:hover { border-color: var(--border-bright); }
 
 .team-list { display: grid; }
 .team-member { min-height: 58px; gap: 11px; border-top: 1px solid var(--border); }
-.team-member > div { display: grid; flex: 1; gap: 4px; }
+.team-member-copy { display: grid; min-width: 0; flex: 1; gap: 4px; }
 .team-member strong { font-size: 10px; }
-.team-member > div span { color: var(--muted); font-size: 8px; }
+.team-member-copy span { overflow: hidden; color: var(--muted); font-size: 8px; text-overflow: ellipsis; }
 .member-role { color: var(--faint); font-size: 8px; }
+.member-actions { display: flex; align-items: center; gap: 7px; color: var(--faint); font-size: 8px; }
+.member-actions button {
+  min-height: 26px;
+  padding: 0 7px;
+  color: var(--faint);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  font-size: 8px;
+  cursor: pointer;
+}
+.member-actions button:hover { color: var(--text); background: var(--surface-soft); border-color: var(--border); }
+.member-actions button.danger-text:hover,
+.member-remove:hover { color: var(--red); }
+.member-actions button:disabled { opacity: 0.45; cursor: not-allowed; }
+.team-error { margin-top: 12px; }
 
 .invite-box {
   display: grid;
@@ -954,10 +1004,10 @@ textarea:hover { border-color: var(--border-bright); }
   .kanban {
     width: max-content;
     max-width: none;
-    min-height: calc(100vh - 190px);
+    min-height: 0;
     grid-template-columns: repeat(4, 280px);
   }
-  .board-main { overflow-x: auto; }
+  .board-main { overflow-x: auto; overflow-y: hidden; }
   .board-intro { position: sticky; left: 0; width: calc(100vw - 48px); }
   .work-filters { position: sticky; left: 0; width: calc(100vw - 48px); }
   .idea-layout { grid-template-columns: 1fr; }
@@ -967,21 +1017,21 @@ textarea:hover { border-color: var(--border-bright); }
 }
 
 @media (max-width: 620px) {
-  .board-topbar { min-height: 58px; padding: 0 14px; }
+  .board-topbar { min-height: 58px; padding: 0 14px; flex-basis: 58px; }
   .board-project { justify-items: start; padding-left: 12px; }
   .board-project .eyebrow { display: none; }
   .board-project h1 { font-size: 11px; }
   .workspace-tabs button { padding: 0 6px; }
   .account-button > span:last-child { display: none; }
   .quiet-button { padding: 0 9px; }
-  .board-main { padding: 20px 14px 28px; scroll-snap-type: x proximity; }
+  .board-main { padding: 16px 14px 14px; scroll-snap-type: x proximity; }
   .board-intro { width: calc(100vw - 28px); margin-bottom: 17px; align-items: stretch; flex-direction: column; gap: 14px; }
   .board-intro > div { display: none; }
   .workspace-capture { width: 100%; }
   .work-filters { width: calc(100vw - 28px); margin-top: 0; }
   .card-search { width: 100%; order: -1; }
   .kanban { grid-template-columns: repeat(4, calc(100vw - 48px)); gap: 9px; }
-  .kanban-column { min-height: calc(100vh - 145px); scroll-snap-align: start; }
+  .kanban-column { min-height: 0; height: 100%; scroll-snap-align: start; }
   .modal-backdrop { padding: 0; align-items: end; }
   .card-dialog,
   .team-dialog,

@@ -212,6 +212,8 @@ export function App() {
     return `${location.origin}${location.pathname}?invite=${encodeURIComponent(result.code)}`;
   };
 
+  const removeMember = (id: string) => perform(() => mutate(`/api/members/${id}`, "DELETE"));
+
   const changePassword = async (currentPassword: string, newPassword: string) => {
     await mutate("/api/account/password", "POST", { currentPassword, newPassword });
   };
@@ -253,6 +255,7 @@ export function App() {
         onCreateIdea={createIdea}
         onLogout={logout}
         onPromoteIdea={promoteIdea}
+        onRemoveMember={removeMember}
         onUpdate={updateCard}
         onUpdateIdea={updateIdea}
         onViewChange={changeView}

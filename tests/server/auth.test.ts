@@ -70,10 +70,14 @@ describe("authentication", () => {
     expect(newLogin.response.status).toBe(200);
   });
 
-  it("allows an owner to invite a collaborator", async () => {
+  it("allows an owner to issue exactly one active single-use invitation", async () => {
     const server = await startTestServer();
     await bootstrap(server);
 
+    const supersededInvite = await server.request<{ code: string }>("/api/invites", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
     const invite = await server.request<{ code: string }>("/api/invites", {
       method: "POST",
       body: JSON.stringify({}),
@@ -82,6 +86,17 @@ describe("authentication", () => {
     expect(invite.body.code.length).toBeGreaterThanOrEqual(20);
 
     await server.request("/api/auth/logout", { method: "POST" });
+    const superseded = await server.request("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({
+        inviteCode: supersededInvite.body.code,
+        name: "Kamryn",
+        email: "kamryn@example.com",
+        password: "one more secure wizard password",
+      }),
+    });
+    expect(superseded.response.status).toBe(409);
+
     const registration = await server.request<{ user: { role: string } }>("/api/auth/register", {
       method: "POST",
       body: JSON.stringify({
@@ -104,5 +119,69 @@ describe("authentication", () => {
       }),
     });
     expect(reused.response.status).toBe(409);
+  });
+
+  it("lets only the owner remove a member and immediately revokes their access", async () => {
+    const server = await startTestServer();
+    const owner = await bootstrap(server);
+    const invite = await server.request<{ code: string }>("/api/invites", { method: "POST" });
+    await server.request("/api/auth/logout", { method: "POST" });
+
+    const registration = await server.request<{ user: { id: string } }>("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({
+        inviteCode: invite.body.code,
+        name: "Frankie",
+        email: "frankie@example.com",
+        password: "another secure wizard password",
+      }),
+    });
+    const memberId = registration.body.user.id;
+    const memberBoard = await server.request<{ members: Array<{ id: string; role: string }> }>("/api/board");
+    const ownerId = memberBoard.body.members.find((member) => member.role === "owner")!.id;
+
+    const forbidden = await server.request(`/api/members/${ownerId}`, { method: "DELETE" });
+    expect(forbidden.response.status).toBe(403);
+
+    const card = await server.request<{ card: { id: string } }>("/api/cards", {
+      method: "POST",
+      body: JSON.stringify({ title: "Write Frankie's spell notes", assigneeId: memberId }),
+    });
+    expect(card.response.status).toBe(201);
+
+    const memberEvents = await server.events("removed-member");
+    const eventReader = memberEvents.body!.getReader();
+    expect(new TextDecoder().decode((await eventReader.read()).value)).toContain("connected");
+
+    const ownerLogin = await server.request("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email: ownerAccount.email, password: ownerAccount.password }),
+    });
+    expect(ownerLogin.response.status).toBe(200);
+
+    const cannotRemoveOwner = await server.request(`/api/members/${ownerId}`, { method: "DELETE" });
+    expect(cannotRemoveOwner.response.status).toBe(409);
+
+    const removed = await server.request(`/api/members/${memberId}`, { method: "DELETE" });
+    expect(removed.response.status).toBe(200);
+    expect((await eventReader.read()).done).toBe(true);
+
+    const ownerBoard = await server.request<{
+      cards: Array<{ id: string; assigneeId: string | null; createdByName: string }>;
+      members: Array<{ id: string }>;
+    }>("/api/board");
+    expect(ownerBoard.body.members.some((member) => member.id === memberId)).toBe(false);
+    expect(ownerBoard.body.cards.find((candidate) => candidate.id === card.body.card.id)).toMatchObject({
+      assigneeId: null,
+      createdByName: "Frankie",
+    });
+
+    await server.request("/api/auth/logout", { method: "POST" });
+    const removedLogin = await server.request("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email: "frankie@example.com", password: "another secure wizard password" }),
+    });
+    expect(removedLogin.response.status).toBe(401);
+    expect(owner.body.user.role).toBe("owner");
   });
 });

@@ -27,6 +27,10 @@ The configured project directory stores all work card and idea domain data:
 
 This boundary keeps authentication private while allowing project work to remain readable, diffable, and portable.
 
+Only the newest unused invitation created by the owner remains valid, and a successful registration consumes it atomically.
+Removing a member deletes their project membership, active sessions, and live event streams and clears their assignments from the Markdown cards.
+Their user identity remains in SQLite so cards they created continue to show accurate authorship history.
+
 ## Directory layout
 
 `GRIMOIRE_CARDS_DIRECTORY` selects the root directory.

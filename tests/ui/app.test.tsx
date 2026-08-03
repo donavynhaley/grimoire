@@ -427,6 +427,47 @@ describe("Grimoire board", () => {
     );
   });
 
+  it("lets the owner remove a member from the team dialog", async () => {
+    const initial = boardFixture();
+    const removedMember = initial.members[1];
+    const updated = {
+      ...initial,
+      members: initial.members.filter((member) => member.id !== removedMember.id),
+      cards: initial.cards.map((card) => card.assigneeId === removedMember.id
+        ? { ...card, assigneeId: null, assigneeName: null }
+        : card),
+    };
+    const fetchMock = authenticatedFetch(initial)
+      .mockImplementationOnce(() => response({ ok: true }))
+      .mockImplementationOnce(() => response(updated));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    await userEvent.click(await screen.findByRole("button", { name: "team" }));
+
+    expect(screen.queryByRole("button", { name: `Remove ${initial.currentUser.name}` })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: `Remove ${removedMember.name}` }));
+    await userEvent.click(screen.getByRole("button", { name: `Confirm remove ${removedMember.name}` }));
+
+    await waitFor(() => expect(screen.queryByText(removedMember.email)).not.toBeInTheDocument());
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/members/${removedMember.id}`,
+      expect.objectContaining({ method: "DELETE" }),
+    );
+  });
+
+  it("explains that only the newest invite works for one person", async () => {
+    const initial = boardFixture();
+    const fetchMock = authenticatedFetch(initial);
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    await userEvent.click(await screen.findByRole("button", { name: "team" }));
+
+    expect(screen.getByText(/one person can use this link/i)).toBeInTheDocument();
+    expect(screen.getByText(/creating another revokes this one/i)).toBeInTheDocument();
+  });
+
   it("keeps ideas in a separate ranked garden", async () => {
     const initial = boardFixture();
     const ideaWorkspace = ideaFixture();

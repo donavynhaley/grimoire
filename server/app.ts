@@ -14,6 +14,7 @@ import {
   getBoard,
   projectIdForUser,
   publicUser,
+  removeProjectMember,
   restoreCard,
   updateCard,
   userCount,
@@ -48,6 +49,7 @@ type EventClient = {
   projectId: string;
   response: ServerResponse;
   keepAlive: ReturnType<typeof setInterval>;
+  userId: string;
 };
 
 const accountSchema = z.object({
@@ -186,7 +188,8 @@ export function createGrimoireServer(options: Options) {
       const passwordMatches = stored
         ? await verifyPassword(input.password, String(stored.password_hash))
         : await verifyPassword(input.password, await hashPassword("invalid password placeholder"));
-      if (!stored || !passwordMatches) throw new HttpError(401, "Email or password is incorrect");
+      const projectId = stored ? projectIdForUser(database, String(stored.id)) : null;
+      if (!stored || !passwordMatches || !projectId) throw new HttpError(401, "Email or password is incorrect");
       const user = publicUser(stored);
       setSession(response, user.id);
       json(response, 200, { user });
@@ -270,10 +273,33 @@ export function createGrimoireServer(options: Options) {
       const code = createOpaqueToken();
       const now = new Date();
       const expires = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-      database
-        .prepare("INSERT INTO invites (id, code_hash, created_by, expires_at, used_by, created_at) VALUES (?, ?, ?, ?, NULL, ?)")
-        .run(randomUUID(), hashToken(code), user.id, expires.toISOString(), now.toISOString());
+      database.exec("BEGIN IMMEDIATE");
+      try {
+        database.prepare("DELETE FROM invites WHERE created_by = ? AND used_by IS NULL").run(user.id);
+        database
+          .prepare("INSERT INTO invites (id, code_hash, created_by, expires_at, used_by, created_at) VALUES (?, ?, ?, ?, NULL, ?)")
+          .run(randomUUID(), hashToken(code), user.id, expires.toISOString(), now.toISOString());
+        database.exec("COMMIT");
+      } catch (error) {
+        database.exec("ROLLBACK");
+        throw error;
+      }
       json(response, 201, { code, expiresAt: expires.toISOString() });
+      return;
+    }
+
+    const memberMatch = url.pathname.match(/^\/api\/members\/([^/]+)$/);
+    if (method === "DELETE" && memberMatch) {
+      const user = requireUser(context);
+      if (user.role !== "owner") throw new HttpError(403, "Only the project owner can remove members");
+      await readJson(request);
+      const projectId = requireProjectId(user.id);
+      const result = removeProjectMember(database, cardStore, projectId, memberMatch[1]);
+      if (result === "owner") throw new HttpError(409, "The project owner cannot be removed");
+      if (result === "not_found") throw new HttpError(404, "Member not found");
+      disconnectUserEvents(memberMatch[1]);
+      json(response, 200, { ok: true });
+      broadcast(projectId, "work", requestClientId(request));
       return;
     }
 
@@ -293,6 +319,7 @@ export function createGrimoireServer(options: Options) {
         projectId,
         response,
         keepAlive: setInterval(() => response.write(": keepalive\n\n"), 25_000),
+        userId: user.id,
       };
       eventClients.add(client);
       const remove = () => {
@@ -477,6 +504,15 @@ export function createGrimoireServer(options: Options) {
     for (const client of eventClients) {
       if (client.projectId !== projectId || (excludedClientId && client.clientId === excludedClientId)) continue;
       client.response.write(message);
+    }
+  }
+
+  function disconnectUserEvents(userId: string): void {
+    for (const client of eventClients) {
+      if (client.userId !== userId) continue;
+      clearInterval(client.keepAlive);
+      eventClients.delete(client);
+      client.response.end();
     }
   }
 
