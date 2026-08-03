@@ -458,6 +458,286 @@ function unlockDependents(database: DatabaseSync, projectId: string, actorId: st
   }
 }
 
+type AssetInput = {
+  name: string;
+  type?: string;
+  outcomeId?: string | null;
+  ownerId?: string | null;
+  sourceUrl?: string;
+  notes?: string;
+  stageLabels: string[];
+};
+
+export function createAsset(
+  database: DatabaseSync,
+  projectId: string,
+  actorId: string,
+  input: AssetInput,
+): Asset | null {
+  if (input.outcomeId && !getOutcome(database, projectId, input.outcomeId)) return null;
+  const id = randomUUID();
+  const now = new Date().toISOString();
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    database
+      .prepare(
+        `INSERT INTO assets (
+          id, project_id, outcome_id, name, type, status, owner_id, source_url, notes, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        id,
+        projectId,
+        input.outcomeId ?? null,
+        input.name,
+        input.type ?? "prop",
+        input.ownerId ?? null,
+        input.sourceUrl ?? "",
+        input.notes ?? "",
+        now,
+        now,
+      );
+    const insertStage = database.prepare(
+      "INSERT INTO asset_stages (id, asset_id, label, status, owner_id, position, handoff_note) VALUES (?, ?, ?, ?, ?, ?, '')",
+    );
+    input.stageLabels.forEach((label, position) => {
+      insertStage.run(
+        randomUUID(),
+        id,
+        label,
+        position === 0 ? "ready" : "waiting",
+        position === 0 ? (input.ownerId ?? null) : null,
+        position,
+      );
+    });
+    recordActivity(database, projectId, actorId, "created", "asset", id, input.name);
+    database.exec("COMMIT");
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
+  return getAsset(database, projectId, id);
+}
+
+export function getAsset(database: DatabaseSync, projectId: string, id: string): Asset | null {
+  const value = row(
+    database,
+    `SELECT assets.*, users.name AS owner_name FROM assets
+     LEFT JOIN users ON users.id = assets.owner_id WHERE assets.id = ? AND assets.project_id = ?`,
+    id,
+    projectId,
+  );
+  if (!value) return null;
+  return {
+    id: String(value.id),
+    outcomeId: value.outcome_id ? String(value.outcome_id) : null,
+    name: String(value.name),
+    type: String(value.type),
+    status: String(value.status),
+    ownerId: value.owner_id ? String(value.owner_id) : null,
+    ownerName: value.owner_name ? String(value.owner_name) : null,
+    sourceUrl: String(value.source_url),
+    notes: String(value.notes),
+    stages: rows(
+      database,
+      `SELECT asset_stages.*, users.name AS owner_name FROM asset_stages
+       LEFT JOIN users ON users.id = asset_stages.owner_id
+       WHERE asset_stages.asset_id = ? ORDER BY asset_stages.position`,
+      id,
+    ).map((stage) => ({
+      id: String(stage.id),
+      label: String(stage.label),
+      status: stage.status as Asset["stages"][number]["status"],
+      ownerId: stage.owner_id ? String(stage.owner_id) : null,
+      ownerName: stage.owner_name ? String(stage.owner_name) : null,
+      position: Number(stage.position),
+      handoffNote: String(stage.handoff_note),
+    })),
+    createdAt: String(value.created_at),
+    updatedAt: String(value.updated_at),
+  };
+}
+
+export function updateAssetStage(
+  database: DatabaseSync,
+  projectId: string,
+  actorId: string,
+  stageId: string,
+  input: {
+    status?: Asset["stages"][number]["status"];
+    ownerId?: string | null;
+    handoffNote?: string;
+  },
+): { stage: Asset["stages"][number]; nextStage: Asset["stages"][number] | null } | null {
+  const current = row(
+    database,
+    `SELECT asset_stages.*, assets.project_id, assets.name AS asset_name FROM asset_stages
+     JOIN assets ON assets.id = asset_stages.asset_id
+     WHERE asset_stages.id = ? AND assets.project_id = ?`,
+    stageId,
+    projectId,
+  );
+  if (!current) return null;
+  const now = new Date().toISOString();
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    database
+      .prepare("UPDATE asset_stages SET status = ?, owner_id = ?, handoff_note = ? WHERE id = ?")
+      .run(
+        input.status ?? String(current.status),
+        input.ownerId === undefined ? current.owner_id : input.ownerId,
+        input.handoffNote ?? String(current.handoff_note),
+        stageId,
+      );
+    database.prepare("UPDATE assets SET updated_at = ? WHERE id = ?").run(now, String(current.asset_id));
+    if (input.status === "done") {
+      const next = row(
+        database,
+        "SELECT * FROM asset_stages WHERE asset_id = ? AND position > ? ORDER BY position LIMIT 1",
+        String(current.asset_id),
+        Number(current.position),
+      );
+      if (next && next.status === "waiting") {
+        database.prepare("UPDATE asset_stages SET status = 'ready' WHERE id = ?").run(String(next.id));
+      }
+    }
+    recordActivity(
+      database,
+      projectId,
+      actorId,
+      input.status === "done" ? "handed off" : "updated",
+      "asset",
+      String(current.asset_id),
+      `${String(current.asset_name)}: ${String(current.label)}`,
+    );
+    database.exec("COMMIT");
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
+  const asset = getAsset(database, projectId, String(current.asset_id))!;
+  const stage = asset.stages.find((value) => value.id === stageId)!;
+  const nextStage = asset.stages.find((value) => value.position > stage.position) ?? null;
+  return { stage, nextStage };
+}
+
+export function createBuild(
+  database: DatabaseSync,
+  projectId: string,
+  actorId: string,
+  input: { name: string; summary?: string; knownIssues?: string; builtAt?: string },
+): Build {
+  const id = randomUUID();
+  const builtAt = input.builtAt ?? new Date().toISOString();
+  database
+    .prepare(
+      "INSERT INTO builds (id, project_id, name, summary, known_issues, created_by, built_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    )
+    .run(id, projectId, input.name, input.summary ?? "", input.knownIssues ?? "", actorId, builtAt);
+  recordActivity(database, projectId, actorId, "recorded", "build", id, input.name);
+  const actor = publicUser(findUserById(database, actorId)!);
+  return {
+    id,
+    name: input.name,
+    summary: input.summary ?? "",
+    knownIssues: input.knownIssues ?? "",
+    creatorName: actor.name,
+    builtAt,
+  };
+}
+
+export function createPlaytest(
+  database: DatabaseSync,
+  projectId: string,
+  actorId: string,
+  input: {
+    title: string;
+    outcomeId?: string | null;
+    buildId?: string | null;
+    observations?: string;
+    decision?: Playtest["decision"];
+    playedAt?: string;
+  },
+): Playtest | null {
+  if (input.outcomeId && !getOutcome(database, projectId, input.outcomeId)) return null;
+  if (
+    input.buildId &&
+    !row(database, "SELECT id FROM builds WHERE id = ? AND project_id = ?", input.buildId, projectId)
+  ) {
+    return null;
+  }
+  const id = randomUUID();
+  const playedAt = input.playedAt ?? new Date().toISOString();
+  const decision = input.decision ?? "undecided";
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    database
+      .prepare(
+        `INSERT INTO playtests (
+          id, project_id, outcome_id, build_id, title, observations, decision, created_by, played_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        id,
+        projectId,
+        input.outcomeId ?? null,
+        input.buildId ?? null,
+        input.title,
+        input.observations ?? "",
+        decision,
+        actorId,
+        playedAt,
+      );
+    if (input.outcomeId && decision !== "undecided") {
+      const status = decision === "keep" ? "validated" : decision;
+      database
+        .prepare("UPDATE outcomes SET status = ?, updated_at = ? WHERE id = ?")
+        .run(status, new Date().toISOString(), input.outcomeId);
+    }
+    recordActivity(database, projectId, actorId, "recorded", "playtest", id, input.title);
+    database.exec("COMMIT");
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
+  const actor = publicUser(findUserById(database, actorId)!);
+  return {
+    id,
+    outcomeId: input.outcomeId ?? null,
+    buildId: input.buildId ?? null,
+    title: input.title,
+    observations: input.observations ?? "",
+    decision,
+    creatorName: actor.name,
+    playedAt,
+  };
+}
+
+export function createComment(
+  database: DatabaseSync,
+  projectId: string,
+  actorId: string,
+  input: { entityType: string; entityId: string; body: string },
+): Comment {
+  const id = randomUUID();
+  const createdAt = new Date().toISOString();
+  database
+    .prepare(
+      "INSERT INTO comments (id, project_id, entity_type, entity_id, body, author_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    )
+    .run(id, projectId, input.entityType, input.entityId, input.body, actorId, createdAt);
+  recordActivity(database, projectId, actorId, "commented", "comment", id, input.body.slice(0, 160));
+  const actor = publicUser(findUserById(database, actorId)!);
+  return {
+    id,
+    entityType: input.entityType,
+    entityId: input.entityId,
+    body: input.body,
+    authorName: actor.name,
+    createdAt,
+  };
+}
+
 export function getIdea(database: DatabaseSync, id: string): Idea | null {
   const value = row(
     database,

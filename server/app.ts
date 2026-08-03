@@ -6,7 +6,11 @@ import { z, ZodError } from "zod";
 import { createWizardSimulatorProject, openDatabase } from "./database";
 import {
   createIdea,
+  createAsset,
+  createBuild,
+  createComment,
   createOutcome,
+  createPlaytest,
   createWorkItem,
   findUserByEmail,
   findUserById,
@@ -16,6 +20,7 @@ import {
   promoteIdea,
   publicUser,
   updateIdea,
+  updateAssetStage,
   updateMilestoneCondition,
   updateOutcome,
   updateProject,
@@ -112,6 +117,46 @@ const workSchema = z.object({
   ownerId: z.string().uuid().nullable().optional(),
   description: z.string().trim().max(10_000).optional(),
   dependencyIds: z.array(z.string().uuid()).max(20).optional(),
+});
+
+const assetSchema = z.object({
+  name: z.string().trim().min(1).max(240),
+  type: z.string().trim().min(1).max(120).optional(),
+  outcomeId: z.string().uuid().nullable().optional(),
+  ownerId: z.string().uuid().nullable().optional(),
+  sourceUrl: z.string().trim().max(2_000).optional(),
+  notes: z.string().trim().max(10_000).optional(),
+  stageLabels: z.array(z.string().trim().min(1).max(120)).min(1).max(20),
+});
+
+const assetStageSchema = z
+  .object({
+    status: z.enum(["waiting", "ready", "doing", "review", "done"]),
+    ownerId: z.string().uuid().nullable(),
+    handoffNote: z.string().trim().max(10_000),
+  })
+  .partial();
+
+const buildSchema = z.object({
+  name: z.string().trim().min(1).max(240),
+  summary: z.string().trim().max(10_000).optional(),
+  knownIssues: z.string().trim().max(10_000).optional(),
+  builtAt: z.string().datetime().optional(),
+});
+
+const playtestSchema = z.object({
+  title: z.string().trim().min(1).max(240),
+  outcomeId: z.string().uuid().nullable().optional(),
+  buildId: z.string().uuid().nullable().optional(),
+  observations: z.string().trim().max(20_000).optional(),
+  decision: z.enum(["undecided", "keep", "revise", "cut"]).optional(),
+  playedAt: z.string().datetime().optional(),
+});
+
+const commentSchema = z.object({
+  entityType: z.enum(["idea", "outcome", "work", "asset", "build", "playtest"]),
+  entityId: z.string().uuid(),
+  body: z.string().trim().min(1).max(10_000),
 });
 
 export function createGrimoireServer(options: Options) {
@@ -369,6 +414,56 @@ export function createGrimoireServer(options: Options) {
       const workItem = updateWorkItem(database, projectId, user.id, workMatch[1], input);
       if (!workItem) throw new HttpError(404, "Work item not found");
       json(response, 200, { workItem });
+      return;
+    }
+
+    if (method === "POST" && url.pathname === "/api/assets") {
+      const user = requireUser(context);
+      const projectId = requireProjectId(user.id);
+      const asset = createAsset(database, projectId, user.id, assetSchema.parse(await readJson(request)));
+      if (!asset) throw new HttpError(400, "Asset references invalid project data");
+      json(response, 201, { asset });
+      return;
+    }
+
+    const assetStageMatch = url.pathname.match(/^\/api\/asset-stages\/([^/]+)$/);
+    if (method === "PATCH" && assetStageMatch) {
+      const user = requireUser(context);
+      const projectId = requireProjectId(user.id);
+      const result = updateAssetStage(
+        database,
+        projectId,
+        user.id,
+        assetStageMatch[1],
+        assetStageSchema.parse(await readJson(request)),
+      );
+      if (!result) throw new HttpError(404, "Asset stage not found");
+      json(response, 200, result);
+      return;
+    }
+
+    if (method === "POST" && url.pathname === "/api/builds") {
+      const user = requireUser(context);
+      const projectId = requireProjectId(user.id);
+      const build = createBuild(database, projectId, user.id, buildSchema.parse(await readJson(request)));
+      json(response, 201, { build });
+      return;
+    }
+
+    if (method === "POST" && url.pathname === "/api/playtests") {
+      const user = requireUser(context);
+      const projectId = requireProjectId(user.id);
+      const playtest = createPlaytest(database, projectId, user.id, playtestSchema.parse(await readJson(request)));
+      if (!playtest) throw new HttpError(400, "Playtest references invalid project data");
+      json(response, 201, { playtest });
+      return;
+    }
+
+    if (method === "POST" && url.pathname === "/api/comments") {
+      const user = requireUser(context);
+      const projectId = requireProjectId(user.id);
+      const comment = createComment(database, projectId, user.id, commentSchema.parse(await readJson(request)));
+      json(response, 201, { comment });
       return;
     }
 
