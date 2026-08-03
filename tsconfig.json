@@ -14,9 +14,9 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "types": ["node", "vite/client", "vitest/globals"]
   },
-  "include": ["src"],
+  "include": ["src", "server", "shared", "tests", "vite.config.ts", "vitest.config.ts"],
   "references": []
 }
-
