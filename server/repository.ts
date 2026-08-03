@@ -176,11 +176,11 @@ export function archiveCard(
   return true;
 }
 
-function projectById(database: DatabaseSync, projectId: string): Row | undefined {
+export function projectById(database: DatabaseSync, projectId: string): Row | undefined {
   return row(database, "SELECT id, name, slug FROM projects WHERE id = ?", projectId);
 }
 
-function membersForProject(database: DatabaseSync, projectId: string): Member[] {
+export function membersForProject(database: DatabaseSync, projectId: string): Member[] {
   return rows(
     database,
     `SELECT users.id, users.name, users.email, users.role, project_members.role AS project_role

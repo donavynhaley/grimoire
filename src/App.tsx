@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
-import type { BoardWorkspace, CardStatus, SessionState, User } from "../shared/types";
-import { ApiError, board as loadBoard, mutate, request, session } from "./api/client";
+import type { BoardWorkspace, CardStatus, IdeaState, IdeaWorkspace, SessionState, User } from "../shared/types";
+import { ApiError, board as loadBoard, ideas as loadIdeas, mutate, request, session } from "./api/client";
 import { AuthScreen } from "./components/AuthScreen";
 import { Board } from "./components/Board";
 
 export function App() {
   const [sessionState, setSessionState] = useState<SessionState | null>(null);
   const [board, setBoard] = useState<BoardWorkspace | null>(null);
+  const [ideas, setIdeas] = useState<IdeaWorkspace | null>(null);
+  const [view, setView] = useState<"work" | "ideas">(
+    new URLSearchParams(location.search).get("view") === "ideas" ? "ideas" : "work",
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -23,8 +27,14 @@ export function App() {
         if (!alive) return;
         setSessionState(value);
         if (value.status === "authenticated") {
-          const data = await loadBoard();
-          if (alive) setBoard(data);
+          const [boardData, ideaData] = await Promise.all([
+            loadBoard(),
+            view === "ideas" ? loadIdeas() : Promise.resolve(null),
+          ]);
+          if (alive) {
+            setBoard(boardData);
+            setIdeas(ideaData);
+          }
         }
       })
       .catch((value) => alive && setError(value instanceof Error ? value.message : "Could not reach Grimoire"));
@@ -65,6 +75,43 @@ export function App() {
 
   const archiveCard = (id: string) => perform(() => mutate(`/api/cards/${id}`, "DELETE"));
 
+  const changeView = async (nextView: "work" | "ideas") => {
+    setView(nextView);
+    const params = new URLSearchParams(location.search);
+    if (nextView === "ideas") params.set("view", "ideas");
+    else params.delete("view");
+    history.replaceState({}, "", `${location.pathname}${params.size ? `?${params}` : ""}`);
+    if (nextView === "ideas" && !ideas) {
+      try {
+        setIdeas(await loadIdeas());
+      } catch (value) {
+        setError(value instanceof ApiError ? value.message : "The idea garden could not be opened");
+      }
+    }
+  };
+
+  const performIdea = async (change: () => Promise<unknown>) => {
+    setBusy(true);
+    setError("");
+    try {
+      await change();
+      setIdeas(await loadIdeas());
+    } catch (value) {
+      setError(value instanceof ApiError ? value.message : "The idea could not be saved");
+      throw value;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const createIdea = (input: { title: string }) => performIdea(() => mutate("/api/ideas", "POST", input));
+  const updateIdea = (id: string, input: { title?: string; description?: string; state?: IdeaState; position?: number }) =>
+    performIdea(() => mutate(`/api/ideas/${id}`, "PATCH", input));
+  const promoteIdea = async (id: string) => {
+    await performIdea(() => mutate(`/api/ideas/${id}/promote`, "POST"));
+    await refreshBoard();
+  };
+
   const createInvite = async () => {
     const result = await mutate<{ code: string }>("/api/invites", "POST");
     return `${location.origin}${location.pathname}?invite=${encodeURIComponent(result.code)}`;
@@ -77,6 +124,7 @@ export function App() {
   const logout = async () => {
     await request("/api/auth/logout", { method: "POST", body: JSON.stringify({}) });
     setBoard(null);
+    setIdeas(null);
     setSessionState({ status: "anonymous" });
   };
 
@@ -101,12 +149,18 @@ export function App() {
       <Board
         board={board}
         busy={busy}
+        ideas={ideas}
         onChangePassword={changePassword}
         onArchive={archiveCard}
         onCreate={createCard}
         onCreateInvite={createInvite}
+        onCreateIdea={createIdea}
         onLogout={logout}
+        onPromoteIdea={promoteIdea}
         onUpdate={updateCard}
+        onUpdateIdea={updateIdea}
+        onViewChange={changeView}
+        view={view}
       />
     </>
   );

@@ -18,6 +18,8 @@ import {
 } from "./repository";
 import { createOpaqueToken, hashPassword, hashToken, verifyPassword } from "./security";
 import { MarkdownCardStore } from "./markdown-cards";
+import { createIdea, getIdeas, promoteIdea, updateIdea } from "./ideas-repository";
+import { MarkdownIdeaStore } from "./markdown-ideas";
 
 const SESSION_COOKIE = "grimoire_session";
 const SESSION_AGE_SECONDS = 60 * 60 * 24 * 30;
@@ -72,10 +74,20 @@ const cardSchema = z.object({
 const cardUpdateSchema = cardSchema.partial().extend({
   position: z.number().int().min(0).optional(),
 });
+const ideaState = z.enum(["inbox", "shortlist", "parked"]);
+const ideaSchema = z.object({
+  title: z.string().trim().min(1).max(240),
+  description: z.string().trim().max(20_000).optional(),
+  state: ideaState.optional(),
+});
+const ideaUpdateSchema = ideaSchema.partial().extend({
+  position: z.number().int().min(0).optional(),
+});
 
 export function createGrimoireServer(options: Options) {
   const database = openDatabase(options.databasePath);
   const cardStore = new MarkdownCardStore(options.cardsDirectory ?? join(dirname(options.databasePath), "cards"));
+  const ideaStore = new MarkdownIdeaStore(cardStore.rootDirectory);
   cardStore.migrateLegacyCards(database);
   let databaseClosed = false;
 
@@ -261,6 +273,60 @@ export function createGrimoireServer(options: Options) {
       const card = createCard(database, cardStore, projectId, user.id, cardSchema.parse(await readJson(request)));
       if (!card) throw new HttpError(400, "Assignee is not a member of this board");
       json(response, 201, { card });
+      return;
+    }
+
+    if (method === "GET" && url.pathname === "/api/ideas") {
+      const user = requireUser(context);
+      const workspace = getIdeas(database, ideaStore, user, requireProjectId(user.id));
+      if (!workspace) throw new HttpError(404, "Idea garden not found");
+      json(response, 200, workspace);
+      return;
+    }
+
+    if (method === "POST" && url.pathname === "/api/ideas") {
+      const user = requireUser(context);
+      const idea = createIdea(
+        database,
+        ideaStore,
+        requireProjectId(user.id),
+        user.id,
+        ideaSchema.parse(await readJson(request)),
+      );
+      if (!idea) throw new HttpError(404, "Idea garden not found");
+      json(response, 201, { idea });
+      return;
+    }
+
+    const promotionMatch = url.pathname.match(/^\/api\/ideas\/([^/]+)\/promote$/);
+    if (method === "POST" && promotionMatch) {
+      const user = requireUser(context);
+      await readJson(request);
+      const card = promoteIdea(
+        database,
+        cardStore,
+        ideaStore,
+        requireProjectId(user.id),
+        user.id,
+        promotionMatch[1],
+      );
+      if (!card) throw new HttpError(404, "Idea not found");
+      json(response, 201, { card });
+      return;
+    }
+
+    const ideaMatch = url.pathname.match(/^\/api\/ideas\/([^/]+)$/);
+    if (method === "PATCH" && ideaMatch) {
+      const user = requireUser(context);
+      const idea = updateIdea(
+        database,
+        ideaStore,
+        requireProjectId(user.id),
+        ideaMatch[1],
+        ideaUpdateSchema.parse(await readJson(request)),
+      );
+      if (!idea) throw new HttpError(404, "Idea not found");
+      json(response, 200, { idea });
       return;
     }
 

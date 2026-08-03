@@ -1,8 +1,9 @@
 import { type DragEvent, type FormEvent, useMemo, useState } from "react";
-import { CARD_STATUSES, type BoardWorkspace, type Card, type CardStatus } from "../../shared/types";
+import { CARD_STATUSES, type BoardWorkspace, type Card, type CardStatus, type IdeaState, type IdeaWorkspace } from "../../shared/types";
 import { AccountDialog } from "./AccountDialog";
 import { CardDialog } from "./CardDialog";
 import { TeamDialog } from "./TeamDialog";
+import { IdeasBoard } from "./IdeasBoard";
 
 const columnNames: Record<CardStatus, string> = {
   backlog: "Backlog",
@@ -14,15 +15,21 @@ const columnNames: Record<CardStatus, string> = {
 type Props = {
   board: BoardWorkspace;
   busy: boolean;
+  ideas: IdeaWorkspace | null;
+  view: "work" | "ideas";
   onCreate: (input: { title: string; status: CardStatus }) => Promise<void>;
   onUpdate: (id: string, input: Record<string, unknown>) => Promise<void>;
   onArchive: (id: string) => Promise<void>;
   onCreateInvite: () => Promise<string>;
+  onCreateIdea: (input: { title: string }) => Promise<void>;
   onChangePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   onLogout: () => Promise<void>;
+  onPromoteIdea: (id: string) => Promise<void>;
+  onUpdateIdea: (id: string, input: { title?: string; description?: string; state?: IdeaState; position?: number }) => Promise<void>;
+  onViewChange: (view: "work" | "ideas") => Promise<void>;
 };
 
-export function Board({ board, busy, onCreate, onUpdate, onArchive, onCreateInvite, onChangePassword, onLogout }: Props) {
+export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive, onCreateInvite, onCreateIdea, onChangePassword, onLogout, onPromoteIdea, onUpdateIdea, onViewChange }: Props) {
   const [quickTitle, setQuickTitle] = useState("");
   const [addingTo, setAddingTo] = useState<CardStatus | null>(null);
   const [columnTitle, setColumnTitle] = useState("");
@@ -30,19 +37,69 @@ export function Board({ board, busy, onCreate, onUpdate, onArchive, onCreateInvi
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [teamOpen, setTeamOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const initialParams = useMemo(() => new URLSearchParams(location.search), []);
+  const [focus, setFocus] = useState<"all" | "active" | "mine">(() => {
+    const value = initialParams.get("focus");
+    return value === "active" || value === "mine" ? value : "all";
+  });
+  const [query, setQuery] = useState(() => initialParams.get("q") ?? "");
+  const [people, setPeople] = useState<Set<string>>(
+    () => new Set((initialParams.get("people") ?? "").split(",").filter(Boolean)),
+  );
   const selectedCard = board.cards.find((card) => card.id === selectedId) ?? null;
-  const openCount = board.cards.filter((card) => card.status !== "done").length;
+  const filtersActive = focus !== "all" || query.trim() !== "" || people.size > 0;
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredCards = useMemo(
+    () => board.cards.filter((card) => {
+      if (focus === "active" && !["ready", "in_progress"].includes(card.status)) return false;
+      if (focus === "mine" && card.assigneeId !== board.currentUser.id) return false;
+      if (people.size > 0 && !people.has(card.assigneeId ?? "unassigned")) return false;
+      if (normalizedQuery && !`${card.title}\n${card.description}\n${card.assigneeName ?? "unassigned"}`.toLowerCase().includes(normalizedQuery)) return false;
+      return true;
+    }),
+    [board.cards, board.currentUser.id, focus, normalizedQuery, people],
+  );
+  const openCount = filteredCards.filter((card) => card.status !== "done").length;
 
   const cardsByStatus = useMemo(
     () =>
       Object.fromEntries(
         CARD_STATUSES.map((status) => [
           status,
-          board.cards.filter((card) => card.status === status).sort((a, b) => a.position - b.position),
+          filteredCards.filter((card) => card.status === status).sort((a, b) => a.position - b.position),
         ]),
       ) as Record<CardStatus, Card[]>,
-    [board.cards],
+    [filteredCards],
   );
+
+  const updateUrl = (nextFocus: "all" | "active" | "mine", nextQuery: string, nextPeople: Set<string>) => {
+    const params = new URLSearchParams(location.search);
+    if (nextFocus === "all") params.delete("focus");
+    else params.set("focus", nextFocus);
+    if (nextQuery.trim()) params.set("q", nextQuery.trim());
+    else params.delete("q");
+    if (nextPeople.size) params.set("people", [...nextPeople].join(","));
+    else params.delete("people");
+    history.replaceState({}, "", `${location.pathname}${params.size ? `?${params}` : ""}`);
+  };
+
+  const chooseFocus = (nextFocus: "all" | "active" | "mine") => {
+    setFocus(nextFocus);
+    updateUrl(nextFocus, query, people);
+  };
+
+  const changeQuery = (value: string) => {
+    setQuery(value);
+    updateUrl(focus, value, people);
+  };
+
+  const togglePerson = (id: string) => {
+    const next = new Set(people);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setPeople(next);
+    updateUrl(focus, query, next);
+  };
 
   const createQuickCard = async (event: FormEvent) => {
     event.preventDefault();
@@ -80,7 +137,10 @@ export function Board({ board, busy, onCreate, onUpdate, onArchive, onCreateInvi
           <span className="brand-word">grimoire</span>
         </div>
         <div className="board-project">
-          <span className="eyebrow">project board</span>
+          <nav className="workspace-tabs" aria-label="Project spaces">
+            <button aria-current={view === "work" ? "page" : undefined} onClick={() => void onViewChange("work")} type="button">work</button>
+            <button aria-current={view === "ideas" ? "page" : undefined} onClick={() => void onViewChange("ideas")} type="button">ideas</button>
+          </nav>
           <h1>{board.project.name}</h1>
         </div>
         <div className="board-actions">
@@ -97,7 +157,7 @@ export function Board({ board, busy, onCreate, onUpdate, onArchive, onCreateInvi
         </div>
       </header>
 
-      <main className="board-main">
+      {view === "work" ? <main className="board-main">
         <div className="board-intro">
           <div>
             <p className="eyebrow">one board, one source of truth</p>
@@ -116,16 +176,39 @@ export function Board({ board, busy, onCreate, onUpdate, onArchive, onCreateInvi
           </form>
         </div>
 
+        <div className="work-filters" aria-label="Work filters">
+          <div className="filter-presets">
+            {(["all", "active", "mine"] as const).map((value) => (
+              <button className={focus === value ? "active" : ""} key={value} onClick={() => chooseFocus(value)} type="button">
+                {value === "all" ? "all work" : value}
+              </button>
+            ))}
+          </div>
+          <label className="card-search">
+            <span className="sr-only">Search cards</span>
+            <input aria-label="Search cards" name="cardSearch" onChange={(event) => changeQuery(event.target.value)} placeholder="Search cards..." type="search" value={query} />
+          </label>
+          <div className="people-filters">
+            <button aria-pressed={people.has("unassigned")} className={people.has("unassigned") ? "active" : ""} onClick={() => togglePerson("unassigned")} type="button">unassigned</button>
+            {board.members.map((member) => (
+              <button aria-label={`Filter by ${member.name}`} aria-pressed={people.has(member.id)} className={people.has(member.id) ? "active" : ""} key={member.id} onClick={() => togglePerson(member.id)} type="button">
+                <span className="avatar tiny" title={member.name}>{initials(member.name)}</span>
+              </button>
+            ))}
+          </div>
+          {filtersActive && <span className="filter-note">dragging paused while filtered</span>}
+        </div>
+
         <div className="kanban" aria-label="Wizard Simulator board">
-          {CARD_STATUSES.map((status) => {
+          {CARD_STATUSES.filter((status) => focus !== "active" || status === "ready" || status === "in_progress").map((status) => {
             const cards = cardsByStatus[status];
             return (
               <section
                 aria-label={columnNames[status]}
                 className={`kanban-column column-${status}`}
                 key={status}
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={(event) => void moveCard(event, status, cards.length)}
+                onDragOver={(event) => { if (!filtersActive) event.preventDefault(); }}
+                onDrop={(event) => { if (!filtersActive) void moveCard(event, status, cards.length); }}
               >
                 <header className="column-header">
                   <div><span className="column-dot" /><h3>{columnNames[status]}</h3></div>
@@ -135,10 +218,10 @@ export function Board({ board, busy, onCreate, onUpdate, onArchive, onCreateInvi
                   {cards.map((card, index) => (
                     <article
                       className={`board-card ${draggedId === card.id ? "dragging" : ""}`}
-                      draggable
+                      draggable={!filtersActive}
                       key={card.id}
                       onDragEnd={() => setDraggedId(null)}
-                      onDragOver={(event) => event.preventDefault()}
+                      onDragOver={(event) => { if (!filtersActive) event.preventDefault(); }}
                       onDragStart={(event) => {
                         setDraggedId(card.id);
                         event.dataTransfer.effectAllowed = "move";
@@ -146,7 +229,7 @@ export function Board({ board, busy, onCreate, onUpdate, onArchive, onCreateInvi
                       }}
                       onDrop={(event) => {
                         event.stopPropagation();
-                        void moveCard(event, status, index);
+                        if (!filtersActive) void moveCard(event, status, index);
                       }}
                     >
                       <button
@@ -188,7 +271,17 @@ export function Board({ board, busy, onCreate, onUpdate, onArchive, onCreateInvi
             );
           })}
         </div>
-      </main>
+      </main> : (
+        ideas ? (
+          <IdeasBoard
+            busy={busy}
+            workspace={ideas}
+            onCreate={onCreateIdea}
+            onPromote={onPromoteIdea}
+            onUpdate={onUpdateIdea}
+          />
+        ) : <main className="ideas-main"><p className="ideas-loading">opening the idea garden...</p></main>
+      )}
 
       {selectedCard && (
         <CardDialog

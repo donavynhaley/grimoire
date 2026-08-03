@@ -4,11 +4,12 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "../../src/App";
-import { boardFixture } from "../fixtures/board";
+import { boardFixture, ideaFixture } from "../fixtures/board";
 
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  window.history.replaceState({}, "", "/");
 });
 
 function response(body: unknown, status = 200) {
@@ -216,5 +217,89 @@ describe("Grimoire board", () => {
         }),
       }),
     );
+  });
+
+  it("keeps ideas in a separate ranked garden", async () => {
+    const initial = boardFixture();
+    const ideaWorkspace = ideaFixture();
+    const fetchMock = authenticatedFetch(initial).mockImplementationOnce(() => response(ideaWorkspace));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    await userEvent.click(await screen.findByRole("button", { name: "ideas" }));
+
+    expect(await screen.findByRole("heading", { name: "Idea garden" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Shortlist" })).toHaveTextContent(
+      "Spells are assembled from drawn rune sequences",
+    );
+    expect(screen.getByRole("region", { name: "Idea inbox" })).toHaveTextContent(
+      "Familiars learn recurring player habits",
+    );
+    expect(screen.queryByText("Model the potion workbench")).not.toBeInTheDocument();
+    expect(window.location.search).toContain("view=ideas");
+  });
+
+  it("captures and shortlists an idea without creating a work card", async () => {
+    const initial = boardFixture();
+    const ideaWorkspace = ideaFixture();
+    const captured = {
+      ...ideaWorkspace.ideas[1],
+      id: "00000000-0000-4000-8000-000000000043",
+      title: "Let failed potions become useful materials",
+    };
+    const afterCapture = { ...ideaWorkspace, ideas: [...ideaWorkspace.ideas, captured] };
+    const shortlisted = { ...captured, state: "shortlist" as const, position: 1 };
+    const afterShortlist = {
+      ...ideaWorkspace,
+      ideas: [...ideaWorkspace.ideas, shortlisted].filter((idea) => idea.id !== captured.id || idea === shortlisted),
+    };
+    const fetchMock = authenticatedFetch(initial)
+      .mockImplementationOnce(() => response(ideaWorkspace))
+      .mockImplementationOnce(() => response({ idea: captured }, 201))
+      .mockImplementationOnce(() => response(afterCapture))
+      .mockImplementationOnce(() => response({ idea: shortlisted }))
+      .mockImplementationOnce(() => response(afterShortlist));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    await userEvent.click(await screen.findByRole("button", { name: "ideas" }));
+    await userEvent.type(await screen.findByLabelText("Capture an idea"), captured.title);
+    await userEvent.keyboard("{Enter}");
+    await userEvent.click(await screen.findByRole("button", { name: `Shortlist ${captured.title}` }));
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/ideas",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ title: captured.title }) }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/ideas/${captured.id}`,
+      expect.objectContaining({ method: "PATCH", body: JSON.stringify({ state: "shortlist", position: 1 }) }),
+    );
+  });
+
+  it("filters work with visible presets, search, and member chips", async () => {
+    const initial = boardFixture();
+    const fetchMock = authenticatedFetch(initial);
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    expect(await screen.findByRole("searchbox", { name: "Search cards" })).toBeInTheDocument();
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "active" }));
+    expect(screen.queryByRole("region", { name: "Backlog" })).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "In progress" })).toHaveTextContent("Model the potion workbench");
+    expect(window.location.search).toContain("focus=active");
+
+    await userEvent.click(screen.getByRole("button", { name: "all work" }));
+    await userEvent.type(screen.getByRole("searchbox", { name: "Search cards" }), "tower door");
+    expect(screen.getByText("Make the tower door remember Maren")).toBeInTheDocument();
+    expect(screen.queryByText("Model the potion workbench")).not.toBeInTheDocument();
+
+    await userEvent.clear(screen.getByRole("searchbox", { name: "Search cards" }));
+    await userEvent.click(screen.getByRole("button", { name: "Filter by Maren" }));
+    expect(screen.queryByText("Make the tower door remember Maren")).not.toBeInTheDocument();
+    expect(screen.getByText("Model the potion workbench")).toBeInTheDocument();
+    expect(window.location.search).toContain(`people=${initial.members[1].id}`);
   });
 });

@@ -1,17 +1,17 @@
 # Grimoire
 
-Grimoire is a small collaborative kanban board for the Wizard Simulator team.
-It provides one fast place to capture ideas, choose what is ready, see who is working on what, and mark work complete.
-The website is a visual editing layer over portable Markdown card files.
+Grimoire is a small collaborative project space for the Wizard Simulator team.
+It separates possible ideas from committed work while keeping both fast to capture and easy to understand.
+The website is a visual editing layer over portable Markdown files.
 
-The game project is represented entirely by cards.
+The game project is represented entirely by work cards and ideas.
 There are no built-in design pillars, milestones, outcomes, asset pipelines, sprints, or story-point systems.
 
-## The board
+## Work
 
 Grimoire has four columns:
 
-- **Backlog** holds ideas and work that the team has not committed to yet.
+- **Backlog** holds work that the team has not committed to yet.
 - **Ready** contains cards that someone can pick up now.
 - **In progress** shows what the team is actively working on.
 - **Done** keeps recently completed work visible.
@@ -23,6 +23,21 @@ Assignees are visible directly on the board so the current team focus is clear a
 Status and assignee changes use direct buttons instead of dropdown menus.
 On touch devices, the same compact status buttons provide an alternative to dragging.
 
+The visible filter bar can focus the board on active work, the signed-in person's work, unassigned work, or any team member.
+Search and people filters combine, and the current view is stored in the URL so a useful view can be bookmarked or shared.
+Dragging pauses while filters are active because reordering a partially hidden column would be ambiguous.
+
+## Ideas
+
+The Idea garden keeps possibilities away from the work backlog until the team deliberately commits to one.
+Every new idea lands in the Inbox and can move directly to the manually ranked Shortlist or to Parked.
+Shortlisted ideas can be dragged into priority order without adding scores, votes, or ceremony.
+Parked ideas remain searchable and recoverable without competing for attention.
+
+Promoting an idea creates one Backlog card with the same title and Markdown notes.
+The source idea is archived with a stable link to the created card, so the decision remains traceable without duplicating active content.
+Ideas do not have assignees or work statuses because they are not work yet.
+
 ## Collaboration
 
 The first person to open a new Grimoire installation creates the owner account.
@@ -31,7 +46,7 @@ The owner can create one-use invitation links from the Team dialog.
 Invitation links expire after seven days.
 
 Accounts, sessions, invitations, and project membership are stored in a local SQLite database.
-Cards are stored as Markdown files with validated YAML frontmatter.
+Cards and ideas are stored as Markdown files with validated YAML frontmatter.
 Passwords are protected with scrypt, and browser sessions use HttpOnly SameSite cookies.
 After signing in, open the account menu from the top-right avatar to change your password or sign out.
 Changing a password requires the current password and signs the account out on other devices.
@@ -50,8 +65,8 @@ The collaborative API listens at `http://127.0.0.1:8080`.
 
 Configuration options are documented in [.env.example](.env.example).
 The SQLite database is stored in `data/grimoire.sqlite` by default and is ignored by Git.
-Canonical card files are stored beneath `data/cards` by default.
-Set `GRIMOIRE_CARDS_DIRECTORY` to a directory inside the Wizard Simulator repository if the cards should share its Git history.
+Canonical project files are stored beneath `data/cards` by default.
+Set `GRIMOIRE_CARDS_DIRECTORY` to a directory inside the Wizard Simulator repository if the work and ideas should share its Git history.
 
 See [docs/architecture.md](docs/architecture.md) for the storage boundary, card format, migration behavior, and editing guarantees.
 
@@ -62,7 +77,7 @@ npm test
 npm run build
 ```
 
-The test suite covers authentication, secure password changes, invitations, Markdown card persistence, legacy migration, external edits, assignments, archiving, ordering, drag-and-drop interaction, and the card-only product boundary.
+The test suite covers authentication, secure password changes, invitations, Markdown persistence, legacy migration, external edits, assignments, filtering, idea ranking, promotion, archiving, ordering, and drag-and-drop interaction.
 
 ## Self-hosting
 
@@ -74,5 +89,5 @@ The Compose configuration exposes Grimoire on port `8080` and persists both SQLi
 Place Grimoire behind a TLS-enabled reverse proxy before inviting collaborators over the internet.
 Production session cookies are marked Secure and require HTTPS.
 
-Back up the `data` directory to preserve accounts and cards.
-Do not run multiple Grimoire containers against the same SQLite file or card directory.
+Back up the `data` directory to preserve accounts, work, and ideas.
+Do not run multiple Grimoire containers against the same SQLite file or project directory.

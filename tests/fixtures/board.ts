@@ -1,4 +1,4 @@
-import type { BoardWorkspace } from "../../shared/types";
+import type { BoardWorkspace, IdeaWorkspace } from "../../shared/types";
 
 export function boardFixture(): BoardWorkspace {
   return {
@@ -52,6 +52,49 @@ export function boardFixture(): BoardWorkspace {
         assigneeName: "Maren",
         createdById: "00000000-0000-4000-8000-000000000010",
         createdByName: "Donavyn",
+        createdAt: "2026-08-03T00:00:00.000Z",
+        updatedAt: "2026-08-03T00:00:00.000Z",
+      },
+    ],
+  };
+}
+
+export function ideaFixture(): IdeaWorkspace {
+  const board = boardFixture();
+  return {
+    project: board.project,
+    currentUser: board.currentUser,
+    ideas: [
+      {
+        id: "00000000-0000-4000-8000-000000000040",
+        title: "Spells are assembled from drawn rune sequences",
+        description: "Let experimentation reveal a small magical language.",
+        state: "shortlist",
+        position: 0,
+        createdById: board.currentUser.id,
+        createdByName: board.currentUser.name,
+        createdAt: "2026-08-03T00:00:00.000Z",
+        updatedAt: "2026-08-03T00:00:00.000Z",
+      },
+      {
+        id: "00000000-0000-4000-8000-000000000041",
+        title: "Familiars learn recurring player habits",
+        description: "",
+        state: "inbox",
+        position: 0,
+        createdById: board.currentUser.id,
+        createdByName: board.currentUser.name,
+        createdAt: "2026-08-03T00:00:00.000Z",
+        updatedAt: "2026-08-03T00:00:00.000Z",
+      },
+      {
+        id: "00000000-0000-4000-8000-000000000042",
+        title: "The tower grows a garden overnight",
+        description: "",
+        state: "parked",
+        position: 0,
+        createdById: board.currentUser.id,
+        createdByName: board.currentUser.name,
         createdAt: "2026-08-03T00:00:00.000Z",
         updatedAt: "2026-08-03T00:00:00.000Z",
       },

@@ -1,0 +1,151 @@
+import { randomUUID } from "node:crypto";
+import type { DatabaseSync } from "node:sqlite";
+import { IDEA_STATES, type Card, type Idea, type IdeaState, type IdeaWorkspace, type User } from "../shared/types";
+import { MarkdownCardStore } from "./markdown-cards";
+import { MarkdownIdeaStore, type StoredIdea } from "./markdown-ideas";
+import { createCard, membersForProject, projectById } from "./repository";
+
+type IdeaInput = {
+  title: string;
+  description?: string;
+  state?: IdeaState;
+};
+
+export function getIdeas(
+  database: DatabaseSync,
+  ideaStore: MarkdownIdeaStore,
+  user: User,
+  projectId: string,
+): IdeaWorkspace | null {
+  const project = projectById(database, projectId);
+  if (!project) return null;
+  const members = membersForProject(database, projectId);
+  return {
+    project: { id: String(project.id), name: String(project.name) },
+    currentUser: user,
+    ideas: ideaStore.list(String(project.slug)).map((idea) => publicIdea(idea, members)),
+  };
+}
+
+export function createIdea(
+  database: DatabaseSync,
+  ideaStore: MarkdownIdeaStore,
+  projectId: string,
+  creatorId: string,
+  input: IdeaInput,
+): Idea | null {
+  const project = projectById(database, projectId);
+  const members = membersForProject(database, projectId);
+  const creator = members.find((member) => member.id === creatorId);
+  if (!project || !creator) return null;
+  const state = input.state ?? "inbox";
+  const now = new Date().toISOString();
+  const idea: StoredIdea = {
+    id: randomUUID(),
+    title: input.title,
+    description: input.description ?? "",
+    state,
+    position: ideaStore.list(String(project.slug)).filter((candidate) => candidate.state === state).length,
+    createdBy: creator.email.toLowerCase(),
+    createdAt: now,
+    updatedAt: now,
+    promotedTo: null,
+    promotedAt: null,
+  };
+  ideaStore.save(String(project.slug), idea);
+  return publicIdea(idea, members);
+}
+
+export function updateIdea(
+  database: DatabaseSync,
+  ideaStore: MarkdownIdeaStore,
+  projectId: string,
+  ideaId: string,
+  input: Partial<IdeaInput> & { position?: number },
+): Idea | null {
+  const project = projectById(database, projectId);
+  if (!project) return null;
+  const projectSlug = String(project.slug);
+  const members = membersForProject(database, projectId);
+  const ideas = ideaStore.list(projectSlug);
+  const current = ideas.find((idea) => idea.id === ideaId);
+  if (!current || current.promotedTo) return null;
+  const nextState = input.state ?? current.state;
+  const shouldMove = input.state !== undefined || input.position !== undefined;
+  const updated: StoredIdea = {
+    ...current,
+    title: input.title ?? current.title,
+    description: input.description ?? current.description,
+    state: nextState,
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (!shouldMove) {
+    ideaStore.save(projectSlug, updated);
+    return publicIdea(updated, members);
+  }
+
+  for (const state of IDEA_STATES) {
+    const ordered = ideas.filter((idea) => idea.id !== ideaId && idea.state === state);
+    if (state === nextState) {
+      const requestedPosition = input.position ?? ordered.length;
+      ordered.splice(Math.max(0, Math.min(requestedPosition, ordered.length)), 0, updated);
+    }
+    ordered.forEach((idea, position) => {
+      const positioned = { ...idea, position };
+      if (idea.id === ideaId || idea.position !== position) ideaStore.save(projectSlug, positioned);
+      if (idea.id === ideaId) updated.position = position;
+    });
+  }
+  return publicIdea(updated, members);
+}
+
+export function promoteIdea(
+  database: DatabaseSync,
+  cardStore: MarkdownCardStore,
+  ideaStore: MarkdownIdeaStore,
+  projectId: string,
+  creatorId: string,
+  ideaId: string,
+): Card | null {
+  const project = projectById(database, projectId);
+  if (!project) return null;
+  const projectSlug = String(project.slug);
+  const idea = ideaStore.get(projectSlug, ideaId);
+  if (!idea || idea.promotedTo) return null;
+  const card = createCard(database, cardStore, projectId, creatorId, {
+    title: idea.title,
+    description: idea.description,
+    status: "backlog",
+  });
+  if (!card) return null;
+  const now = new Date().toISOString();
+  ideaStore.archive(projectSlug, { ...idea, promotedTo: card.id, promotedAt: now, updatedAt: now });
+  normalizeIdeaPositions(ideaStore, projectSlug, idea.state);
+  return card;
+}
+
+function normalizeIdeaPositions(ideaStore: MarkdownIdeaStore, projectSlug: string, state: IdeaState): void {
+  ideaStore
+    .list(projectSlug)
+    .filter((idea) => idea.state === state)
+    .forEach((idea, position) => {
+      if (idea.position !== position) ideaStore.save(projectSlug, { ...idea, position });
+    });
+}
+
+function publicIdea(value: StoredIdea, members: ReturnType<typeof membersForProject>): Idea {
+  const creator = members.find((member) => member.email.toLowerCase() === value.createdBy.toLowerCase());
+  if (!creator) throw new Error(`Idea ${value.id} references a non-member creator`);
+  return {
+    id: value.id,
+    title: value.title,
+    description: value.description,
+    state: value.state,
+    position: value.position,
+    createdById: creator.id,
+    createdByName: creator.name,
+    createdAt: value.createdAt,
+    updatedAt: value.updatedAt,
+  };
+}

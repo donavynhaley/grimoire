@@ -42,3 +42,27 @@ export type BoardWorkspace = {
   members: Member[];
   cards: Card[];
 };
+
+export const IDEA_STATES = ["inbox", "shortlist", "parked"] as const;
+export type IdeaState = (typeof IDEA_STATES)[number];
+
+export type Idea = {
+  id: string;
+  title: string;
+  description: string;
+  state: IdeaState;
+  position: number;
+  createdById: string;
+  createdByName: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type IdeaWorkspace = {
+  project: {
+    id: string;
+    name: string;
+  };
+  currentUser: User;
+  ideas: Idea[];
+};
