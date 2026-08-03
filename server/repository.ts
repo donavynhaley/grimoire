@@ -1,6 +1,14 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import type { BoardWorkspace, Card, CardStatus, Member, User } from "../shared/types";
+import {
+  CARD_STATUSES,
+  type BoardWorkspace,
+  type Card,
+  type CardStatus,
+  type Member,
+  type User,
+} from "../shared/types";
+import { MarkdownCardStore, type StoredCard } from "./markdown-cards";
 
 type Row = Record<string, string | number | null>;
 
@@ -42,41 +50,19 @@ export function projectIdForUser(database: DatabaseSync, userId: string): string
   return value ? String(value.project_id) : null;
 }
 
-export function getBoard(database: DatabaseSync, user: User): BoardWorkspace | null {
+export function getBoard(database: DatabaseSync, cardStore: MarkdownCardStore, user: User): BoardWorkspace | null {
   const projectId = projectIdForUser(database, user.id);
   if (!projectId) return null;
-  const project = row(database, "SELECT id, name FROM projects WHERE id = ?", projectId);
+  const project = row(database, "SELECT id, name, slug FROM projects WHERE id = ?", projectId);
   if (!project) return null;
 
-  const members = rows(
-    database,
-    `SELECT users.id, users.name, users.email, users.role, project_members.role AS project_role
-     FROM project_members JOIN users ON users.id = project_members.user_id
-     WHERE project_members.project_id = ? ORDER BY project_members.created_at`,
-    projectId,
-  ).map(
-    (value): Member => ({
-      ...publicUser(value),
-      projectRole: value.project_role as Member["projectRole"],
-    }),
-  );
+  const members = membersForProject(database, projectId);
 
   return {
     project: { id: String(project.id), name: String(project.name) },
     currentUser: user,
     members,
-    cards: rows(
-      database,
-      `SELECT cards.*, assignee.name AS assignee_name, creator.name AS creator_name
-       FROM cards
-       LEFT JOIN users assignee ON assignee.id = cards.assignee_id
-       JOIN users creator ON creator.id = cards.created_by
-       WHERE cards.project_id = ? AND cards.archived_at IS NULL
-       ORDER BY CASE cards.status
-         WHEN 'backlog' THEN 0 WHEN 'ready' THEN 1 WHEN 'in_progress' THEN 2 ELSE 3 END,
-         cards.position, cards.created_at`,
-      projectId,
-    ).map(mapCard),
+    cards: cardStore.list(String(project.slug)).map((card) => publicCard(card, members)),
   };
 }
 
@@ -89,170 +75,144 @@ type CardInput = {
 
 export function createCard(
   database: DatabaseSync,
+  cardStore: MarkdownCardStore,
   projectId: string,
   creatorId: string,
   input: CardInput,
 ): Card | null {
-  if (input.assigneeId !== undefined && input.assigneeId !== null && !isProjectMember(database, projectId, input.assigneeId)) {
-    return null;
-  }
+  const project = projectById(database, projectId);
+  const members = membersForProject(database, projectId);
+  const creator = members.find((member) => member.id === creatorId);
+  const assignee = input.assigneeId ? members.find((member) => member.id === input.assigneeId) : null;
+  if (!project || !creator || (input.assigneeId && !assignee)) return null;
   const id = randomUUID();
   const now = new Date().toISOString();
   const status = input.status ?? "backlog";
-  const position = nextPosition(database, projectId, status);
-  database
-    .prepare(
-      `INSERT INTO cards (
-        id, project_id, title, description, status, position, assignee_id, created_by, archived_at, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
-    )
-    .run(
-      id,
-      projectId,
-      input.title,
-      input.description ?? "",
-      status,
-      position,
-      input.assigneeId ?? null,
-      creatorId,
-      now,
-      now,
-    );
-  return getCard(database, projectId, id);
+  const position = cardStore.list(String(project.slug)).filter((card) => card.status === status).length;
+  const card: StoredCard = {
+    id,
+    title: input.title,
+    description: input.description ?? "",
+    status,
+    position,
+    assignee: assignee?.email.toLowerCase() ?? null,
+    createdBy: creator.email.toLowerCase(),
+    createdAt: now,
+    updatedAt: now,
+    archivedAt: null,
+  };
+  cardStore.save(String(project.slug), card);
+  return publicCard(card, members);
 }
 
 export function updateCard(
   database: DatabaseSync,
+  cardStore: MarkdownCardStore,
   projectId: string,
   cardId: string,
   input: Partial<CardInput> & { position?: number },
 ): Card | null {
-  const current = getCard(database, projectId, cardId);
+  const project = projectById(database, projectId);
+  if (!project) return null;
+  const projectSlug = String(project.slug);
+  const members = membersForProject(database, projectId);
+  const cards = cardStore.list(projectSlug);
+  const current = cards.find((card) => card.id === cardId);
   if (!current) return null;
-  if (input.assigneeId !== undefined && input.assigneeId !== null && !isProjectMember(database, projectId, input.assigneeId)) {
-    return null;
-  }
+  const assignee = input.assigneeId ? members.find((member) => member.id === input.assigneeId) : null;
+  if (input.assigneeId && !assignee) return null;
 
   const nextStatus = input.status ?? current.status;
   const shouldMove = input.status !== undefined || input.position !== undefined;
   const now = new Date().toISOString();
+  const updated: StoredCard = {
+    ...current,
+    title: input.title ?? current.title,
+    description: input.description ?? current.description,
+    status: nextStatus,
+    assignee: input.assigneeId === undefined ? current.assignee : assignee?.email.toLowerCase() ?? null,
+    updatedAt: now,
+  };
 
-  database.exec("BEGIN IMMEDIATE");
-  try {
-    let position = current.position;
-    if (shouldMove) {
-      database.prepare("UPDATE cards SET position = -1 WHERE id = ?").run(cardId);
-      database
-        .prepare(
-          `UPDATE cards SET position = position - 1
-           WHERE project_id = ? AND status = ? AND archived_at IS NULL AND position > ?`,
-        )
-        .run(projectId, current.status, current.position);
-      const available = Number(
-        row(
-          database,
-          "SELECT COUNT(*) AS count FROM cards WHERE project_id = ? AND status = ? AND archived_at IS NULL AND id != ?",
-          projectId,
-          nextStatus,
-          cardId,
-        )?.count ?? 0,
-      );
-      position = Math.max(0, Math.min(input.position ?? available, available));
-      database
-        .prepare(
-          `UPDATE cards SET position = position + 1
-           WHERE project_id = ? AND status = ? AND archived_at IS NULL AND id != ? AND position >= ?`,
-        )
-        .run(projectId, nextStatus, cardId, position);
-    }
-
-    database
-      .prepare(
-        `UPDATE cards SET title = ?, description = ?, status = ?, position = ?, assignee_id = ?, updated_at = ?
-         WHERE id = ? AND project_id = ?`,
-      )
-      .run(
-        input.title ?? current.title,
-        input.description ?? current.description,
-        nextStatus,
-        position,
-        input.assigneeId === undefined ? current.assigneeId : input.assigneeId,
-        now,
-        cardId,
-        projectId,
-      );
-    database.exec("COMMIT");
-  } catch (error) {
-    database.exec("ROLLBACK");
-    throw error;
+  if (!shouldMove) {
+    cardStore.save(projectSlug, updated);
+    return publicCard(updated, members);
   }
-  return getCard(database, projectId, cardId);
+
+  for (const status of CARD_STATUSES) {
+    const ordered = cards.filter((card) => card.id !== cardId && card.status === status);
+    if (status === nextStatus) {
+      const requestedPosition = input.position ?? ordered.length;
+      ordered.splice(Math.max(0, Math.min(requestedPosition, ordered.length)), 0, updated);
+    }
+    ordered.forEach((card, position) => {
+      const positioned = { ...card, position };
+      if (card.id === cardId || card.position !== position) cardStore.save(projectSlug, positioned);
+      if (card.id === cardId) updated.position = position;
+    });
+  }
+  return publicCard(updated, members);
 }
 
-export function archiveCard(database: DatabaseSync, projectId: string, cardId: string): boolean {
-  const current = getCard(database, projectId, cardId);
+export function archiveCard(
+  database: DatabaseSync,
+  cardStore: MarkdownCardStore,
+  projectId: string,
+  cardId: string,
+): boolean {
+  const project = projectById(database, projectId);
+  if (!project) return false;
+  const projectSlug = String(project.slug);
+  const current = cardStore.get(projectSlug, cardId);
   if (!current) return false;
   const now = new Date().toISOString();
-  database.exec("BEGIN IMMEDIATE");
-  try {
-    database.prepare("UPDATE cards SET archived_at = ?, updated_at = ? WHERE id = ?").run(now, now, cardId);
-    database
-      .prepare(
-        `UPDATE cards SET position = position - 1
-         WHERE project_id = ? AND status = ? AND archived_at IS NULL AND position > ?`,
-      )
-      .run(projectId, current.status, current.position);
-    database.exec("COMMIT");
-  } catch (error) {
-    database.exec("ROLLBACK");
-    throw error;
-  }
+  cardStore.archive(projectSlug, { ...current, archivedAt: now, updatedAt: now });
+  cardStore
+    .list(projectSlug)
+    .filter((card) => card.status === current.status)
+    .forEach((card, position) => {
+      if (card.position !== position) cardStore.save(projectSlug, { ...card, position });
+    });
   return true;
 }
 
-function getCard(database: DatabaseSync, projectId: string, cardId: string): Card | null {
-  const value = row(
+function projectById(database: DatabaseSync, projectId: string): Row | undefined {
+  return row(database, "SELECT id, name, slug FROM projects WHERE id = ?", projectId);
+}
+
+function membersForProject(database: DatabaseSync, projectId: string): Member[] {
+  return rows(
     database,
-    `SELECT cards.*, assignee.name AS assignee_name, creator.name AS creator_name
-     FROM cards
-     LEFT JOIN users assignee ON assignee.id = cards.assignee_id
-     JOIN users creator ON creator.id = cards.created_by
-     WHERE cards.id = ? AND cards.project_id = ? AND cards.archived_at IS NULL`,
-    cardId,
+    `SELECT users.id, users.name, users.email, users.role, project_members.role AS project_role
+     FROM project_members JOIN users ON users.id = project_members.user_id
+     WHERE project_members.project_id = ? ORDER BY project_members.created_at`,
     projectId,
+  ).map(
+    (value): Member => ({
+      ...publicUser(value),
+      projectRole: value.project_role as Member["projectRole"],
+    }),
   );
-  return value ? mapCard(value) : null;
 }
 
-function mapCard(value: Row): Card {
+function publicCard(value: StoredCard, members: Member[]): Card {
+  const assignee = value.assignee
+    ? members.find((member) => member.email.toLowerCase() === value.assignee?.toLowerCase())
+    : null;
+  const creator = members.find((member) => member.email.toLowerCase() === value.createdBy.toLowerCase());
+  if (value.assignee && !assignee) throw new Error(`Card ${value.id} references a non-member assignee`);
+  if (!creator) throw new Error(`Card ${value.id} references a non-member creator`);
   return {
-    id: String(value.id),
-    title: String(value.title),
-    description: String(value.description),
-    status: value.status as CardStatus,
-    position: Number(value.position),
-    assigneeId: value.assignee_id ? String(value.assignee_id) : null,
-    assigneeName: value.assignee_name ? String(value.assignee_name) : null,
-    createdById: String(value.created_by),
-    createdByName: String(value.creator_name),
-    createdAt: String(value.created_at),
-    updatedAt: String(value.updated_at),
+    id: value.id,
+    title: value.title,
+    description: value.description,
+    status: value.status,
+    position: value.position,
+    assigneeId: assignee?.id ?? null,
+    assigneeName: assignee?.name ?? null,
+    createdById: creator.id,
+    createdByName: creator.name,
+    createdAt: value.createdAt,
+    updatedAt: value.updatedAt,
   };
-}
-
-function isProjectMember(database: DatabaseSync, projectId: string, userId: string): boolean {
-  return Boolean(
-    row(database, "SELECT 1 AS found FROM project_members WHERE project_id = ? AND user_id = ?", projectId, userId),
-  );
-}
-
-function nextPosition(database: DatabaseSync, projectId: string, status: CardStatus): number {
-  return Number(
-    row(
-      database,
-      "SELECT COALESCE(MAX(position), -1) + 1 AS next FROM cards WHERE project_id = ? AND status = ? AND archived_at IS NULL",
-      projectId,
-      status,
-    )?.next ?? 0,
-  );
 }

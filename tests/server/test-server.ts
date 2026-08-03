@@ -7,7 +7,9 @@ import { createGrimoireServer } from "../../server/app";
 
 type TestServer = {
   baseUrl: string;
+  cardsDirectory: string;
   close: () => Promise<void>;
+  databasePath: string;
   request: <T>(path: string, init?: RequestInit) => Promise<{ response: Response; body: T }>;
 };
 
@@ -41,7 +43,9 @@ export async function startTestServer(existingDirectory?: string): Promise<TestS
 
   return {
     baseUrl,
+    cardsDirectory: join(directory, "cards"),
     close,
+    databasePath,
     async request<T>(path: string, init: RequestInit = {}) {
       const headers = new Headers(init.headers);
       if (cookie) headers.set("cookie", cookie);

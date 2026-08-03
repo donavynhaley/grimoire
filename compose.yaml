@@ -7,6 +7,7 @@ services:
       HOST: 0.0.0.0
       PORT: 8080
       GRIMOIRE_DATABASE: /app/data/grimoire.sqlite
+      GRIMOIRE_CARDS_DIRECTORY: /app/data/cards
     ports:
       - "8080:8080"
     volumes:

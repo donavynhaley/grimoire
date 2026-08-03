@@ -1,6 +1,7 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
 import type { BoardWorkspace, Card } from "../../shared/types";
 import { bootstrap, ownerAccount, startTestServer } from "./test-server";
@@ -45,6 +46,17 @@ describe("card board", () => {
       assigneeName: "Donavyn",
       position: 0,
     });
+    const activePath = join(
+      server.cardsDirectory,
+      "wizard-simulator",
+      "cards",
+      `${created.body.card.id}.md`,
+    );
+    const markdown = readFileSync(activePath, "utf8");
+    expect(markdown).toMatch(/^---\n/);
+    expect(markdown).toContain(`id: ${created.body.card.id}`);
+    expect(markdown).toContain("title: Block out the potion workbench");
+    expect(markdown).toContain("assignee: owner@example.com");
 
     const updated = await server.request<{ card: Card }>(`/api/cards/${created.body.card.id}`, {
       method: "PATCH",
@@ -54,10 +66,26 @@ describe("card board", () => {
       description: "Keep it readable from the doorway.",
       assigneeId: null,
     });
+    expect(readFileSync(activePath, "utf8")).toContain("\n---\n\nKeep it readable from the doorway.\n");
+
+    writeFileSync(
+      activePath,
+      readFileSync(activePath, "utf8")
+        .replace("title: Block out the potion workbench", "title: Polish the potion workbench")
+        .replace("Keep it readable from the doorway.", "This note was edited outside Grimoire."),
+    );
+    expect((await board(server)).cards[0]).toMatchObject({
+      title: "Polish the potion workbench",
+      description: "This note was edited outside Grimoire.",
+    });
 
     const archived = await server.request(`/api/cards/${created.body.card.id}`, { method: "DELETE" });
     expect(archived.response.status).toBe(200);
     expect((await board(server)).cards.map((card) => card.id)).not.toContain(created.body.card.id);
+    expect(existsSync(activePath)).toBe(false);
+    expect(
+      existsSync(join(server.cardsDirectory, "wizard-simulator", "archive", `${created.body.card.id}.md`)),
+    ).toBe(true);
   });
 
   it("moves and reorders cards using their drop position", async () => {
@@ -106,5 +134,54 @@ describe("card board", () => {
     expect((await board(second)).cards.map((card) => card.title)).toContain(
       "Give the cauldron a readable boil state",
     );
+  });
+
+  it("migrates legacy SQLite cards into Markdown exactly once", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "grimoire-board-migration-"));
+    directories.push(directory);
+    const first = await startTestServer(directory);
+    await bootstrap(first);
+    const workspace = await board(first);
+    await first.close();
+
+    const database = new DatabaseSync(first.databasePath);
+    const timestamp = "2026-08-03T12:00:00.000Z";
+    database
+      .prepare(
+        `INSERT INTO cards (
+          id, project_id, title, description, status, position, assignee_id, created_by, archived_at, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
+      )
+      .run(
+        "9c46098a-7e85-48de-8a58-213236a8cf0d",
+        workspace.project.id,
+        "Legacy spell card",
+        "Preserve this body.",
+        "ready",
+        0,
+        workspace.currentUser.id,
+        workspace.currentUser.id,
+        timestamp,
+        timestamp,
+      );
+    database.close();
+
+    const second = await startTestServer(directory);
+    await second.request("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email: ownerAccount.email, password: ownerAccount.password }),
+    });
+    expect((await board(second)).cards).toEqual([
+      expect.objectContaining({ title: "Legacy spell card", description: "Preserve this body." }),
+    ]);
+
+    const migrated = readFileSync(
+      join(second.cardsDirectory, "wizard-simulator", "cards", "9c46098a-7e85-48de-8a58-213236a8cf0d.md"),
+      "utf8",
+    );
+    expect(migrated).toContain("title: Legacy spell card");
+    const migratedDatabase = new DatabaseSync(second.databasePath);
+    expect(migratedDatabase.prepare("SELECT COUNT(*) AS count FROM cards").get()).toEqual({ count: 0 });
+    migratedDatabase.close();
   });
 });

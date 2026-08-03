@@ -6,6 +6,7 @@ const port = resolveServerPort(process.env);
 const host = process.env.HOST ?? "127.0.0.1";
 const production = process.env.NODE_ENV === "production";
 const app = createGrimoireServer({
+  cardsDirectory: resolve(process.env.GRIMOIRE_CARDS_DIRECTORY ?? "data/cards"),
   databasePath: resolve(process.env.GRIMOIRE_DATABASE ?? "data/grimoire.sqlite"),
   production,
   staticDirectory: production ? resolve("dist") : undefined,

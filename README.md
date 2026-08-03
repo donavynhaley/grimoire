@@ -2,6 +2,7 @@
 
 Grimoire is a small collaborative kanban board for the Wizard Simulator team.
 It provides one fast place to capture ideas, choose what is ready, see who is working on what, and mark work complete.
+The website is a visual editing layer over portable Markdown card files.
 
 The game project is represented entirely by cards.
 There are no built-in design pillars, milestones, outcomes, asset pipelines, sprints, or story-point systems.
@@ -29,7 +30,8 @@ The first-run form prefills `owner@example.com` as the owner email, while still 
 The owner can create one-use invitation links from the Team dialog.
 Invitation links expire after seven days.
 
-Accounts, sessions, membership, and cards are stored in a local SQLite database.
+Accounts, sessions, invitations, and project membership are stored in a local SQLite database.
+Cards are stored as Markdown files with validated YAML frontmatter.
 Passwords are protected with scrypt, and browser sessions use HttpOnly SameSite cookies.
 After signing in, open the account menu from the top-right avatar to change your password or sign out.
 Changing a password requires the current password and signs the account out on other devices.
@@ -48,6 +50,10 @@ The collaborative API listens at `http://127.0.0.1:8080`.
 
 Configuration options are documented in [.env.example](.env.example).
 The SQLite database is stored in `data/grimoire.sqlite` by default and is ignored by Git.
+Canonical card files are stored beneath `data/cards` by default.
+Set `GRIMOIRE_CARDS_DIRECTORY` to a directory inside the Wizard Simulator repository if the cards should share its Git history.
+
+See [docs/architecture.md](docs/architecture.md) for the storage boundary, card format, migration behavior, and editing guarantees.
 
 ## Verification
 
@@ -56,7 +62,7 @@ npm test
 npm run build
 ```
 
-The test suite covers authentication, secure password changes, invitations, card persistence, assignments, editing, archiving, ordering, drag-and-drop interaction, and the card-only product boundary.
+The test suite covers authentication, secure password changes, invitations, Markdown card persistence, legacy migration, external edits, assignments, archiving, ordering, drag-and-drop interaction, and the card-only product boundary.
 
 ## Self-hosting
 
@@ -64,9 +70,9 @@ The test suite covers authentication, secure password changes, invitations, card
 docker compose up -d --build
 ```
 
-The Compose configuration exposes Grimoire on port `8080` and persists the database in the local `data` directory.
+The Compose configuration exposes Grimoire on port `8080` and persists both SQLite identity data and Markdown cards in the local `data` directory.
 Place Grimoire behind a TLS-enabled reverse proxy before inviting collaborators over the internet.
 Production session cookies are marked Secure and require HTTPS.
 
 Back up the `data` directory to preserve accounts and cards.
-Do not run multiple Grimoire containers against the same SQLite file.
+Do not run multiple Grimoire containers against the same SQLite file or card directory.

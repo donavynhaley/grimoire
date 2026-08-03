@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { extname, join, normalize } from "node:path";
+import { dirname, extname, join, normalize } from "node:path";
 import { z, ZodError } from "zod";
 import type { User } from "../shared/types";
 import { createWizardSimulatorProject, openDatabase } from "./database";
@@ -17,11 +17,13 @@ import {
   userCount,
 } from "./repository";
 import { createOpaqueToken, hashPassword, hashToken, verifyPassword } from "./security";
+import { MarkdownCardStore } from "./markdown-cards";
 
 const SESSION_COOKIE = "grimoire_session";
 const SESSION_AGE_SECONDS = 60 * 60 * 24 * 30;
 
 type Options = {
+  cardsDirectory?: string;
   databasePath: string;
   production: boolean;
   staticDirectory?: string;
@@ -73,6 +75,8 @@ const cardUpdateSchema = cardSchema.partial().extend({
 
 export function createGrimoireServer(options: Options) {
   const database = openDatabase(options.databasePath);
+  const cardStore = new MarkdownCardStore(options.cardsDirectory ?? join(dirname(options.databasePath), "cards"));
+  cardStore.migrateLegacyCards(database);
   let databaseClosed = false;
 
   const server = createServer((request, response) => {
@@ -245,7 +249,7 @@ export function createGrimoireServer(options: Options) {
 
     if (method === "GET" && url.pathname === "/api/board") {
       const user = requireUser(context);
-      const board = getBoard(database, user);
+      const board = getBoard(database, cardStore, user);
       if (!board) throw new HttpError(404, "Board not found");
       json(response, 200, board);
       return;
@@ -254,7 +258,7 @@ export function createGrimoireServer(options: Options) {
     if (method === "POST" && url.pathname === "/api/cards") {
       const user = requireUser(context);
       const projectId = requireProjectId(user.id);
-      const card = createCard(database, projectId, user.id, cardSchema.parse(await readJson(request)));
+      const card = createCard(database, cardStore, projectId, user.id, cardSchema.parse(await readJson(request)));
       if (!card) throw new HttpError(400, "Assignee is not a member of this board");
       json(response, 201, { card });
       return;
@@ -265,6 +269,7 @@ export function createGrimoireServer(options: Options) {
       const user = requireUser(context);
       const card = updateCard(
         database,
+        cardStore,
         requireProjectId(user.id),
         cardMatch[1],
         cardUpdateSchema.parse(await readJson(request)),
@@ -276,7 +281,9 @@ export function createGrimoireServer(options: Options) {
 
     if (method === "DELETE" && cardMatch) {
       const user = requireUser(context);
-      if (!archiveCard(database, requireProjectId(user.id), cardMatch[1])) throw new HttpError(404, "Card not found");
+      if (!archiveCard(database, cardStore, requireProjectId(user.id), cardMatch[1])) {
+        throw new HttpError(404, "Card not found");
+      }
       json(response, 200, { ok: true });
       return;
     }
