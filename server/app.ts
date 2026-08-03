@@ -6,11 +6,20 @@ import { z, ZodError } from "zod";
 import { createWizardSimulatorProject, openDatabase } from "./database";
 import {
   createIdea,
+  createOutcome,
+  createWorkItem,
   findUserByEmail,
   findUserById,
+  getOutcome,
   getWorkspace,
   projectIdForUser,
+  promoteIdea,
   publicUser,
+  updateIdea,
+  updateMilestoneCondition,
+  updateOutcome,
+  updateProject,
+  updateWorkItem,
   userCount,
 } from "./repository";
 import { createOpaqueToken, hashPassword, hashToken, verifyPassword } from "./security";
@@ -52,6 +61,57 @@ const ideaSchema = z.object({
   title: z.string().trim().min(1).max(240),
   notes: z.string().trim().max(10_000).optional(),
   horizon: z.enum(["now", "next", "later"]).optional(),
+});
+
+const projectSchema = z
+  .object({
+    pitch: z.string().trim().max(2_000),
+    playerFantasy: z.string().trim().max(2_000),
+    currentDirection: z.string().trim().min(1).max(500),
+    directionDetail: z.string().trim().max(5_000),
+    nonGoals: z.string().trim().max(5_000),
+  })
+  .partial();
+
+const ideaUpdateSchema = z
+  .object({
+    title: z.string().trim().min(1).max(240),
+    notes: z.string().trim().max(10_000),
+    status: z.enum(["inbox", "considering", "later", "promoted", "rejected"]),
+    horizon: z.enum(["now", "next", "later"]),
+  })
+  .partial();
+
+const outcomeStatus = z.enum([
+  "shaping",
+  "ready",
+  "active",
+  "playtest",
+  "integrated",
+  "validated",
+  "revise",
+  "cut",
+]);
+
+const outcomeSchema = z.object({
+  title: z.string().trim().min(1).max(240),
+  description: z.string().trim().max(10_000).optional(),
+  status: outcomeStatus.optional(),
+  ownerId: z.string().uuid().nullable().optional(),
+  milestoneId: z.string().uuid().nullable().optional(),
+  pillarId: z.string().uuid().nullable().optional(),
+  definitionOfPlayable: z.string().trim().max(10_000).optional(),
+});
+
+const workStatus = z.enum(["blocked", "ready", "doing", "review", "done"]);
+const workSchema = z.object({
+  outcomeId: z.string().uuid(),
+  title: z.string().trim().min(1).max(240),
+  discipline: z.string().trim().max(120).optional(),
+  status: workStatus.optional(),
+  ownerId: z.string().uuid().nullable().optional(),
+  description: z.string().trim().max(10_000).optional(),
+  dependencyIds: z.array(z.string().uuid()).max(20).optional(),
 });
 
 export function createGrimoireServer(options: Options) {
@@ -233,7 +293,92 @@ export function createGrimoireServer(options: Options) {
       return;
     }
 
+    if (method === "PATCH" && url.pathname === "/api/project") {
+      const user = requireUser(context);
+      const projectId = requireProjectId(user.id);
+      const project = updateProject(database, projectId, user.id, projectSchema.parse(await readJson(request)));
+      json(response, 200, { project });
+      return;
+    }
+
+    const conditionMatch = url.pathname.match(/^\/api\/milestone-conditions\/([^/]+)$/);
+    if (method === "PATCH" && conditionMatch) {
+      const user = requireUser(context);
+      const projectId = requireProjectId(user.id);
+      const input = z.object({ complete: z.boolean() }).parse(await readJson(request));
+      const condition = updateMilestoneCondition(database, projectId, user.id, conditionMatch[1], input.complete);
+      if (!condition) throw new HttpError(404, "Milestone condition not found");
+      json(response, 200, { condition });
+      return;
+    }
+
+    const ideaMatch = url.pathname.match(/^\/api\/ideas\/([^/]+)$/);
+    if (method === "PATCH" && ideaMatch) {
+      const user = requireUser(context);
+      const projectId = requireProjectId(user.id);
+      const idea = updateIdea(database, projectId, user.id, ideaMatch[1], ideaUpdateSchema.parse(await readJson(request)));
+      if (!idea) throw new HttpError(404, "Idea not found");
+      json(response, 200, { idea });
+      return;
+    }
+
+    const promoteMatch = url.pathname.match(/^\/api\/ideas\/([^/]+)\/promote$/);
+    if (method === "POST" && promoteMatch) {
+      const user = requireUser(context);
+      const projectId = requireProjectId(user.id);
+      const result = promoteIdea(database, projectId, user.id, promoteMatch[1], outcomeSchema.parse(await readJson(request)));
+      if (!result) throw new HttpError(409, "Idea cannot be promoted");
+      json(response, 201, result);
+      return;
+    }
+
+    if (method === "POST" && url.pathname === "/api/outcomes") {
+      const user = requireUser(context);
+      const projectId = requireProjectId(user.id);
+      const outcome = createOutcome(database, projectId, user.id, outcomeSchema.parse(await readJson(request)));
+      json(response, 201, { outcome });
+      return;
+    }
+
+    const outcomeMatch = url.pathname.match(/^\/api\/outcomes\/([^/]+)$/);
+    if (method === "PATCH" && outcomeMatch) {
+      const user = requireUser(context);
+      const projectId = requireProjectId(user.id);
+      const current = getOutcome(database, projectId, outcomeMatch[1]);
+      if (!current) throw new HttpError(404, "Outcome not found");
+      const input = outcomeSchema.partial().parse(await readJson(request));
+      const outcome = updateOutcome(database, projectId, user.id, outcomeMatch[1], input)!;
+      json(response, 200, { outcome });
+      return;
+    }
+
+    if (method === "POST" && url.pathname === "/api/work") {
+      const user = requireUser(context);
+      const projectId = requireProjectId(user.id);
+      const workItem = createWorkItem(database, projectId, user.id, workSchema.parse(await readJson(request)));
+      if (!workItem) throw new HttpError(400, "Work item references invalid project data");
+      json(response, 201, { workItem });
+      return;
+    }
+
+    const workMatch = url.pathname.match(/^\/api\/work\/([^/]+)$/);
+    if (method === "PATCH" && workMatch) {
+      const user = requireUser(context);
+      const projectId = requireProjectId(user.id);
+      const input = workSchema.omit({ outcomeId: true, dependencyIds: true }).partial().parse(await readJson(request));
+      const workItem = updateWorkItem(database, projectId, user.id, workMatch[1], input);
+      if (!workItem) throw new HttpError(404, "Work item not found");
+      json(response, 200, { workItem });
+      return;
+    }
+
     json(response, 404, { error: "Not found" });
+  }
+
+  function requireProjectId(userId: string): string {
+    const projectId = projectIdForUser(database, userId);
+    if (!projectId) throw new HttpError(404, "Workspace not found");
+    return projectId;
   }
 
   function setSession(response: ServerResponse, userId: string): void {
