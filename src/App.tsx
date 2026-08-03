@@ -3,6 +3,7 @@ import type { BoardWorkspace, CardStatus, IdeaState, IdeaWorkspace, SessionState
 import { ApiError, board as loadBoard, ideas as loadIdeas, liveEventsUrl, mutate, request, session } from "./api/client";
 import { AuthScreen } from "./components/AuthScreen";
 import { Board } from "./components/Board";
+import type { CaptureCardInput } from "./components/QuickCapture";
 import { type UndoNotice, UndoToast } from "./components/UndoToast";
 
 type PendingUndo = UndoNotice & {
@@ -115,7 +116,7 @@ export function App() {
     }
   };
 
-  const createCard = (input: { title: string; status: CardStatus }) =>
+  const createCard = (input: CaptureCardInput) =>
     perform(() => mutate("/api/cards", "POST", input));
 
   const updateCard = async (id: string, input: Record<string, unknown>) => {
@@ -137,6 +138,20 @@ export function App() {
       id: Date.now(),
       message: `Archived ${title}`,
       run: () => perform(() => mutate(`/api/cards/${id}/restore`, "POST")),
+    });
+  };
+
+  const moveBacklogToNext = async (id: string) => {
+    const card = board?.cards.find((candidate) => candidate.id === id);
+    if (!card || !board) return;
+    const previousPosition = card.position;
+    const readyPosition = board.cards.filter((candidate) => candidate.status === "ready").length;
+    await updateCard(id, { status: "ready", position: readyPosition });
+    setUndoNotice({
+      actionLabel: "Undo move to Up Next",
+      id: Date.now(),
+      message: `Moved ${card.title} to Up Next`,
+      run: () => updateCard(id, { status: "backlog", position: previousPosition }),
     });
   };
 
@@ -254,6 +269,7 @@ export function App() {
         onCreateInvite={createInvite}
         onCreateIdea={createIdea}
         onLogout={logout}
+        onMoveBacklogToNext={moveBacklogToNext}
         onPromoteIdea={promoteIdea}
         onRemoveMember={removeMember}
         onUpdate={updateCard}

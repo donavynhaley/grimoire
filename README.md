@@ -19,6 +19,7 @@ Grimoire keeps the main board limited to the work that currently deserves the te
 
 Accepted work outside the active deck lives in a searchable Backlog library instead of occupying a permanent board column.
 The library can be filtered by category, assignee, or blocked state, and any card can move into Up Next with one action.
+Moving a card into Up Next keeps the library open so several cards can be selected in one pass.
 Cards can be dragged between active columns, reordered within a column, or dropped onto the Backlog control.
 Press `B` while focus is on the board to open the Backlog library.
 
@@ -39,6 +40,10 @@ Undo restores the card to its prior place and reconnects dependency links that t
 
 Status and assignee changes use direct buttons instead of dropdown menus.
 On touch devices, the same compact status buttons provide an alternative to dragging.
+
+The work capture reveals compact category, assignment, and column controls after typing begins.
+Typing `#`, `@`, or `/` opens the matching picker without leaving the keyboard, and the command text is removed from the saved title.
+After a configured capture, a temporary `same settings` action can restore its category, assignment, and column for another related card.
 
 The visible filter bar can focus the board on unassigned work or work assigned to any team member, including the signed-in person.
 Search and people filters combine, and the current view is stored in the URL so a useful view can be bookmarked or shared.

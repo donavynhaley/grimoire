@@ -5,6 +5,7 @@ import { BacklogDialog } from "./BacklogDialog";
 import { CardDialog } from "./CardDialog";
 import { DoneHistoryDialog } from "./DoneHistoryDialog";
 import { initials } from "./initials";
+import { type CaptureCardInput, QuickCapture } from "./QuickCapture";
 import { TeamDialog } from "./TeamDialog";
 import { IdeasBoard } from "./IdeasBoard";
 
@@ -23,21 +24,21 @@ type Props = {
   busy: boolean;
   ideas: IdeaWorkspace | null;
   view: "work" | "ideas";
-  onCreate: (input: { title: string; status: CardStatus }) => Promise<void>;
+  onCreate: (input: CaptureCardInput) => Promise<void>;
   onUpdate: (id: string, input: Record<string, unknown>) => Promise<void>;
   onArchive: (id: string) => Promise<void>;
   onCreateInvite: () => Promise<string>;
   onCreateIdea: (input: { title: string }) => Promise<void>;
   onChangePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   onLogout: () => Promise<void>;
+  onMoveBacklogToNext: (id: string) => Promise<void>;
   onPromoteIdea: (id: string) => Promise<void>;
   onRemoveMember: (id: string) => Promise<void>;
   onUpdateIdea: (id: string, input: { title?: string; description?: string; state?: IdeaState; position?: number }) => Promise<void>;
   onViewChange: (view: "work" | "ideas") => Promise<void>;
 };
 
-export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive, onCreateInvite, onCreateIdea, onChangePassword, onLogout, onPromoteIdea, onRemoveMember, onUpdateIdea, onViewChange }: Props) {
-  const [quickTitle, setQuickTitle] = useState("");
+export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive, onCreateInvite, onCreateIdea, onChangePassword, onLogout, onMoveBacklogToNext, onPromoteIdea, onRemoveMember, onUpdateIdea, onViewChange }: Props) {
   const [addingTo, setAddingTo] = useState<CardStatus | null>(null);
   const [columnTitle, setColumnTitle] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -133,21 +134,13 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
     updateUrl(query, next);
   };
 
-  const createQuickCard = async (event: FormEvent) => {
-    event.preventDefault();
-    const title = quickTitle.trim();
-    if (!title) return;
-    setQuickTitle("");
-    await onCreate({ title, status: "backlog" });
-  };
-
   const createColumnCard = async (event: FormEvent, status: CardStatus) => {
     event.preventDefault();
     const title = columnTitle.trim();
     if (!title) return;
     setColumnTitle("");
     setAddingTo(null);
-    await onCreate({ title, status });
+    await onCreate({ title, category: null, assigneeId: null, status });
   };
 
   const cardIdFromDrop = (event: DragEvent) => draggedId ?? event.dataTransfer.getData("text/plain");
@@ -194,18 +187,7 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
           <div>
             <h2>{activeCount} active card{activeCount === 1 ? "" : "s"}</h2>
           </div>
-          <form className="quick-add workspace-capture" onSubmit={createQuickCard}>
-            <label className="sr-only" htmlFor="quick-card">Add a card to backlog</label>
-            <input
-              autoFocus
-              id="quick-card"
-              name="quickCard"
-              onChange={(event) => setQuickTitle(event.target.value)}
-              placeholder="Capture for the backlog..."
-              value={quickTitle}
-            />
-            <button className="primary-button" disabled={busy || !quickTitle.trim()} type="submit">add card</button>
-          </form>
+          <QuickCapture busy={busy} members={board.members} onCreate={onCreate} />
         </div>
 
         <div className="work-filters" aria-label="Work filters">
@@ -364,10 +346,7 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
           cards={backlogCards}
           members={board.members}
           onClose={() => setBacklogOpen(false)}
-          onMoveToNext={async (id) => {
-            setBacklogOpen(false);
-            await onUpdate(id, { status: "ready", position: board.cards.filter((card) => card.status === "ready").length });
-          }}
+          onMoveToNext={onMoveBacklogToNext}
           onOpenCard={(id) => { setBacklogOpen(false); setSelectedId(id); }}
         />
       )}

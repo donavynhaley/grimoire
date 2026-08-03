@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "../../src/App";
@@ -94,7 +94,7 @@ describe("Grimoire board", () => {
     expect(screen.getByRole("button", { name: /open backlog/i })).toHaveTextContent("Backlog");
     expect(screen.getByRole("button", { name: /open backlog/i })).toHaveTextContent("1");
     expect(screen.getByText("Maren")).toBeInTheDocument();
-    const capture = screen.getByLabelText(/add a card to backlog/i);
+    const capture = screen.getByLabelText("Capture work card");
     expect(capture).toHaveFocus();
     expect(capture.closest("form")).toHaveClass("workspace-capture");
     expect(screen.queryByText("one board, one source of truth", { exact: false })).not.toBeInTheDocument();
@@ -119,7 +119,7 @@ describe("Grimoire board", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<App />);
-    expect(await screen.findByLabelText(/add a card to backlog/i)).toHaveFocus();
+    expect(await screen.findByLabelText("Capture work card")).toHaveFocus();
 
     await userEvent.keyboard("2");
     expect(await screen.findByRole("heading", { name: "Idea garden" })).toBeInTheDocument();
@@ -128,14 +128,14 @@ describe("Grimoire board", () => {
 
     await userEvent.keyboard("1");
     expect(screen.getByRole("region", { name: "Up Next" })).toBeInTheDocument();
-    expect(screen.getByLabelText(/add a card to backlog/i)).toHaveFocus();
+    expect(screen.getByLabelText("Capture work card")).toHaveFocus();
     expect(window.location.search).not.toContain("view=ideas");
 
-    await userEvent.type(screen.getByLabelText(/add a card to backlog/i), "room 2");
-    expect(screen.getByLabelText(/add a card to backlog/i)).toHaveValue("room 2");
-    await userEvent.clear(screen.getByLabelText(/add a card to backlog/i));
-    await userEvent.type(screen.getByLabelText(/add a card to backlog/i), "broom polish");
-    expect(screen.getByLabelText(/add a card to backlog/i)).toHaveValue("broom polish");
+    await userEvent.type(screen.getByLabelText("Capture work card"), "room 2");
+    expect(screen.getByLabelText("Capture work card")).toHaveValue("room 2");
+    await userEvent.clear(screen.getByLabelText("Capture work card"));
+    await userEvent.type(screen.getByLabelText("Capture work card"), "broom polish");
+    expect(screen.getByLabelText("Capture work card")).toHaveValue("broom polish");
     expect(screen.queryByRole("dialog", { name: "Backlog" })).not.toBeInTheDocument();
   });
 
@@ -153,7 +153,7 @@ describe("Grimoire board", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<App />);
-    const input = await screen.findByLabelText(/add a card to backlog/i);
+    const input = await screen.findByLabelText("Capture work card");
     await userEvent.type(input, created.title);
     await userEvent.keyboard("{Enter}");
 
@@ -165,14 +165,16 @@ describe("Grimoire board", () => {
     );
   });
 
-  it("opens and searches the backlog with B, then moves work into Up Next", async () => {
+  it("keeps the backlog open and preserves its filters while moving several cards to Up Next", async () => {
     const initial = boardFixture();
     const card = initial.cards[0];
     const moved = { ...card, status: "ready" as const, position: 0 };
     const updated = { ...initial, cards: [moved, initial.cards[1]] };
     const fetchMock = authenticatedFetch(initial)
       .mockImplementationOnce(() => response({ card: moved }))
-      .mockImplementationOnce(() => response(updated));
+      .mockImplementationOnce(() => response(updated))
+      .mockImplementationOnce(() => response({ card }))
+      .mockImplementationOnce(() => response(initial));
     vi.stubGlobal("fetch", fetchMock);
 
     render(<App />);
@@ -187,12 +189,119 @@ describe("Grimoire board", () => {
     expect(screen.getByText(card.title)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: `Move ${card.title} to Up Next` }));
 
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Backlog" })).not.toBeInTheDocument());
-    expect(await screen.findByRole("region", { name: "Up Next" })).toHaveTextContent(card.title);
+    const backlog = await screen.findByRole("dialog", { name: "Backlog" });
+    expect(backlog).toBeInTheDocument();
+    expect(screen.getByRole("searchbox", { name: "Search backlog" })).toHaveValue("tower door");
+    await waitFor(() => expect(within(backlog).queryByText(card.title)).not.toBeInTheDocument());
+    expect(screen.getByText(`Moved ${card.title} to Up Next`)).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(
       `/api/cards/${card.id}`,
       expect.objectContaining({ method: "PATCH", body: JSON.stringify({ status: "ready", position: 0 }) }),
     );
+
+    await userEvent.click(screen.getByRole("button", { name: "Undo move to Up Next" }));
+    expect(await within(backlog).findByText(card.title)).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/cards/${card.id}`,
+      expect.objectContaining({ method: "PATCH", body: JSON.stringify({ status: "backlog", position: card.position }) }),
+    );
+  });
+
+  it("configures a capture with compact buttons and restores the last settings", async () => {
+    const initial = boardFixture();
+    const created = {
+      ...initial.cards[0],
+      id: "00000000-0000-4000-8000-000000000029",
+      title: "Build the spell loadout",
+      category: "code" as const,
+      assigneeId: initial.members[1].id,
+      assigneeName: initial.members[1].name,
+      status: "ready" as const,
+      position: 0,
+    };
+    const updated = { ...initial, cards: [...initial.cards, created] };
+    const fetchMock = authenticatedFetch(initial)
+      .mockImplementationOnce(() => response({ card: created }, 201))
+      .mockImplementationOnce(() => response(updated));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    const input = await screen.findByLabelText("Capture work card");
+    expect(screen.queryByRole("button", { name: "Choose category" })).not.toBeInTheDocument();
+    await userEvent.type(input, created.title);
+
+    await userEvent.click(screen.getByRole("button", { name: "Choose category" }));
+    await userEvent.click(screen.getByRole("option", { name: "Code" }));
+    await userEvent.click(screen.getByRole("button", { name: "Choose assignee" }));
+    await userEvent.click(screen.getByRole("option", { name: "Maren" }));
+    await userEvent.click(screen.getByRole("button", { name: "Choose column" }));
+    await userEvent.click(screen.getByRole("option", { name: "Up Next" }));
+    await userEvent.keyboard("{Enter}");
+
+    await waitFor(() => expect(input).toHaveValue(""));
+    expect(input).toHaveFocus();
+    expect(screen.getByRole("button", { name: /reuse code, maren, up next/i })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/cards",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          title: created.title,
+          category: "code",
+          assigneeId: initial.members[1].id,
+          status: "ready",
+        }),
+      }),
+    );
+
+    await userEvent.type(input, "Wire the spellbook tabs");
+    await userEvent.click(screen.getByRole("button", { name: /reuse code, maren, up next/i }));
+    expect(screen.getByRole("button", { name: "Category: Code" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Assignee: Maren" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Column: Up Next" })).toBeInTheDocument();
+    expect(input).toHaveFocus();
+  });
+
+  it("uses inline commands to configure capture without adding them to the card title", async () => {
+    const initial = boardFixture();
+    const created = {
+      ...initial.cards[0],
+      id: "00000000-0000-4000-8000-000000000030",
+      title: "Polish targeting reticle",
+      category: "ui" as const,
+      assigneeId: initial.currentUser.id,
+      assigneeName: initial.currentUser.name,
+      status: "in_progress" as const,
+      position: 1,
+    };
+    const updated = { ...initial, cards: [...initial.cards, created] };
+    const fetchMock = authenticatedFetch(initial)
+      .mockImplementationOnce(() => response({ card: created }, 201))
+      .mockImplementationOnce(() => response(updated));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    const input = await screen.findByLabelText("Capture work card");
+    await userEvent.type(input, `${created.title} #u`);
+    await userEvent.keyboard("{Enter}");
+    await userEvent.type(input, " @don");
+    await userEvent.keyboard("{Enter}");
+    await userEvent.type(input, " /in");
+    await userEvent.keyboard("{Enter}");
+    await userEvent.keyboard("{Enter}");
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/cards",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          title: created.title,
+          category: "ui",
+          assigneeId: initial.currentUser.id,
+          status: "in_progress",
+        }),
+      }),
+    ));
   });
 
   it("moves a card by dropping it into another column", async () => {
