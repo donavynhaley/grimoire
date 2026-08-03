@@ -1,4 +1,4 @@
-import type { SessionState, Workspace } from "../../shared/types";
+import type { BoardWorkspace, SessionState } from "../../shared/types";
 
 export class ApiError extends Error {
   constructor(
@@ -22,11 +22,10 @@ export function session(): Promise<SessionState> {
   return request<SessionState>("/api/session");
 }
 
-export function workspace(): Promise<Workspace> {
-  return request<Workspace>("/api/workspace");
+export function board(): Promise<BoardWorkspace> {
+  return request<BoardWorkspace>("/api/board");
 }
 
-export function mutate<T>(path: string, method: "POST" | "PATCH", body: unknown = {}): Promise<T> {
+export function mutate<T>(path: string, method: "POST" | "PATCH" | "DELETE", body: unknown = {}): Promise<T> {
   return request<T>(path, { method, body: JSON.stringify(body) });
 }
-

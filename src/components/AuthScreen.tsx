@@ -49,8 +49,8 @@ export function AuthScreen({ mode: initialMode, inviteCode, onAuthenticated }: P
           {setup
             ? "Create the owner account for your private Wizard Simulator workspace."
             : register
-              ? "Create your account to join the shared production workspace."
-              : "Sign in to see the direction, your work, and what is ready for a handoff."}
+              ? "Create your account to join the shared project board."
+              : "Sign in to see the board and what everyone is working on."}
         </p>
         <form className="stack-form" onSubmit={submit}>
           {mode !== "login" && (

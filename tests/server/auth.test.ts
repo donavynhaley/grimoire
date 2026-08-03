@@ -27,7 +27,7 @@ describe("authentication", () => {
     const logout = await server.request("/api/auth/logout", { method: "POST" });
     expect(logout.response.status).toBe(200);
 
-    const denied = await server.request("/api/workspace");
+    const denied = await server.request("/api/board");
     expect(denied.response.status).toBe(401);
 
     const login = await server.request<{ user: Record<string, unknown> }>("/api/auth/login", {
@@ -75,4 +75,3 @@ describe("authentication", () => {
     expect(reused.response.status).toBe(409);
   });
 });
-

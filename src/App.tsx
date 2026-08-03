@@ -1,34 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
-import type { SessionState, User, Workspace } from "../shared/types";
-import { ApiError, mutate, request, session, workspace as loadWorkspace } from "./api/client";
+import type { BoardWorkspace, CardStatus, SessionState, User } from "../shared/types";
+import { ApiError, board as loadBoard, mutate, request, session } from "./api/client";
 import { AuthScreen } from "./components/AuthScreen";
-import { Shell, type ViewName } from "./components/Shell";
-import { AssetsView } from "./views/AssetsView";
-import { DirectionView } from "./views/DirectionView";
-import { IdeasView } from "./views/IdeasView";
-import { MyWorkView } from "./views/MyWorkView";
-import { OutcomesView } from "./views/OutcomesView";
-import { OverviewView } from "./views/OverviewView";
-import { PlaytestsView } from "./views/PlaytestsView";
-import { TeamView } from "./views/TeamView";
-
-const views: ViewName[] = ["overview", "direction", "outcomes", "ideas", "assets", "playtests", "my work", "team"];
-
-function viewFromHash(): ViewName {
-  const value = decodeURIComponent(location.hash.replace(/^#/, ""));
-  return views.includes(value as ViewName) ? (value as ViewName) : "overview";
-}
+import { Board } from "./components/Board";
 
 export function App() {
   const [sessionState, setSessionState] = useState<SessionState | null>(null);
-  const [workspace, setWorkspace] = useState<Workspace | null>(null);
-  const [activeView, setActiveView] = useState<ViewName>(viewFromHash);
+  const [board, setBoard] = useState<BoardWorkspace | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  const refreshWorkspace = useCallback(async () => {
-    const value = await loadWorkspace();
-    setWorkspace(value);
+  const refreshBoard = useCallback(async () => {
+    const value = await loadBoard();
+    setBoard(value);
     setSessionState({ status: "authenticated", user: value.currentUser });
   }, []);
 
@@ -39,36 +23,24 @@ export function App() {
         if (!alive) return;
         setSessionState(value);
         if (value.status === "authenticated") {
-          const data = await loadWorkspace();
-          if (alive) setWorkspace(data);
+          const data = await loadBoard();
+          if (alive) setBoard(data);
         }
       })
       .catch((value) => alive && setError(value instanceof Error ? value.message : "Could not reach Grimoire"));
     return () => { alive = false; };
   }, []);
 
-  useEffect(() => {
-    const onHash = () => setActiveView(viewFromHash());
-    window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
-  }, []);
-
-  const navigate = (view: ViewName) => {
-    setActiveView(view);
-    history.replaceState(null, "", `#${encodeURIComponent(view)}`);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
   const onAuthenticated = async (_user: User) => {
-    await refreshWorkspace();
+    await refreshBoard();
   };
 
-  const runMutation = async (path: string, method: "POST" | "PATCH", body: unknown = {}) => {
+  const perform = async (change: () => Promise<unknown>) => {
     setBusy(true);
     setError("");
     try {
-      await mutate(path, method, body);
-      await refreshWorkspace();
+      await change();
+      await refreshBoard();
     } catch (value) {
       setError(value instanceof ApiError ? value.message : "The change could not be saved");
       throw value;
@@ -77,16 +49,37 @@ export function App() {
     }
   };
 
+  const createCard = (input: { title: string; status: CardStatus }) =>
+    perform(() => mutate("/api/cards", "POST", input));
+
+  const updateCard = async (id: string, input: Record<string, unknown>) => {
+    const previous = board;
+    if (previous) setBoard(applyOptimisticCardUpdate(previous, id, input));
+    try {
+      await perform(() => mutate(`/api/cards/${id}`, "PATCH", input));
+    } catch (error) {
+      if (previous) setBoard(previous);
+      throw error;
+    }
+  };
+
+  const archiveCard = (id: string) => perform(() => mutate(`/api/cards/${id}`, "DELETE"));
+
+  const createInvite = async () => {
+    const result = await mutate<{ code: string }>("/api/invites", "POST");
+    return `${location.origin}${location.pathname}?invite=${encodeURIComponent(result.code)}`;
+  };
+
   const logout = async () => {
     await request("/api/auth/logout", { method: "POST", body: JSON.stringify({}) });
-    setWorkspace(null);
+    setBoard(null);
     setSessionState({ status: "anonymous" });
   };
 
   if (error && !sessionState) {
-    return <div className="loading-screen"><span className="brand-mark">g</span><p>{error}</p><button className="secondary-button" onClick={() => location.reload()} type="button">retry</button></div>;
+    return <div className="loading-screen"><span className="brand-mark">g</span><p>{error}</p><button className="quiet-button" onClick={() => location.reload()} type="button">retry</button></div>;
   }
-  if (!sessionState || (sessionState.status === "authenticated" && !workspace)) {
+  if (!sessionState || (sessionState.status === "authenticated" && !board)) {
     return <div className="loading-screen"><span className="brand-mark pulse">g</span><p>opening grimoire...</p></div>;
   }
   if (sessionState.status === "setup_required") {
@@ -96,25 +89,53 @@ export function App() {
     const invite = new URLSearchParams(location.search).get("invite") ?? undefined;
     return <AuthScreen inviteCode={invite} mode={invite ? "register" : "login"} onAuthenticated={onAuthenticated} />;
   }
-  if (!workspace) return null;
-
-  const props = { workspace, runMutation, navigate, busy };
-  const content =
-    activeView === "direction" ? <DirectionView {...props} />
-      : activeView === "outcomes" ? <OutcomesView {...props} />
-        : activeView === "ideas" ? <IdeasView {...props} />
-          : activeView === "assets" ? <AssetsView {...props} />
-            : activeView === "playtests" ? <PlaytestsView {...props} />
-              : activeView === "my work" ? <MyWorkView {...props} />
-                : activeView === "team" ? <TeamView {...props} />
-                  : <OverviewView {...props} />;
+  if (!board) return null;
 
   return (
-    <Shell workspace={workspace} activeView={activeView} onNavigate={navigate} onLogout={logout}>
-      {error && <div className="error-banner global-error" role="alert">{error}</div>}
-      {content}
-      {busy && <div className="saving-indicator"><span className="connection-dot" />saving</div>}
-    </Shell>
+    <>
+      {error && <div className="error-banner global-error" role="alert">{error}<button aria-label="Dismiss error" onClick={() => setError("")} type="button">×</button></div>}
+      <Board
+        board={board}
+        busy={busy}
+        onArchive={archiveCard}
+        onCreate={createCard}
+        onCreateInvite={createInvite}
+        onLogout={logout}
+        onUpdate={updateCard}
+      />
+    </>
   );
 }
 
+function applyOptimisticCardUpdate(
+  board: BoardWorkspace,
+  id: string,
+  input: Record<string, unknown>,
+): BoardWorkspace {
+  const current = board.cards.find((card) => card.id === id);
+  if (!current) return board;
+  const targetStatus = (input.status as CardStatus | undefined) ?? current.status;
+  const targetPosition = typeof input.position === "number" ? input.position : current.position;
+  const assigneeId = input.assigneeId === undefined ? current.assigneeId : (input.assigneeId as string | null);
+  const assignee = board.members.find((member) => member.id === assigneeId);
+  const remaining = board.cards.filter((card) => card.id !== id);
+  const targetCards = remaining
+    .filter((card) => card.status === targetStatus)
+    .sort((a, b) => a.position - b.position);
+  const insertAt = Math.max(0, Math.min(targetPosition, targetCards.length));
+  targetCards.splice(insertAt, 0, {
+    ...current,
+    ...input,
+    status: targetStatus,
+    assigneeId,
+    assigneeName: assignee?.name ?? null,
+  });
+  const reordered = targetCards.map((card, position) => ({ ...card, position }));
+  return {
+    ...board,
+    cards: [
+      ...remaining.filter((card) => card.status !== targetStatus),
+      ...reordered,
+    ],
+  };
+}

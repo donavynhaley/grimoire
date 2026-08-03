@@ -3,32 +3,20 @@ import { createReadStream, existsSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { extname, join, normalize } from "node:path";
 import { z, ZodError } from "zod";
+import type { User } from "../shared/types";
 import { createWizardSimulatorProject, openDatabase } from "./database";
 import {
-  createIdea,
-  createAsset,
-  createBuild,
-  createComment,
-  createOutcome,
-  createPlaytest,
-  createWorkItem,
+  archiveCard,
+  createCard,
   findUserByEmail,
   findUserById,
-  getOutcome,
-  getWorkspace,
+  getBoard,
   projectIdForUser,
-  promoteIdea,
   publicUser,
-  updateIdea,
-  updateAssetStage,
-  updateMilestoneCondition,
-  updateOutcome,
-  updateProject,
-  updateWorkItem,
+  updateCard,
   userCount,
 } from "./repository";
 import { createOpaqueToken, hashPassword, hashToken, verifyPassword } from "./security";
-import type { User } from "../shared/types";
 
 const SESSION_COOKIE = "grimoire_session";
 const SESSION_AGE_SECONDS = 60 * 60 * 24 * 30;
@@ -62,101 +50,15 @@ const registerSchema = accountSchema.extend({
   inviteCode: z.string().min(20).max(200),
 });
 
-const ideaSchema = z.object({
+const cardStatus = z.enum(["backlog", "ready", "in_progress", "done"]);
+const cardSchema = z.object({
   title: z.string().trim().min(1).max(240),
-  notes: z.string().trim().max(10_000).optional(),
-  horizon: z.enum(["now", "next", "later"]).optional(),
+  description: z.string().trim().max(20_000).optional(),
+  status: cardStatus.optional(),
+  assigneeId: z.string().uuid().nullable().optional(),
 });
-
-const projectSchema = z
-  .object({
-    pitch: z.string().trim().max(2_000),
-    playerFantasy: z.string().trim().max(2_000),
-    currentDirection: z.string().trim().min(1).max(500),
-    directionDetail: z.string().trim().max(5_000),
-    nonGoals: z.string().trim().max(5_000),
-  })
-  .partial();
-
-const ideaUpdateSchema = z
-  .object({
-    title: z.string().trim().min(1).max(240),
-    notes: z.string().trim().max(10_000),
-    status: z.enum(["inbox", "considering", "later", "promoted", "rejected"]),
-    horizon: z.enum(["now", "next", "later"]),
-  })
-  .partial();
-
-const outcomeStatus = z.enum([
-  "shaping",
-  "ready",
-  "active",
-  "playtest",
-  "integrated",
-  "validated",
-  "revise",
-  "cut",
-]);
-
-const outcomeSchema = z.object({
-  title: z.string().trim().min(1).max(240),
-  description: z.string().trim().max(10_000).optional(),
-  status: outcomeStatus.optional(),
-  ownerId: z.string().uuid().nullable().optional(),
-  milestoneId: z.string().uuid().nullable().optional(),
-  pillarId: z.string().uuid().nullable().optional(),
-  definitionOfPlayable: z.string().trim().max(10_000).optional(),
-});
-
-const workStatus = z.enum(["blocked", "ready", "doing", "review", "done"]);
-const workSchema = z.object({
-  outcomeId: z.string().uuid(),
-  title: z.string().trim().min(1).max(240),
-  discipline: z.string().trim().max(120).optional(),
-  status: workStatus.optional(),
-  ownerId: z.string().uuid().nullable().optional(),
-  description: z.string().trim().max(10_000).optional(),
-  dependencyIds: z.array(z.string().uuid()).max(20).optional(),
-});
-
-const assetSchema = z.object({
-  name: z.string().trim().min(1).max(240),
-  type: z.string().trim().min(1).max(120).optional(),
-  outcomeId: z.string().uuid().nullable().optional(),
-  ownerId: z.string().uuid().nullable().optional(),
-  sourceUrl: z.string().trim().max(2_000).optional(),
-  notes: z.string().trim().max(10_000).optional(),
-  stageLabels: z.array(z.string().trim().min(1).max(120)).min(1).max(20),
-});
-
-const assetStageSchema = z
-  .object({
-    status: z.enum(["waiting", "ready", "doing", "review", "done"]),
-    ownerId: z.string().uuid().nullable(),
-    handoffNote: z.string().trim().max(10_000),
-  })
-  .partial();
-
-const buildSchema = z.object({
-  name: z.string().trim().min(1).max(240),
-  summary: z.string().trim().max(10_000).optional(),
-  knownIssues: z.string().trim().max(10_000).optional(),
-  builtAt: z.string().datetime().optional(),
-});
-
-const playtestSchema = z.object({
-  title: z.string().trim().min(1).max(240),
-  outcomeId: z.string().uuid().nullable().optional(),
-  buildId: z.string().uuid().nullable().optional(),
-  observations: z.string().trim().max(20_000).optional(),
-  decision: z.enum(["undecided", "keep", "revise", "cut"]).optional(),
-  playedAt: z.string().datetime().optional(),
-});
-
-const commentSchema = z.object({
-  entityType: z.enum(["idea", "outcome", "work", "asset", "build", "playtest"]),
-  entityId: z.string().uuid(),
-  body: z.string().trim().min(1).max(10_000),
+const cardUpdateSchema = cardSchema.partial().extend({
+  position: z.number().int().min(0).optional(),
 });
 
 export function createGrimoireServer(options: Options) {
@@ -189,12 +91,10 @@ export function createGrimoireServer(options: Options) {
       await handleApi(context);
       return;
     }
-
     if (options.production && options.staticDirectory) {
       serveStatic(response, url.pathname, options.staticDirectory);
       return;
     }
-
     json(response, 404, { error: "Not found" });
   }
 
@@ -208,13 +108,9 @@ export function createGrimoireServer(options: Options) {
     }
 
     if (method === "GET" && url.pathname === "/api/session") {
-      if (userCount(database) === 0) {
-        json(response, 200, { status: "setup_required" });
-      } else if (!context.user) {
-        json(response, 200, { status: "anonymous" });
-      } else {
-        json(response, 200, { status: "authenticated", user: context.user });
-      }
+      if (userCount(database) === 0) json(response, 200, { status: "setup_required" });
+      else if (!context.user) json(response, 200, { status: "anonymous" });
+      else json(response, 200, { status: "authenticated", user: context.user });
       return;
     }
 
@@ -222,7 +118,6 @@ export function createGrimoireServer(options: Options) {
       if (userCount(database) !== 0) throw new HttpError(409, "Setup is already complete");
       const input = accountSchema.parse(await readJson(request));
       if (userCount(database) !== 0) throw new HttpError(409, "Setup is already complete");
-
       const userId = randomUUID();
       const now = new Date().toISOString();
       const passwordHash = await hashPassword(input.password);
@@ -235,7 +130,6 @@ export function createGrimoireServer(options: Options) {
         database.prepare("DELETE FROM users WHERE id = ?").run(userId);
         throw error;
       }
-
       const user = publicUser(findUserById(database, userId)!);
       setSession(response, userId);
       json(response, 201, { user });
@@ -249,7 +143,6 @@ export function createGrimoireServer(options: Options) {
         ? await verifyPassword(input.password, String(stored.password_hash))
         : await verifyPassword(input.password, await hashPassword("invalid password placeholder"));
       if (!stored || !passwordMatches) throw new HttpError(401, "Email or password is incorrect");
-
       const user = publicUser(stored);
       setSession(response, user.id);
       json(response, 200, { user });
@@ -257,9 +150,7 @@ export function createGrimoireServer(options: Options) {
     }
 
     if (method === "POST" && url.pathname === "/api/auth/logout") {
-      if (context.sessionToken) {
-        database.prepare("DELETE FROM sessions WHERE token_hash = ?").run(hashToken(context.sessionToken));
-      }
+      if (context.sessionToken) database.prepare("DELETE FROM sessions WHERE token_hash = ?").run(hashToken(context.sessionToken));
       clearSession(response);
       json(response, 200, { ok: true });
       return;
@@ -267,15 +158,13 @@ export function createGrimoireServer(options: Options) {
 
     if (method === "POST" && url.pathname === "/api/auth/register") {
       const input = registerSchema.parse(await readJson(request));
-      const codeHash = hashToken(input.inviteCode);
-      const invite = database.prepare("SELECT * FROM invites WHERE code_hash = ?").get(codeHash) as
+      const invite = database.prepare("SELECT * FROM invites WHERE code_hash = ?").get(hashToken(input.inviteCode)) as
         | Record<string, string | null>
         | undefined;
       if (!invite || invite.used_by || String(invite.expires_at) <= new Date().toISOString()) {
         throw new HttpError(409, "Invitation is invalid or has already been used");
       }
       if (findUserByEmail(database, input.email)) throw new HttpError(409, "An account already uses this email");
-
       const projectId = projectIdForUser(database, String(invite.created_by));
       if (!projectId) throw new HttpError(409, "Invitation project no longer exists");
       const userId = randomUUID();
@@ -299,7 +188,6 @@ export function createGrimoireServer(options: Options) {
         database.exec("ROLLBACK");
         throw error;
       }
-
       const user = publicUser(findUserById(database, userId)!);
       setSession(response, userId);
       json(response, 201, { user });
@@ -320,150 +208,41 @@ export function createGrimoireServer(options: Options) {
       return;
     }
 
-    if (method === "GET" && url.pathname === "/api/workspace") {
+    if (method === "GET" && url.pathname === "/api/board") {
       const user = requireUser(context);
-      const workspace = getWorkspace(database, user);
-      if (!workspace) throw new HttpError(404, "Workspace not found");
-      json(response, 200, workspace);
+      const board = getBoard(database, user);
+      if (!board) throw new HttpError(404, "Board not found");
+      json(response, 200, board);
       return;
     }
 
-    if (method === "POST" && url.pathname === "/api/ideas") {
-      const user = requireUser(context);
-      const projectId = projectIdForUser(database, user.id);
-      if (!projectId) throw new HttpError(404, "Workspace not found");
-      const input = ideaSchema.parse(await readJson(request));
-      const idea = createIdea(database, projectId, user.id, input);
-      json(response, 201, { idea });
-      return;
-    }
-
-    if (method === "PATCH" && url.pathname === "/api/project") {
+    if (method === "POST" && url.pathname === "/api/cards") {
       const user = requireUser(context);
       const projectId = requireProjectId(user.id);
-      const project = updateProject(database, projectId, user.id, projectSchema.parse(await readJson(request)));
-      json(response, 200, { project });
+      const card = createCard(database, projectId, user.id, cardSchema.parse(await readJson(request)));
+      if (!card) throw new HttpError(400, "Assignee is not a member of this board");
+      json(response, 201, { card });
       return;
     }
 
-    const conditionMatch = url.pathname.match(/^\/api\/milestone-conditions\/([^/]+)$/);
-    if (method === "PATCH" && conditionMatch) {
+    const cardMatch = url.pathname.match(/^\/api\/cards\/([^/]+)$/);
+    if (method === "PATCH" && cardMatch) {
       const user = requireUser(context);
-      const projectId = requireProjectId(user.id);
-      const input = z.object({ complete: z.boolean() }).parse(await readJson(request));
-      const condition = updateMilestoneCondition(database, projectId, user.id, conditionMatch[1], input.complete);
-      if (!condition) throw new HttpError(404, "Milestone condition not found");
-      json(response, 200, { condition });
-      return;
-    }
-
-    const ideaMatch = url.pathname.match(/^\/api\/ideas\/([^/]+)$/);
-    if (method === "PATCH" && ideaMatch) {
-      const user = requireUser(context);
-      const projectId = requireProjectId(user.id);
-      const idea = updateIdea(database, projectId, user.id, ideaMatch[1], ideaUpdateSchema.parse(await readJson(request)));
-      if (!idea) throw new HttpError(404, "Idea not found");
-      json(response, 200, { idea });
-      return;
-    }
-
-    const promoteMatch = url.pathname.match(/^\/api\/ideas\/([^/]+)\/promote$/);
-    if (method === "POST" && promoteMatch) {
-      const user = requireUser(context);
-      const projectId = requireProjectId(user.id);
-      const result = promoteIdea(database, projectId, user.id, promoteMatch[1], outcomeSchema.parse(await readJson(request)));
-      if (!result) throw new HttpError(409, "Idea cannot be promoted");
-      json(response, 201, result);
-      return;
-    }
-
-    if (method === "POST" && url.pathname === "/api/outcomes") {
-      const user = requireUser(context);
-      const projectId = requireProjectId(user.id);
-      const outcome = createOutcome(database, projectId, user.id, outcomeSchema.parse(await readJson(request)));
-      json(response, 201, { outcome });
-      return;
-    }
-
-    const outcomeMatch = url.pathname.match(/^\/api\/outcomes\/([^/]+)$/);
-    if (method === "PATCH" && outcomeMatch) {
-      const user = requireUser(context);
-      const projectId = requireProjectId(user.id);
-      const current = getOutcome(database, projectId, outcomeMatch[1]);
-      if (!current) throw new HttpError(404, "Outcome not found");
-      const input = outcomeSchema.partial().parse(await readJson(request));
-      const outcome = updateOutcome(database, projectId, user.id, outcomeMatch[1], input)!;
-      json(response, 200, { outcome });
-      return;
-    }
-
-    if (method === "POST" && url.pathname === "/api/work") {
-      const user = requireUser(context);
-      const projectId = requireProjectId(user.id);
-      const workItem = createWorkItem(database, projectId, user.id, workSchema.parse(await readJson(request)));
-      if (!workItem) throw new HttpError(400, "Work item references invalid project data");
-      json(response, 201, { workItem });
-      return;
-    }
-
-    const workMatch = url.pathname.match(/^\/api\/work\/([^/]+)$/);
-    if (method === "PATCH" && workMatch) {
-      const user = requireUser(context);
-      const projectId = requireProjectId(user.id);
-      const input = workSchema.omit({ outcomeId: true, dependencyIds: true }).partial().parse(await readJson(request));
-      const workItem = updateWorkItem(database, projectId, user.id, workMatch[1], input);
-      if (!workItem) throw new HttpError(404, "Work item not found");
-      json(response, 200, { workItem });
-      return;
-    }
-
-    if (method === "POST" && url.pathname === "/api/assets") {
-      const user = requireUser(context);
-      const projectId = requireProjectId(user.id);
-      const asset = createAsset(database, projectId, user.id, assetSchema.parse(await readJson(request)));
-      if (!asset) throw new HttpError(400, "Asset references invalid project data");
-      json(response, 201, { asset });
-      return;
-    }
-
-    const assetStageMatch = url.pathname.match(/^\/api\/asset-stages\/([^/]+)$/);
-    if (method === "PATCH" && assetStageMatch) {
-      const user = requireUser(context);
-      const projectId = requireProjectId(user.id);
-      const result = updateAssetStage(
+      const card = updateCard(
         database,
-        projectId,
-        user.id,
-        assetStageMatch[1],
-        assetStageSchema.parse(await readJson(request)),
+        requireProjectId(user.id),
+        cardMatch[1],
+        cardUpdateSchema.parse(await readJson(request)),
       );
-      if (!result) throw new HttpError(404, "Asset stage not found");
-      json(response, 200, result);
+      if (!card) throw new HttpError(404, "Card or assignee not found");
+      json(response, 200, { card });
       return;
     }
 
-    if (method === "POST" && url.pathname === "/api/builds") {
+    if (method === "DELETE" && cardMatch) {
       const user = requireUser(context);
-      const projectId = requireProjectId(user.id);
-      const build = createBuild(database, projectId, user.id, buildSchema.parse(await readJson(request)));
-      json(response, 201, { build });
-      return;
-    }
-
-    if (method === "POST" && url.pathname === "/api/playtests") {
-      const user = requireUser(context);
-      const projectId = requireProjectId(user.id);
-      const playtest = createPlaytest(database, projectId, user.id, playtestSchema.parse(await readJson(request)));
-      if (!playtest) throw new HttpError(400, "Playtest references invalid project data");
-      json(response, 201, { playtest });
-      return;
-    }
-
-    if (method === "POST" && url.pathname === "/api/comments") {
-      const user = requireUser(context);
-      const projectId = requireProjectId(user.id);
-      const comment = createComment(database, projectId, user.id, commentSchema.parse(await readJson(request)));
-      json(response, 201, { comment });
+      if (!archiveCard(database, requireProjectId(user.id), cardMatch[1])) throw new HttpError(404, "Card not found");
+      json(response, 200, { ok: true });
       return;
     }
 
@@ -472,7 +251,7 @@ export function createGrimoireServer(options: Options) {
 
   function requireProjectId(userId: string): string {
     const projectId = projectIdForUser(database, userId);
-    if (!projectId) throw new HttpError(404, "Workspace not found");
+    if (!projectId) throw new HttpError(404, "Board not found");
     return projectId;
   }
 
@@ -492,10 +271,7 @@ export function createGrimoireServer(options: Options) {
 
   function clearSession(response: ServerResponse): void {
     const secure = options.production ? "; Secure" : "";
-    response.setHeader(
-      "Set-Cookie",
-      `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`,
-    );
+    response.setHeader("Set-Cookie", `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`);
   }
 
   function userForSession(token: string): User | null {
@@ -582,6 +358,7 @@ function serveStatic(response: ServerResponse, pathname: string, directory: stri
     ".svg": "image/svg+xml",
     ".png": "image/png",
     ".ico": "image/x-icon",
+    ".txt": "text/plain; charset=utf-8",
   };
   response.statusCode = 200;
   response.setHeader("Content-Type", contentTypes[extname(filePath)] ?? "application/octet-stream");
