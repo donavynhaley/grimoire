@@ -23,7 +23,7 @@ Assignees are visible directly on the board so the current team focus is clear a
 Status and assignee changes use direct buttons instead of dropdown menus.
 On touch devices, the same compact status buttons provide an alternative to dragging.
 
-The visible filter bar can focus the board on active work, the signed-in person's work, unassigned work, or any team member.
+The visible filter bar can focus the board on unassigned work or work assigned to any team member, including the signed-in person.
 Search and people filters combine, and the current view is stored in the URL so a useful view can be bookmarked or shared.
 Dragging pauses while filters are active because reordering a partially hidden column would be ambiguous.
 

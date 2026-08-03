@@ -1,4 +1,4 @@
-import { type DragEvent, type FormEvent, useMemo, useState } from "react";
+import { type DragEvent, type FormEvent, useEffect, useMemo, useState } from "react";
 import { CARD_STATUSES, type BoardWorkspace, type Card, type CardStatus, type IdeaState, type IdeaWorkspace } from "../../shared/types";
 import { AccountDialog } from "./AccountDialog";
 import { CardDialog } from "./CardDialog";
@@ -38,26 +38,20 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
   const [teamOpen, setTeamOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const initialParams = useMemo(() => new URLSearchParams(location.search), []);
-  const [focus, setFocus] = useState<"all" | "active" | "mine">(() => {
-    const value = initialParams.get("focus");
-    return value === "active" || value === "mine" ? value : "all";
-  });
   const [query, setQuery] = useState(() => initialParams.get("q") ?? "");
   const [people, setPeople] = useState<Set<string>>(
     () => new Set((initialParams.get("people") ?? "").split(",").filter(Boolean)),
   );
   const selectedCard = board.cards.find((card) => card.id === selectedId) ?? null;
-  const filtersActive = focus !== "all" || query.trim() !== "" || people.size > 0;
+  const filtersActive = query.trim() !== "" || people.size > 0;
   const normalizedQuery = query.trim().toLowerCase();
   const filteredCards = useMemo(
     () => board.cards.filter((card) => {
-      if (focus === "active" && !["ready", "in_progress"].includes(card.status)) return false;
-      if (focus === "mine" && card.assigneeId !== board.currentUser.id) return false;
       if (people.size > 0 && !people.has(card.assigneeId ?? "unassigned")) return false;
       if (normalizedQuery && !`${card.title}\n${card.description}\n${card.assigneeName ?? "unassigned"}`.toLowerCase().includes(normalizedQuery)) return false;
       return true;
     }),
-    [board.cards, board.currentUser.id, focus, normalizedQuery, people],
+    [board.cards, normalizedQuery, people],
   );
   const openCount = filteredCards.filter((card) => card.status !== "done").length;
 
@@ -72,10 +66,15 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
     [filteredCards],
   );
 
-  const updateUrl = (nextFocus: "all" | "active" | "mine", nextQuery: string, nextPeople: Set<string>) => {
+  useEffect(() => {
+    if (!initialParams.has("focus")) return;
+    initialParams.delete("focus");
+    history.replaceState({}, "", `${location.pathname}${initialParams.size ? `?${initialParams}` : ""}`);
+  }, [initialParams]);
+
+  const updateUrl = (nextQuery: string, nextPeople: Set<string>) => {
     const params = new URLSearchParams(location.search);
-    if (nextFocus === "all") params.delete("focus");
-    else params.set("focus", nextFocus);
+    params.delete("focus");
     if (nextQuery.trim()) params.set("q", nextQuery.trim());
     else params.delete("q");
     if (nextPeople.size) params.set("people", [...nextPeople].join(","));
@@ -83,14 +82,9 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
     history.replaceState({}, "", `${location.pathname}${params.size ? `?${params}` : ""}`);
   };
 
-  const chooseFocus = (nextFocus: "all" | "active" | "mine") => {
-    setFocus(nextFocus);
-    updateUrl(nextFocus, query, people);
-  };
-
   const changeQuery = (value: string) => {
     setQuery(value);
-    updateUrl(focus, value, people);
+    updateUrl(value, people);
   };
 
   const togglePerson = (id: string) => {
@@ -98,7 +92,7 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
     if (next.has(id)) next.delete(id);
     else next.add(id);
     setPeople(next);
-    updateUrl(focus, query, next);
+    updateUrl(query, next);
   };
 
   const createQuickCard = async (event: FormEvent) => {
@@ -176,30 +170,34 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
         </div>
 
         <div className="work-filters" aria-label="Work filters">
-          <div className="filter-presets">
-            {(["all", "active", "mine"] as const).map((value) => (
-              <button className={focus === value ? "active" : ""} key={value} onClick={() => chooseFocus(value)} type="button">
-                {value === "all" ? "all work" : value}
-              </button>
-            ))}
-          </div>
           <label className="card-search">
             <span className="sr-only">Search cards</span>
             <input aria-label="Search cards" name="cardSearch" onChange={(event) => changeQuery(event.target.value)} placeholder="Search cards..." type="search" value={query} />
           </label>
           <div className="people-filters">
             <button aria-pressed={people.has("unassigned")} className={people.has("unassigned") ? "active" : ""} onClick={() => togglePerson("unassigned")} type="button">unassigned</button>
-            {board.members.map((member) => (
-              <button aria-label={`Filter by ${member.name}`} aria-pressed={people.has(member.id)} className={people.has(member.id) ? "active" : ""} key={member.id} onClick={() => togglePerson(member.id)} type="button">
-                <span className="avatar tiny" title={member.name}>{initials(member.name)}</span>
-              </button>
-            ))}
+            {board.members.map((member) => {
+              const isCurrentUser = member.id === board.currentUser.id;
+              return (
+                <button
+                  aria-label={isCurrentUser ? "Filter to my work" : `Filter by ${member.name}`}
+                  aria-pressed={people.has(member.id)}
+                  className={`${people.has(member.id) ? "active" : ""} ${isCurrentUser ? "self-filter" : ""}`}
+                  key={member.id}
+                  onClick={() => togglePerson(member.id)}
+                  type="button"
+                >
+                  <span className="avatar tiny" title={member.name}>{initials(member.name)}</span>
+                  {isCurrentUser && <span>me</span>}
+                </button>
+              );
+            })}
           </div>
           {filtersActive && <span className="filter-note">dragging paused while filtered</span>}
         </div>
 
         <div className="kanban" aria-label="Wizard Simulator board">
-          {CARD_STATUSES.filter((status) => focus !== "active" || status === "ready" || status === "in_progress").map((status) => {
+          {CARD_STATUSES.map((status) => {
             const cards = cardsByStatus[status];
             return (
               <section

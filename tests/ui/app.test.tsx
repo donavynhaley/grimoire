@@ -290,26 +290,31 @@ describe("Grimoire board", () => {
     );
   });
 
-  it("filters work with visible presets, search, and member chips", async () => {
+  it("filters work with search and person chips, including the current user", async () => {
     const initial = boardFixture();
     const fetchMock = authenticatedFetch(initial);
     vi.stubGlobal("fetch", fetchMock);
 
     render(<App />);
     expect(await screen.findByRole("searchbox", { name: "Search cards" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "all work" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "active" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "mine" })).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "active" }));
-    expect(screen.queryByRole("region", { name: "Backlog" })).not.toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "In progress" })).toHaveTextContent("Model the potion workbench");
-    expect(window.location.search).toContain("focus=active");
-
-    await userEvent.click(screen.getByRole("button", { name: "all work" }));
     await userEvent.type(screen.getByRole("searchbox", { name: "Search cards" }), "tower door");
     expect(screen.getByText("Make the tower door remember Maren")).toBeInTheDocument();
     expect(screen.queryByText("Model the potion workbench")).not.toBeInTheDocument();
 
     await userEvent.clear(screen.getByRole("searchbox", { name: "Search cards" }));
+    const myWork = screen.getByRole("button", { name: "Filter to my work" });
+    expect(myWork).toHaveTextContent("me");
+    await userEvent.click(myWork);
+    expect(screen.queryByText("Make the tower door remember Maren")).not.toBeInTheDocument();
+    expect(screen.queryByText("Model the potion workbench")).not.toBeInTheDocument();
+    expect(window.location.search).toContain(`people=${initial.currentUser.id}`);
+
+    await userEvent.click(myWork);
     await userEvent.click(screen.getByRole("button", { name: "Filter by Maren" }));
     expect(screen.queryByText("Make the tower door remember Maren")).not.toBeInTheDocument();
     expect(screen.getByText("Model the potion workbench")).toBeInTheDocument();

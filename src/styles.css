@@ -253,10 +253,8 @@ textarea:hover { border-color: var(--border-bright); }
   flex-wrap: wrap;
 }
 
-.filter-presets,
 .people-filters { display: flex; align-items: center; gap: 5px; }
 
-.filter-presets button,
 .people-filters button {
   display: flex;
   min-height: 28px;
@@ -271,11 +269,10 @@ textarea:hover { border-color: var(--border-bright); }
   cursor: pointer;
 }
 
-.filter-presets button:hover,
 .people-filters button:hover { color: var(--text); border-color: var(--border-bright); }
-.filter-presets button.active,
 .people-filters button.active { color: var(--accent); background: var(--accent-soft); border-color: #465f3c; }
 .people-filters button:has(.avatar) { width: 30px; padding: 4px; justify-content: center; }
+.people-filters button.self-filter { width: auto; padding: 4px 9px 4px 4px; }
 .card-search { width: min(260px, 100%); }
 .card-search input { height: 30px; font-size: 9px; }
 .filter-note { margin-left: auto; color: var(--faint); font-size: 8px; }
