@@ -42,7 +42,7 @@ export function IdeasView({ workspace, runMutation, busy }: ViewProps) {
       <form className="capture slim" onSubmit={capture}>
         <label htmlFor="idea-page-capture">new idea</label>
         <div className="capture-row">
-          <input id="idea-page-capture" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What might make the game better?" />
+          <input id="idea-page-capture" name="idea" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What might make the game better?" />
           <button className="primary-button" disabled={busy || !title.trim()} type="submit">capture</button>
         </div>
       </form>
@@ -63,6 +63,7 @@ export function IdeasView({ workspace, runMutation, busy }: ViewProps) {
                       <div className="card-actions">
                         <select
                           aria-label={`status for ${idea.title}`}
+                          name={`status-${idea.id}`}
                           value={idea.status}
                           onChange={(e) => runMutation(`/api/ideas/${idea.id}`, "PATCH", { status: e.target.value })}
                         >
@@ -71,6 +72,7 @@ export function IdeasView({ workspace, runMutation, busy }: ViewProps) {
                         </select>
                         <select
                           aria-label={`horizon for ${idea.title}`}
+                          name={`horizon-${idea.id}`}
                           value={idea.horizon}
                           onChange={(e) => runMutation(`/api/ideas/${idea.id}`, "PATCH", { horizon: e.target.value })}
                         >
@@ -92,7 +94,7 @@ export function IdeasView({ workspace, runMutation, busy }: ViewProps) {
         <div className="modal-backdrop" role="presentation">
           <form className="modal" onSubmit={promote}>
             <p className="eyebrow">promote idea</p><h2>{promoting.title}</h2>
-            <label><span>Definition of playable</span><textarea value={definition} onChange={(e) => setDefinition(e.target.value)} required /></label>
+            <label><span>Definition of playable</span><textarea name="definition" value={definition} onChange={(e) => setDefinition(e.target.value)} required /></label>
             <div className="form-actions"><button className="secondary-button" onClick={() => setPromoting(null)} type="button">cancel</button><button className="primary-button" disabled={busy} type="submit">create outcome</button></div>
           </form>
         </div>
@@ -100,4 +102,3 @@ export function IdeasView({ workspace, runMutation, busy }: ViewProps) {
     </>
   );
 }
-

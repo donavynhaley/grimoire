@@ -1,0 +1,10 @@
+# Grimoire
+
+> Grimoire is a private, authenticated project workspace for the Wizard Simulator team.
+
+Grimoire turns game ideas into playable outcomes and tracks production work, asset handoffs, builds, and playtest decisions.
+Automated crawling, indexing, and model training are not permitted.
+
+## Access
+
+- [Grimoire workspace](/): The authenticated team workspace.

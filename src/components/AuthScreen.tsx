@@ -56,13 +56,14 @@ export function AuthScreen({ mode: initialMode, inviteCode, onAuthenticated }: P
           {mode !== "login" && (
             <label>
               <span>Your name</span>
-              <input autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} required />
+              <input autoComplete="name" name="name" value={name} onChange={(event) => setName(event.target.value)} required />
             </label>
           )}
           <label>
             <span>Email</span>
             <input
               autoComplete="email"
+              name="email"
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
@@ -73,6 +74,7 @@ export function AuthScreen({ mode: initialMode, inviteCode, onAuthenticated }: P
             <span>Password</span>
             <input
               autoComplete={mode === "login" ? "current-password" : "new-password"}
+              name="password"
               minLength={12}
               type="password"
               value={password}
@@ -98,4 +100,3 @@ export function AuthScreen({ mode: initialMode, inviteCode, onAuthenticated }: P
     </div>
   );
 }
-

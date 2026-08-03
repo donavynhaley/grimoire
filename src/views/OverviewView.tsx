@@ -31,6 +31,7 @@ export function OverviewView({ workspace, runMutation, navigate, busy }: ViewPro
         <div className="capture-row">
           <input
             id="idea-capture"
+            name="idea"
             onChange={(event) => setIdea(event.target.value)}
             placeholder="Write it down without committing to it..."
             value={idea}

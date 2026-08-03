@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 import { createGrimoireServer } from "./app";
 
-const port = Number(process.env.PORT ?? 5175);
+const port = Number(process.env.GRIMOIRE_API_PORT ?? process.env.PORT ?? 5175);
 const host = process.env.HOST ?? "127.0.0.1";
 const production = process.env.NODE_ENV === "production";
 const app = createGrimoireServer({
@@ -23,4 +23,3 @@ function shutdown() {
 
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
-

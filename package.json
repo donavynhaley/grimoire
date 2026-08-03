@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently -k -n api,web -c green,cyan \"npm:dev:server\" \"npm:dev:web\"",
-    "dev:web": "vite",
+    "dev:web": "vite --host 127.0.0.1",
     "dev:server": "tsx watch server/index.ts",
     "start": "tsx server/index.ts",
     "test": "vitest run",

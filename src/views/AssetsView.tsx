@@ -28,10 +28,10 @@ export function AssetsView({ workspace, runMutation, busy }: ViewProps) {
       </PageHeading>
       {showNew && (
         <form className="panel inline-create three-column" onSubmit={create}>
-          <label><span>Asset name</span><input value={name} onChange={(e) => setName(e.target.value)} required /></label>
-          <label><span>Type</span><select value={type} onChange={(e) => setType(e.target.value)}><option>prop</option><option>environment</option><option>character</option><option>animation</option><option>audio</option><option>writing</option></select></label>
-          <label><span>Linked outcome</span><select value={outcomeId} onChange={(e) => setOutcomeId(e.target.value)}><option value="">none</option>{workspace.outcomes.map((outcome) => <option value={outcome.id} key={outcome.id}>{outcome.title}</option>)}</select></label>
-          <label className="wide"><span>Pipeline stages</span><input value={stages} onChange={(e) => setStages(e.target.value)} /></label>
+          <label><span>Asset name</span><input name="assetName" value={name} onChange={(e) => setName(e.target.value)} required /></label>
+          <label><span>Type</span><select name="assetType" value={type} onChange={(e) => setType(e.target.value)}><option>prop</option><option>environment</option><option>character</option><option>animation</option><option>audio</option><option>writing</option></select></label>
+          <label><span>Linked outcome</span><select name="outcomeId" value={outcomeId} onChange={(e) => setOutcomeId(e.target.value)}><option value="">none</option>{workspace.outcomes.map((outcome) => <option value={outcome.id} key={outcome.id}>{outcome.title}</option>)}</select></label>
+          <label className="wide"><span>Pipeline stages</span><input name="pipelineStages" value={stages} onChange={(e) => setStages(e.target.value)} /></label>
           <div className="wide form-actions"><button className="secondary-button" onClick={() => setShowNew(false)} type="button">cancel</button><button className="primary-button" disabled={busy} type="submit">create asset</button></div>
         </form>
       )}
@@ -45,7 +45,7 @@ export function AssetsView({ workspace, runMutation, busy }: ViewProps) {
                 <div className={`asset-stage ${stage.status}`} key={stage.id}>
                   <div className="stage-line"><span className="stage-number">{index + 1}</span><span className="connector" /></div>
                   <strong>{stage.label}</strong><span>{stage.ownerName ?? "unassigned"}</span>
-                  <select aria-label={`status for ${asset.name} ${stage.label}`} value={stage.status} onChange={(e) => runMutation(`/api/asset-stages/${stage.id}`, "PATCH", { status: e.target.value })}><option>waiting</option><option>ready</option><option>doing</option><option>review</option><option>done</option></select>
+                  <select aria-label={`status for ${asset.name} ${stage.label}`} name={`stage-status-${stage.id}`} value={stage.status} onChange={(e) => runMutation(`/api/asset-stages/${stage.id}`, "PATCH", { status: e.target.value })}><option>waiting</option><option>ready</option><option>doing</option><option>review</option><option>done</option></select>
                   {stage.handoffNote && <small>{stage.handoffNote}</small>}
                 </div>
               ))}
@@ -57,4 +57,3 @@ export function AssetsView({ workspace, runMutation, busy }: ViewProps) {
     </>
   );
 }
-

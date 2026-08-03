@@ -1,22 +1,25 @@
 # Grimoire
 
-Grimoire is a collaborative game-development workspace for turning loose ideas into focused, playable outcomes.
-It is being designed around the real production workflow of Wizard Simulator and its small team of programmers, writers, artists, and designers.
+Grimoire is a focused, collaborative game-development workspace for turning loose ideas into playable outcomes.
+It is built around the real production workflow of Wizard Simulator and its small team of programmers, writers, artists, and designers.
 
-The project exists to make four things easy:
-
-- Capture an idea without accidentally committing the team to building it.
-- Give the whole team a clear view of the game's current direction.
-- Show each person what they can work on right now.
-- Preserve the connection between creative intent, production work, assets, builds, and playtest decisions.
-
-Grimoire is not intended to be a generic enterprise project manager.
-It does not organize work around sprints, story points, or fictional completion percentages.
-It follows the iterative loop of making a game:
+Grimoire keeps a team aligned without imposing sprints, story points, or fictional completion percentages.
+Its workflow follows the way an iterative game actually moves:
 
 ```text
 idea -> experiment -> playable outcome -> production -> integration -> playtest -> decision
 ```
+
+## What Grimoire does
+
+- Captures ideas without committing the team to build them.
+- Keeps the current game direction, design pillars, and next playable milestone visible.
+- Promotes promising ideas into outcomes with explicit definitions of done.
+- Breaks outcomes into owned work across code, art, writing, design, audio, and integration.
+- Tracks dependencies so blocked work becomes ready when its prerequisites are completed.
+- Moves assets through discipline-specific stages such as modeling, texturing, integration, and review.
+- Records builds, playtest observations, decisions, comments, and project activity.
+- Gives each collaborator a focused view of the work they can act on now.
 
 ## Product principles
 
@@ -27,8 +30,8 @@ The team should be able to explain why something is being built before tracking 
 
 ### Capture is not commitment
 
-Ideas belong in an inbox until the team deliberately promotes them into an experiment or outcome.
-Saving an exciting thought should reduce scope pressure rather than create it.
+Ideas remain in an inbox until the team deliberately promotes them into an experiment or outcome.
+Saving an exciting thought should reduce scope pressure instead of creating it.
 
 ### Progress must be playable
 
@@ -39,14 +42,67 @@ Grimoire tracks when work becomes integrated, playable, and validated through ob
 
 Game production crosses disciplines constantly.
 Models move to texturing, writing moves to implementation, code moves to integration, and everything eventually moves to playtesting.
-Grimoire makes ownership, dependencies, artifacts, and handoff notes visible.
+Grimoire keeps ownership, dependencies, artifacts, and handoff notes visible.
 
 ### The tool should stay quiet
 
-Grimoire should reduce coordination overhead rather than becoming another place that demands maintenance.
+Grimoire should reduce coordination overhead instead of becoming another place that demands maintenance.
 The interface favors compact information, deliberate status changes, and a small number of opinionated workflows.
 
-## Core concepts
+The full domain model and product rationale are documented in [docs/product-foundation.md](docs/product-foundation.md).
+
+## Technology
+
+Grimoire uses React 19, TypeScript, and Vite for the interface.
+The collaborative server uses Node's built-in HTTP and SQLite support with Zod validation.
+Passwords are protected with scrypt, and browser sessions use HttpOnly SameSite cookies.
+The application has no external database or service dependency, which keeps self-hosting straightforward.
+
+## Local development
+
+Node.js 24 or newer is required.
+
+```sh
+npm install
+npm run dev
+```
+
+The web interface is normally available at `http://127.0.0.1:5173`.
+The API listens at `http://127.0.0.1:5175`, and Vite proxies browser requests to it.
+If those ports are occupied, Vite selects the next available web port and prints it in the terminal.
+
+On the first visit, Grimoire asks you to create the owner account and seeds a Wizard Simulator workspace.
+The owner can then create one-use invitation links from the Team view.
+Each invitation expires after seven days.
+
+Configuration can be supplied through the environment variables shown in [.env.example](.env.example).
+Grimoire stores its SQLite database in `data/grimoire.sqlite` by default.
+The `data` directory is ignored by Git.
+
+## Verification
+
+```sh
+npm test
+npm run build
+```
+
+The test suite covers authentication, invitations, persistent workspaces, ideas, outcomes, dependency-aware work, asset handoffs, builds, playtests, and core browser interactions.
+The production build includes a complete static frontend that is served by the collaborative Node server.
+
+## Self-hosting with Docker
+
+```sh
+docker compose up -d --build
+```
+
+The Compose configuration exposes Grimoire on port `5175` and persists its database in the local `data` directory.
+Place Grimoire behind a TLS-enabled reverse proxy before inviting collaborators over the internet.
+Production session cookies are marked Secure and therefore require HTTPS in a browser.
+
+Back up the `data` directory to preserve all accounts and project history.
+Do not run multiple Grimoire containers against the same SQLite file.
+
+## Project model
 
 - **Direction** describes the part of the player experience the team is currently trying to improve.
 - **Idea** records a possibility without adding it to the production plan.
@@ -57,40 +113,7 @@ The interface favors compact information, deliberate status changes, and a small
 - **Playtest** records observations, evidence, feedback, and resulting decisions.
 - **Build** is a snapshot of what became playable at a meaningful point in development.
 
-The domain model is described in more detail in [docs/product-foundation.md](docs/product-foundation.md).
-
-## Initial experience
-
-The first screen is a project overview that answers:
-
-1. What are we trying to make playable next?
-2. What is everyone currently working on?
-3. What is blocked or waiting for review?
-4. Which assets are moving between disciplines?
-5. What ideas have been captured for later?
-
-The initial prototype includes a working local idea-capture interaction and representative Wizard Simulator data.
-It does not yet persist data or provide authentication.
-
-## Development
-
-Grimoire currently uses React, TypeScript, and Vite for its initial interface prototype.
-The collaborative server, persistent data model, authentication, and deployment architecture will be introduced after the core workflows have been tested against real Wizard Simulator work.
-
-Install dependencies and start the development server:
-
-```sh
-npm install
-npm run dev
-```
-
-Verify the TypeScript project and create a production build:
-
-```sh
-npm run build
-```
-
 ## Current status
 
-Grimoire is at the product-foundation and interface-prototype stage.
-The current work is focused on validating the project overview, idea capture, individual work view, and cross-discipline asset handoffs before implementing the collaborative backend.
+Grimoire is a working collaborative application ready for the Wizard Simulator team to use and refine through real production.
+The project intentionally begins with one game and one opinionated workflow so future features are driven by observed needs rather than generic project-management conventions.
