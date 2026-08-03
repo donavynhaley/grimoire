@@ -52,6 +52,9 @@ describe("Grimoire board", () => {
     ]);
     expect(screen.getByText("Model the potion workbench")).toBeInTheDocument();
     expect(screen.getByText("Maren")).toBeInTheDocument();
+    const capture = screen.getByLabelText(/add a card to backlog/i);
+    expect(capture).toHaveFocus();
+    expect(capture.closest("form")).toHaveClass("workspace-capture");
     expect(screen.queryByText("one board, one source of truth", { exact: false })).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     expect(screen.queryByText(/design pillar/i)).not.toBeInTheDocument();
@@ -116,6 +119,36 @@ describe("Grimoire board", () => {
         expect.objectContaining({
           method: "PATCH",
           body: JSON.stringify({ status: "in_progress", position: 1 }),
+        }),
+      ),
+    );
+  });
+
+  it("keeps drag and drop active while person filters are applied", async () => {
+    const initial = boardFixture();
+    const card = initial.cards[1];
+    const moved = { ...card, status: "backlog" as const, position: 1 };
+    const updated = { ...initial, cards: [initial.cards[0], moved] };
+    const fetchMock = authenticatedFetch(initial)
+      .mockImplementationOnce(() => response({ card: moved }))
+      .mockImplementationOnce(() => response(updated));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    await userEvent.click(await screen.findByRole("button", { name: "Filter by Maren" }));
+    const cardTitle = screen.getByText(card.title);
+    const backlog = screen.getByRole("region", { name: "Backlog" });
+    const dataTransfer = { setData: vi.fn(), getData: vi.fn(() => card.id), effectAllowed: "move" };
+    fireEvent.dragStart(cardTitle.closest("article")!, { dataTransfer });
+    fireEvent.dragOver(backlog, { dataTransfer });
+    fireEvent.drop(backlog, { dataTransfer });
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/cards/${card.id}`,
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ status: "backlog", position: 1 }),
         }),
       ),
     );
@@ -241,6 +274,9 @@ describe("Grimoire board", () => {
     await userEvent.click(await screen.findByRole("button", { name: "ideas" }));
 
     expect(await screen.findByRole("heading", { name: "Idea garden" })).toBeInTheDocument();
+    const capture = screen.getByLabelText("Capture an idea");
+    expect(capture).toHaveFocus();
+    expect(capture.closest("form")).toHaveClass("workspace-capture");
     expect(screen.queryByText("save possibility without growing the backlog", { exact: false })).not.toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Shortlist" })).toHaveTextContent(
       "Spells are assembled from drawn rune sequences",

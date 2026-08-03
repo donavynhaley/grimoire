@@ -43,7 +43,6 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
     () => new Set((initialParams.get("people") ?? "").split(",").filter(Boolean)),
   );
   const selectedCard = board.cards.find((card) => card.id === selectedId) ?? null;
-  const filtersActive = query.trim() !== "" || people.size > 0;
   const normalizedQuery = query.trim().toLowerCase();
   const filteredCards = useMemo(
     () => board.cards.filter((card) => {
@@ -156,9 +155,10 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
           <div>
             <h2>{openCount} open card{openCount === 1 ? "" : "s"}</h2>
           </div>
-          <form className="quick-add" onSubmit={createQuickCard}>
+          <form className="quick-add workspace-capture" onSubmit={createQuickCard}>
             <label className="sr-only" htmlFor="quick-card">Add a card to backlog</label>
             <input
+              autoFocus
               id="quick-card"
               name="quickCard"
               onChange={(event) => setQuickTitle(event.target.value)}
@@ -187,38 +187,38 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
                   onClick={() => togglePerson(member.id)}
                   type="button"
                 >
+                  {isCurrentUser && <span className="self-filter-label">me</span>}
                   <span className="avatar tiny" title={member.name}>{initials(member.name)}</span>
-                  {isCurrentUser && <span>me</span>}
                 </button>
               );
             })}
           </div>
-          {filtersActive && <span className="filter-note">dragging paused while filtered</span>}
         </div>
 
         <div className="kanban" aria-label="Wizard Simulator board">
           {CARD_STATUSES.map((status) => {
             const cards = cardsByStatus[status];
+            const fullColumnLength = board.cards.filter((card) => card.status === status).length;
             return (
               <section
                 aria-label={columnNames[status]}
                 className={`kanban-column column-${status}`}
                 key={status}
-                onDragOver={(event) => { if (!filtersActive) event.preventDefault(); }}
-                onDrop={(event) => { if (!filtersActive) void moveCard(event, status, cards.length); }}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={(event) => void moveCard(event, status, fullColumnLength)}
               >
                 <header className="column-header">
                   <div><span className="column-dot" /><h3>{columnNames[status]}</h3></div>
                   <span className="column-count">{cards.length}</span>
                 </header>
                 <div className="card-list">
-                  {cards.map((card, index) => (
+                  {cards.map((card) => (
                     <article
                       className={`board-card ${draggedId === card.id ? "dragging" : ""}`}
-                      draggable={!filtersActive}
+                      draggable
                       key={card.id}
                       onDragEnd={() => setDraggedId(null)}
-                      onDragOver={(event) => { if (!filtersActive) event.preventDefault(); }}
+                      onDragOver={(event) => event.preventDefault()}
                       onDragStart={(event) => {
                         setDraggedId(card.id);
                         event.dataTransfer.effectAllowed = "move";
@@ -226,7 +226,7 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
                       }}
                       onDrop={(event) => {
                         event.stopPropagation();
-                        if (!filtersActive) void moveCard(event, status, index);
+                        void moveCard(event, status, card.position);
                       }}
                     >
                       <button

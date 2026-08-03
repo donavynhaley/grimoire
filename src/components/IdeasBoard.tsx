@@ -43,9 +43,9 @@ export function IdeasBoard({ workspace, busy, onCreate, onUpdate, onPromote }: P
           <h2>Idea garden</h2>
           <p>Keep the strongest possibilities close, and turn one into work only when the team means to build it.</p>
         </div>
-        <form className="idea-capture" onSubmit={capture}>
+        <form className="idea-capture workspace-capture" onSubmit={capture}>
           <label className="sr-only" htmlFor="capture-idea">Capture an idea</label>
-          <input id="capture-idea" name="ideaTitle" onChange={(event) => setTitle(event.target.value)} placeholder="Something worth remembering..." value={title} />
+          <input autoFocus id="capture-idea" name="ideaTitle" onChange={(event) => setTitle(event.target.value)} placeholder="Something worth remembering..." value={title} />
           <button className="primary-button" disabled={busy || !title.trim()} type="submit">capture</button>
         </form>
       </div>

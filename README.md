@@ -25,7 +25,7 @@ On touch devices, the same compact status buttons provide an alternative to drag
 
 The visible filter bar can focus the board on unassigned work or work assigned to any team member, including the signed-in person.
 Search and people filters combine, and the current view is stored in the URL so a useful view can be bookmarked or shared.
-Dragging pauses while filters are active because reordering a partially hidden column would be ambiguous.
+Dragging remains available while filters are active, and visible drop targets map back to the full column order.
 
 ## Ideas
 
