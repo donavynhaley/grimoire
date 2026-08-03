@@ -108,6 +108,7 @@ export function createCard(
     createdBy: creator.email.toLowerCase(),
     createdAt: now,
     updatedAt: now,
+    completedAt: status === "done" ? now : null,
     archivedAt: null,
   };
   validateDependencyGraph([...cards, card]);
@@ -135,6 +136,9 @@ export function updateCard(
   const nextStatus = input.status ?? current.status;
   const shouldMove = input.status !== undefined || input.position !== undefined;
   const now = new Date().toISOString();
+  const completedAt = nextStatus === "done"
+    ? current.status === "done" ? current.completedAt ?? current.updatedAt : now
+    : null;
   const updated: StoredCard = {
     ...current,
     title: input.title ?? current.title,
@@ -144,6 +148,7 @@ export function updateCard(
     status: nextStatus,
     assignee: input.assigneeId === undefined ? current.assignee : assignee?.email.toLowerCase() ?? null,
     updatedAt: now,
+    completedAt,
   };
   validateDependencyGraph(cards.map((card) => card.id === cardId ? updated : card));
 
@@ -320,6 +325,7 @@ function publicCard(database: DatabaseSync, value: StoredCard, members: Member[]
     createdByName: String(historicalCreator.name),
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
+    completedAt: value.completedAt,
   };
 }
 

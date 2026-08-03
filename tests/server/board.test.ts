@@ -124,6 +124,40 @@ describe("card board", () => {
     expect(inProgress.map((card) => card.position)).toEqual([0, 1]);
   });
 
+  it("records completion once and clears it when work is reopened", async () => {
+    const server = await startTestServer();
+    await bootstrap(server);
+    const created = await server.request<{ card: Card }>("/api/cards", {
+      method: "POST",
+      body: JSON.stringify({ title: "Finish the first potion recipe", status: "ready" }),
+    });
+    expect(created.body.card.completedAt).toBeNull();
+
+    const completed = await server.request<{ card: Card }>(`/api/cards/${created.body.card.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "done" }),
+    });
+    expect(completed.body.card.completedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    const completedAt = completed.body.card.completedAt;
+
+    const edited = await server.request<{ card: Card }>(`/api/cards/${created.body.card.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ description: "Keep the result in the project history." }),
+    });
+    expect(edited.body.card.completedAt).toBe(completedAt);
+
+    const reopened = await server.request<{ card: Card }>(`/api/cards/${created.body.card.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "ready" }),
+    });
+    expect(reopened.body.card.completedAt).toBeNull();
+    const markdown = readFileSync(
+      join(server.cardsDirectory, "wizard-simulator", "cards", `${created.body.card.id}.md`),
+      "utf8",
+    );
+    expect(markdown).toContain("completed_at: null");
+  });
+
   it("categorizes cards and derives blocking from other active cards", async () => {
     const server = await startTestServer();
     await bootstrap(server);

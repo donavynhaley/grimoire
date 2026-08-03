@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "../../src/App";
+import type { Card } from "../../shared/types";
 import { boardFixture, ideaFixture } from "../fixtures/board";
 
 afterEach(() => {
@@ -26,6 +27,14 @@ function authenticatedFetch(board = boardFixture()) {
     .fn<typeof fetch>()
     .mockImplementationOnce(() => response({ status: "authenticated", user: board.currentUser }))
     .mockImplementationOnce(() => response(board));
+}
+
+async function openWorkCard(card: Card) {
+  if (card.status === "backlog") {
+    await userEvent.click(await screen.findByRole("button", { name: /open backlog/i }));
+  }
+  await userEvent.click(await screen.findByText(card.title, { exact: true }));
+  await screen.findByRole("dialog", { name: "Edit card" });
 }
 
 describe("Grimoire board", () => {
@@ -51,10 +60,12 @@ describe("Grimoire board", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<App />);
-    expect(await screen.findByText(initial.cards[0].title)).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /open backlog/i })).toHaveTextContent("1");
 
     workspaceListener!(new MessageEvent("workspace", { data: JSON.stringify({ scope: "work" }) }));
 
+    await waitFor(() => expect(screen.getByRole("button", { name: /open backlog/i })).toHaveTextContent("2"));
+    await userEvent.click(screen.getByRole("button", { name: /open backlog/i }));
     expect(await screen.findByText(liveCard.title)).toBeInTheDocument();
   });
 
@@ -66,7 +77,7 @@ describe("Grimoire board", () => {
     expect(await screen.findByLabelText("Email")).toHaveValue("owner@example.com");
   });
 
-  it("lands directly on one compact four-column board", async () => {
+  it("lands on a compact active deck while keeping backlog work out of sight", async () => {
     const fetchMock = authenticatedFetch();
     vi.stubGlobal("fetch", fetchMock);
 
@@ -74,12 +85,14 @@ describe("Grimoire board", () => {
 
     expect(await screen.findByRole("heading", { name: "Wizard Simulator" })).toBeInTheDocument();
     expect(screen.getAllByRole("region").map((region) => region.getAttribute("aria-label"))).toEqual([
-      "Backlog",
-      "Ready",
+      "Up Next",
       "In progress",
       "Done",
     ]);
     expect(screen.getByText("Model the potion workbench")).toBeInTheDocument();
+    expect(screen.queryByText("Make the tower door remember Maren")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /open backlog/i })).toHaveTextContent("Backlog");
+    expect(screen.getByRole("button", { name: /open backlog/i })).toHaveTextContent("1");
     expect(screen.getByText("Maren")).toBeInTheDocument();
     const capture = screen.getByLabelText(/add a card to backlog/i);
     expect(capture).toHaveFocus();
@@ -114,12 +127,16 @@ describe("Grimoire board", () => {
     expect(window.location.search).toContain("view=ideas");
 
     await userEvent.keyboard("1");
-    expect(screen.getByRole("region", { name: "Backlog" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Up Next" })).toBeInTheDocument();
     expect(screen.getByLabelText(/add a card to backlog/i)).toHaveFocus();
     expect(window.location.search).not.toContain("view=ideas");
 
     await userEvent.type(screen.getByLabelText(/add a card to backlog/i), "room 2");
     expect(screen.getByLabelText(/add a card to backlog/i)).toHaveValue("room 2");
+    await userEvent.clear(screen.getByLabelText(/add a card to backlog/i));
+    await userEvent.type(screen.getByLabelText(/add a card to backlog/i), "broom polish");
+    expect(screen.getByLabelText(/add a card to backlog/i)).toHaveValue("broom polish");
+    expect(screen.queryByRole("dialog", { name: "Backlog" })).not.toBeInTheDocument();
   });
 
   it("captures a thought directly as a backlog card", async () => {
@@ -140,16 +157,18 @@ describe("Grimoire board", () => {
     await userEvent.type(input, created.title);
     await userEvent.keyboard("{Enter}");
 
-    expect(await screen.findByText(created.title)).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /open backlog/i })).toHaveTextContent("2");
+    expect(screen.queryByText(created.title)).not.toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/cards",
       expect.objectContaining({ method: "POST", body: expect.stringContaining('"status":"backlog"') }),
     );
   });
 
-  it("moves a card by dropping it into another column", async () => {
+  it("opens and searches the backlog with B, then moves work into Up Next", async () => {
     const initial = boardFixture();
-    const moved = { ...initial.cards[0], status: "in_progress" as const, position: 1 };
+    const card = initial.cards[0];
+    const moved = { ...card, status: "ready" as const, position: 0 };
     const updated = { ...initial, cards: [moved, initial.cards[1]] };
     const fetchMock = authenticatedFetch(initial)
       .mockImplementationOnce(() => response({ card: moved }))
@@ -157,25 +176,55 @@ describe("Grimoire board", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<App />);
-    const card = await screen.findByText(initial.cards[0].title);
-    const column = screen.getByRole("region", { name: "In progress" });
-    const dataTransfer = { setData: vi.fn(), getData: vi.fn(() => initial.cards[0].id), effectAllowed: "move" };
-    fireEvent.dragStart(card.closest("article")!, { dataTransfer });
+    await screen.findByRole("button", { name: /open backlog/i });
+    (document.activeElement as HTMLElement).blur();
+    await userEvent.keyboard("b");
+
+    expect(screen.getByRole("dialog", { name: "Backlog" })).toBeInTheDocument();
+    const search = screen.getByRole("searchbox", { name: "Search backlog" });
+    expect(search).toHaveFocus();
+    await userEvent.type(search, "tower door");
+    expect(screen.getByText(card.title)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: `Move ${card.title} to Up Next` }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Backlog" })).not.toBeInTheDocument());
+    expect(await screen.findByRole("region", { name: "Up Next" })).toHaveTextContent(card.title);
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/cards/${card.id}`,
+      expect.objectContaining({ method: "PATCH", body: JSON.stringify({ status: "ready", position: 0 }) }),
+    );
+  });
+
+  it("moves a card by dropping it into another column", async () => {
+    const initial = boardFixture();
+    const card = initial.cards[1];
+    const moved = { ...card, status: "ready" as const, position: 0 };
+    const updated = { ...initial, cards: [initial.cards[0], moved] };
+    const fetchMock = authenticatedFetch(initial)
+      .mockImplementationOnce(() => response({ card: moved }))
+      .mockImplementationOnce(() => response(updated));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    const cardTitle = await screen.findByText(card.title);
+    const column = screen.getByRole("region", { name: "Up Next" });
+    const dataTransfer = { setData: vi.fn(), getData: vi.fn(() => card.id), effectAllowed: "move" };
+    fireEvent.dragStart(cardTitle.closest("article")!, { dataTransfer });
     fireEvent.dragOver(column, { dataTransfer });
     fireEvent.drop(column, { dataTransfer });
 
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
-        `/api/cards/${initial.cards[0].id}`,
+        `/api/cards/${card.id}`,
         expect.objectContaining({
           method: "PATCH",
-          body: JSON.stringify({ status: "in_progress", position: 1 }),
+          body: JSON.stringify({ status: "ready", position: 0 }),
         }),
       ),
     );
   });
 
-  it("keeps drag and drop active while person filters are applied", async () => {
+  it("lets filtered active work be dropped back into the backlog", async () => {
     const initial = boardFixture();
     const card = initial.cards[1];
     const moved = { ...card, status: "backlog" as const, position: 1 };
@@ -188,7 +237,7 @@ describe("Grimoire board", () => {
     render(<App />);
     await userEvent.click(await screen.findByRole("button", { name: "Filter by Maren" }));
     const cardTitle = screen.getByText(card.title);
-    const backlog = screen.getByRole("region", { name: "Backlog" });
+    const backlog = screen.getByRole("button", { name: /open backlog/i });
     const dataTransfer = { setData: vi.fn(), getData: vi.fn(() => card.id), effectAllowed: "move" };
     fireEvent.dragStart(cardTitle.closest("article")!, { dataTransfer });
     fireEvent.dragOver(backlog, { dataTransfer });
@@ -205,6 +254,48 @@ describe("Grimoire board", () => {
     );
   });
 
+  it("shows only the eight most recently completed cards and keeps all work in history", async () => {
+    const initial = boardFixture();
+    const completed = Array.from({ length: 10 }, (_, index) => ({
+      ...initial.cards[0],
+      id: `00000000-0000-4000-8000-${String(index + 100).padStart(12, "0")}`,
+      title: `Completed spell ${index + 1}`,
+      status: "done" as const,
+      position: index,
+      completedAt: `2026-08-${String(index + 1).padStart(2, "0")}T12:00:00.000Z`,
+    }));
+    const workspace = { ...initial, cards: [initial.cards[0], initial.cards[1], ...completed] };
+    const reopened = { ...completed[0], status: "ready" as const, position: 0, completedAt: null };
+    const afterReopen = {
+      ...workspace,
+      cards: [...workspace.cards.filter((card) => card.id !== reopened.id), reopened],
+    };
+    const fetchMock = authenticatedFetch(workspace)
+      .mockImplementationOnce(() => response({ card: reopened }))
+      .mockImplementationOnce(() => response(afterReopen));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    const done = await screen.findByRole("region", { name: "Done" });
+
+    expect(done).toHaveTextContent("8 of 10");
+    expect(done).toHaveTextContent("Completed spell 10");
+    expect(screen.queryByText("Completed spell 1", { exact: true })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /open completed work history/i }));
+
+    const history = screen.getByRole("dialog", { name: "Completed work" });
+    expect(history).toHaveTextContent("Completed spell 1");
+    expect(history).toHaveTextContent("Completed spell 10");
+    expect(screen.getByRole("searchbox", { name: "Search completed work" })).toHaveFocus();
+    await userEvent.click(screen.getByRole("button", { name: "Move Completed spell 1 to Up Next" }));
+
+    expect(await screen.findByRole("region", { name: "Up Next" })).toHaveTextContent("Completed spell 1");
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/cards/${reopened.id}`,
+      expect.objectContaining({ method: "PATCH", body: JSON.stringify({ status: "ready", position: 0 }) }),
+    );
+  });
+
   it("edits a card with member buttons instead of dropdowns", async () => {
     const initial = boardFixture();
     const card = initial.cards[0];
@@ -216,7 +307,7 @@ describe("Grimoire board", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<App />);
-    await userEvent.click(await screen.findByRole("button", { name: new RegExp(`Open ${card.title}`, "i") }));
+    await openWorkCard(card);
 
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /assign maren/i }));
@@ -244,9 +335,7 @@ describe("Grimoire board", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<App />);
-    const openCard = await screen.findByRole("button", { name: new RegExp(`Open ${card.title}`, "i") });
-    expect(openCard).toHaveTextContent("narrative");
-    await userEvent.click(openCard);
+    await openWorkCard(card);
 
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Categorize as Code" }));
@@ -270,7 +359,7 @@ describe("Grimoire board", () => {
         }),
       ),
     );
-    expect(await screen.findByText("blocked by 1")).toBeInTheDocument();
+    expect((await screen.findAllByText(initial.cards[1].title)).length).toBeGreaterThan(0);
   });
 
   it("automatically saves title and notes without a save button", async () => {
@@ -285,7 +374,7 @@ describe("Grimoire board", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<App />);
-    await userEvent.click(await screen.findByRole("button", { name: new RegExp(`Open ${card.title}`, "i") }));
+    await openWorkCard(card);
 
     expect(screen.queryByRole("button", { name: /save changes/i })).not.toBeInTheDocument();
     await userEvent.clear(screen.getByLabelText("Notes"));
@@ -316,7 +405,7 @@ describe("Grimoire board", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<App />);
-    await userEvent.click(await screen.findByRole("button", { name: new RegExp(`Open ${card.title}`, "i") }));
+    await openWorkCard(card);
     await userEvent.click(screen.getByRole("button", { name: "archive card" }));
     await userEvent.click(screen.getByRole("button", { name: "yes, archive" }));
 
@@ -329,6 +418,7 @@ describe("Grimoire board", () => {
         expect.objectContaining({ method: "POST" }),
       ),
     );
+    await userEvent.click(screen.getByRole("button", { name: /open backlog/i }));
     expect(await screen.findByText(card.title)).toBeInTheDocument();
   });
 
@@ -384,7 +474,7 @@ describe("Grimoire board", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<App />);
-    await userEvent.click(await screen.findByRole("button", { name: new RegExp(`Open ${card.title}`, "i") }));
+    await openWorkCard(card);
     await userEvent.clear(screen.getByLabelText("Title"));
     await userEvent.type(screen.getByLabelText("Title"), title);
     await userEvent.click(screen.getByRole("button", { name: "Close card" }));
@@ -532,7 +622,14 @@ describe("Grimoire board", () => {
 
   it("filters work with search and person chips, including the current user", async () => {
     const initial = boardFixture();
-    const fetchMock = authenticatedFetch(initial);
+    const myCard = {
+      ...initial.cards[0],
+      status: "ready" as const,
+      assigneeId: initial.currentUser.id,
+      assigneeName: initial.currentUser.name,
+    };
+    const workspace = { ...initial, cards: [myCard, initial.cards[1]] };
+    const fetchMock = authenticatedFetch(workspace);
     vi.stubGlobal("fetch", fetchMock);
 
     render(<App />);
@@ -550,7 +647,7 @@ describe("Grimoire board", () => {
     const myWork = screen.getByRole("button", { name: "Filter to my work" });
     expect(myWork).toHaveTextContent("me");
     await userEvent.click(myWork);
-    expect(screen.queryByText("Make the tower door remember Maren")).not.toBeInTheDocument();
+    expect(screen.getByText("Make the tower door remember Maren")).toBeInTheDocument();
     expect(screen.queryByText("Model the potion workbench")).not.toBeInTheDocument();
     expect(window.location.search).toContain(`people=${initial.currentUser.id}`);
 

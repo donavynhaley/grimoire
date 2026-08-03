@@ -274,6 +274,9 @@ function applyOptimisticCardUpdate(
   if (!current) return board;
   const targetStatus = (input.status as CardStatus | undefined) ?? current.status;
   const targetPosition = typeof input.position === "number" ? input.position : current.position;
+  const completedAt = targetStatus === "done"
+    ? current.status === "done" ? current.completedAt : new Date().toISOString()
+    : null;
   const assigneeId = input.assigneeId === undefined ? current.assigneeId : (input.assigneeId as string | null);
   const assignee = board.members.find((member) => member.id === assigneeId);
   const remaining = board.cards.filter((card) => card.id !== id);
@@ -285,6 +288,7 @@ function applyOptimisticCardUpdate(
     ...current,
     ...input,
     status: targetStatus,
+    completedAt,
     assigneeId,
     assigneeName: assignee?.name ?? null,
   });

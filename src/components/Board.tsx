@@ -1,13 +1,19 @@
 import { type DragEvent, type FormEvent, useEffect, useMemo, useState } from "react";
-import { CARD_STATUSES, type BoardWorkspace, type Card, type CardStatus, type IdeaState, type IdeaWorkspace } from "../../shared/types";
+import { type BoardWorkspace, type Card, type CardStatus, type IdeaState, type IdeaWorkspace } from "../../shared/types";
 import { AccountDialog } from "./AccountDialog";
+import { BacklogDialog } from "./BacklogDialog";
 import { CardDialog } from "./CardDialog";
+import { DoneHistoryDialog } from "./DoneHistoryDialog";
+import { initials } from "./initials";
 import { TeamDialog } from "./TeamDialog";
 import { IdeasBoard } from "./IdeasBoard";
 
+const BOARD_STATUSES = ["ready", "in_progress", "done"] as const satisfies readonly CardStatus[];
+const RECENT_DONE_LIMIT = 8;
+
 const columnNames: Record<CardStatus, string> = {
   backlog: "Backlog",
-  ready: "Ready",
+  ready: "Up Next",
   in_progress: "In progress",
   done: "Done",
 };
@@ -38,6 +44,8 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [teamOpen, setTeamOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [backlogOpen, setBacklogOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const initialParams = useMemo(() => new URLSearchParams(location.search), []);
   const [query, setQuery] = useState(() => initialParams.get("q") ?? "");
   const [people, setPeople] = useState<Set<string>>(
@@ -53,16 +61,21 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
     }),
     [board.cards, normalizedQuery, people],
   );
-  const openCount = filteredCards.filter((card) => card.status !== "done").length;
+  const activeCount = filteredCards.filter((card) => card.status === "ready" || card.status === "in_progress").length;
+  const backlogCards = board.cards.filter((card) => card.status === "backlog");
+  const completedCards = board.cards.filter((card) => card.status === "done");
 
   const cardsByStatus = useMemo(
     () =>
       Object.fromEntries(
-        CARD_STATUSES.map((status) => [
+        BOARD_STATUSES.map((status) => [
           status,
-          filteredCards.filter((card) => card.status === status).sort((a, b) => a.position - b.position),
+          filteredCards
+            .filter((card) => card.status === status)
+            .sort(status === "done" ? compareCompletion : comparePosition)
+            .slice(0, status === "done" ? RECENT_DONE_LIMIT : undefined),
         ]),
-      ) as Record<CardStatus, Card[]>,
+      ) as Record<(typeof BOARD_STATUSES)[number], Card[]>,
     [filteredCards],
   );
 
@@ -73,24 +86,29 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
   }, [initialParams]);
 
   useEffect(() => {
-    const switchWorkspace = (event: KeyboardEvent) => {
+    const useKeyboardShortcut = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.repeat || event.isComposing || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-      const nextView = event.key === "1" ? "work" : event.key === "2" ? "ideas" : null;
-      if (!nextView) return;
       const target = event.target;
       if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || (target instanceof HTMLElement && target.isContentEditable)) {
         const isEmptyCapture =
           target instanceof HTMLInputElement &&
           (target.id === "quick-card" || target.id === "capture-idea") &&
           target.value.length === 0;
-        if (!isEmptyCapture) return;
+        if (event.key.toLowerCase() === "b" || !isEmptyCapture) return;
       }
+      if (event.key.toLowerCase() === "b" && view === "work") {
+        event.preventDefault();
+        setBacklogOpen(true);
+        return;
+      }
+      const nextView = event.key === "1" ? "work" : event.key === "2" ? "ideas" : null;
+      if (!nextView) return;
       event.preventDefault();
       void onViewChange(nextView);
     };
-    window.addEventListener("keydown", switchWorkspace);
-    return () => window.removeEventListener("keydown", switchWorkspace);
-  }, [onViewChange]);
+    window.addEventListener("keydown", useKeyboardShortcut);
+    return () => window.removeEventListener("keydown", useKeyboardShortcut);
+  }, [onViewChange, view]);
 
   const updateUrl = (nextQuery: string, nextPeople: Set<string>) => {
     const params = new URLSearchParams(location.search);
@@ -174,7 +192,7 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
       {view === "work" ? <main className="board-main">
         <div className="board-intro">
           <div>
-            <h2>{openCount} open card{openCount === 1 ? "" : "s"}</h2>
+            <h2>{activeCount} active card{activeCount === 1 ? "" : "s"}</h2>
           </div>
           <form className="quick-add workspace-capture" onSubmit={createQuickCard}>
             <label className="sr-only" htmlFor="quick-card">Add a card to backlog</label>
@@ -183,7 +201,7 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
               id="quick-card"
               name="quickCard"
               onChange={(event) => setQuickTitle(event.target.value)}
-              placeholder="Capture a thought..."
+              placeholder="Capture for the backlog..."
               value={quickTitle}
             />
             <button className="primary-button" disabled={busy || !quickTitle.trim()} type="submit">add card</button>
@@ -191,6 +209,17 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
         </div>
 
         <div className="work-filters" aria-label="Work filters">
+          <button
+            aria-label={`Open backlog, ${backlogCards.length} card${backlogCards.length === 1 ? "" : "s"}`}
+            className={`library-trigger ${draggedId ? "drop-ready" : ""}`}
+            onClick={() => setBacklogOpen(true)}
+            onDragOver={(event) => { if (draggedId) event.preventDefault(); }}
+            onDrop={(event) => void moveCard(event, "backlog", backlogCards.length)}
+            title="Backlog (B)"
+            type="button"
+          >
+            <span>Backlog</span><strong>{backlogCards.length}</strong><kbd aria-hidden="true">B</kbd>
+          </button>
           <label className="card-search">
             <span className="sr-only">Search cards</span>
             <input aria-label="Search cards" name="cardSearch" onChange={(event) => changeQuery(event.target.value)} placeholder="Search cards..." type="search" value={query} />
@@ -217,8 +246,9 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
         </div>
 
         <div className="kanban" aria-label="Wizard Simulator board">
-          {CARD_STATUSES.map((status) => {
+          {BOARD_STATUSES.map((status) => {
             const cards = cardsByStatus[status];
+            const visibleStatusCount = filteredCards.filter((card) => card.status === status).length;
             const fullColumnLength = board.cards.filter((card) => card.status === status).length;
             return (
               <section
@@ -229,8 +259,15 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
                 onDrop={(event) => void moveCard(event, status, fullColumnLength)}
               >
                 <header className="column-header">
-                  <div><span className="column-dot" /><h3>{columnNames[status]}</h3></div>
-                  <span className="column-count">{cards.length}</span>
+                  {status === "done" ? (
+                    <button
+                      aria-label={`Open completed work history, ${visibleStatusCount} total`}
+                      className="done-history-trigger"
+                      onClick={() => setHistoryOpen(true)}
+                      type="button"
+                    ><span className="column-dot" /><h3>{columnNames[status]}</h3></button>
+                  ) : <div><span className="column-dot" /><h3>{columnNames[status]}</h3></div>}
+                  <span className="column-count">{status === "done" && visibleStatusCount > RECENT_DONE_LIMIT ? `${cards.length} of ${visibleStatusCount}` : visibleStatusCount}</span>
                 </header>
                 <div className="card-list">
                   {cards.map((card) => {
@@ -275,9 +312,9 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
                       </article>
                     );
                   })}
-                  {cards.length === 0 && <div className="empty-column">drop a card here</div>}
+                  {cards.length === 0 && <div className="empty-column">{status === "done" ? "completed work appears here" : "drop a card here"}</div>}
                 </div>
-                {addingTo === status ? (
+                {status !== "done" && (addingTo === status ? (
                   <form className="column-add-form" onSubmit={(event) => void createColumnCard(event, status)}>
                     <label className="sr-only" htmlFor={`new-${status}`}>New {columnNames[status]} card</label>
                     <input
@@ -293,7 +330,7 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
                   </form>
                 ) : (
                   <button className="add-to-column" onClick={() => { setAddingTo(status); setColumnTitle(""); }} type="button">+ add card</button>
-                )}
+                ))}
               </section>
             );
           })}
@@ -320,6 +357,33 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
           onUpdate={(input) => onUpdate(selectedCard.id, input)}
         />
       )}
+      {backlogOpen && (
+        <BacklogDialog
+          allCards={board.cards}
+          busy={busy}
+          cards={backlogCards}
+          members={board.members}
+          onClose={() => setBacklogOpen(false)}
+          onMoveToNext={async (id) => {
+            setBacklogOpen(false);
+            await onUpdate(id, { status: "ready", position: board.cards.filter((card) => card.status === "ready").length });
+          }}
+          onOpenCard={(id) => { setBacklogOpen(false); setSelectedId(id); }}
+        />
+      )}
+      {historyOpen && (
+        <DoneHistoryDialog
+          busy={busy}
+          cards={completedCards}
+          members={board.members}
+          onClose={() => setHistoryOpen(false)}
+          onOpenCard={(id) => { setHistoryOpen(false); setSelectedId(id); }}
+          onReopen={async (id) => {
+            setHistoryOpen(false);
+            await onUpdate(id, { status: "ready", position: board.cards.filter((card) => card.status === "ready").length });
+          }}
+        />
+      )}
       {teamOpen && (
         <TeamDialog
           currentUser={board.currentUser}
@@ -342,6 +406,11 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
   );
 }
 
-export function initials(name: string): string {
-  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+function comparePosition(left: Card, right: Card): number {
+  return left.position - right.position;
+}
+
+function compareCompletion(left: Card, right: Card): number {
+  const timestamp = (right.completedAt ?? right.updatedAt).localeCompare(left.completedAt ?? left.updatedAt);
+  return timestamp || right.position - left.position;
 }

@@ -18,6 +18,7 @@ export type StoredCard = {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  completedAt: string | null;
   archivedAt: string | null;
 };
 
@@ -36,6 +37,7 @@ const metadataSchema = z
     created_by: z.string().email(),
     created_at: z.string().refine(isTimestamp, "created_at must be an ISO timestamp"),
     updated_at: z.string().refine(isTimestamp, "updated_at must be an ISO timestamp"),
+    completed_at: z.string().refine(isTimestamp, "completed_at must be an ISO timestamp").nullable().optional(),
     archived_at: z.string().refine(isTimestamp, "archived_at must be an ISO timestamp").nullable().optional(),
   })
   .strict();
@@ -191,6 +193,7 @@ function parseCard(markdown: string): StoredCard {
     createdBy: metadata.created_by.toLowerCase(),
     createdAt: metadata.created_at,
     updatedAt: metadata.updated_at,
+    completedAt: metadata.completed_at ?? (metadata.status === "done" ? metadata.updated_at : null),
     archivedAt: metadata.archived_at ?? null,
   };
 }
@@ -207,6 +210,7 @@ function serializeCard(card: StoredCard): string {
     ["created_by", card.createdBy],
     ["created_at", card.createdAt],
     ["updated_at", card.updatedAt],
+    ["completed_at", card.completedAt],
   ];
   if (card.unblockedCards.length > 0) metadata.splice(4, 0, ["unblocked_cards", card.unblockedCards]);
   if (card.archivedAt !== null) metadata.push(["archived_at", card.archivedAt]);
@@ -227,6 +231,7 @@ function legacyRowToCard(row: LegacyCardRow): StoredCard {
     createdBy: String(row.creator_email).toLowerCase(),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
+    completedAt: row.status === "done" ? String(row.updated_at) : null,
     archivedAt: row.archived_at ? String(row.archived_at) : null,
   };
 }

@@ -11,14 +11,21 @@ There are no built-in design pillars, milestones, outcomes, asset pipelines, spr
 
 ## Work
 
-Grimoire has four columns:
+Grimoire keeps the main board limited to the work that currently deserves the team's attention:
 
-- **Backlog** holds work that the team has not committed to yet.
-- **Ready** contains cards that someone can pick up now.
+- **Up Next** contains the small set of cards that someone can pick up now.
 - **In progress** shows what the team is actively working on.
-- **Done** keeps recently completed work visible.
+- **Done** shows the eight most recently completed cards.
 
-Cards can be dragged between columns and reordered within a column.
+Accepted work outside the active deck lives in a searchable Backlog library instead of occupying a permanent board column.
+The library can be filtered by category, assignee, or blocked state, and any card can move into Up Next with one action.
+Cards can be dragged between active columns, reordered within a column, or dropped onto the Backlog control.
+Press `B` while focus is on the board to open the Backlog library.
+
+Clicking the Done heading opens the complete searchable history, grouped by completion month and filterable by category or assignee.
+Completed cards are never automatically archived or deleted, and any completed card can be reopened into Up Next.
+Moving a card into Done records its completion time, editing it preserves that time, and reopening it clears the completion time.
+
 Every card can contain a title, optional notes, and one assignee.
 Assignees are visible directly on the board so the current team focus is clear at a glance.
 Each card can also have one game-development category: Design, Code, Modeling, Texturing, Animation, Narrative, Audio, UI, VFX, or Production.
@@ -95,7 +102,7 @@ npm test
 npm run build
 ```
 
-The test suite covers authentication, secure password changes, single-use invitations, member removal, Markdown persistence, legacy migration, external edits, live project events, reversible archives and promotions, categories, card dependencies, assignments, filtering, idea ranking, ordering, and drag-and-drop interaction.
+The test suite covers authentication, secure password changes, single-use invitations, member removal, Markdown persistence, legacy migration, external edits, live project events, the active deck, Backlog search, completion history, reversible archives and promotions, categories, card dependencies, assignments, filtering, idea ranking, ordering, and drag-and-drop interaction.
 
 ## Self-hosting
 

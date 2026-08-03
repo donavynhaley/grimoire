@@ -43,6 +43,7 @@ export function boardFixture(): BoardWorkspace {
         createdByName: "Donavyn",
         createdAt: "2026-08-03T00:00:00.000Z",
         updatedAt: "2026-08-03T00:00:00.000Z",
+        completedAt: null,
       },
       {
         id: "00000000-0000-4000-8000-000000000021",
@@ -58,6 +59,7 @@ export function boardFixture(): BoardWorkspace {
         createdByName: "Donavyn",
         createdAt: "2026-08-03T00:00:00.000Z",
         updatedAt: "2026-08-03T00:00:00.000Z",
+        completedAt: null,
       },
     ],
   };

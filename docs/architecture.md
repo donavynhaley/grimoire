@@ -19,7 +19,7 @@ The configured project directory stores all work card and idea domain data:
 - Links to cards that block other cards.
 - Ordering within a status.
 - Assignment and authorship.
-- Creation, update, and archival timestamps.
+- Creation, update, completion, and archival timestamps.
 - The Markdown notes body.
 - Idea state and manual rank.
 - The link from an archived idea to its promoted work card.
@@ -68,6 +68,7 @@ assignee: owner@example.com
 created_by: owner@example.com
 created_at: "2026-08-03T14:20:00.000Z"
 updated_at: "2026-08-03T16:45:00.000Z"
+completed_at: null
 ---
 
 Build the first interactive version of the potion workbench.
@@ -80,6 +81,8 @@ Build the first interactive version of the potion workbench.
 ```
 
 The supported status values are `backlog`, `ready`, `in_progress`, and `done`.
+The interface presents `ready` as Up Next and keeps `backlog` outside the three-column active board.
+Done displays the eight newest completions while the history view reads every `done` card from the same canonical set.
 The supported category values are `design`, `code`, `modeling`, `texturing`, `animation`, `narrative`, `audio`, `ui`, `vfx`, and `production`.
 The `category` value can be `null`, and older files without the field are treated as uncategorized.
 The `blocked_by` value is an inline array of card UUIDs, and older files without the field are treated as having no dependencies.
@@ -89,6 +92,8 @@ An unfinished card cannot be archived while unfinished work depends on it.
 The `position` value is a zero-based integer within that status.
 The `assignee` value is either a project member email or `null`.
 The `created_by` value is the creator email.
+The `completed_at` value is set when a card enters `done`, remains stable while that completed card is edited, and returns to `null` when the card is reopened.
+Older `done` cards without `completed_at` use their last update time as a backward-compatible completion time.
 Archived files also contain an `archived_at` timestamp.
 When archiving removes dependency links from other cards, the archived file contains their UUIDs in `unblocked_cards` until restoration.
 

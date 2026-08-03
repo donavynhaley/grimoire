@@ -7,11 +7,11 @@ import {
   type CardStatus,
   type Member,
 } from "../../shared/types";
-import { initials } from "./Board";
+import { initials } from "./initials";
 
 const labels: Record<CardStatus, string> = {
   backlog: "Backlog",
-  ready: "Ready",
+  ready: "Up Next",
   in_progress: "In progress",
   done: "Done",
 };

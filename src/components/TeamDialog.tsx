@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Member, User } from "../../shared/types";
-import { initials } from "./Board";
+import { initials } from "./initials";
 
 type Props = {
   currentUser: User;

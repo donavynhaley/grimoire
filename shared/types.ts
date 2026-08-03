@@ -47,6 +47,7 @@ export type Card = {
   createdByName: string;
   createdAt: string;
   updatedAt: string;
+  completedAt: string | null;
 };
 
 export type BoardWorkspace = {
