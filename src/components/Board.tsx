@@ -189,7 +189,6 @@ export function Board({ board, busy, onCreate, onUpdate, onArchive, onCreateInvi
 
       {selectedCard && (
         <CardDialog
-          busy={busy}
           card={selectedCard}
           members={board.members}
           onArchive={async () => { await onArchive(selectedCard.id); setSelectedId(null); }}

@@ -123,4 +123,62 @@ describe("Grimoire board", () => {
       ),
     );
   });
+
+  it("automatically saves title and notes without a save button", async () => {
+    const initial = boardFixture();
+    const card = initial.cards[0];
+    const note = "Keep the memory readable without subtitles.";
+    const saved = { ...card, description: note };
+    const updated = { ...initial, cards: [saved, initial.cards[1]] };
+    const fetchMock = authenticatedFetch(initial)
+      .mockImplementationOnce(() => response({ card: saved }))
+      .mockImplementationOnce(() => response(updated));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    await userEvent.click(await screen.findByRole("button", { name: new RegExp(`Open ${card.title}`, "i") }));
+
+    expect(screen.queryByRole("button", { name: /save changes/i })).not.toBeInTheDocument();
+    await userEvent.clear(screen.getByLabelText("Notes"));
+    await userEvent.type(screen.getByLabelText("Notes"), note);
+
+    await waitFor(
+      () =>
+        expect(fetchMock).toHaveBeenCalledWith(
+          `/api/cards/${card.id}`,
+          expect.objectContaining({
+            method: "PATCH",
+            body: JSON.stringify({ title: card.title, description: note }),
+          }),
+        ),
+      { timeout: 2_000 },
+    );
+  });
+
+  it("flushes pending text when the card is closed", async () => {
+    const initial = boardFixture();
+    const card = initial.cards[0];
+    const title = "Make the tower door remember both wizards";
+    const saved = { ...card, title };
+    const updated = { ...initial, cards: [saved, initial.cards[1]] };
+    const fetchMock = authenticatedFetch(initial)
+      .mockImplementationOnce(() => response({ card: saved }))
+      .mockImplementationOnce(() => response(updated));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    await userEvent.click(await screen.findByRole("button", { name: new RegExp(`Open ${card.title}`, "i") }));
+    await userEvent.clear(screen.getByLabelText("Title"));
+    await userEvent.type(screen.getByLabelText("Title"), title);
+    await userEvent.click(screen.getByRole("button", { name: "Close card" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Edit card" })).not.toBeInTheDocument());
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/cards/${card.id}`,
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ title, description: card.description }),
+      }),
+    );
+  });
 });
