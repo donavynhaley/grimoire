@@ -101,6 +101,7 @@ export function createCard(
     description: input.description ?? "",
     category: input.category ?? null,
     blockedBy: input.blockedBy ?? [],
+    unblockedCards: [],
     status,
     position,
     assignee: assignee?.email.toLowerCase() ?? null,
@@ -190,7 +191,12 @@ export function archiveCard(
       updatedAt: now,
     });
   });
-  cardStore.archive(projectSlug, { ...current, archivedAt: now, updatedAt: now });
+  cardStore.archive(projectSlug, {
+    ...current,
+    unblockedCards: dependents.map((card) => card.id),
+    archivedAt: now,
+    updatedAt: now,
+  });
   cardStore
     .list(projectSlug)
     .filter((card) => card.status === current.status)
@@ -198,6 +204,45 @@ export function archiveCard(
       if (card.position !== position) cardStore.save(projectSlug, { ...card, position });
     });
   return true;
+}
+
+export function restoreCard(
+  database: DatabaseSync,
+  cardStore: MarkdownCardStore,
+  projectId: string,
+  cardId: string,
+): Card | null {
+  const project = projectById(database, projectId);
+  if (!project) return null;
+  const projectSlug = String(project.slug);
+  const archived = cardStore.getArchived(projectSlug, cardId);
+  if (!archived) return null;
+  const cards = cardStore.list(projectSlug);
+  const restored: StoredCard = {
+    ...archived,
+    unblockedCards: [],
+    archivedAt: null,
+    updatedAt: new Date().toISOString(),
+  };
+  const previouslyBlocked = new Set(archived.unblockedCards);
+  const restoredCards = cards.map((card) => previouslyBlocked.has(card.id)
+    ? { ...card, blockedBy: [...card.blockedBy, restored.id], updatedAt: restored.updatedAt }
+    : card);
+  validateDependencyGraph([...restoredCards, restored]);
+  cardStore.restore(projectSlug, restored);
+
+  restoredCards.forEach((card) => {
+    const previous = cards.find((candidate) => candidate.id === card.id);
+    if (previous && previous.blockedBy.length !== card.blockedBy.length) cardStore.save(projectSlug, card);
+  });
+
+  const ordered = restoredCards.filter((card) => card.status === restored.status);
+  ordered.splice(Math.max(0, Math.min(restored.position, ordered.length)), 0, restored);
+  ordered.forEach((card, position) => {
+    if (card.position !== position) cardStore.save(projectSlug, { ...card, position });
+    if (card.id === restored.id) restored.position = position;
+  });
+  return publicCard(restored, membersForProject(database, projectId));
 }
 
 export function projectById(database: DatabaseSync, projectId: string): Row | undefined {

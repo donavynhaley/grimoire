@@ -29,6 +29,35 @@ function authenticatedFetch(board = boardFixture()) {
 }
 
 describe("Grimoire board", () => {
+  it("refreshes the board when another browser changes work", async () => {
+    const initial = boardFixture();
+    const liveCard = {
+      ...initial.cards[0],
+      id: "00000000-0000-4000-8000-000000000035",
+      title: "Live card from Maren",
+    };
+    const updated = { ...initial, cards: [liveCard, ...initial.cards] };
+    let workspaceListener: ((event: Event) => void) | null = null;
+    class FakeEventSource {
+      close = vi.fn();
+      constructor(readonly url: string) {}
+      addEventListener(type: string, listener: EventListener) {
+        if (type === "workspace") workspaceListener = listener;
+      }
+      removeEventListener = vi.fn();
+    }
+    vi.stubGlobal("EventSource", FakeEventSource);
+    const fetchMock = authenticatedFetch(initial).mockImplementationOnce(() => response(updated));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    expect(await screen.findByText(initial.cards[0].title)).toBeInTheDocument();
+
+    workspaceListener!(new MessageEvent("workspace", { data: JSON.stringify({ scope: "work" }) }));
+
+    expect(await screen.findByText(liveCard.title)).toBeInTheDocument();
+  });
+
   it("prefills the default owner email during first-run setup", async () => {
     vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockImplementationOnce(() => response({ status: "setup_required" })));
 
@@ -273,6 +302,74 @@ describe("Grimoire board", () => {
         ),
       { timeout: 2_000 },
     );
+  });
+
+  it("offers to undo an archived card", async () => {
+    const initial = boardFixture();
+    const card = initial.cards[0];
+    const archived = { ...initial, cards: [initial.cards[1]] };
+    const fetchMock = authenticatedFetch(initial)
+      .mockImplementationOnce(() => response({ ok: true }))
+      .mockImplementationOnce(() => response(archived))
+      .mockImplementationOnce(() => response({ card }))
+      .mockImplementationOnce(() => response(initial));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    await userEvent.click(await screen.findByRole("button", { name: new RegExp(`Open ${card.title}`, "i") }));
+    await userEvent.click(screen.getByRole("button", { name: "archive card" }));
+    await userEvent.click(screen.getByRole("button", { name: "yes, archive" }));
+
+    expect(await screen.findByText(`Archived ${card.title}`)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Undo archive" }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/cards/${card.id}/restore`,
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+    expect(await screen.findByText(card.title)).toBeInTheDocument();
+  });
+
+  it("offers to undo an idea promotion", async () => {
+    const initial = boardFixture();
+    const ideaWorkspace = ideaFixture();
+    const idea = ideaWorkspace.ideas[0];
+    const promotedCard = {
+      ...initial.cards[0],
+      id: "00000000-0000-4000-8000-000000000050",
+      title: idea.title,
+      description: idea.description,
+    };
+    const promotedIdeas = { ...ideaWorkspace, ideas: ideaWorkspace.ideas.filter((candidate) => candidate.id !== idea.id) };
+    const promotedBoard = { ...initial, cards: [...initial.cards, promotedCard] };
+    const fetchMock = authenticatedFetch(initial)
+      .mockImplementationOnce(() => response(ideaWorkspace))
+      .mockImplementationOnce(() => response({ card: promotedCard }, 201))
+      .mockImplementationOnce(() => response(promotedIdeas))
+      .mockImplementationOnce(() => response(promotedBoard))
+      .mockImplementationOnce(() => response({ idea }))
+      .mockImplementationOnce(() => response(initial))
+      .mockImplementationOnce(() => response(ideaWorkspace));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    await userEvent.click(await screen.findByRole("button", { name: "ideas" }));
+    await userEvent.click(await screen.findByRole("button", { name: `Open idea ${idea.title}` }));
+    await userEvent.click(screen.getByRole("button", { name: "make work card" }));
+    await userEvent.click(screen.getByRole("button", { name: "yes, make card" }));
+
+    expect(await screen.findByText(`Promoted ${idea.title}`)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Undo promotion" }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/ideas/${idea.id}/promotion`,
+        expect.objectContaining({ method: "DELETE" }),
+      ),
+    );
+    expect(await screen.findByRole("button", { name: `Open idea ${idea.title}` })).toBeInTheDocument();
   });
 
   it("flushes pending text when the card is closed", async () => {

@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import type { BoardWorkspace, CardStatus, IdeaState, IdeaWorkspace, SessionState, User } from "../shared/types";
-import { ApiError, board as loadBoard, ideas as loadIdeas, mutate, request, session } from "./api/client";
+import { ApiError, board as loadBoard, ideas as loadIdeas, liveEventsUrl, mutate, request, session } from "./api/client";
 import { AuthScreen } from "./components/AuthScreen";
 import { Board } from "./components/Board";
+import { type UndoNotice, UndoToast } from "./components/UndoToast";
+
+type PendingUndo = UndoNotice & {
+  run: () => Promise<void>;
+};
 
 export function App() {
   const [sessionState, setSessionState] = useState<SessionState | null>(null);
@@ -13,11 +18,17 @@ export function App() {
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [undoNotice, setUndoNotice] = useState<PendingUndo | null>(null);
+  const dismissUndo = useCallback(() => setUndoNotice(null), []);
 
   const refreshBoard = useCallback(async () => {
     const value = await loadBoard();
     setBoard(value);
     setSessionState({ status: "authenticated", user: value.currentUser });
+  }, []);
+
+  const refreshIdeas = useCallback(async () => {
+    setIdeas(await loadIdeas());
   }, []);
 
   useEffect(() => {
@@ -40,6 +51,51 @@ export function App() {
       .catch((value) => alive && setError(value instanceof Error ? value.message : "Could not reach Grimoire"));
     return () => { alive = false; };
   }, []);
+
+  useEffect(() => {
+    if (sessionState?.status !== "authenticated" || !board || typeof EventSource === "undefined") return;
+    const source = new EventSource(liveEventsUrl());
+    let pendingWork = false;
+    let pendingIdeas = false;
+    let refreshing = false;
+
+    const flush = async () => {
+      if (refreshing) return;
+      refreshing = true;
+      try {
+        while (pendingWork || pendingIdeas) {
+          const work = pendingWork;
+          const ideaGarden = pendingIdeas;
+          pendingWork = false;
+          pendingIdeas = false;
+          await Promise.all([
+            work ? refreshBoard() : Promise.resolve(),
+            ideaGarden && ideas !== null ? refreshIdeas() : Promise.resolve(),
+          ]);
+        }
+      } catch (value) {
+        setError(value instanceof ApiError ? value.message : "Live changes could not be loaded");
+      } finally {
+        refreshing = false;
+      }
+    };
+
+    const receiveWorkspaceChange = (event: Event) => {
+      try {
+        const scope = JSON.parse((event as MessageEvent<string>).data) as { scope?: string };
+        pendingWork ||= scope.scope === "work" || scope.scope === "both";
+        pendingIdeas ||= scope.scope === "ideas" || scope.scope === "both";
+        void flush();
+      } catch {
+        // Ignore malformed stream messages and keep the connection alive.
+      }
+    };
+    source.addEventListener("workspace", receiveWorkspaceChange);
+    return () => {
+      source.removeEventListener("workspace", receiveWorkspaceChange);
+      source.close();
+    };
+  }, [board?.project.id, ideas !== null, refreshBoard, refreshIdeas, sessionState?.status]);
 
   const onAuthenticated = async (_user: User) => {
     await refreshBoard();
@@ -73,7 +129,16 @@ export function App() {
     }
   };
 
-  const archiveCard = (id: string) => perform(() => mutate(`/api/cards/${id}`, "DELETE"));
+  const archiveCard = async (id: string) => {
+    const title = board?.cards.find((card) => card.id === id)?.title ?? "card";
+    await perform(() => mutate(`/api/cards/${id}`, "DELETE"));
+    setUndoNotice({
+      actionLabel: "Undo archive",
+      id: Date.now(),
+      message: `Archived ${title}`,
+      run: () => perform(() => mutate(`/api/cards/${id}/restore`, "POST")),
+    });
+  };
 
   const changeView = async (nextView: "work" | "ideas") => {
     setView(nextView);
@@ -83,7 +148,7 @@ export function App() {
     history.replaceState({}, "", `${location.pathname}${params.size ? `?${params}` : ""}`);
     if (nextView === "ideas" && !ideas) {
       try {
-        setIdeas(await loadIdeas());
+        await refreshIdeas();
       } catch (value) {
         setError(value instanceof ApiError ? value.message : "The idea garden could not be opened");
       }
@@ -95,7 +160,7 @@ export function App() {
     setError("");
     try {
       await change();
-      setIdeas(await loadIdeas());
+      await refreshIdeas();
     } catch (value) {
       setError(value instanceof ApiError ? value.message : "The idea could not be saved");
       throw value;
@@ -108,8 +173,38 @@ export function App() {
   const updateIdea = (id: string, input: { title?: string; description?: string; state?: IdeaState; position?: number }) =>
     performIdea(() => mutate(`/api/ideas/${id}`, "PATCH", input));
   const promoteIdea = async (id: string) => {
+    const title = ideas?.ideas.find((idea) => idea.id === id)?.title ?? "idea";
     await performIdea(() => mutate(`/api/ideas/${id}/promote`, "POST"));
     await refreshBoard();
+    setUndoNotice({
+      actionLabel: "Undo promotion",
+      id: Date.now(),
+      message: `Promoted ${title}`,
+      run: async () => {
+        setBusy(true);
+        setError("");
+        try {
+          await mutate(`/api/ideas/${id}/promotion`, "DELETE");
+          await Promise.all([refreshBoard(), refreshIdeas()]);
+        } catch (value) {
+          setError(value instanceof ApiError ? value.message : "The promotion could not be undone");
+          throw value;
+        } finally {
+          setBusy(false);
+        }
+      },
+    });
+  };
+
+  const undoLastChange = async () => {
+    const notice = undoNotice;
+    if (!notice) return;
+    setUndoNotice(null);
+    try {
+      await notice.run();
+    } catch {
+      // The operation already surfaced its error in the global banner.
+    }
   };
 
   const createInvite = async () => {
@@ -146,6 +241,7 @@ export function App() {
   return (
     <>
       {error && <div className="error-banner global-error" role="alert">{error}<button aria-label="Dismiss error" onClick={() => setError("")} type="button">×</button></div>}
+      {undoNotice && <UndoToast notice={undoNotice} onDismiss={dismissUndo} onUndo={() => void undoLastChange()} />}
       <Board
         board={board}
         busy={busy}

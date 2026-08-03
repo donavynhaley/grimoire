@@ -10,6 +10,7 @@ type TestServer = {
   cardsDirectory: string;
   close: () => Promise<void>;
   databasePath: string;
+  events: (clientId: string) => Promise<Response>;
   request: <T>(path: string, init?: RequestInit) => Promise<{ response: Response; body: T }>;
 };
 
@@ -30,6 +31,7 @@ export async function startTestServer(existingDirectory?: string): Promise<TestS
   let cookie = "";
 
   const close = async () => {
+    app.closeEventStreams();
     if (app.server.listening) {
       await new Promise<void>((resolve, reject) => {
         app.server.close((error) => (error ? reject(error) : resolve()));
@@ -46,6 +48,11 @@ export async function startTestServer(existingDirectory?: string): Promise<TestS
     cardsDirectory: join(directory, "cards"),
     close,
     databasePath,
+    events(clientId: string) {
+      const headers = new Headers();
+      if (cookie) headers.set("cookie", cookie);
+      return fetch(`${baseUrl}/api/events?client=${encodeURIComponent(clientId)}`, { headers });
+    },
     async request<T>(path: string, init: RequestInit = {}) {
       const headers = new Headers(init.headers);
       if (cookie) headers.set("cookie", cookie);

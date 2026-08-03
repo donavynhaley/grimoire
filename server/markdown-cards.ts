@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, unlinkSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
@@ -11,6 +11,7 @@ export type StoredCard = {
   description: string;
   category: CardCategory | null;
   blockedBy: string[];
+  unblockedCards: string[];
   status: CardStatus;
   position: number;
   assignee: string | null;
@@ -28,6 +29,7 @@ const metadataSchema = z
     title: z.string().trim().min(1).max(240),
     category: z.enum(CARD_CATEGORIES).nullable().optional(),
     blocked_by: z.array(z.string().uuid()).optional(),
+    unblocked_cards: z.array(z.string().uuid()).optional(),
     status: z.enum(CARD_STATUSES),
     position: z.number().int().min(0),
     assignee: z.string().email().nullable(),
@@ -58,8 +60,14 @@ export class MarkdownCardStore {
     return existsSync(path) ? this.readPath(path) : null;
   }
 
+  getArchived(projectSlug: string, cardId: string): StoredCard | null {
+    const path = this.archivePath(projectSlug, cardId);
+    return existsSync(path) ? this.readPath(path) : null;
+  }
+
   save(projectSlug: string, card: StoredCard): void {
     if (card.archivedAt !== null) throw new Error("Active cards cannot have an archived_at value");
+    if (card.unblockedCards.length > 0) throw new Error("Active cards cannot have unblocked_cards values");
     writeAtomic(this.activePath(projectSlug, card.id), serializeCard(card));
   }
 
@@ -68,10 +76,26 @@ export class MarkdownCardStore {
     if (!existsSync(activePath)) throw new Error(`Card file does not exist: ${activePath}`);
     const archiveDirectory = this.archiveDirectory(projectSlug);
     mkdirSync(archiveDirectory, { recursive: true });
-    const archivePath = join(archiveDirectory, `${card.id}.md`);
+    const archivePath = this.archivePath(projectSlug, card.id);
     if (existsSync(archivePath)) throw new Error(`Archived card file already exists: ${archivePath}`);
     renameSync(activePath, archivePath);
     writeAtomic(archivePath, serializeCard(card));
+  }
+
+  restore(projectSlug: string, card: StoredCard): void {
+    const archivePath = this.archivePath(projectSlug, card.id);
+    if (!existsSync(archivePath)) throw new Error(`Archived card file does not exist: ${archivePath}`);
+    const activePath = this.activePath(projectSlug, card.id);
+    if (existsSync(activePath)) throw new Error(`Active card file already exists: ${activePath}`);
+    mkdirSync(this.activeDirectory(projectSlug), { recursive: true });
+    renameSync(archivePath, activePath);
+    writeAtomic(activePath, serializeCard({ ...card, archivedAt: null }));
+  }
+
+  remove(projectSlug: string, cardId: string): void {
+    const path = this.activePath(projectSlug, cardId);
+    if (!existsSync(path)) throw new Error(`Card file does not exist: ${path}`);
+    unlinkSync(path);
   }
 
   migrateLegacyCards(database: DatabaseSync): number {
@@ -136,6 +160,10 @@ export class MarkdownCardStore {
     return join(this.projectDirectory(projectSlug), "archive");
   }
 
+  private archivePath(projectSlug: string, cardId: string): string {
+    return join(this.archiveDirectory(projectSlug), `${cardId}.md`);
+  }
+
   private activePath(projectSlug: string, cardId: string): string {
     return join(this.activeDirectory(projectSlug), `${cardId}.md`);
   }
@@ -156,6 +184,7 @@ function parseCard(markdown: string): StoredCard {
     description: parsed.body,
     category: metadata.category ?? null,
     blockedBy: metadata.blocked_by ?? [],
+    unblockedCards: metadata.unblocked_cards ?? [],
     status: metadata.status,
     position: metadata.position,
     assignee: metadata.assignee?.toLowerCase() ?? null,
@@ -179,6 +208,7 @@ function serializeCard(card: StoredCard): string {
     ["created_at", card.createdAt],
     ["updated_at", card.updatedAt],
   ];
+  if (card.unblockedCards.length > 0) metadata.splice(4, 0, ["unblocked_cards", card.unblockedCards]);
   if (card.archivedAt !== null) metadata.push(["archived_at", card.archivedAt]);
   return serializeMarkdown(metadata, card.description);
 }
@@ -190,6 +220,7 @@ function legacyRowToCard(row: LegacyCardRow): StoredCard {
     description: String(row.description),
     category: null,
     blockedBy: [],
+    unblockedCards: [],
     status: row.status as CardStatus,
     position: Number(row.position),
     assignee: row.assignee_email ? String(row.assignee_email).toLowerCase() : null,

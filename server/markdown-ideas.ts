@@ -50,6 +50,11 @@ export class MarkdownIdeaStore {
     return existsSync(path) ? this.readPath(path) : null;
   }
 
+  getArchived(projectSlug: string, ideaId: string): StoredIdea | null {
+    const path = this.archivePath(projectSlug, ideaId);
+    return existsSync(path) ? this.readPath(path) : null;
+  }
+
   save(projectSlug: string, idea: StoredIdea): void {
     writeAtomic(this.activePath(projectSlug, idea.id), serializeIdea(idea));
   }
@@ -59,10 +64,20 @@ export class MarkdownIdeaStore {
     if (!existsSync(activePath)) throw new Error(`Idea file does not exist: ${activePath}`);
     const directory = this.archiveDirectory(projectSlug);
     mkdirSync(directory, { recursive: true });
-    const archivePath = join(directory, `${idea.id}.md`);
+    const archivePath = this.archivePath(projectSlug, idea.id);
     if (existsSync(archivePath)) throw new Error(`Archived idea file already exists: ${archivePath}`);
     renameSync(activePath, archivePath);
     writeAtomic(archivePath, serializeIdea(idea));
+  }
+
+  restore(projectSlug: string, idea: StoredIdea): void {
+    const archivePath = this.archivePath(projectSlug, idea.id);
+    if (!existsSync(archivePath)) throw new Error(`Archived idea file does not exist: ${archivePath}`);
+    const activePath = this.activePath(projectSlug, idea.id);
+    if (existsSync(activePath)) throw new Error(`Active idea file already exists: ${activePath}`);
+    mkdirSync(this.activeDirectory(projectSlug), { recursive: true });
+    renameSync(archivePath, activePath);
+    writeAtomic(activePath, serializeIdea(idea));
   }
 
   private readPath(path: string): StoredIdea {
@@ -94,6 +109,10 @@ export class MarkdownIdeaStore {
 
   private archiveDirectory(projectSlug: string): string {
     return join(this.activeDirectory(projectSlug), "archive");
+  }
+
+  private archivePath(projectSlug: string, ideaId: string): string {
+    return join(this.archiveDirectory(projectSlug), `${ideaId}.md`);
   }
 
   private activePath(projectSlug: string, ideaId: string): string {

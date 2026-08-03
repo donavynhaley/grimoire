@@ -854,7 +854,8 @@ textarea:hover { border-color: var(--border-bright); }
 }
 
 .saving-indicator,
-.global-error {
+.global-error,
+.undo-toast {
   position: fixed;
   z-index: 80;
   right: 18px;
@@ -875,6 +876,33 @@ textarea:hover { border-color: var(--border-bright); }
 .connection-dot { width: 7px; height: 7px; background: var(--accent); border-radius: 999px; box-shadow: 0 0 9px var(--accent); }
 .global-error { top: 78px; bottom: auto; color: #f0c5c5; border-color: #6c393c; }
 .global-error button { margin-left: 6px; color: inherit; background: none; border: 0; cursor: pointer; }
+
+.undo-toast {
+  right: 20px;
+  bottom: 20px;
+  min-width: 250px;
+  overflow: hidden;
+  animation: undo-toast-in 180ms ease-out;
+}
+
+.undo-toast > span:first-child { margin-right: auto; color: var(--text); }
+.undo-toast button { padding: 6px 8px; color: var(--accent); background: none; border: 0; cursor: pointer; font-size: 9px; font-weight: 800; }
+.undo-toast button:hover { color: #d4efbc; }
+.undo-toast .undo-dismiss { padding-right: 0; color: var(--faint); font-size: 14px; font-weight: 500; }
+.undo-timer { position: absolute; right: 0; bottom: 0; left: 0; height: 2px; background: var(--accent); transform-origin: left; animation: undo-timer 8s linear forwards; }
+
+@keyframes undo-toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+}
+
+@keyframes undo-timer {
+  to { transform: scaleX(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .undo-toast,
+  .undo-timer { animation: none; }
+}
 
 .loading-screen,
 .auth-shell {

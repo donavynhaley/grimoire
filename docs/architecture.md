@@ -23,6 +23,7 @@ The configured project directory stores all work card and idea domain data:
 - The Markdown notes body.
 - Idea state and manual rank.
 - The link from an archived idea to its promoted work card.
+- Temporary dependency restoration metadata for reversible card archives.
 
 This boundary keeps authentication private while allowing project work to remain readable, diffable, and portable.
 
@@ -85,6 +86,7 @@ The `position` value is a zero-based integer within that status.
 The `assignee` value is either a project member email or `null`.
 The `created_by` value is the creator email.
 Archived files also contain an `archived_at` timestamp.
+When archiving removes dependency links from other cards, the archived file contains their UUIDs in `unblocked_cards` until restoration.
 
 ## Idea format
 
@@ -125,6 +127,29 @@ If positions are duplicated after an interrupted external edit, Grimoire uses cr
 
 Idea promotion writes the new Backlog card before archiving the source idea.
 The archived idea retains the created card UUID as a durable backlink.
+
+## Live collaboration
+
+Authenticated browsers keep one Server-Sent Events connection open at `/api/events`.
+Each connection is scoped to the signed-in user's project, and the server never sends project events across membership boundaries.
+Mutation requests carry a browser-specific client ID so the server can exclude the writer from its own broadcast.
+The writer already reloads canonical state after its mutation succeeds.
+
+Events identify Work, Ideas, or both as affected rather than carrying partial card data.
+Receiving browsers coalesce nearby events and reload the affected workspace from Markdown.
+This invalidation model keeps one source of truth and avoids merging stale client-side patches when several people edit close together.
+The event stream sends periodic keepalive comments and is closed before the database during graceful server shutdown.
+
+## Reversible actions
+
+Card archive and idea promotion are server-backed reversible operations.
+The interface offers their undo actions for eight seconds, but correctness does not depend on browser memory or an optimistic visual rollback.
+
+Archiving records any dependency links it removes in the archived card's `unblocked_cards` metadata.
+Restoring the card moves the same Markdown file back to the active directory, restores its prior position, reconnects those still-valid links, and validates the resulting dependency graph before writing.
+
+Undoing an idea promotion removes its generated card and moves the archived idea back to its former state and rank.
+Grimoire refuses this operation when the generated card has been edited or another card depends on it, which prevents undo from deleting subsequent work by a collaborator.
 
 One Grimoire server process should own a project directory at a time.
 Optimistic revision checks should be added before supporting simultaneous edits from Grimoire and external editors as a normal workflow.

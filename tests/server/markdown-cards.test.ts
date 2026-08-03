@@ -24,6 +24,7 @@ function card(overrides: Partial<StoredCard> = {}): StoredCard {
     description: "- [ ] Test moonwort\n- [ ] Record the result",
     category: "code",
     blockedBy: ["8d3e49fa-2ce5-4cc1-80e7-b3f6d49435f9"],
+    unblockedCards: [],
     status: "backlog",
     position: 0,
     assignee: "owner@example.com",

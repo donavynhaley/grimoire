@@ -3,7 +3,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { IDEA_STATES, type Card, type Idea, type IdeaState, type IdeaWorkspace, type User } from "../shared/types";
 import { MarkdownCardStore } from "./markdown-cards";
 import { MarkdownIdeaStore, type StoredIdea } from "./markdown-ideas";
-import { createCard, membersForProject, projectById } from "./repository";
+import { CardDependencyError, createCard, membersForProject, projectById } from "./repository";
 
 type IdeaInput = {
   title: string;
@@ -123,6 +123,59 @@ export function promoteIdea(
   ideaStore.archive(projectSlug, { ...idea, promotedTo: card.id, promotedAt: now, updatedAt: now });
   normalizeIdeaPositions(ideaStore, projectSlug, idea.state);
   return card;
+}
+
+export function undoPromotion(
+  database: DatabaseSync,
+  cardStore: MarkdownCardStore,
+  ideaStore: MarkdownIdeaStore,
+  projectId: string,
+  ideaId: string,
+): Idea | null {
+  const project = projectById(database, projectId);
+  if (!project) return null;
+  const projectSlug = String(project.slug);
+  const archived = ideaStore.getArchived(projectSlug, ideaId);
+  if (!archived?.promotedTo) return null;
+  const promotedCard = cardStore.get(projectSlug, archived.promotedTo);
+  if (!promotedCard) return null;
+  const cards = cardStore.list(projectSlug);
+  if (
+    promotedCard.updatedAt !== promotedCard.createdAt ||
+    promotedCard.title !== archived.title ||
+    promotedCard.description !== archived.description ||
+    promotedCard.status !== "backlog" ||
+    promotedCard.category !== null ||
+    promotedCard.assignee !== null ||
+    promotedCard.blockedBy.length > 0
+  ) {
+    throw new CardDependencyError("This work card has changed and its promotion cannot be undone", 409);
+  }
+  if (cards.some((card) => card.id !== promotedCard.id && card.blockedBy.includes(promotedCard.id))) {
+    throw new CardDependencyError("This promoted card blocks other work and cannot be undone", 409);
+  }
+
+  cardStore.remove(projectSlug, promotedCard.id);
+  cards
+    .filter((card) => card.id !== promotedCard.id && card.status === promotedCard.status)
+    .forEach((card, position) => {
+      if (card.position !== position) cardStore.save(projectSlug, { ...card, position });
+    });
+
+  const restored: StoredIdea = {
+    ...archived,
+    promotedTo: null,
+    promotedAt: null,
+    updatedAt: new Date().toISOString(),
+  };
+  ideaStore.restore(projectSlug, restored);
+  const ideas = ideaStore.list(projectSlug).filter((idea) => idea.id !== restored.id && idea.state === restored.state);
+  ideas.splice(Math.max(0, Math.min(restored.position, ideas.length)), 0, restored);
+  ideas.forEach((idea, position) => {
+    if (idea.position !== position) ideaStore.save(projectSlug, { ...idea, position });
+    if (idea.id === restored.id) restored.position = position;
+  });
+  return publicIdea(restored, membersForProject(database, projectId));
 }
 
 function normalizeIdeaPositions(ideaStore: MarkdownIdeaStore, projectSlug: string, state: IdeaState): void {

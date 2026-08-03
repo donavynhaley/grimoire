@@ -1,5 +1,7 @@
 import type { BoardWorkspace, IdeaWorkspace, SessionState } from "../../shared/types";
 
+const clientId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -30,6 +32,14 @@ export function ideas(): Promise<IdeaWorkspace> {
   return request<IdeaWorkspace>("/api/ideas");
 }
 
+export function liveEventsUrl(): string {
+  return `/api/events?client=${encodeURIComponent(clientId)}`;
+}
+
 export function mutate<T>(path: string, method: "POST" | "PATCH" | "DELETE", body: unknown = {}): Promise<T> {
-  return request<T>(path, { method, body: JSON.stringify(body) });
+  return request<T>(path, {
+    method,
+    body: JSON.stringify(body),
+    headers: { "x-grimoire-client-id": clientId },
+  });
 }

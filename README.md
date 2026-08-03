@@ -25,6 +25,8 @@ Category color rails and compact labels make different disciplines visible witho
 Cards can be blocked by other cards.
 The board shows a blocked marker while any linked blocker is not Done, and the marker resolves automatically when the blocking work is completed.
 Dependency cycles, self-links, and archiving an unfinished blocker with active dependents are rejected.
+Archiving a card offers an eight-second undo action.
+Undo restores the card to its prior place and reconnects dependency links that the archive removed.
 
 Status and assignee changes use direct buttons instead of dropdown menus.
 On touch devices, the same compact status buttons provide an alternative to dragging.
@@ -43,6 +45,8 @@ Parked ideas remain searchable and recoverable without competing for attention.
 
 Promoting an idea creates one Backlog card with the same title and Markdown notes.
 The source idea is archived with a stable link to the created card, so the decision remains traceable without duplicating active content.
+Promotion also offers an eight-second undo action that restores the source idea and removes the generated card.
+If anyone edits or links work to the generated card, Grimoire protects that work and refuses the undo.
 Ideas do not have assignees or work statuses because they are not work yet.
 
 ## Collaboration
@@ -57,6 +61,9 @@ Cards and ideas are stored as Markdown files with validated YAML frontmatter.
 Passwords are protected with scrypt, and browser sessions use HttpOnly SameSite cookies.
 After signing in, open the account menu from the top-right avatar to change your password or sign out.
 Changing a password requires the current password and signs the account out on other devices.
+
+Signed-in browsers receive project-scoped live updates whenever another browser changes work or ideas.
+The browser that made a change applies its own response directly, while every other connected browser reloads the affected workspace from the canonical Markdown files.
 
 ## Local development
 
@@ -84,7 +91,7 @@ npm test
 npm run build
 ```
 
-The test suite covers authentication, secure password changes, invitations, Markdown persistence, legacy migration, external edits, categories, card dependencies, assignments, filtering, idea ranking, promotion, archiving, ordering, and drag-and-drop interaction.
+The test suite covers authentication, secure password changes, invitations, Markdown persistence, legacy migration, external edits, live project events, reversible archives and promotions, categories, card dependencies, assignments, filtering, idea ranking, ordering, and drag-and-drop interaction.
 
 ## Self-hosting
 

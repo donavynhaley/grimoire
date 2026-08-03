@@ -17,6 +17,7 @@ app.server.listen(port, host, () => {
 });
 
 function shutdown() {
+  app.closeEventStreams();
   app.server.close(() => {
     app.close();
     process.exit(0);

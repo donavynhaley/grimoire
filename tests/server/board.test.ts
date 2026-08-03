@@ -86,6 +86,15 @@ describe("card board", () => {
     expect(
       existsSync(join(server.cardsDirectory, "wizard-simulator", "archive", `${created.body.card.id}.md`)),
     ).toBe(true);
+
+    const restored = await server.request<{ card: Card }>(`/api/cards/${created.body.card.id}/restore`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    expect(restored.response.status).toBe(200);
+    expect(restored.body.card).toMatchObject({ id: created.body.card.id, title: "Polish the potion workbench" });
+    expect((await board(server)).cards.map((card) => card.id)).toContain(created.body.card.id);
+    expect(existsSync(activePath)).toBe(true);
   });
 
   it("moves and reorders cards using their drop position", async () => {
@@ -158,6 +167,18 @@ describe("card board", () => {
     });
     const finished = await board(server);
     expect(finished.cards.find((card) => card.id === dependent.body.card.id)?.blockedBy).toEqual([
+      blocker.body.card.id,
+    ]);
+
+    expect((await server.request(`/api/cards/${blocker.body.card.id}`, { method: "DELETE" })).response.status).toBe(200);
+    expect((await board(server)).cards.find((card) => card.id === dependent.body.card.id)?.blockedBy).toEqual([]);
+    expect(
+      (await server.request(`/api/cards/${blocker.body.card.id}/restore`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      })).response.status,
+    ).toBe(200);
+    expect((await board(server)).cards.find((card) => card.id === dependent.body.card.id)?.blockedBy).toEqual([
       blocker.body.card.id,
     ]);
   });

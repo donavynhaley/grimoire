@@ -14,12 +14,13 @@ import {
   getBoard,
   projectIdForUser,
   publicUser,
+  restoreCard,
   updateCard,
   userCount,
 } from "./repository";
 import { createOpaqueToken, hashPassword, hashToken, verifyPassword } from "./security";
 import { MarkdownCardStore } from "./markdown-cards";
-import { createIdea, getIdeas, promoteIdea, updateIdea } from "./ideas-repository";
+import { createIdea, getIdeas, promoteIdea, undoPromotion, updateIdea } from "./ideas-repository";
 import { MarkdownIdeaStore } from "./markdown-ideas";
 
 const SESSION_COOKIE = "grimoire_session";
@@ -38,6 +39,15 @@ type RequestContext = {
   url: URL;
   user: User | null;
   sessionToken: string | null;
+};
+
+type WorkspaceScope = "work" | "ideas" | "both";
+
+type EventClient = {
+  clientId: string;
+  projectId: string;
+  response: ServerResponse;
+  keepAlive: ReturnType<typeof setInterval>;
 };
 
 const accountSchema = z.object({
@@ -93,6 +103,7 @@ export function createGrimoireServer(options: Options) {
   const ideaStore = new MarkdownIdeaStore(cardStore.rootDirectory);
   cardStore.migrateLegacyCards(database);
   let databaseClosed = false;
+  const eventClients = new Set<EventClient>();
 
   const server = createServer((request, response) => {
     void handle(request, response).catch((error) => {
@@ -266,6 +277,32 @@ export function createGrimoireServer(options: Options) {
       return;
     }
 
+    if (method === "GET" && url.pathname === "/api/events") {
+      const user = requireUser(context);
+      const projectId = requireProjectId(user.id);
+      const clientId = url.searchParams.get("client")?.slice(0, 100) ?? "";
+      response.statusCode = 200;
+      response.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+      response.setHeader("Cache-Control", "no-cache, no-transform");
+      response.setHeader("Connection", "keep-alive");
+      response.setHeader("X-Accel-Buffering", "no");
+      response.flushHeaders();
+      response.write(": connected\n\n");
+      const client: EventClient = {
+        clientId,
+        projectId,
+        response,
+        keepAlive: setInterval(() => response.write(": keepalive\n\n"), 25_000),
+      };
+      eventClients.add(client);
+      const remove = () => {
+        clearInterval(client.keepAlive);
+        eventClients.delete(client);
+      };
+      response.once("close", remove);
+      return;
+    }
+
     if (method === "GET" && url.pathname === "/api/board") {
       const user = requireUser(context);
       const board = getBoard(database, cardStore, user);
@@ -280,6 +317,7 @@ export function createGrimoireServer(options: Options) {
       const card = createCard(database, cardStore, projectId, user.id, cardSchema.parse(await readJson(request)));
       if (!card) throw new HttpError(400, "Assignee is not a member of this board");
       json(response, 201, { card });
+      broadcast(projectId, "work", requestClientId(request));
       return;
     }
 
@@ -293,71 +331,104 @@ export function createGrimoireServer(options: Options) {
 
     if (method === "POST" && url.pathname === "/api/ideas") {
       const user = requireUser(context);
+      const projectId = requireProjectId(user.id);
       const idea = createIdea(
         database,
         ideaStore,
-        requireProjectId(user.id),
+        projectId,
         user.id,
         ideaSchema.parse(await readJson(request)),
       );
       if (!idea) throw new HttpError(404, "Idea garden not found");
       json(response, 201, { idea });
+      broadcast(projectId, "ideas", requestClientId(request));
       return;
     }
 
     const promotionMatch = url.pathname.match(/^\/api\/ideas\/([^/]+)\/promote$/);
     if (method === "POST" && promotionMatch) {
       const user = requireUser(context);
+      const projectId = requireProjectId(user.id);
       await readJson(request);
       const card = promoteIdea(
         database,
         cardStore,
         ideaStore,
-        requireProjectId(user.id),
+        projectId,
         user.id,
         promotionMatch[1],
       );
       if (!card) throw new HttpError(404, "Idea not found");
       json(response, 201, { card });
+      broadcast(projectId, "both", requestClientId(request));
+      return;
+    }
+
+    const promotionUndoMatch = url.pathname.match(/^\/api\/ideas\/([^/]+)\/promotion$/);
+    if (method === "DELETE" && promotionUndoMatch) {
+      const user = requireUser(context);
+      const projectId = requireProjectId(user.id);
+      const idea = undoPromotion(database, cardStore, ideaStore, projectId, promotionUndoMatch[1]);
+      if (!idea) throw new HttpError(404, "Promoted idea not found");
+      json(response, 200, { idea });
+      broadcast(projectId, "both", requestClientId(request));
       return;
     }
 
     const ideaMatch = url.pathname.match(/^\/api\/ideas\/([^/]+)$/);
     if (method === "PATCH" && ideaMatch) {
       const user = requireUser(context);
+      const projectId = requireProjectId(user.id);
       const idea = updateIdea(
         database,
         ideaStore,
-        requireProjectId(user.id),
+        projectId,
         ideaMatch[1],
         ideaUpdateSchema.parse(await readJson(request)),
       );
       if (!idea) throw new HttpError(404, "Idea not found");
       json(response, 200, { idea });
+      broadcast(projectId, "ideas", requestClientId(request));
+      return;
+    }
+
+    const cardRestoreMatch = url.pathname.match(/^\/api\/cards\/([^/]+)\/restore$/);
+    if (method === "POST" && cardRestoreMatch) {
+      const user = requireUser(context);
+      const projectId = requireProjectId(user.id);
+      await readJson(request);
+      const card = restoreCard(database, cardStore, projectId, cardRestoreMatch[1]);
+      if (!card) throw new HttpError(404, "Archived card not found");
+      json(response, 200, { card });
+      broadcast(projectId, "work", requestClientId(request));
       return;
     }
 
     const cardMatch = url.pathname.match(/^\/api\/cards\/([^/]+)$/);
     if (method === "PATCH" && cardMatch) {
       const user = requireUser(context);
+      const projectId = requireProjectId(user.id);
       const card = updateCard(
         database,
         cardStore,
-        requireProjectId(user.id),
+        projectId,
         cardMatch[1],
         cardUpdateSchema.parse(await readJson(request)),
       );
       if (!card) throw new HttpError(404, "Card or assignee not found");
       json(response, 200, { card });
+      broadcast(projectId, "work", requestClientId(request));
       return;
     }
 
     if (method === "DELETE" && cardMatch) {
       const user = requireUser(context);
-      if (!archiveCard(database, cardStore, requireProjectId(user.id), cardMatch[1])) {
+      const projectId = requireProjectId(user.id);
+      if (!archiveCard(database, cardStore, projectId, cardMatch[1])) {
         throw new HttpError(404, "Card not found");
       }
       json(response, 200, { ok: true });
+      broadcast(projectId, "work", requestClientId(request));
       return;
     }
 
@@ -401,10 +472,28 @@ export function createGrimoireServer(options: Options) {
     return value ? publicUser(value) : null;
   }
 
+  function broadcast(projectId: string, scope: WorkspaceScope, excludedClientId: string | null): void {
+    const message = `event: workspace\ndata: ${JSON.stringify({ scope })}\n\n`;
+    for (const client of eventClients) {
+      if (client.projectId !== projectId || (excludedClientId && client.clientId === excludedClientId)) continue;
+      client.response.write(message);
+    }
+  }
+
+  function closeEventStreams(): void {
+    for (const client of eventClients) {
+      clearInterval(client.keepAlive);
+      client.response.end();
+    }
+    eventClients.clear();
+  }
+
   return {
     server,
+    closeEventStreams,
     close: () => {
       if (databaseClosed) return;
+      closeEventStreams();
       database.close();
       databaseClosed = true;
     },
@@ -441,6 +530,12 @@ function readCookie(request: IncomingMessage, name: string): string | null {
     if (key === name) return value.join("=");
   }
   return null;
+}
+
+function requestClientId(request: IncomingMessage): string | null {
+  const value = request.headers["x-grimoire-client-id"];
+  if (typeof value === "string") return value.slice(0, 100);
+  return value?.[0]?.slice(0, 100) ?? null;
 }
 
 function json(response: ServerResponse, status: number, body: unknown): void {

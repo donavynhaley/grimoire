@@ -107,5 +107,15 @@ describe("idea garden", () => {
     );
     expect(existsSync(activePath)).toBe(false);
     expect(readFileSync(archivedPath, "utf8")).toContain(`promoted_to: ${promoted.body.card.id}`);
+
+    const undone = await server.request<{ idea: Idea }>(`/api/ideas/${created.body.idea.id}/promotion`, {
+      method: "DELETE",
+    });
+    expect(undone.response.status).toBe(200);
+    expect(undone.body.idea).toMatchObject({ id: created.body.idea.id, title: created.body.idea.title });
+    expect((await ideas(server)).ideas).toEqual([expect.objectContaining({ id: created.body.idea.id })]);
+    expect((await server.request<BoardWorkspace>("/api/board")).body.cards).toEqual([]);
+    expect(existsSync(activePath)).toBe(true);
+    expect(existsSync(archivedPath)).toBe(false);
   });
 });
