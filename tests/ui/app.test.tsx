@@ -52,6 +52,7 @@ describe("Grimoire board", () => {
     ]);
     expect(screen.getByText("Model the potion workbench")).toBeInTheDocument();
     expect(screen.getByText("Maren")).toBeInTheDocument();
+    expect(screen.queryByText("one board, one source of truth", { exact: false })).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     expect(screen.queryByText(/design pillar/i)).not.toBeInTheDocument();
   });
@@ -240,6 +241,7 @@ describe("Grimoire board", () => {
     await userEvent.click(await screen.findByRole("button", { name: "ideas" }));
 
     expect(await screen.findByRole("heading", { name: "Idea garden" })).toBeInTheDocument();
+    expect(screen.queryByText("save possibility without growing the backlog", { exact: false })).not.toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Shortlist" })).toHaveTextContent(
       "Spells are assembled from drawn rune sequences",
     );

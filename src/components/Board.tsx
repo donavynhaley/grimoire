@@ -160,7 +160,6 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
       {view === "work" ? <main className="board-main">
         <div className="board-intro">
           <div>
-            <p className="eyebrow">one board, one source of truth</p>
             <h2>{openCount} open card{openCount === 1 ? "" : "s"}</h2>
           </div>
           <form className="quick-add" onSubmit={createQuickCard}>

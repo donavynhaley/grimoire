@@ -306,7 +306,7 @@ textarea:hover { border-color: var(--border-bright); }
 }
 
 .ideas-intro > div { max-width: 640px; }
-.ideas-intro h2 { margin: 8px 0 10px; font-size: 27px; letter-spacing: -0.05em; }
+.ideas-intro h2 { margin: 0 0 10px; font-size: 27px; letter-spacing: -0.05em; }
 .ideas-intro > div > p:last-child { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.7; }
 .idea-capture { display: grid; width: min(560px, 48vw); grid-template-columns: 1fr auto; gap: 8px; }
 

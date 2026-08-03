@@ -40,7 +40,6 @@ export function IdeasBoard({ workspace, busy, onCreate, onUpdate, onPromote }: P
     <main className="ideas-main">
       <div className="ideas-intro">
         <div>
-          <p className="eyebrow">save possibility without growing the backlog</p>
           <h2>Idea garden</h2>
           <p>Keep the strongest possibilities close, and turn one into work only when the team means to build it.</p>
         </div>
