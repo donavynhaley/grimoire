@@ -1,7 +1,8 @@
 import { resolve } from "node:path";
 import { createGrimoireServer } from "./app";
+import { resolveServerPort } from "../shared/config";
 
-const port = Number(process.env.GRIMOIRE_API_PORT ?? process.env.PORT ?? 5175);
+const port = resolveServerPort(process.env);
 const host = process.env.HOST ?? "127.0.0.1";
 const production = process.env.NODE_ENV === "production";
 const app = createGrimoireServer({

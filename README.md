@@ -68,7 +68,7 @@ npm run dev
 ```
 
 The web interface is normally available at `http://127.0.0.1:5173`.
-The API listens at `http://127.0.0.1:5175`, and Vite proxies browser requests to it.
+The API listens at `http://127.0.0.1:8080`, and Vite proxies browser requests to it.
 If those ports are occupied, Vite selects the next available web port and prints it in the terminal.
 
 On the first visit, Grimoire asks you to create the owner account and seeds a Wizard Simulator workspace.
@@ -95,7 +95,7 @@ The production build includes a complete static frontend that is served by the c
 docker compose up -d --build
 ```
 
-The Compose configuration exposes Grimoire on port `5175` and persists its database in the local `data` directory.
+The Compose configuration exposes Grimoire on port `8080` and persists its database in the local `data` directory.
 Place Grimoire behind a TLS-enabled reverse proxy before inviting collaborators over the internet.
 Production session cookies are marked Secure and therefore require HTTPS in a browser.
 
