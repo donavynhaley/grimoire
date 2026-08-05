@@ -1,23 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
-import { type Card, type CardCategory, type Member } from "../../shared/types";
+import { type Card, type CardCategory, type Member, type ProjectCategory } from "../../shared/types";
+import { categoryDisplay, categoryStyle } from "./category-style";
 
 type Props = {
   allCards: Card[];
   busy: boolean;
   cards: Card[];
+  categories: ProjectCategory[];
   members: Member[];
   onClose: () => void;
   onMoveToNext: (id: string) => Promise<void>;
   onOpenCard: (id: string) => void;
 };
 
-export function BacklogDialog({ allCards, busy, cards, members, onClose, onMoveToNext, onOpenCard }: Props) {
+export function BacklogDialog({ allCards, busy, cards, categories, members, onClose, onMoveToNext, onOpenCard }: Props) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<CardCategory | null>(null);
   const [person, setPerson] = useState<string | null>(null);
   const [blockedOnly, setBlockedOnly] = useState(false);
   const normalizedQuery = query.trim().toLowerCase();
-  const categories = useMemo(
+  const usedCategories = useMemo(
     () => [...new Set(cards.map((card) => card.category).filter((value): value is CardCategory => Boolean(value)))],
     [cards],
   );
@@ -82,16 +84,16 @@ export function BacklogDialog({ allCards, busy, cards, members, onClose, onMoveT
               >{member.name}</button>
             ))}
           </div>
-          {categories.length > 0 && (
+          {usedCategories.length > 0 && (
             <div aria-label="Backlog categories" className="library-filters category-filters">
-              {categories.map((value) => (
+              {usedCategories.map((value) => (
                 <button
                   aria-pressed={category === value}
                   className={category === value ? "active" : ""}
                   key={value}
                   onClick={() => setCategory(category === value ? null : value)}
                   type="button"
-                ><span className={`category-swatch category-${value}`} />{value}</button>
+                ><span className="category-swatch" style={categoryStyle(categories, value)} />{categoryDisplay(categories, value)}</button>
               ))}
             </div>
           )}
@@ -99,10 +101,10 @@ export function BacklogDialog({ allCards, busy, cards, members, onClose, onMoveT
 
         <div className="library-results" aria-live="polite">
           {visibleCards.map((card) => (
-            <article className={`library-card category-${card.category ?? "none"}`} key={card.id}>
+            <article className={`library-card ${card.category ? "" : "category-none"}`} key={card.id} style={categoryStyle(categories, card.category)}>
               <button className="library-card-main" onClick={() => onOpenCard(card.id)} type="button">
                 <span className="library-card-signals">
-                  {card.category && <span className={`category-pill category-${card.category}`}>{card.category}</span>}
+                  {card.category && <span className="category-pill">{categoryDisplay(categories, card.category)}</span>}
                   {isBlocked(card, allCards) && <span className="card-blocked">blocked</span>}
                 </span>
                 <strong>{card.title}</strong>

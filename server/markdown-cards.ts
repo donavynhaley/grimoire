@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, unlinkSyn
 import { basename, join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
-import { CARD_CATEGORIES, CARD_STATUSES, type CardCategory, type CardStatus } from "../shared/types";
+import { CARD_STATUSES, type CardCategory, type CardStatus } from "../shared/types";
 import { isTimestamp, parseMarkdown, serializeMarkdown, writeAtomic, type FrontmatterValue } from "./markdown-files";
 
 export type StoredCard = {
@@ -28,7 +28,7 @@ const metadataSchema = z
   .object({
     id: z.string().uuid(),
     title: z.string().trim().min(1).max(240),
-    category: z.enum(CARD_CATEGORIES).nullable().optional(),
+    category: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(40).nullable().optional(),
     blocked_by: z.array(z.string().uuid()).optional(),
     unblocked_cards: z.array(z.string().uuid()).optional(),
     status: z.enum(CARD_STATUSES),

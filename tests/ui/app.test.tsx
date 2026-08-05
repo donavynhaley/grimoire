@@ -111,7 +111,7 @@ describe("Grimoire board", () => {
 
     const navigation = await screen.findByRole("navigation", { name: "Project spaces" });
     expect(navigation.parentElement).toHaveClass("brand-lockup");
-    expect(screen.getByRole("heading", { name: "Wizard Simulator" }).parentElement).toHaveClass("board-project");
+    expect(screen.getByRole("heading", { name: "Wizard Simulator" }).closest(".board-project")).not.toBeNull();
   });
 
   it("switches between Work and Ideas with 1 and 2 from an empty capture field", async () => {

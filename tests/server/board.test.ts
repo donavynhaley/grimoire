@@ -23,8 +23,17 @@ describe("card board", () => {
 
     const workspace = await board(server);
 
-    expect(Object.keys(workspace).sort()).toEqual(["cards", "currentUser", "members", "project"]);
+    expect(Object.keys(workspace).sort()).toEqual([
+      "cards",
+      "categories",
+      "currentUser",
+      "members",
+      "project",
+      "projects",
+    ]);
     expect(workspace.project).toEqual(expect.objectContaining({ name: "Wizard Simulator" }));
+    expect(workspace.projects).toEqual([expect.objectContaining({ name: "Wizard Simulator" })]);
+    expect(workspace.categories[0]).toEqual({ slug: "design", name: "Design", color: "#d6bc78", position: 0 });
     expect(workspace.cards).toEqual(expect.any(Array));
     expect(workspace).not.toHaveProperty("pillars");
     expect(workspace).not.toHaveProperty("milestones");

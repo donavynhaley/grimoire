@@ -4,7 +4,9 @@ import { AccountDialog } from "./AccountDialog";
 import { Avatar } from "./Avatar";
 import { BacklogDialog } from "./BacklogDialog";
 import { CardDialog } from "./CardDialog";
+import { type CategoryActions, CategoriesDialog } from "./CategoriesDialog";
 import { DoneHistoryDialog } from "./DoneHistoryDialog";
+import { type ProjectActions, ProjectMenu } from "./ProjectMenu";
 import { type CaptureCardInput, QuickCapture } from "./QuickCapture";
 import { TeamDialog } from "./TeamDialog";
 import { IdeasBoard } from "./IdeasBoard";
@@ -23,7 +25,9 @@ const columnNames: Record<CardStatus, string> = {
 type Props = {
   board: BoardWorkspace;
   busy: boolean;
+  categoryActions: CategoryActions;
   ideas: IdeaWorkspace | null;
+  projectActions: ProjectActions;
   view: "work" | "ideas";
   onCreate: (input: CaptureCardInput) => Promise<void>;
   onUpdate: (id: string, input: Record<string, unknown>) => Promise<void>;
@@ -41,7 +45,7 @@ type Props = {
   onViewChange: (view: "work" | "ideas") => Promise<void>;
 };
 
-export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive, onCreateInvite, onCreateIdea, onChangeAvatar, onChangePassword, onLogout, onMoveBacklogToNext, onPromoteIdea, onRemoveAvatar, onRemoveMember, onUpdateIdea, onViewChange }: Props) {
+export function Board({ board, busy, categoryActions, ideas, projectActions, view, onCreate, onUpdate, onArchive, onCreateInvite, onCreateIdea, onChangeAvatar, onChangePassword, onLogout, onMoveBacklogToNext, onPromoteIdea, onRemoveAvatar, onRemoveMember, onUpdateIdea, onViewChange }: Props) {
   const [addingTo, setAddingTo] = useState<CardStatus | null>(null);
   const [columnTitle, setColumnTitle] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -56,20 +60,27 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
   const [accountOpen, setAccountOpen] = useState(false);
   const [backlogOpen, setBacklogOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
   const initialParams = useMemo(() => new URLSearchParams(location.search), []);
   const [query, setQuery] = useState(() => initialParams.get("q") ?? "");
   const [people, setPeople] = useState<Set<string>>(
     () => new Set((initialParams.get("people") ?? "").split(",").filter(Boolean)),
   );
   const selectedCard = board.cards.find((card) => card.id === selectedId) ?? null;
+  const categoriesBySlug = useMemo(
+    () => new Map(board.categories.map((category) => [category.slug, category])),
+    [board.categories],
+  );
+  const categoryName = (slug: string | null) =>
+    slug === null ? "uncategorized" : categoriesBySlug.get(slug)?.name ?? slug;
   const normalizedQuery = query.trim().toLowerCase();
   const filteredCards = useMemo(
     () => board.cards.filter((card) => {
       if (people.size > 0 && !people.has(card.assigneeId ?? "unassigned")) return false;
-      if (normalizedQuery && !`${card.title}\n${card.description}\n${card.category ?? "uncategorized"}\n${card.assigneeName ?? "unassigned"}`.toLowerCase().includes(normalizedQuery)) return false;
+      if (normalizedQuery && !`${card.title}\n${card.description}\n${categoryName(card.category)}\n${card.assigneeName ?? "unassigned"}`.toLowerCase().includes(normalizedQuery)) return false;
       return true;
     }),
-    [board.cards, normalizedQuery, people],
+    [board.cards, categoriesBySlug, normalizedQuery, people],
   );
   const activeCount = filteredCards.filter((card) => card.status === "ready" || card.status === "in_progress" || card.status === "review").length;
   const backlogCards = board.cards.filter((card) => card.status === "backlog");
@@ -286,7 +297,14 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
           </nav>
         </div>
         <div className="board-project">
-          <h1>{board.project.name}</h1>
+          <ProjectMenu
+            actions={projectActions}
+            busy={busy}
+            isOwner={board.currentUser.role === "owner"}
+            onManageCategories={() => setCategoriesOpen(true)}
+            project={board.project}
+            projects={board.projects}
+          />
         </div>
         <div className="board-actions">
           <div className="member-faces" aria-label={`${board.members.length} project members`}>
@@ -307,7 +325,7 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
           <div>
             <h2>{activeCount} active card{activeCount === 1 ? "" : "s"}</h2>
           </div>
-          <QuickCapture busy={busy} members={board.members} onCreate={captureCard} />
+          <QuickCapture busy={busy} categories={board.categories} members={board.members} onCreate={captureCard} />
         </div>
 
         <div className="work-filters" aria-label="Work filters">
@@ -380,17 +398,19 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
                     const blockers = card.blockedBy
                       .map((id) => board.cards.find((candidate) => candidate.id === id))
                       .filter((candidate): candidate is Card => Boolean(candidate && candidate.status !== "done"));
+                    const category = card.category ? categoriesBySlug.get(card.category) : undefined;
                     return (
                       <Fragment key={card.id}>
                       {!hidden && slot === hintIndex && placeholder}
                       <article
-                        className={`board-card category-${card.category ?? "none"} ${hidden ? "drag-hidden" : ""}`}
+                        className={`board-card ${card.category ? "" : "category-none"} ${hidden ? "drag-hidden" : ""}`}
                         draggable
                         onDragEnd={finishDrag}
                         onDragStart={(event) => startCardDrag(event, card, slot)}
+                        style={category ? ({ "--category-color": category.color } as React.CSSProperties) : undefined}
                       >
                         <button
-                          aria-label={`Open ${card.title}${card.description ? `. ${card.description}` : ""}. ${card.category ?? "uncategorized"}. ${blockers.length ? `Blocked by ${blockers.map((blocker) => blocker.title).join(", ")}. ` : ""}${card.assigneeName ?? "unassigned"}`}
+                          aria-label={`Open ${card.title}${card.description ? `. ${card.description}` : ""}. ${categoryName(card.category)}. ${blockers.length ? `Blocked by ${blockers.map((blocker) => blocker.title).join(", ")}. ` : ""}${card.assigneeName ?? "unassigned"}`}
                           className="card-open"
                           draggable
                           onClick={() => setSelectedId(card.id)}
@@ -398,7 +418,7 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
                         >
                           <span className="drag-grip" aria-hidden="true">⠿</span>
                           {(card.category || blockers.length > 0) && <span className="card-signals">
-                            {card.category && <span className={`category-pill category-${card.category}`}>{card.category}</span>}
+                            {card.category && <span className="category-pill">{categoryName(card.category)}</span>}
                             {blockers.length > 0 && <span className="card-blocked">blocked by {blockers.length}</span>}
                           </span>}
                           <strong>{card.title}</strong>
@@ -458,6 +478,7 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
         <CardDialog
           cards={board.cards}
           card={selectedCard}
+          categories={board.categories}
           members={board.members}
           onArchive={async () => { await onArchive(selectedCard.id); setSelectedId(null); }}
           onClose={() => setSelectedId(null)}
@@ -469,6 +490,7 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
           allCards={board.cards}
           busy={busy}
           cards={backlogCards}
+          categories={board.categories}
           members={board.members}
           onClose={() => setBacklogOpen(false)}
           onMoveToNext={onMoveBacklogToNext}
@@ -479,6 +501,7 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
         <DoneHistoryDialog
           busy={busy}
           cards={completedCards}
+          categories={board.categories}
           members={board.members}
           onClose={() => setHistoryOpen(false)}
           onOpenCard={(id) => { setHistoryOpen(false); setSelectedId(id); }}
@@ -486,6 +509,14 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
             setHistoryOpen(false);
             await onUpdate(id, { status: "ready", position: board.cards.filter((card) => card.status === "ready").length });
           }}
+        />
+      )}
+      {categoriesOpen && (
+        <CategoriesDialog
+          actions={categoryActions}
+          busy={busy}
+          categories={board.categories}
+          onClose={() => setCategoriesOpen(false)}
         />
       )}
       {teamOpen && (

@@ -1,5 +1,5 @@
 import { type ChangeEvent, type FormEvent, type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
-import { CARD_CATEGORIES, type CardCategory, type CardStatus, type Member } from "../../shared/types";
+import { type CardCategory, type CardStatus, type Member, type ProjectCategory } from "../../shared/types";
 
 export type CaptureCardInput = {
   title: string;
@@ -20,10 +20,12 @@ type PickerOption = {
   label: string;
   search: string;
   value: string | null;
+  color?: string;
 };
 
 type Props = {
   busy: boolean;
+  categories: ProjectCategory[];
   members: Member[];
   onCreate: (input: CaptureCardInput) => Promise<void>;
 };
@@ -34,19 +36,6 @@ const DEFAULT_SETTINGS: CaptureSettings = {
   status: "backlog",
 };
 
-const categoryLabels: Record<CardCategory, string> = {
-  design: "Design",
-  code: "Code",
-  modeling: "Modeling",
-  texturing: "Texturing",
-  animation: "Animation",
-  narrative: "Narrative",
-  audio: "Audio",
-  ui: "UI",
-  vfx: "VFX",
-  production: "Production",
-};
-
 const statusLabels: Partial<Record<CardStatus, string>> = {
   backlog: "Backlog",
   ready: "Up Next",
@@ -54,16 +43,22 @@ const statusLabels: Partial<Record<CardStatus, string>> = {
   review: "Review",
 };
 
-export function QuickCapture({ busy, members, onCreate }: Props) {
+export function QuickCapture({ busy, categories, members, onCreate }: Props) {
   const [title, setTitle] = useState("");
   const [settings, setSettings] = useState<CaptureSettings>(DEFAULT_SETTINGS);
   const [picker, setPicker] = useState<PickerState | null>(null);
   const [highlighted, setHighlighted] = useState(0);
   const [recent, setRecent] = useState<CaptureSettings | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const options = useMemo(() => pickerOptions(picker?.kind ?? null, members), [members, picker?.kind]);
+  const options = useMemo(
+    () => pickerOptions(picker?.kind ?? null, categories, members),
+    [categories, members, picker?.kind],
+  );
   const visibleOptions = useMemo(() => filterOptions(options, picker?.query ?? ""), [options, picker?.query]);
-  const categoryLabel = settings.category ? categoryLabels[settings.category] : null;
+  const selectedCategory = settings.category
+    ? categories.find((category) => category.slug === settings.category) ?? null
+    : null;
+  const categoryLabel = selectedCategory?.name ?? settings.category;
   const assigneeLabel = members.find((member) => member.id === settings.assigneeId)?.name ?? null;
   const statusLabel = statusLabels[settings.status] ?? "Backlog";
 
@@ -145,7 +140,7 @@ export function QuickCapture({ busy, members, onCreate }: Props) {
   };
 
   const showTools = Boolean(title.trim()) || hasCustomSettings(settings);
-  const recentSummary = recent ? settingsSummary(recent, members) : "";
+  const recentSummary = recent ? settingsSummary(recent, categories, members) : "";
 
   return (
     <form
@@ -179,8 +174,9 @@ export function QuickCapture({ busy, members, onCreate }: Props) {
             <button
               aria-expanded={picker?.kind === "category"}
               aria-label={categoryLabel ? `Category: ${categoryLabel}` : "Choose category"}
-              className={categoryLabel ? `capture-field active category-${settings.category}` : "capture-field"}
+              className={categoryLabel ? "capture-field active" : "capture-field"}
               onClick={() => openPicker("category")}
+              style={selectedCategory ? ({ "--category-color": selectedCategory.color } as React.CSSProperties) : undefined}
               type="button"
             ><span aria-hidden="true">#</span>{categoryLabel ?? "category"}</button>
             <button
@@ -225,7 +221,12 @@ export function QuickCapture({ busy, members, onCreate }: Props) {
                 role="option"
                 type="button"
               >
-                {picker.kind === "category" && <span className={`category-swatch category-${option.value ?? "none"}`} />}
+                {picker.kind === "category" && (
+                  <span
+                    className={`category-swatch ${option.value ? "" : "category-none"}`}
+                    style={option.color ? ({ "--category-color": option.color } as React.CSSProperties) : undefined}
+                  />
+                )}
                 {picker.kind === "status" && <span className={`column-dot ${option.value}`} />}
                 <span>{option.label}</span>
                 {option.value === selectedValue(settings, picker.kind) && <span aria-hidden="true">✓</span>}
@@ -251,15 +252,16 @@ function commandAtEnd(value: string, caret: number): PickerState | null {
   };
 }
 
-function pickerOptions(kind: PickerKind | null, members: Member[]): PickerOption[] {
+function pickerOptions(kind: PickerKind | null, categories: ProjectCategory[], members: Member[]): PickerOption[] {
   if (kind === "category") {
     return [
       { id: "category-none", label: "No category", search: "none uncategorized", value: null },
-      ...CARD_CATEGORIES.map((category) => ({
-        id: `category-${category}`,
-        label: categoryLabels[category],
-        search: `${categoryLabels[category]} ${category}`.toLowerCase(),
-        value: category,
+      ...categories.map((category) => ({
+        id: `category-${category.slug}`,
+        label: category.name,
+        search: `${category.name} ${category.slug}`.toLowerCase(),
+        value: category.slug,
+        color: category.color,
       })),
     ];
   }
@@ -302,9 +304,11 @@ function hasCustomSettings(settings: CaptureSettings): boolean {
   return settings.category !== null || settings.assigneeId !== null || settings.status !== "backlog";
 }
 
-function settingsSummary(settings: CaptureSettings, members: Member[]): string {
+function settingsSummary(settings: CaptureSettings, categories: ProjectCategory[], members: Member[]): string {
   const values = [
-    settings.category ? categoryLabels[settings.category] : null,
+    settings.category
+      ? categories.find((category) => category.slug === settings.category)?.name ?? settings.category
+      : null,
     members.find((member) => member.id === settings.assigneeId)?.name ?? null,
     settings.status !== "backlog" ? statusLabels[settings.status] : null,
   ];

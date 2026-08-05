@@ -20,19 +20,34 @@ export type Member = User & {
 export const CARD_STATUSES = ["backlog", "ready", "in_progress", "review", "done"] as const;
 export type CardStatus = (typeof CARD_STATUSES)[number];
 
-export const CARD_CATEGORIES = [
-  "design",
-  "code",
-  "modeling",
-  "texturing",
-  "animation",
-  "narrative",
-  "audio",
-  "ui",
-  "vfx",
-  "production",
+export type CardCategory = string;
+
+export type ProjectCategory = {
+  slug: string;
+  name: string;
+  color: string;
+  position: number;
+};
+
+export const CATEGORY_COLOR_PALETTE = [
+  "#d6bc78",
+  "#8bb9c9",
+  "#b49bd4",
+  "#d89b73",
+  "#d88eae",
+  "#a99bdc",
+  "#b8d99b",
+  "#74c6bf",
+  "#d284d3",
+  "#a7adaf",
+  "#d87578",
+  "#9ccc9c",
 ] as const;
-export type CardCategory = (typeof CARD_CATEGORIES)[number];
+
+export type ProjectSummary = {
+  id: string;
+  name: string;
+};
 
 export type Card = {
   id: string;
@@ -56,6 +71,8 @@ export type BoardWorkspace = {
     id: string;
     name: string;
   };
+  projects: ProjectSummary[];
+  categories: ProjectCategory[];
   currentUser: User;
   members: Member[];
   cards: Card[];

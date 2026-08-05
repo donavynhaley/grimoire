@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { BoardWorkspace, CardStatus, IdeaState, IdeaWorkspace, SessionState, User } from "../shared/types";
-import { ApiError, board as loadBoard, ideas as loadIdeas, liveEventsUrl, mutate, request, session, uploadAvatar } from "./api/client";
+import { ApiError, board as loadBoard, ideas as loadIdeas, liveEventsUrl, mutate, request, session, setActiveProjectId, uploadAvatar } from "./api/client";
 import { AuthScreen } from "./components/AuthScreen";
 import { Board } from "./components/Board";
 import type { CaptureCardInput } from "./components/QuickCapture";
@@ -24,6 +24,7 @@ export function App() {
 
   const refreshBoard = useCallback(async () => {
     const value = await loadBoard();
+    setActiveProjectId(value.project.id);
     setBoard(value);
     setSessionState({ status: "authenticated", user: value.currentUser });
   }, []);
@@ -236,6 +237,55 @@ export function App() {
   const changeAvatar = (file: File) => perform(() => uploadAvatar(file));
   const removeAvatar = () => perform(() => mutate("/api/account/avatar", "DELETE"));
 
+  const syncProjectUrl = (id: string | null) => {
+    const params = new URLSearchParams(location.search);
+    if (id) params.set("project", id);
+    else params.delete("project");
+    history.replaceState({}, "", `${location.pathname}${params.size ? `?${params}` : ""}`);
+  };
+
+  const openProject = async (id: string | null) => {
+    setUndoNotice(null);
+    setActiveProjectId(id);
+    syncProjectUrl(id);
+    setIdeas(null);
+    setBusy(true);
+    setError("");
+    try {
+      await refreshBoard();
+      if (view === "ideas") await refreshIdeas();
+    } catch (value) {
+      setError(value instanceof ApiError ? value.message : "The project could not be opened");
+      throw value;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const selectProject = async (id: string) => {
+    if (id === board?.project.id) return;
+    await openProject(id);
+  };
+
+  const createProject = async (name: string) => {
+    const result = await mutate<{ project: { id: string } }>("/api/projects", "POST", { name });
+    await openProject(result.project.id);
+  };
+
+  const renameProject = (id: string, name: string) =>
+    perform(() => mutate(`/api/projects/${id}`, "PATCH", { name }));
+
+  const archiveProject = async (id: string) => {
+    await mutate(`/api/projects/${id}`, "DELETE");
+    await openProject(null);
+  };
+
+  const createCategory = (input: { name: string; color: string }) =>
+    perform(() => mutate("/api/categories", "POST", input));
+  const updateCategory = (slug: string, input: { name?: string; color?: string }) =>
+    perform(() => mutate(`/api/categories/${slug}`, "PATCH", input));
+  const deleteCategory = (slug: string) => perform(() => mutate(`/api/categories/${slug}`, "DELETE"));
+
   const logout = async () => {
     await request("/api/auth/logout", { method: "POST", body: JSON.stringify({}) });
     setBoard(null);
@@ -265,7 +315,9 @@ export function App() {
       <Board
         board={board}
         busy={busy}
+        categoryActions={{ create: createCategory, update: updateCategory, remove: deleteCategory }}
         ideas={ideas}
+        key={board.project.id}
         onChangeAvatar={changeAvatar}
         onChangePassword={changePassword}
         onRemoveAvatar={removeAvatar}
@@ -280,6 +332,7 @@ export function App() {
         onUpdate={updateCard}
         onUpdateIdea={updateIdea}
         onViewChange={changeView}
+        projectActions={{ select: selectProject, create: createProject, rename: renameProject, archive: archiveProject }}
         view={view}
       />
     </>

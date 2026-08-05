@@ -3,20 +3,27 @@ import { createReadStream, existsSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { dirname, extname, join, normalize } from "node:path";
 import { z, ZodError } from "zod";
-import { CARD_CATEGORIES, type User } from "../shared/types";
-import { createWizardSimulatorProject, openDatabase } from "./database";
+import type { User } from "../shared/types";
+import { createProject, createWizardSimulatorProject, openDatabase } from "./database";
 import {
   archiveCard,
+  archiveProject,
   CardDependencyError,
   createCard,
+  createCategory,
+  defaultProjectIdForUser,
+  deleteCategory,
   findUserByEmail,
   findUserById,
   getBoard,
-  projectIdForUser,
+  listProjectsForUser,
   publicUser,
   removeProjectMember,
+  renameProject,
   restoreCard,
   updateCard,
+  updateCategory,
+  userCanAccessProject,
   userCount,
 } from "./repository";
 import { createOpaqueToken, hashPassword, hashToken, verifyPassword } from "./security";
@@ -79,10 +86,11 @@ const passwordChangeSchema = z
   });
 
 const cardStatus = z.enum(["backlog", "ready", "in_progress", "review", "done"]);
+const categorySlug = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(40);
 const cardSchema = z.object({
   title: z.string().trim().min(1).max(240),
   description: z.string().trim().max(20_000).optional(),
-  category: z.enum(CARD_CATEGORIES).nullable().optional(),
+  category: categorySlug.nullable().optional(),
   blockedBy: z.array(z.string().uuid()).max(20).optional(),
   status: cardStatus.optional(),
   assigneeId: z.string().uuid().nullable().optional(),
@@ -90,6 +98,14 @@ const cardSchema = z.object({
 const cardUpdateSchema = cardSchema.partial().extend({
   position: z.number().int().min(0).optional(),
 });
+const projectSchema = z.object({
+  name: z.string().trim().min(2).max(80),
+});
+const categoryCreateSchema = z.object({
+  name: z.string().trim().min(1).max(32),
+  color: z.string().regex(/^#[0-9a-f]{6}$/i),
+});
+const categoryUpdateSchema = categoryCreateSchema.partial();
 const ideaState = z.enum(["inbox", "shortlist", "parked"]);
 const ideaSchema = z.object({
   title: z.string().trim().min(1).max(240),
@@ -190,7 +206,7 @@ export function createGrimoireServer(options: Options) {
       const passwordMatches = stored
         ? await verifyPassword(input.password, String(stored.password_hash))
         : await verifyPassword(input.password, await hashPassword("invalid password placeholder"));
-      const projectId = stored ? projectIdForUser(database, String(stored.id)) : null;
+      const projectId = stored ? defaultProjectIdForUser(database, publicUser(stored)) : null;
       if (!stored || !passwordMatches || !projectId) throw new HttpError(401, "Email or password is incorrect");
       const user = withAvatar(publicUser(stored));
       setSession(response, user.id);
@@ -237,7 +253,7 @@ export function createGrimoireServer(options: Options) {
       if (!imageType) throw new HttpError(400, "Profile picture must be a PNG, JPEG, or WebP image");
       avatarStore.save(user.id, data, imageType);
       json(response, 200, { avatarUrl: avatarStore.urlFor(user.id) });
-      broadcast(requireProjectId(user.id), "work", requestClientId(request));
+      broadcast(requireProject(context, user), "work", requestClientId(request));
       return;
     }
 
@@ -245,7 +261,7 @@ export function createGrimoireServer(options: Options) {
       const user = requireUser(context);
       avatarStore.remove(user.id);
       json(response, 200, { ok: true });
-      broadcast(requireProjectId(user.id), "work", requestClientId(request));
+      broadcast(requireProject(context, user), "work", requestClientId(request));
       return;
     }
 
@@ -271,8 +287,11 @@ export function createGrimoireServer(options: Options) {
         throw new HttpError(409, "Invitation is invalid or has already been used");
       }
       if (findUserByEmail(database, input.email)) throw new HttpError(409, "An account already uses this email");
-      const projectId = projectIdForUser(database, String(invite.created_by));
-      if (!projectId) throw new HttpError(409, "Invitation project no longer exists");
+      const invitedProject = invite.project_id
+        ? database.prepare("SELECT id FROM projects WHERE id = ? AND archived_at IS NULL").get(String(invite.project_id))
+        : undefined;
+      if (!invitedProject) throw new HttpError(409, "Invitation project no longer exists");
+      const projectId = String(invite.project_id);
       const userId = randomUUID();
       const now = new Date().toISOString();
       const passwordHash = await hashPassword(input.password);
@@ -303,16 +322,21 @@ export function createGrimoireServer(options: Options) {
     if (method === "POST" && url.pathname === "/api/invites") {
       const user = requireUser(context);
       if (user.role !== "owner") throw new HttpError(403, "Only the project owner can create invitations");
+      const projectId = requireProject(context, user);
       await readJson(request);
       const code = createOpaqueToken();
       const now = new Date();
       const expires = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
       database.exec("BEGIN IMMEDIATE");
       try {
-        database.prepare("DELETE FROM invites WHERE created_by = ? AND used_by IS NULL").run(user.id);
         database
-          .prepare("INSERT INTO invites (id, code_hash, created_by, expires_at, used_by, created_at) VALUES (?, ?, ?, ?, NULL, ?)")
-          .run(randomUUID(), hashToken(code), user.id, expires.toISOString(), now.toISOString());
+          .prepare("DELETE FROM invites WHERE created_by = ? AND project_id = ? AND used_by IS NULL")
+          .run(user.id, projectId);
+        database
+          .prepare(
+            "INSERT INTO invites (id, code_hash, created_by, project_id, expires_at, used_by, created_at) VALUES (?, ?, ?, ?, ?, NULL, ?)",
+          )
+          .run(randomUUID(), hashToken(code), user.id, projectId, expires.toISOString(), now.toISOString());
         database.exec("COMMIT");
       } catch (error) {
         database.exec("ROLLBACK");
@@ -322,12 +346,88 @@ export function createGrimoireServer(options: Options) {
       return;
     }
 
+    if (method === "GET" && url.pathname === "/api/projects") {
+      const user = requireUser(context);
+      json(response, 200, { projects: listProjectsForUser(database, user) });
+      return;
+    }
+
+    if (method === "POST" && url.pathname === "/api/projects") {
+      const user = requireUser(context);
+      if (user.role !== "owner") throw new HttpError(403, "Only the owner can create projects");
+      const input = projectSchema.parse(await readJson(request));
+      const projectId = createProject(database, user.id, input.name);
+      json(response, 201, { project: { id: projectId, name: input.name } });
+      return;
+    }
+
+    const projectMatch = url.pathname.match(/^\/api\/projects\/([^/]+)$/);
+    if (method === "PATCH" && projectMatch) {
+      const user = requireUser(context);
+      if (user.role !== "owner") throw new HttpError(403, "Only the owner can rename projects");
+      const input = projectSchema.parse(await readJson(request));
+      if (!renameProject(database, projectMatch[1], input.name)) throw new HttpError(404, "Project not found");
+      json(response, 200, { project: { id: projectMatch[1], name: input.name } });
+      broadcast(projectMatch[1], "work", requestClientId(request));
+      return;
+    }
+
+    if (method === "DELETE" && projectMatch) {
+      const user = requireUser(context);
+      if (user.role !== "owner") throw new HttpError(403, "Only the owner can archive projects");
+      await readJson(request);
+      const result = archiveProject(database, projectMatch[1]);
+      if (result === "not_found") throw new HttpError(404, "Project not found");
+      if (result === "last_project") throw new HttpError(409, "The last project cannot be archived");
+      json(response, 200, { ok: true });
+      broadcast(projectMatch[1], "work", requestClientId(request));
+      return;
+    }
+
+    if (method === "POST" && url.pathname === "/api/categories") {
+      const user = requireUser(context);
+      if (user.role !== "owner") throw new HttpError(403, "Only the owner can manage categories");
+      const projectId = requireProject(context, user);
+      const input = categoryCreateSchema.parse(await readJson(request));
+      const result = createCategory(database, projectId, input);
+      if (result === "invalid_name") throw new HttpError(400, "The category needs a name with letters or numbers");
+      if (result === "exists") throw new HttpError(409, "A category with this name already exists");
+      json(response, 201, { category: result.category });
+      broadcast(projectId, "work", requestClientId(request));
+      return;
+    }
+
+    const categoryMatch = url.pathname.match(/^\/api\/categories\/([^/]+)$/);
+    if (method === "PATCH" && categoryMatch) {
+      const user = requireUser(context);
+      if (user.role !== "owner") throw new HttpError(403, "Only the owner can manage categories");
+      const projectId = requireProject(context, user);
+      const input = categoryUpdateSchema.parse(await readJson(request));
+      const category = updateCategory(database, projectId, categoryMatch[1], input);
+      if (!category) throw new HttpError(404, "Category not found");
+      json(response, 200, { category });
+      broadcast(projectId, "work", requestClientId(request));
+      return;
+    }
+
+    if (method === "DELETE" && categoryMatch) {
+      const user = requireUser(context);
+      if (user.role !== "owner") throw new HttpError(403, "Only the owner can manage categories");
+      const projectId = requireProject(context, user);
+      if (!deleteCategory(database, cardStore, projectId, categoryMatch[1])) {
+        throw new HttpError(404, "Category not found");
+      }
+      json(response, 200, { ok: true });
+      broadcast(projectId, "work", requestClientId(request));
+      return;
+    }
+
     const memberMatch = url.pathname.match(/^\/api\/members\/([^/]+)$/);
     if (method === "DELETE" && memberMatch) {
       const user = requireUser(context);
       if (user.role !== "owner") throw new HttpError(403, "Only the project owner can remove members");
       await readJson(request);
-      const projectId = requireProjectId(user.id);
+      const projectId = requireProject(context, user);
       const result = removeProjectMember(database, cardStore, projectId, memberMatch[1]);
       if (result === "owner") throw new HttpError(409, "The project owner cannot be removed");
       if (result === "not_found") throw new HttpError(404, "Member not found");
@@ -339,7 +439,7 @@ export function createGrimoireServer(options: Options) {
 
     if (method === "GET" && url.pathname === "/api/events") {
       const user = requireUser(context);
-      const projectId = requireProjectId(user.id);
+      const projectId = requireProject(context, user);
       const clientId = url.searchParams.get("client")?.slice(0, 100) ?? "";
       response.statusCode = 200;
       response.setHeader("Content-Type", "text/event-stream; charset=utf-8");
@@ -366,7 +466,7 @@ export function createGrimoireServer(options: Options) {
 
     if (method === "GET" && url.pathname === "/api/board") {
       const user = requireUser(context);
-      const board = getBoard(database, cardStore, user);
+      const board = getBoard(database, cardStore, user, requireProject(context, user));
       if (!board) throw new HttpError(404, "Board not found");
       json(response, 200, {
         ...board,
@@ -378,7 +478,7 @@ export function createGrimoireServer(options: Options) {
 
     if (method === "POST" && url.pathname === "/api/cards") {
       const user = requireUser(context);
-      const projectId = requireProjectId(user.id);
+      const projectId = requireProject(context, user);
       const card = createCard(database, cardStore, projectId, user.id, cardSchema.parse(await readJson(request)));
       if (!card) throw new HttpError(400, "Assignee is not a member of this board");
       json(response, 201, { card });
@@ -388,7 +488,7 @@ export function createGrimoireServer(options: Options) {
 
     if (method === "GET" && url.pathname === "/api/ideas") {
       const user = requireUser(context);
-      const workspace = getIdeas(database, ideaStore, user, requireProjectId(user.id));
+      const workspace = getIdeas(database, ideaStore, user, requireProject(context, user));
       if (!workspace) throw new HttpError(404, "Idea garden not found");
       json(response, 200, { ...workspace, currentUser: withAvatar(workspace.currentUser) });
       return;
@@ -396,7 +496,7 @@ export function createGrimoireServer(options: Options) {
 
     if (method === "POST" && url.pathname === "/api/ideas") {
       const user = requireUser(context);
-      const projectId = requireProjectId(user.id);
+      const projectId = requireProject(context, user);
       const idea = createIdea(
         database,
         ideaStore,
@@ -413,7 +513,7 @@ export function createGrimoireServer(options: Options) {
     const promotionMatch = url.pathname.match(/^\/api\/ideas\/([^/]+)\/promote$/);
     if (method === "POST" && promotionMatch) {
       const user = requireUser(context);
-      const projectId = requireProjectId(user.id);
+      const projectId = requireProject(context, user);
       await readJson(request);
       const card = promoteIdea(
         database,
@@ -432,7 +532,7 @@ export function createGrimoireServer(options: Options) {
     const promotionUndoMatch = url.pathname.match(/^\/api\/ideas\/([^/]+)\/promotion$/);
     if (method === "DELETE" && promotionUndoMatch) {
       const user = requireUser(context);
-      const projectId = requireProjectId(user.id);
+      const projectId = requireProject(context, user);
       const idea = undoPromotion(database, cardStore, ideaStore, projectId, promotionUndoMatch[1]);
       if (!idea) throw new HttpError(404, "Promoted idea not found");
       json(response, 200, { idea });
@@ -443,7 +543,7 @@ export function createGrimoireServer(options: Options) {
     const ideaMatch = url.pathname.match(/^\/api\/ideas\/([^/]+)$/);
     if (method === "PATCH" && ideaMatch) {
       const user = requireUser(context);
-      const projectId = requireProjectId(user.id);
+      const projectId = requireProject(context, user);
       const idea = updateIdea(
         database,
         ideaStore,
@@ -460,7 +560,7 @@ export function createGrimoireServer(options: Options) {
     const cardRestoreMatch = url.pathname.match(/^\/api\/cards\/([^/]+)\/restore$/);
     if (method === "POST" && cardRestoreMatch) {
       const user = requireUser(context);
-      const projectId = requireProjectId(user.id);
+      const projectId = requireProject(context, user);
       await readJson(request);
       const card = restoreCard(database, cardStore, projectId, cardRestoreMatch[1]);
       if (!card) throw new HttpError(404, "Archived card not found");
@@ -472,7 +572,7 @@ export function createGrimoireServer(options: Options) {
     const cardMatch = url.pathname.match(/^\/api\/cards\/([^/]+)$/);
     if (method === "PATCH" && cardMatch) {
       const user = requireUser(context);
-      const projectId = requireProjectId(user.id);
+      const projectId = requireProject(context, user);
       const card = updateCard(
         database,
         cardStore,
@@ -488,7 +588,7 @@ export function createGrimoireServer(options: Options) {
 
     if (method === "DELETE" && cardMatch) {
       const user = requireUser(context);
-      const projectId = requireProjectId(user.id);
+      const projectId = requireProject(context, user);
       if (!archiveCard(database, cardStore, projectId, cardMatch[1])) {
         throw new HttpError(404, "Card not found");
       }
@@ -504,10 +604,17 @@ export function createGrimoireServer(options: Options) {
     return { ...user, avatarUrl: avatarStore.urlFor(user.id) };
   }
 
-  function requireProjectId(userId: string): string {
-    const projectId = projectIdForUser(database, userId);
-    if (!projectId) throw new HttpError(404, "Board not found");
-    return projectId;
+  function requireProject(context: RequestContext, user: User): string {
+    const header = context.request.headers["x-grimoire-project"];
+    const fromHeader = typeof header === "string" ? header : header?.[0];
+    const requested = (fromHeader ?? context.url.searchParams.get("project") ?? "").slice(0, 100);
+    if (requested) {
+      if (!userCanAccessProject(database, user, requested)) throw new HttpError(404, "Board not found");
+      return requested;
+    }
+    const fallback = defaultProjectIdForUser(database, user);
+    if (!fallback) throw new HttpError(404, "Board not found");
+    return fallback;
   }
 
   function setSession(response: ServerResponse, userId: string): void {

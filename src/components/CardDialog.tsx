@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  CARD_CATEGORIES,
   CARD_STATUSES,
   type Card,
-  type CardCategory,
   type CardStatus,
   type Member,
+  type ProjectCategory,
 } from "../../shared/types";
 import { Avatar } from "./Avatar";
 
@@ -17,29 +16,23 @@ const labels: Record<CardStatus, string> = {
   done: "Done",
 };
 
-const categoryLabels: Record<CardCategory, string> = {
-  design: "Design",
-  code: "Code",
-  modeling: "Modeling",
-  texturing: "Texturing",
-  animation: "Animation",
-  narrative: "Narrative",
-  audio: "Audio",
-  ui: "UI",
-  vfx: "VFX",
-  production: "Production",
-};
-
 type Props = {
   card: Card;
   cards: Card[];
+  categories: ProjectCategory[];
   members: Member[];
   onUpdate: (input: Record<string, unknown>) => Promise<void>;
   onArchive: () => Promise<void>;
   onClose: () => void;
 };
 
-export function CardDialog({ card, cards, members, onUpdate, onArchive, onClose }: Props) {
+export function CardDialog({ card, cards, categories, members, onUpdate, onArchive, onClose }: Props) {
+  const categoryColor = (slug: string | null) =>
+    slug ? categories.find((category) => category.slug === slug)?.color : undefined;
+  const swatchStyle = (slug: string | null) => {
+    const color = categoryColor(slug);
+    return color ? ({ "--category-color": color } as React.CSSProperties) : undefined;
+  };
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description);
   const [saveState, setSaveState] = useState("saved");
@@ -157,15 +150,15 @@ export function CardDialog({ card, cards, members, onUpdate, onArchive, onClose 
             >
               uncategorized
             </button>
-            {CARD_CATEGORIES.map((category) => (
+            {categories.map((category) => (
               <button
-                aria-label={`Categorize as ${categoryLabels[category]}`}
-                className={card.category === category ? "choice active" : "choice"}
-                key={category}
-                onClick={() => onUpdate({ category })}
+                aria-label={`Categorize as ${category.name}`}
+                className={card.category === category.slug ? "choice active" : "choice"}
+                key={category.slug}
+                onClick={() => onUpdate({ category: category.slug })}
                 type="button"
               >
-                <span className={`category-swatch category-${category}`} />{categoryLabels[category]}
+                <span className="category-swatch" style={{ "--category-color": category.color } as React.CSSProperties} />{category.name}
               </button>
             ))}
           </div>
@@ -177,7 +170,7 @@ export function CardDialog({ card, cards, members, onUpdate, onArchive, onClose 
             <div className="dependency-list">
               {blockers.map((blocker) => (
                 <div className={blocker.status === "done" ? "dependency resolved" : "dependency"} key={blocker.id}>
-                  <span className={`category-swatch category-${blocker.category ?? "none"}`} />
+                  <span className={`category-swatch ${blocker.category ? "" : "category-none"}`} style={swatchStyle(blocker.category)} />
                   <span><strong>{blocker.title}</strong><small>{blocker.status === "done" ? "resolved" : labels[blocker.status]}</small></span>
                   <button aria-label={`Remove blocker ${blocker.title}`} onClick={() => void removeBlocker(blocker.id)} type="button">×</button>
                 </div>
@@ -207,8 +200,8 @@ export function CardDialog({ card, cards, members, onUpdate, onArchive, onClose 
                       onClick={() => void addBlocker(candidate.id)}
                       type="button"
                     >
-                      <span className={`category-swatch category-${candidate.category ?? "none"}`} />
-                      <span><strong>{candidate.title}</strong><small>{candidate.category ?? "uncategorized"}</small></span>
+                      <span className={`category-swatch ${candidate.category ? "" : "category-none"}`} style={swatchStyle(candidate.category)} />
+                      <span><strong>{candidate.title}</strong><small>{candidate.category ? categories.find((category) => category.slug === candidate.category)?.name ?? candidate.category : "uncategorized"}</small></span>
                     </button>
                   ))}
                   {blockerResults.length === 0 && <p>No matching open cards.</p>}

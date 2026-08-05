@@ -1,21 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
-import { type Card, type CardCategory, type Member } from "../../shared/types";
+import { type Card, type CardCategory, type Member, type ProjectCategory } from "../../shared/types";
+import { categoryDisplay, categoryStyle } from "./category-style";
 
 type Props = {
   busy: boolean;
   cards: Card[];
+  categories: ProjectCategory[];
   members: Member[];
   onClose: () => void;
   onOpenCard: (id: string) => void;
   onReopen: (id: string) => Promise<void>;
 };
 
-export function DoneHistoryDialog({ busy, cards, members, onClose, onOpenCard, onReopen }: Props) {
+export function DoneHistoryDialog({ busy, cards, categories, members, onClose, onOpenCard, onReopen }: Props) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<CardCategory | null>(null);
   const [person, setPerson] = useState<string | null>(null);
   const normalizedQuery = query.trim().toLowerCase();
-  const categories = useMemo(
+  const usedCategories = useMemo(
     () => [...new Set(cards.map((card) => card.category).filter((value): value is CardCategory => Boolean(value)))],
     [cards],
   );
@@ -79,16 +81,16 @@ export function DoneHistoryDialog({ busy, cards, members, onClose, onOpenCard, o
               >{member.name}</button>
             ))}
           </div>
-          {categories.length > 0 && (
+          {usedCategories.length > 0 && (
             <div aria-label="Completed work categories" className="library-filters category-filters">
-              {categories.map((value) => (
+              {usedCategories.map((value) => (
                 <button
                   aria-pressed={category === value}
                   className={category === value ? "active" : ""}
                   key={value}
                   onClick={() => setCategory(category === value ? null : value)}
                   type="button"
-                ><span className={`category-swatch category-${value}`} />{value}</button>
+                ><span className="category-swatch" style={categoryStyle(categories, value)} />{categoryDisplay(categories, value)}</button>
               ))}
             </div>
           )}
@@ -100,9 +102,9 @@ export function DoneHistoryDialog({ busy, cards, members, onClose, onOpenCard, o
               <header><h3>{label}</h3><span>{groupCards.length}</span></header>
               <div>
                 {groupCards.map((card) => (
-                  <article className={`history-card category-${card.category ?? "none"}`} key={card.id}>
+                  <article className={`history-card ${card.category ? "" : "category-none"}`} key={card.id} style={categoryStyle(categories, card.category)}>
                     <button className="history-card-main" onClick={() => onOpenCard(card.id)} type="button">
-                      <span className={`category-swatch category-${card.category ?? "none"}`} />
+                      <span className={`category-swatch ${card.category ? "" : "category-none"}`} style={categoryStyle(categories, card.category)} />
                       <span><strong>{card.title}</strong><small>{card.assigneeName ?? "unassigned"}</small></span>
                       <time dateTime={card.completedAt ?? card.updatedAt}>{formatCompletion(card)}</time>
                     </button>

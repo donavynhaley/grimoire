@@ -2,6 +2,12 @@ import type { BoardWorkspace, IdeaWorkspace, SessionState } from "../../shared/t
 
 const clientId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
+let activeProjectId: string | null = new URLSearchParams(globalThis.location?.search ?? "").get("project");
+
+export function setActiveProjectId(id: string | null): void {
+  activeProjectId = id;
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -14,6 +20,7 @@ export class ApiError extends Error {
 export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   if (init.body && !headers.has("content-type")) headers.set("content-type", "application/json");
+  if (activeProjectId) headers.set("x-grimoire-project", activeProjectId);
   const response = await fetch(path, { ...init, headers, credentials: "same-origin" });
   const body = (await response.json()) as T & { error?: string };
   if (!response.ok) throw new ApiError(body.error ?? `Request failed with status ${response.status}`, response.status);
@@ -33,7 +40,8 @@ export function ideas(): Promise<IdeaWorkspace> {
 }
 
 export function liveEventsUrl(): string {
-  return `/api/events?client=${encodeURIComponent(clientId)}`;
+  const project = activeProjectId ? `&project=${encodeURIComponent(activeProjectId)}` : "";
+  return `/api/events?client=${encodeURIComponent(clientId)}${project}`;
 }
 
 export function mutate<T>(path: string, method: "POST" | "PATCH" | "DELETE", body: unknown = {}): Promise<T> {

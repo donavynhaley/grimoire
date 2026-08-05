@@ -7,6 +7,8 @@ import {
   type CardCategory,
   type CardStatus,
   type Member,
+  type ProjectCategory,
+  type ProjectSummary,
   type User,
 } from "../shared/types";
 import { MarkdownCardStore, type StoredCard } from "./markdown-cards";
@@ -42,18 +44,159 @@ export function userCount(database: DatabaseSync): number {
   return Number(row(database, "SELECT COUNT(*) AS count FROM users")?.count ?? 0);
 }
 
-export function projectIdForUser(database: DatabaseSync, userId: string): string | null {
-  const value = row(
-    database,
-    "SELECT project_id FROM project_members WHERE user_id = ? ORDER BY created_at LIMIT 1",
-    userId,
-  );
+export function defaultProjectIdForUser(database: DatabaseSync, user: User): string | null {
+  const value =
+    user.role === "owner"
+      ? row(database, "SELECT id AS project_id FROM projects WHERE archived_at IS NULL ORDER BY created_at LIMIT 1")
+      : row(
+        database,
+        `SELECT project_members.project_id FROM project_members
+         JOIN projects ON projects.id = project_members.project_id
+         WHERE project_members.user_id = ? AND projects.archived_at IS NULL
+         ORDER BY project_members.created_at LIMIT 1`,
+        user.id,
+      );
   return value ? String(value.project_id) : null;
 }
 
-export function getBoard(database: DatabaseSync, cardStore: MarkdownCardStore, user: User): BoardWorkspace | null {
-  const projectId = projectIdForUser(database, user.id);
-  if (!projectId) return null;
+export function userCanAccessProject(database: DatabaseSync, user: User, projectId: string): boolean {
+  if (user.role === "owner") {
+    return Boolean(row(database, "SELECT 1 AS ok FROM projects WHERE id = ? AND archived_at IS NULL", projectId));
+  }
+  return Boolean(
+    row(
+      database,
+      `SELECT 1 AS ok FROM project_members
+       JOIN projects ON projects.id = project_members.project_id
+       WHERE project_members.project_id = ? AND project_members.user_id = ? AND projects.archived_at IS NULL`,
+      projectId,
+      user.id,
+    ),
+  );
+}
+
+export function listProjectsForUser(database: DatabaseSync, user: User): ProjectSummary[] {
+  const values =
+    user.role === "owner"
+      ? rows(database, "SELECT id, name FROM projects WHERE archived_at IS NULL ORDER BY created_at")
+      : rows(
+        database,
+        `SELECT projects.id, projects.name FROM project_members
+         JOIN projects ON projects.id = project_members.project_id
+         WHERE project_members.user_id = ? AND projects.archived_at IS NULL
+         ORDER BY project_members.created_at`,
+        user.id,
+      );
+  return values.map((value) => ({ id: String(value.id), name: String(value.name) }));
+}
+
+export function renameProject(database: DatabaseSync, projectId: string, name: string): boolean {
+  const result = database
+    .prepare("UPDATE projects SET name = ?, updated_at = ? WHERE id = ? AND archived_at IS NULL")
+    .run(name, new Date().toISOString(), projectId);
+  return Number(result.changes) === 1;
+}
+
+export type ArchiveProjectResult = "archived" | "not_found" | "last_project";
+
+export function archiveProject(database: DatabaseSync, projectId: string): ArchiveProjectResult {
+  const active = rows(database, "SELECT id FROM projects WHERE archived_at IS NULL");
+  if (!active.some((value) => String(value.id) === projectId)) return "not_found";
+  if (active.length === 1) return "last_project";
+  database
+    .prepare("UPDATE projects SET archived_at = ?, updated_at = ? WHERE id = ?")
+    .run(new Date().toISOString(), new Date().toISOString(), projectId);
+  return "archived";
+}
+
+export function categoriesForProject(database: DatabaseSync, projectId: string): ProjectCategory[] {
+  return rows(
+    database,
+    "SELECT slug, name, color, position FROM categories WHERE project_id = ? ORDER BY position, created_at",
+    projectId,
+  ).map((value) => ({
+    slug: String(value.slug),
+    name: String(value.name),
+    color: String(value.color),
+    position: Number(value.position),
+  }));
+}
+
+export function categorySlugFromName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40)
+    .replace(/-+$/g, "");
+}
+
+export type CreateCategoryResult = { category: ProjectCategory } | "exists" | "invalid_name";
+
+export function createCategory(
+  database: DatabaseSync,
+  projectId: string,
+  input: { name: string; color: string },
+): CreateCategoryResult {
+  const slug = categorySlugFromName(input.name);
+  if (!slug) return "invalid_name";
+  if (row(database, "SELECT 1 AS ok FROM categories WHERE project_id = ? AND slug = ?", projectId, slug)) {
+    return "exists";
+  }
+  const position = categoriesForProject(database, projectId).length;
+  database
+    .prepare("INSERT INTO categories (project_id, slug, name, color, position, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+    .run(projectId, slug, input.name, input.color, position, new Date().toISOString());
+  return { category: { slug, name: input.name, color: input.color, position } };
+}
+
+export function updateCategory(
+  database: DatabaseSync,
+  projectId: string,
+  slug: string,
+  input: { name?: string; color?: string },
+): ProjectCategory | null {
+  const current = row(
+    database,
+    "SELECT slug, name, color, position FROM categories WHERE project_id = ? AND slug = ?",
+    projectId,
+    slug,
+  );
+  if (!current) return null;
+  const name = input.name ?? String(current.name);
+  const color = input.color ?? String(current.color);
+  database
+    .prepare("UPDATE categories SET name = ?, color = ? WHERE project_id = ? AND slug = ?")
+    .run(name, color, projectId, slug);
+  return { slug, name, color, position: Number(current.position) };
+}
+
+export function deleteCategory(
+  database: DatabaseSync,
+  cardStore: MarkdownCardStore,
+  projectId: string,
+  slug: string,
+): boolean {
+  const project = projectById(database, projectId);
+  if (!project) return false;
+  const removed = database
+    .prepare("DELETE FROM categories WHERE project_id = ? AND slug = ?")
+    .run(projectId, slug);
+  if (Number(removed.changes) !== 1) return false;
+  const now = new Date().toISOString();
+  cardStore.list(String(project.slug)).forEach((card) => {
+    if (card.category !== slug) return;
+    cardStore.save(String(project.slug), { ...card, category: null, updatedAt: now });
+  });
+  return true;
+}
+
+export function getBoard(
+  database: DatabaseSync,
+  cardStore: MarkdownCardStore,
+  user: User,
+  projectId: string,
+): BoardWorkspace | null {
   const project = row(database, "SELECT id, name, slug FROM projects WHERE id = ?", projectId);
   if (!project) return null;
 
@@ -63,6 +206,8 @@ export function getBoard(database: DatabaseSync, cardStore: MarkdownCardStore, u
 
   return {
     project: { id: String(project.id), name: String(project.name) },
+    projects: listProjectsForUser(database, user),
+    categories: categoriesForProject(database, projectId),
     currentUser: user,
     members,
     cards: cards.map((card) => publicCard(database, card, members)),
@@ -90,6 +235,7 @@ export function createCard(
   const creator = members.find((member) => member.id === creatorId);
   const assignee = input.assigneeId ? members.find((member) => member.id === input.assigneeId) : null;
   if (!project || !creator || (input.assigneeId && !assignee)) return null;
+  if (input.category) requireProjectCategory(database, projectId, input.category);
   const id = randomUUID();
   const now = new Date().toISOString();
   const status = input.status ?? "backlog";
@@ -132,6 +278,7 @@ export function updateCard(
   if (!current) return null;
   const assignee = input.assigneeId ? members.find((member) => member.id === input.assigneeId) : null;
   if (input.assigneeId && !assignee) return null;
+  if (input.category) requireProjectCategory(database, projectId, input.category);
 
   const nextStatus = input.status ?? current.status;
   const shouldMove = input.status !== undefined || input.position !== undefined;
@@ -290,11 +437,14 @@ export function removeProjectMember(
 
   database.exec("BEGIN IMMEDIATE");
   try {
-    database.prepare("DELETE FROM sessions WHERE user_id = ?").run(memberId);
     const removed = database
       .prepare("DELETE FROM project_members WHERE project_id = ? AND user_id = ? AND role != 'owner'")
       .run(projectId, memberId);
     if (Number(removed.changes) !== 1) throw new Error("Project membership changed while it was being removed");
+    const remaining = row(database, "SELECT COUNT(*) AS count FROM project_members WHERE user_id = ?", memberId);
+    if (Number(remaining?.count ?? 0) === 0) {
+      database.prepare("DELETE FROM sessions WHERE user_id = ?").run(memberId);
+    }
     database.exec("COMMIT");
   } catch (error) {
     database.exec("ROLLBACK");
@@ -332,6 +482,12 @@ function publicCard(database: DatabaseSync, value: StoredCard, members: Member[]
 export class CardDependencyError extends Error {
   constructor(message: string, readonly status: 400 | 409 = 400) {
     super(message);
+  }
+}
+
+function requireProjectCategory(database: DatabaseSync, projectId: string, slug: string): void {
+  if (!row(database, "SELECT 1 AS ok FROM categories WHERE project_id = ? AND slug = ?", projectId, slug)) {
+    throw new CardDependencyError("This category is not part of the project", 400);
   }
 }
 

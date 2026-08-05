@@ -6,6 +6,24 @@ export function boardFixture(): BoardWorkspace {
       id: "00000000-0000-4000-8000-000000000001",
       name: "Wizard Simulator",
     },
+    projects: [
+      {
+        id: "00000000-0000-4000-8000-000000000001",
+        name: "Wizard Simulator",
+      },
+    ],
+    categories: [
+      { slug: "design", name: "Design", color: "#d6bc78", position: 0 },
+      { slug: "code", name: "Code", color: "#8bb9c9", position: 1 },
+      { slug: "modeling", name: "Modeling", color: "#b49bd4", position: 2 },
+      { slug: "texturing", name: "Texturing", color: "#d89b73", position: 3 },
+      { slug: "animation", name: "Animation", color: "#d88eae", position: 4 },
+      { slug: "narrative", name: "Narrative", color: "#a99bdc", position: 5 },
+      { slug: "audio", name: "Audio", color: "#b8d99b", position: 6 },
+      { slug: "ui", name: "UI", color: "#74c6bf", position: 7 },
+      { slug: "vfx", name: "VFX", color: "#d284d3", position: 8 },
+      { slug: "production", name: "Production", color: "#a7adaf", position: 9 },
+    ],
     currentUser: {
       id: "00000000-0000-4000-8000-000000000010",
       name: "Donavyn",
