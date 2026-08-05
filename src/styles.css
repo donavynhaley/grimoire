@@ -530,7 +530,7 @@ textarea:hover { border-color: var(--border-bright); }
   min-height: 0;
   margin: 0 auto;
   flex: 1;
-  grid-template-columns: repeat(3, minmax(250px, 1fr));
+  grid-template-columns: repeat(4, minmax(230px, 1fr));
   gap: 10px;
   overflow: hidden;
 }
@@ -677,6 +677,8 @@ textarea:hover { border-color: var(--border-bright); }
 .column-dot.ready { background: var(--accent); box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 40%, transparent); }
 .column-in_progress .column-dot,
 .column-dot.in_progress { background: var(--blue); }
+.column-review .column-dot,
+.column-dot.review { background: var(--amber); }
 .column-done .column-dot,
 .column-dot.done { background: var(--muted); }
 
@@ -1337,7 +1339,7 @@ textarea:hover { border-color: var(--border-bright); }
     width: max-content;
     max-width: none;
     min-height: 0;
-    grid-template-columns: repeat(3, 300px);
+    grid-template-columns: repeat(4, 300px);
   }
   .board-main { overflow-x: auto; overflow-y: hidden; }
   .board-intro { position: sticky; left: 0; width: calc(100vw - 48px); padding-bottom: 35px; }
@@ -1365,7 +1367,7 @@ textarea:hover { border-color: var(--border-bright); }
   .reuse-settings small { display: none; }
   .work-filters { width: calc(100vw - 28px); margin-top: 0; }
   .card-search { width: 100%; order: -1; }
-  .kanban { grid-template-columns: repeat(3, calc(100vw - 48px)); gap: 9px; }
+  .kanban { grid-template-columns: repeat(4, calc(100vw - 48px)); gap: 9px; }
   .kanban-column { min-height: 0; height: 100%; scroll-snap-align: start; }
   .modal-backdrop { padding: 0; align-items: end; }
   .card-dialog,

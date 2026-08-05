@@ -16,7 +16,7 @@ export type Member = User & {
   projectRole: UserRole;
 };
 
-export const CARD_STATUSES = ["backlog", "ready", "in_progress", "done"] as const;
+export const CARD_STATUSES = ["backlog", "ready", "in_progress", "review", "done"] as const;
 export type CardStatus = (typeof CARD_STATUSES)[number];
 
 export const CARD_CATEGORIES = [

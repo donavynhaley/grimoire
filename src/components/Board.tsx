@@ -9,13 +9,14 @@ import { type CaptureCardInput, QuickCapture } from "./QuickCapture";
 import { TeamDialog } from "./TeamDialog";
 import { IdeasBoard } from "./IdeasBoard";
 
-const BOARD_STATUSES = ["ready", "in_progress", "done"] as const satisfies readonly CardStatus[];
+const BOARD_STATUSES = ["ready", "in_progress", "review", "done"] as const satisfies readonly CardStatus[];
 const RECENT_DONE_LIMIT = 8;
 
 const columnNames: Record<CardStatus, string> = {
   backlog: "Backlog",
   ready: "Up Next",
   in_progress: "In progress",
+  review: "Review",
   done: "Done",
 };
 
@@ -62,7 +63,7 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
     }),
     [board.cards, normalizedQuery, people],
   );
-  const activeCount = filteredCards.filter((card) => card.status === "ready" || card.status === "in_progress").length;
+  const activeCount = filteredCards.filter((card) => card.status === "ready" || card.status === "in_progress" || card.status === "review").length;
   const backlogCards = board.cards.filter((card) => card.status === "backlog");
   const completedCards = board.cards.filter((card) => card.status === "done");
 

@@ -51,6 +51,7 @@ const statusLabels: Partial<Record<CardStatus, string>> = {
   backlog: "Backlog",
   ready: "Up Next",
   in_progress: "In progress",
+  review: "Review",
 };
 
 export function QuickCapture({ busy, members, onCreate }: Props) {
@@ -278,6 +279,7 @@ function pickerOptions(kind: PickerKind | null, members: Member[]): PickerOption
       { id: "status-backlog", label: "Backlog", search: "backlog", value: "backlog" },
       { id: "status-ready", label: "Up Next", search: "up next ready", value: "ready" },
       { id: "status-in-progress", label: "In progress", search: "in progress active working", value: "in_progress" },
+      { id: "status-review", label: "Review", search: "review check verify", value: "review" },
     ];
   }
   return [];

@@ -87,6 +87,7 @@ describe("Grimoire board", () => {
     expect(screen.getAllByRole("region").map((region) => region.getAttribute("aria-label"))).toEqual([
       "Up Next",
       "In progress",
+      "Review",
       "Done",
     ]);
     expect(screen.getByText("Model the potion workbench")).toBeInTheDocument();

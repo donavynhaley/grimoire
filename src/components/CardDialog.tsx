@@ -13,6 +13,7 @@ const labels: Record<CardStatus, string> = {
   backlog: "Backlog",
   ready: "Up Next",
   in_progress: "In progress",
+  review: "Review",
   done: "Done",
 };
 

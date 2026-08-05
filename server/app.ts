@@ -77,7 +77,7 @@ const passwordChangeSchema = z
     path: ["newPassword"],
   });
 
-const cardStatus = z.enum(["backlog", "ready", "in_progress", "done"]);
+const cardStatus = z.enum(["backlog", "ready", "in_progress", "review", "done"]);
 const cardSchema = z.object({
   title: z.string().trim().min(1).max(240),
   description: z.string().trim().max(20_000).optional(),

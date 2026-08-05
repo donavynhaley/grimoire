@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS cards (
   project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
-  status TEXT NOT NULL CHECK (status IN ('backlog', 'ready', 'in_progress', 'done')),
+  status TEXT NOT NULL CHECK (status IN ('backlog', 'ready', 'in_progress', 'review', 'done')),
   position INTEGER NOT NULL DEFAULT 0,
   assignee_id TEXT REFERENCES users(id),
   created_by TEXT NOT NULL REFERENCES users(id),
