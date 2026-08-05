@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { BoardWorkspace, CardStatus, IdeaState, IdeaWorkspace, SessionState, User } from "../shared/types";
-import { ApiError, board as loadBoard, ideas as loadIdeas, liveEventsUrl, mutate, request, session } from "./api/client";
+import { ApiError, board as loadBoard, ideas as loadIdeas, liveEventsUrl, mutate, request, session, uploadAvatar } from "./api/client";
 import { AuthScreen } from "./components/AuthScreen";
 import { Board } from "./components/Board";
 import type { CaptureCardInput } from "./components/QuickCapture";
@@ -233,6 +233,9 @@ export function App() {
     await mutate("/api/account/password", "POST", { currentPassword, newPassword });
   };
 
+  const changeAvatar = (file: File) => perform(() => uploadAvatar(file));
+  const removeAvatar = () => perform(() => mutate("/api/account/avatar", "DELETE"));
+
   const logout = async () => {
     await request("/api/auth/logout", { method: "POST", body: JSON.stringify({}) });
     setBoard(null);
@@ -263,7 +266,9 @@ export function App() {
         board={board}
         busy={busy}
         ideas={ideas}
+        onChangeAvatar={changeAvatar}
         onChangePassword={changePassword}
+        onRemoveAvatar={removeAvatar}
         onArchive={archiveCard}
         onCreate={createCard}
         onCreateInvite={createInvite}

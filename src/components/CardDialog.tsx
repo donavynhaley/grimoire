@@ -7,7 +7,7 @@ import {
   type CardStatus,
   type Member,
 } from "../../shared/types";
-import { initials } from "./initials";
+import { Avatar } from "./Avatar";
 
 const labels: Record<CardStatus, string> = {
   backlog: "Backlog",
@@ -233,7 +233,7 @@ export function CardDialog({ card, cards, members, onUpdate, onArchive, onClose 
                 onClick={() => onUpdate({ assigneeId: member.id })}
                 type="button"
               >
-                <span className="avatar tiny">{initials(member.name)}</span>{member.name}
+                <Avatar avatarUrl={member.avatarUrl} className="avatar tiny" name={member.name} />{member.name}
               </button>
             ))}
           </div>

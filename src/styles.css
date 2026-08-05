@@ -183,6 +183,8 @@ textarea:focus-visible {
 
 .avatar.current { background: var(--accent); }
 .avatar.tiny { width: 20px; height: 20px; font-size: 7px; }
+.avatar.large { width: 44px; height: 44px; font-size: 14px; }
+.avatar.photo { object-fit: cover; background: var(--surface-soft); }
 
 .account-button,
 .quiet-button,
@@ -1233,17 +1235,30 @@ textarea:hover { border-color: var(--border-bright); }
 .invite-link { grid-column: 1 / -1; gap: 8px; }
 
 .account-identity {
-  display: grid;
-  margin-bottom: 22px;
+  display: flex;
+  margin-bottom: 14px;
   padding: 14px;
-  gap: 5px;
+  align-items: center;
+  gap: 12px;
   background: var(--surface-raised);
   border: 1px solid var(--border);
   border-radius: 7px;
 }
 
+.account-identity-copy { display: grid; gap: 5px; }
 .account-identity strong { font-size: 11px; }
 .account-identity span { color: var(--muted); font-size: 9px; }
+
+.avatar-editor {
+  display: flex;
+  margin-bottom: 22px;
+  align-items: center;
+  gap: 10px;
+}
+
+.avatar-upload { display: inline-flex; align-items: center; cursor: pointer; }
+.avatar-upload input[type="file"] { display: none; }
+.avatar-error { color: var(--red); font-size: 9px; }
 
 .password-form {
   display: grid;

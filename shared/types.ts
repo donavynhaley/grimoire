@@ -5,6 +5,7 @@ export type User = {
   name: string;
   email: string;
   role: UserRole;
+  avatarUrl?: string | null;
 };
 
 export type SessionState =

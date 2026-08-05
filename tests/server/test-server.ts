@@ -11,6 +11,7 @@ type TestServer = {
   close: () => Promise<void>;
   databasePath: string;
   events: (clientId: string) => Promise<Response>;
+  fetchRaw: (path: string, init?: RequestInit) => Promise<Response>;
   request: <T>(path: string, init?: RequestInit) => Promise<{ response: Response; body: T }>;
 };
 
@@ -52,6 +53,11 @@ export async function startTestServer(existingDirectory?: string): Promise<TestS
       const headers = new Headers();
       if (cookie) headers.set("cookie", cookie);
       return fetch(`${baseUrl}/api/events?client=${encodeURIComponent(clientId)}`, { headers });
+    },
+    fetchRaw(path: string, init: RequestInit = {}) {
+      const headers = new Headers(init.headers);
+      if (cookie) headers.set("cookie", cookie);
+      return fetch(`${baseUrl}${path}`, { ...init, headers });
     },
     async request<T>(path: string, init: RequestInit = {}) {
       const headers = new Headers(init.headers);

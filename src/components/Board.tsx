@@ -1,10 +1,10 @@
 import { type DragEvent, type FormEvent, Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { type BoardWorkspace, type Card, type CardStatus, type IdeaState, type IdeaWorkspace } from "../../shared/types";
 import { AccountDialog } from "./AccountDialog";
+import { Avatar } from "./Avatar";
 import { BacklogDialog } from "./BacklogDialog";
 import { CardDialog } from "./CardDialog";
 import { DoneHistoryDialog } from "./DoneHistoryDialog";
-import { initials } from "./initials";
 import { type CaptureCardInput, QuickCapture } from "./QuickCapture";
 import { TeamDialog } from "./TeamDialog";
 import { IdeasBoard } from "./IdeasBoard";
@@ -30,7 +30,9 @@ type Props = {
   onArchive: (id: string) => Promise<void>;
   onCreateInvite: () => Promise<string>;
   onCreateIdea: (input: { title: string }) => Promise<void>;
+  onChangeAvatar: (file: File) => Promise<void>;
   onChangePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  onRemoveAvatar: () => Promise<void>;
   onLogout: () => Promise<void>;
   onMoveBacklogToNext: (id: string) => Promise<void>;
   onPromoteIdea: (id: string) => Promise<void>;
@@ -39,7 +41,7 @@ type Props = {
   onViewChange: (view: "work" | "ideas") => Promise<void>;
 };
 
-export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive, onCreateInvite, onCreateIdea, onChangePassword, onLogout, onMoveBacklogToNext, onPromoteIdea, onRemoveMember, onUpdateIdea, onViewChange }: Props) {
+export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive, onCreateInvite, onCreateIdea, onChangeAvatar, onChangePassword, onLogout, onMoveBacklogToNext, onPromoteIdea, onRemoveAvatar, onRemoveMember, onUpdateIdea, onViewChange }: Props) {
   const [addingTo, setAddingTo] = useState<CardStatus | null>(null);
   const [columnTitle, setColumnTitle] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -289,12 +291,12 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
         <div className="board-actions">
           <div className="member-faces" aria-label={`${board.members.length} project members`}>
             {board.members.slice(0, 4).map((member) => (
-              <span className="avatar" key={member.id} title={member.name}>{initials(member.name)}</span>
+              <Avatar avatarUrl={member.avatarUrl} key={member.id} name={member.name} title={member.name} />
             ))}
           </div>
           <button className="quiet-button" onClick={() => setTeamOpen(true)} type="button">team</button>
           <button aria-label={`Open account settings for ${board.currentUser.name}`} className="account-button" onClick={() => setAccountOpen(true)} title="Account settings" type="button">
-            <span className="avatar current">{initials(board.currentUser.name)}</span>
+            <Avatar avatarUrl={board.currentUser.avatarUrl} className="avatar current" name={board.currentUser.name} />
             <span>{board.currentUser.name}</span>
           </button>
         </div>
@@ -338,7 +340,7 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
                   type="button"
                 >
                   {isCurrentUser && <span className="self-filter-label">me</span>}
-                  <span className="avatar tiny" title={member.name}>{initials(member.name)}</span>
+                  <Avatar avatarUrl={member.avatarUrl} className="avatar tiny" name={member.name} title={member.name} />
                 </button>
               );
             })}
@@ -402,7 +404,14 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
                           <strong>{card.title}</strong>
                           {card.description && <p>{card.description}</p>}
                           <span className={`assignee ${card.assigneeId ? "assigned" : ""}`}>
-                            {card.assigneeName ? <><span className="avatar tiny">{initials(card.assigneeName)}</span>{card.assigneeName}</> : "unassigned"}
+                            {card.assigneeName ? <>
+                              <Avatar
+                                avatarUrl={board.members.find((member) => member.id === card.assigneeId)?.avatarUrl}
+                                className="avatar tiny"
+                                name={card.assigneeName}
+                              />
+                              {card.assigneeName}
+                            </> : "unassigned"}
                           </span>
                         </button>
                       </article>
@@ -490,9 +499,11 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
       )}
       {accountOpen && (
         <AccountDialog
+          onChangeAvatar={onChangeAvatar}
           onChangePassword={onChangePassword}
           onClose={() => setAccountOpen(false)}
           onLogout={onLogout}
+          onRemoveAvatar={onRemoveAvatar}
           user={board.currentUser}
         />
       )}

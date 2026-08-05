@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Member, User } from "../../shared/types";
-import { initials } from "./initials";
+import { Avatar } from "./Avatar";
 
 type Props = {
   currentUser: User;
@@ -48,7 +48,7 @@ export function TeamDialog({ currentUser, members, onCreateInvite, onRemoveMembe
         <div className="team-list">
           {members.map((member) => (
             <div className="team-member" key={member.id}>
-              <span className="avatar">{initials(member.name)}</span>
+              <Avatar avatarUrl={member.avatarUrl} name={member.name} />
               <div className="team-member-copy"><strong>{member.name}</strong><span>{member.email}</span></div>
               {currentUser.role === "owner" && member.id !== currentUser.id ? (
                 <div className="member-actions">

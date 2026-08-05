@@ -1,21 +1,64 @@
-import { type FormEvent, useState } from "react";
+import { type ChangeEvent, type FormEvent, useState } from "react";
 import type { User } from "../../shared/types";
 import { ApiError } from "../api/client";
+import { Avatar } from "./Avatar";
+
+const AVATAR_TYPES = ["image/png", "image/jpeg", "image/webp"];
+const AVATAR_SIZE_LIMIT = 2_000_000;
 
 type Props = {
   user: User;
+  onChangeAvatar: (file: File) => Promise<void>;
   onChangePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   onClose: () => void;
   onLogout: () => Promise<void>;
+  onRemoveAvatar: () => Promise<void>;
 };
 
-export function AccountDialog({ user, onChangePassword, onClose, onLogout }: Props) {
+export function AccountDialog({ user, onChangeAvatar, onChangePassword, onClose, onLogout, onRemoveAvatar }: Props) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [changed, setChanged] = useState(false);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarError, setAvatarError] = useState("");
+
+  const pickAvatar = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setAvatarError("");
+    if (!AVATAR_TYPES.includes(file.type)) {
+      setAvatarError("Use a PNG, JPEG, or WebP image");
+      return;
+    }
+    if (file.size > AVATAR_SIZE_LIMIT) {
+      setAvatarError("Keep the picture under 2 MB");
+      return;
+    }
+    setAvatarBusy(true);
+    try {
+      await onChangeAvatar(file);
+    } catch (value) {
+      setAvatarError(value instanceof ApiError ? value.message : "The picture could not be uploaded");
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
+
+  const removeAvatar = async () => {
+    setAvatarError("");
+    setAvatarBusy(true);
+    try {
+      await onRemoveAvatar();
+    } catch (value) {
+      setAvatarError(value instanceof ApiError ? value.message : "The picture could not be removed");
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -48,8 +91,30 @@ export function AccountDialog({ user, onChangePassword, onClose, onLogout }: Pro
         </header>
 
         <div className="account-identity">
-          <strong>{user.name}</strong>
-          <span>{user.email}</span>
+          <Avatar avatarUrl={user.avatarUrl} className="avatar large" name={user.name} />
+          <div className="account-identity-copy">
+            <strong>{user.name}</strong>
+            <span>{user.email}</span>
+          </div>
+        </div>
+
+        <div className="avatar-editor">
+          <label className="quiet-button avatar-upload">
+            {avatarBusy ? "uploading..." : user.avatarUrl ? "change picture" : "upload picture"}
+            <input
+              accept={AVATAR_TYPES.join(",")}
+              aria-label="Upload profile picture"
+              disabled={avatarBusy}
+              onChange={(event) => void pickAvatar(event)}
+              type="file"
+            />
+          </label>
+          {user.avatarUrl && (
+            <button className="text-button" disabled={avatarBusy} onClick={() => void removeAvatar()} type="button">
+              remove picture
+            </button>
+          )}
+          {avatarError && <span className="avatar-error" role="alert">{avatarError}</span>}
         </div>
 
         <form className="password-form" onSubmit={submit}>

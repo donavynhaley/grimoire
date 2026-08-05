@@ -43,3 +43,14 @@ export function mutate<T>(path: string, method: "POST" | "PATCH" | "DELETE", bod
     headers: { "x-grimoire-client-id": clientId },
   });
 }
+
+export function uploadAvatar(file: Blob): Promise<{ avatarUrl: string }> {
+  return request<{ avatarUrl: string }>("/api/account/avatar", {
+    method: "PUT",
+    body: file,
+    headers: {
+      "content-type": file.type || "application/octet-stream",
+      "x-grimoire-client-id": clientId,
+    },
+  });
+}

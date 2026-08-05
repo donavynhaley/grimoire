@@ -20,6 +20,7 @@ import {
   userCount,
 } from "./repository";
 import { createOpaqueToken, hashPassword, hashToken, verifyPassword } from "./security";
+import { AVATAR_SIZE_LIMIT, AvatarStore, sniffAvatarType } from "./avatars";
 import { MarkdownCardStore } from "./markdown-cards";
 import { createIdea, getIdeas, promoteIdea, undoPromotion, updateIdea } from "./ideas-repository";
 import { MarkdownIdeaStore } from "./markdown-ideas";
@@ -103,6 +104,7 @@ export function createGrimoireServer(options: Options) {
   const database = openDatabase(options.databasePath);
   const cardStore = new MarkdownCardStore(options.cardsDirectory ?? join(dirname(options.databasePath), "cards"));
   const ideaStore = new MarkdownIdeaStore(cardStore.rootDirectory);
+  const avatarStore = new AvatarStore(join(dirname(options.databasePath), "avatars"));
   cardStore.migrateLegacyCards(database);
   let databaseClosed = false;
   const eventClients = new Set<EventClient>();
@@ -156,7 +158,7 @@ export function createGrimoireServer(options: Options) {
     if (method === "GET" && url.pathname === "/api/session") {
       if (userCount(database) === 0) json(response, 200, { status: "setup_required" });
       else if (!context.user) json(response, 200, { status: "anonymous" });
-      else json(response, 200, { status: "authenticated", user: context.user });
+      else json(response, 200, { status: "authenticated", user: withAvatar(context.user) });
       return;
     }
 
@@ -176,7 +178,7 @@ export function createGrimoireServer(options: Options) {
         database.prepare("DELETE FROM users WHERE id = ?").run(userId);
         throw error;
       }
-      const user = publicUser(findUserById(database, userId)!);
+      const user = withAvatar(publicUser(findUserById(database, userId)!));
       setSession(response, userId);
       json(response, 201, { user });
       return;
@@ -190,7 +192,7 @@ export function createGrimoireServer(options: Options) {
         : await verifyPassword(input.password, await hashPassword("invalid password placeholder"));
       const projectId = stored ? projectIdForUser(database, String(stored.id)) : null;
       if (!stored || !passwordMatches || !projectId) throw new HttpError(401, "Email or password is incorrect");
-      const user = publicUser(stored);
+      const user = withAvatar(publicUser(stored));
       setSession(response, user.id);
       json(response, 200, { user });
       return;
@@ -228,6 +230,38 @@ export function createGrimoireServer(options: Options) {
       return;
     }
 
+    if (method === "PUT" && url.pathname === "/api/account/avatar") {
+      const user = requireUser(context);
+      const data = await readRaw(request, AVATAR_SIZE_LIMIT);
+      const imageType = sniffAvatarType(data);
+      if (!imageType) throw new HttpError(400, "Profile picture must be a PNG, JPEG, or WebP image");
+      avatarStore.save(user.id, data, imageType);
+      json(response, 200, { avatarUrl: avatarStore.urlFor(user.id) });
+      broadcast(requireProjectId(user.id), "work", requestClientId(request));
+      return;
+    }
+
+    if (method === "DELETE" && url.pathname === "/api/account/avatar") {
+      const user = requireUser(context);
+      avatarStore.remove(user.id);
+      json(response, 200, { ok: true });
+      broadcast(requireProjectId(user.id), "work", requestClientId(request));
+      return;
+    }
+
+    const avatarMatch = url.pathname.match(/^\/api\/avatars\/([^/]+)$/);
+    if (method === "GET" && avatarMatch) {
+      requireUser(context);
+      if (!/^[0-9a-f-]{36}$/i.test(avatarMatch[1])) throw new HttpError(404, "Profile picture not found");
+      const avatar = avatarStore.get(avatarMatch[1]);
+      if (!avatar) throw new HttpError(404, "Profile picture not found");
+      response.statusCode = 200;
+      response.setHeader("Content-Type", avatar.contentType);
+      response.setHeader("Cache-Control", "private, max-age=31536000, immutable");
+      createReadStream(avatar.path).pipe(response);
+      return;
+    }
+
     if (method === "POST" && url.pathname === "/api/auth/register") {
       const input = registerSchema.parse(await readJson(request));
       const invite = database.prepare("SELECT * FROM invites WHERE code_hash = ?").get(hashToken(input.inviteCode)) as
@@ -260,7 +294,7 @@ export function createGrimoireServer(options: Options) {
         database.exec("ROLLBACK");
         throw error;
       }
-      const user = publicUser(findUserById(database, userId)!);
+      const user = withAvatar(publicUser(findUserById(database, userId)!));
       setSession(response, userId);
       json(response, 201, { user });
       return;
@@ -334,7 +368,11 @@ export function createGrimoireServer(options: Options) {
       const user = requireUser(context);
       const board = getBoard(database, cardStore, user);
       if (!board) throw new HttpError(404, "Board not found");
-      json(response, 200, board);
+      json(response, 200, {
+        ...board,
+        currentUser: withAvatar(board.currentUser),
+        members: board.members.map(withAvatar),
+      });
       return;
     }
 
@@ -352,7 +390,7 @@ export function createGrimoireServer(options: Options) {
       const user = requireUser(context);
       const workspace = getIdeas(database, ideaStore, user, requireProjectId(user.id));
       if (!workspace) throw new HttpError(404, "Idea garden not found");
-      json(response, 200, workspace);
+      json(response, 200, { ...workspace, currentUser: withAvatar(workspace.currentUser) });
       return;
     }
 
@@ -462,6 +500,10 @@ export function createGrimoireServer(options: Options) {
     json(response, 404, { error: "Not found" });
   }
 
+  function withAvatar<T extends User>(user: T): T {
+    return { ...user, avatarUrl: avatarStore.urlFor(user.id) };
+  }
+
   function requireProjectId(userId: string): string {
     const projectId = projectIdForUser(database, userId);
     if (!projectId) throw new HttpError(404, "Board not found");
@@ -541,18 +583,23 @@ function requireUser(context: RequestContext): User {
   return context.user;
 }
 
-async function readJson(request: IncomingMessage): Promise<unknown> {
+async function readRaw(request: IncomingMessage, limit: number): Promise<Buffer> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of request) {
     const value = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     size += value.length;
-    if (size > 1_000_000) throw new HttpError(413, "Request body is too large");
+    if (size > limit) throw new HttpError(413, "Request body is too large");
     chunks.push(value);
   }
-  if (chunks.length === 0) return {};
+  return Buffer.concat(chunks);
+}
+
+async function readJson(request: IncomingMessage): Promise<unknown> {
+  const body = await readRaw(request, 1_000_000);
+  if (body.length === 0) return {};
   try {
-    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    return JSON.parse(body.toString("utf8"));
   } catch {
     throw new HttpError(400, "Request body must be valid JSON");
   }
