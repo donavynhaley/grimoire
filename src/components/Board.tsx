@@ -46,6 +46,10 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
   const [drag, setDrag] = useState<{ id: string; height: number } | null>(null);
   const [dropHint, setDropHint] = useState<{ status: CardStatus; index: number } | null>(null);
   const dragSession = useRef(0);
+  const [flight, setFlight] = useState<CaptureFlight | null>(null);
+  const [landed, setLanded] = useState<CardStatus | null>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
+  const flightRef = useRef<HTMLDivElement>(null);
   const [teamOpen, setTeamOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [backlogOpen, setBacklogOpen] = useState(false);
@@ -137,6 +141,72 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
     updateUrl(query, next);
   };
 
+  const spawnFlight = (input: CaptureCardInput) => {
+    const shell = shellRef.current;
+    if (!shell) return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      setLanded(input.status);
+      return;
+    }
+    const home = shell.querySelector(".workspace-capture");
+    const target = input.status === "backlog"
+      ? shell.querySelector(".library-trigger")
+      : shell.querySelector(`.column-${input.status}`);
+    if (!home || !target) {
+      setLanded(input.status);
+      return;
+    }
+    const from = home.getBoundingClientRect();
+    const to = target.getBoundingClientRect();
+    setFlight({
+      id: Date.now(),
+      title: input.title,
+      status: input.status,
+      from: { x: from.left, y: from.top, width: Math.min(from.width, 280) },
+      to: { x: to.left + to.width / 2, y: to.top + Math.min(to.height / 2, 40) },
+    });
+  };
+
+  useEffect(() => {
+    if (!flight) return;
+    const node = flightRef.current;
+    if (!node || typeof node.animate !== "function") {
+      setFlight(null);
+      setLanded(flight.status);
+      return;
+    }
+    const chip = node.getBoundingClientRect();
+    const dx = flight.to.x - (chip.left + chip.width / 2);
+    const dy = flight.to.y - (chip.top + chip.height / 2);
+    const animation = node.animate(
+      [
+        { transform: "translate(0, 0) scale(1)", opacity: 1 },
+        { transform: `translate(${dx}px, ${dy}px) scale(0.35)`, opacity: 0.3 },
+      ],
+      { duration: 480, easing: "cubic-bezier(0.2, 0.7, 0.2, 1)" },
+    );
+    const finish = () => {
+      setFlight(null);
+      setLanded(flight.status);
+    };
+    animation.addEventListener("finish", finish);
+    return () => {
+      animation.removeEventListener("finish", finish);
+      animation.cancel();
+    };
+  }, [flight]);
+
+  useEffect(() => {
+    if (!landed) return;
+    const timeout = window.setTimeout(() => setLanded(null), 700);
+    return () => window.clearTimeout(timeout);
+  }, [landed]);
+
+  const captureCard = async (input: CaptureCardInput) => {
+    spawnFlight(input);
+    await onCreate(input);
+  };
+
   const createColumnCard = async (event: FormEvent, status: CardStatus) => {
     event.preventDefault();
     const title = columnTitle.trim();
@@ -203,7 +273,7 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
   };
 
   return (
-    <div className="board-shell">
+    <div className="board-shell" ref={shellRef}>
       <header className="board-topbar">
         <div className="brand-lockup">
           <span className="brand-mark">g</span>
@@ -235,13 +305,13 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
           <div>
             <h2>{activeCount} active card{activeCount === 1 ? "" : "s"}</h2>
           </div>
-          <QuickCapture busy={busy} members={board.members} onCreate={onCreate} />
+          <QuickCapture busy={busy} members={board.members} onCreate={captureCard} />
         </div>
 
         <div className="work-filters" aria-label="Work filters">
           <button
             aria-label={`Open backlog, ${backlogCards.length} card${backlogCards.length === 1 ? "" : "s"}`}
-            className={`library-trigger ${drag ? "drop-ready" : ""}`}
+            className={`library-trigger ${drag ? "drop-ready" : ""} ${landed === "backlog" ? "landed" : ""}`}
             onClick={() => setBacklogOpen(true)}
             onDragOver={(event) => { if (drag) { event.preventDefault(); setDropHint(null); } }}
             onDrop={(event) => void dropCard(event, "backlog")}
@@ -285,7 +355,7 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
             return (
               <section
                 aria-label={columnNames[status]}
-                className={`kanban-column column-${status}`}
+                className={`kanban-column column-${status} ${landed === status ? "landed" : ""}`}
                 key={status}
                 onDragOver={(event) => trackColumnDrag(event, status)}
                 onDrop={(event) => void dropCard(event, status)}
@@ -426,10 +496,29 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
           user={board.currentUser}
         />
       )}
+      {flight && (
+        <div
+          aria-hidden="true"
+          className="capture-flight"
+          key={flight.id}
+          ref={flightRef}
+          style={{ left: flight.from.x, top: flight.from.y, width: flight.from.width }}
+        >
+          {flight.title}
+        </div>
+      )}
       {busy && <div className="saving-indicator"><span className="connection-dot" />saving</div>}
     </div>
   );
 }
+
+type CaptureFlight = {
+  id: number;
+  title: string;
+  status: CardStatus;
+  from: { x: number; y: number; width: number };
+  to: { x: number; y: number };
+};
 
 function comparePosition(left: Card, right: Card): number {
   return left.position - right.position;

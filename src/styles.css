@@ -654,8 +654,8 @@ textarea:hover { border-color: var(--border-bright); }
 .column-header h3 { margin: 0; font-size: 11px; font-weight: 800; text-transform: lowercase; }
 .done-history-trigger {
   display: flex;
-  min-height: 28px;
-  padding: 0;
+  margin: -6px 0;
+  padding: 6px 0;
   align-items: center;
   gap: 8px;
   color: inherit;
@@ -744,6 +744,39 @@ textarea:hover { border-color: var(--border-bright); }
 
 .board-card.drag-hidden,
 .idea-card.drag-hidden { display: none; }
+
+.capture-flight {
+  position: fixed;
+  z-index: 90;
+  overflow: hidden;
+  height: 34px;
+  padding: 8px 12px;
+  color: var(--text);
+  background: var(--surface-raised);
+  border: 1px solid var(--accent);
+  border-radius: 7px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
+  font-size: 11px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+@keyframes capture-landed-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+  100% { box-shadow: 0 0 0 14px transparent; }
+}
+
+.library-trigger.landed {
+  color: var(--accent);
+  border-color: var(--accent);
+  animation: capture-landed-pulse 650ms ease-out;
+}
+
+.kanban-column.landed {
+  border-color: var(--accent);
+  animation: capture-landed-pulse 650ms ease-out;
+}
 
 .drop-placeholder {
   min-height: 42px;
