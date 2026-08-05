@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, createEvent, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "../../src/App";
@@ -329,6 +329,91 @@ describe("Grimoire board", () => {
         expect.objectContaining({
           method: "PATCH",
           body: JSON.stringify({ status: "ready", position: 0 }),
+        }),
+      ),
+    );
+  });
+
+  it("shows a live placeholder and drops a card between two cards at the pointer position", async () => {
+    const initial = boardFixture();
+    const [backlogCard, progressCard] = initial.cards;
+    const readyA = {
+      ...progressCard,
+      id: "00000000-0000-4000-8000-000000000031",
+      title: "Ready card A",
+      status: "ready" as const,
+      position: 0,
+      assigneeId: null,
+      assigneeName: null,
+    };
+    const readyB = { ...readyA, id: "00000000-0000-4000-8000-000000000032", title: "Ready card B", position: 1 };
+    initial.cards = [backlogCard, progressCard, readyA, readyB];
+    const moved = { ...progressCard, status: "ready" as const, position: 1 };
+    const fetchMock = authenticatedFetch(initial)
+      .mockImplementationOnce(() => response({ card: moved }))
+      .mockImplementationOnce(() => response({ ...initial, cards: [backlogCard, readyA, moved, readyB] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    const dragged = (await screen.findByText(progressCard.title)).closest("article")!;
+    const dataTransfer = { setData: vi.fn(), getData: vi.fn(() => progressCard.id), effectAllowed: "move" };
+    fireEvent.dragStart(dragged, { dataTransfer });
+    await act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+    });
+    expect(dragged).toHaveClass("drag-hidden");
+
+    const column = screen.getByRole("region", { name: "Up Next" });
+    const [nodeA, nodeB] = Array.from(column.querySelectorAll("article.board-card"));
+    vi.spyOn(nodeA, "getBoundingClientRect").mockReturnValue({ top: 0, height: 50 } as DOMRect);
+    vi.spyOn(nodeB, "getBoundingClientRect").mockReturnValue({ top: 50, height: 50 } as DOMRect);
+    const dragOverEvent = createEvent.dragOver(column, { dataTransfer });
+    Object.defineProperty(dragOverEvent, "clientY", { value: 60 });
+    fireEvent(column, dragOverEvent);
+
+    const placeholder = column.querySelector(".drop-placeholder");
+    expect(placeholder).not.toBeNull();
+    expect(placeholder!.nextElementSibling).toBe(nodeB);
+
+    fireEvent.drop(column, { dataTransfer });
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/cards/${progressCard.id}`,
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ status: "ready", position: 1 }),
+        }),
+      ),
+    );
+  });
+
+  it("drags an inbox idea into the parked list", async () => {
+    const initial = boardFixture();
+    const ideas = ideaFixture();
+    const inboxIdea = ideas.ideas[1];
+    const parkedIdea = { ...inboxIdea, state: "parked" as const, position: 1 };
+    const fetchMock = authenticatedFetch(initial)
+      .mockImplementationOnce(() => response(ideas))
+      .mockImplementationOnce(() => response({ idea: parkedIdea }))
+      .mockImplementationOnce(() => response({ ...ideas, ideas: [ideas.ideas[0], parkedIdea, ideas.ideas[2]] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    await screen.findByLabelText("Capture work card");
+    await userEvent.keyboard("2");
+    const dragged = (await screen.findByText(inboxIdea.title)).closest("article")!;
+    const dataTransfer = { setData: vi.fn(), getData: vi.fn(() => inboxIdea.id), effectAllowed: "move" };
+    fireEvent.dragStart(dragged, { dataTransfer });
+    const parked = screen.getByRole("region", { name: "Parked ideas" });
+    fireEvent.dragOver(parked, { dataTransfer });
+    fireEvent.drop(parked, { dataTransfer });
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/ideas/${inboxIdea.id}`,
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ state: "parked" }),
         }),
       ),
     );

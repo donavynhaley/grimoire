@@ -595,7 +595,7 @@ textarea:hover { border-color: var(--border-bright); }
   transition: border-color 120ms ease, opacity 120ms ease, transform 120ms ease;
 }
 .idea-card:hover { border-color: var(--border-bright); }
-.idea-card.dragging { opacity: 0.3; transform: scale(0.99); }
+.idea-section.drop-ready { border-color: var(--border-bright); outline: 1px dashed var(--border-bright); outline-offset: -1px; }
 .shortlist-card { grid-template-columns: 42px 1fr auto; cursor: grab; }
 .shortlist-card:active { cursor: grabbing; }
 .rank-number { display: grid; place-items: start center; padding-top: 16px; color: var(--accent); background: color-mix(in srgb, var(--accent-soft) 55%, transparent); font-size: 9px; }
@@ -740,8 +740,17 @@ textarea:hover { border-color: var(--border-bright); }
 .category-production { --category-color: #a7adaf; }
 
 .board-card:hover { border-color: var(--border-bright); transform: translateY(-1px); }
-.board-card.dragging { opacity: 0.28; transform: scale(0.98); }
 .board-card:active { cursor: grabbing; }
+
+.board-card.drag-hidden,
+.idea-card.drag-hidden { display: none; }
+
+.drop-placeholder {
+  min-height: 42px;
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  border: 1px dashed var(--border-bright);
+  border-radius: 7px;
+}
 
 .card-open {
   display: grid;

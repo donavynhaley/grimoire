@@ -1,4 +1,4 @@
-import { type DragEvent, type FormEvent, useEffect, useRef, useState } from "react";
+import { type DragEvent, type FormEvent, Fragment, useEffect, useRef, useState } from "react";
 import type { Idea, IdeaState, IdeaWorkspace } from "../../shared/types";
 
 type Props = {
@@ -12,11 +12,16 @@ type Props = {
 export function IdeasBoard({ workspace, busy, onCreate, onUpdate, onPromote }: Props) {
   const [title, setTitle] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [drag, setDrag] = useState<{ id: string; height: number } | null>(null);
+  const [dropHint, setDropHint] = useState<{ state: IdeaState; index: number } | null>(null);
+  const dragSession = useRef(0);
   const shortlist = ideasIn(workspace, "shortlist");
   const inbox = ideasIn(workspace, "inbox");
   const parked = ideasIn(workspace, "parked");
   const selected = workspace.ideas.find((idea) => idea.id === selectedId) ?? null;
+  const baseShortlist = drag ? shortlist.filter((idea) => idea.id !== drag.id) : shortlist;
+  const hintIndex = drag && dropHint?.state === "shortlist" ? Math.min(dropHint.index, baseShortlist.length) : null;
+  const placeholder = drag ? <div aria-hidden="true" className="drop-placeholder" style={{ height: drag.height }} /> : null;
 
   const capture = async (event: FormEvent) => {
     event.preventDefault();
@@ -26,13 +31,61 @@ export function IdeasBoard({ workspace, busy, onCreate, onUpdate, onPromote }: P
     await onCreate({ title: value });
   };
 
-  const moveShortlistIdea = async (event: DragEvent, position: number) => {
+  const finishDrag = () => {
+    dragSession.current += 1;
+    setDrag(null);
+    setDropHint(null);
+  };
+
+  const startIdeaDrag = (event: DragEvent<HTMLElement>, idea: Idea, slot: number) => {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", idea.id);
+    const height = event.currentTarget.offsetHeight;
+    const session = ++dragSession.current;
+    // Hide the card one frame later so the browser captures a visible drag image first.
+    requestAnimationFrame(() => {
+      if (dragSession.current !== session) return;
+      setDrag({ id: idea.id, height });
+      setDropHint(idea.state === "shortlist" ? { state: "shortlist", index: slot } : null);
+    });
+  };
+
+  const trackShortlistDrag = (event: DragEvent<HTMLElement>) => {
     event.preventDefault();
-    const id = draggedId ?? event.dataTransfer.getData("text/plain");
-    setDraggedId(null);
+    if (!drag) return;
+    const ideaNodes = event.currentTarget.querySelectorAll<HTMLElement>("article.shortlist-card:not(.drag-hidden)");
+    let index = ideaNodes.length;
+    for (let position = 0; position < ideaNodes.length; position += 1) {
+      const rect = ideaNodes[position].getBoundingClientRect();
+      if (event.clientY < rect.top + rect.height / 2) {
+        index = position;
+        break;
+      }
+    }
+    setDropHint((current) => (current?.state === "shortlist" && current.index === index ? current : { state: "shortlist", index }));
+  };
+
+  const trackListDrag = (event: DragEvent<HTMLElement>, state: IdeaState) => {
+    event.preventDefault();
+    if (!drag) return;
+    setDropHint((current) => (current?.state === state ? current : { state, index: 0 }));
+  };
+
+  const dropIdea = async (event: DragEvent, state: IdeaState) => {
+    event.preventDefault();
+    const id = drag?.id ?? event.dataTransfer.getData("text/plain");
+    const hint = dropHint;
+    finishDrag();
     if (!id) return;
     const idea = workspace.ideas.find((candidate) => candidate.id === id);
-    if (!idea || (idea.state === "shortlist" && idea.position === position)) return;
+    if (!idea) return;
+    if (state !== "shortlist") {
+      if (idea.state !== state) await onUpdate(id, { state });
+      return;
+    }
+    const base = shortlist.filter((candidate) => candidate.id !== id);
+    const position = hint?.state === "shortlist" ? Math.min(hint.index, base.length) : base.length;
+    if (idea.state === "shortlist" && shortlist.findIndex((candidate) => candidate.id === id) === position) return;
     await onUpdate(id, { state: "shortlist", position });
   };
 
@@ -56,41 +109,54 @@ export function IdeasBoard({ workspace, busy, onCreate, onUpdate, onPromote }: P
             <div><span className="idea-glyph">✦</span><div><p className="eyebrow">ranked by hand</p><h3>Shortlist</h3></div></div>
             <span>{shortlist.length}</span>
           </header>
-          <div className="shortlist-list" onDragOver={(event) => event.preventDefault()} onDrop={(event) => void moveShortlistIdea(event, shortlist.length)}>
-            {shortlist.map((idea, index) => (
+          <div className="shortlist-list" onDragOver={trackShortlistDrag} onDrop={(event) => void dropIdea(event, "shortlist")}>
+            {shortlist.map((idea) => {
+              const hidden = drag?.id === idea.id;
+              const slot = hidden ? -1 : baseShortlist.findIndex((candidate) => candidate.id === idea.id);
+              const rank = hintIndex !== null && slot >= hintIndex ? slot + 1 : slot;
+              return (
+              <Fragment key={idea.id}>
+              {!hidden && slot === hintIndex && placeholder}
               <article
-                className={`idea-card shortlist-card ${draggedId === idea.id ? "dragging" : ""}`}
+                className={`idea-card shortlist-card ${hidden ? "drag-hidden" : ""}`}
                 draggable
-                key={idea.id}
-                onDragEnd={() => setDraggedId(null)}
-                onDragOver={(event) => event.preventDefault()}
-                onDragStart={(event) => {
-                  setDraggedId(idea.id);
-                  event.dataTransfer.effectAllowed = "move";
-                  event.dataTransfer.setData("text/plain", idea.id);
-                }}
-                onDrop={(event) => { event.stopPropagation(); void moveShortlistIdea(event, index); }}
+                onDragEnd={finishDrag}
+                onDragStart={(event) => startIdeaDrag(event, idea, slot)}
               >
-                <span className="rank-number">{String(index + 1).padStart(2, "0")}</span>
+                <span className="rank-number">{String(rank + 1).padStart(2, "0")}</span>
                 <IdeaOpenButton idea={idea} onOpen={() => setSelectedId(idea.id)} />
                 <div className="idea-actions">
                   <button aria-label={`Make work card from ${idea.title}`} onClick={() => setSelectedId(idea.id)} type="button">make card</button>
                   <button aria-label={`Park ${idea.title}`} onClick={() => void onUpdate(idea.id, { state: "parked" })} type="button">park</button>
                 </div>
               </article>
-            ))}
-            {shortlist.length === 0 && <EmptyIdeas>Shortlist only the ideas the team is genuinely considering.</EmptyIdeas>}
+              </Fragment>
+              );
+            })}
+            {hintIndex !== null && hintIndex === baseShortlist.length && placeholder}
+            {shortlist.length === 0 && hintIndex === null && <EmptyIdeas>Shortlist only the ideas the team is genuinely considering.</EmptyIdeas>}
           </div>
         </section>
 
-        <section aria-label="Idea inbox" className="idea-section inbox-section">
+        <section
+          aria-label="Idea inbox"
+          className={`idea-section inbox-section ${drag && dropHint?.state === "inbox" ? "drop-ready" : ""}`}
+          onDragOver={(event) => trackListDrag(event, "inbox")}
+          onDrop={(event) => void dropIdea(event, "inbox")}
+        >
           <header className="idea-section-header">
             <div><span className="idea-glyph">+</span><div><p className="eyebrow">new and unsorted</p><h3>Idea inbox</h3></div></div>
             <span>{inbox.length}</span>
           </header>
           <div className="inbox-list">
             {inbox.map((idea) => (
-              <article className="idea-card" key={idea.id}>
+              <article
+                className={`idea-card ${drag?.id === idea.id ? "drag-hidden" : ""}`}
+                draggable
+                key={idea.id}
+                onDragEnd={finishDrag}
+                onDragStart={(event) => startIdeaDrag(event, idea, -1)}
+              >
                 <IdeaOpenButton idea={idea} onOpen={() => setSelectedId(idea.id)} />
                 <div className="idea-actions">
                   <button aria-label={`Shortlist ${idea.title}`} onClick={() => void onUpdate(idea.id, { state: "shortlist", position: shortlist.length })} type="button">shortlist</button>
@@ -102,14 +168,25 @@ export function IdeasBoard({ workspace, busy, onCreate, onUpdate, onPromote }: P
           </div>
         </section>
 
-        <section aria-label="Parked ideas" className="idea-section parked-section">
+        <section
+          aria-label="Parked ideas"
+          className={`idea-section parked-section ${drag && dropHint?.state === "parked" ? "drop-ready" : ""}`}
+          onDragOver={(event) => trackListDrag(event, "parked")}
+          onDrop={(event) => void dropIdea(event, "parked")}
+        >
           <header className="idea-section-header">
             <div><span className="idea-glyph">·</span><div><p className="eyebrow">kept, not pursued</p><h3>Parked</h3></div></div>
             <span>{parked.length}</span>
           </header>
           <div className="parked-list">
             {parked.map((idea) => (
-              <article className="idea-card parked-card" key={idea.id}>
+              <article
+                className={`idea-card parked-card ${drag?.id === idea.id ? "drag-hidden" : ""}`}
+                draggable
+                key={idea.id}
+                onDragEnd={finishDrag}
+                onDragStart={(event) => startIdeaDrag(event, idea, -1)}
+              >
                 <IdeaOpenButton idea={idea} onOpen={() => setSelectedId(idea.id)} />
                 <div className="idea-actions">
                   <button aria-label={`Return ${idea.title} to inbox`} onClick={() => void onUpdate(idea.id, { state: "inbox" })} type="button">return to inbox</button>

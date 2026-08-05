@@ -1,4 +1,4 @@
-import { type DragEvent, type FormEvent, useEffect, useMemo, useState } from "react";
+import { type DragEvent, type FormEvent, Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { type BoardWorkspace, type Card, type CardStatus, type IdeaState, type IdeaWorkspace } from "../../shared/types";
 import { AccountDialog } from "./AccountDialog";
 import { BacklogDialog } from "./BacklogDialog";
@@ -43,7 +43,9 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
   const [addingTo, setAddingTo] = useState<CardStatus | null>(null);
   const [columnTitle, setColumnTitle] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [drag, setDrag] = useState<{ id: string; height: number } | null>(null);
+  const [dropHint, setDropHint] = useState<{ status: CardStatus; index: number } | null>(null);
+  const dragSession = useRef(0);
   const [teamOpen, setTeamOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [backlogOpen, setBacklogOpen] = useState(false);
@@ -144,14 +146,59 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
     await onCreate({ title, category: null, assigneeId: null, status });
   };
 
-  const cardIdFromDrop = (event: DragEvent) => draggedId ?? event.dataTransfer.getData("text/plain");
-  const moveCard = async (event: DragEvent, status: CardStatus, position: number) => {
+  const finishDrag = () => {
+    dragSession.current += 1;
+    setDrag(null);
+    setDropHint(null);
+  };
+
+  const startCardDrag = (event: DragEvent<HTMLElement>, card: Card, slot: number) => {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", card.id);
+    const height = event.currentTarget.offsetHeight;
+    const session = ++dragSession.current;
+    // Hide the card one frame later so the browser captures a visible drag image first.
+    requestAnimationFrame(() => {
+      if (dragSession.current !== session) return;
+      setDrag({ id: card.id, height });
+      setDropHint({ status: card.status, index: slot });
+    });
+  };
+
+  const trackColumnDrag = (event: DragEvent<HTMLElement>, status: CardStatus) => {
     event.preventDefault();
-    const id = cardIdFromDrop(event);
-    setDraggedId(null);
+    if (!drag) return;
+    const cardNodes = event.currentTarget.querySelectorAll<HTMLElement>("article.board-card:not(.drag-hidden)");
+    let index = cardNodes.length;
+    for (let position = 0; position < cardNodes.length; position += 1) {
+      const rect = cardNodes[position].getBoundingClientRect();
+      if (event.clientY < rect.top + rect.height / 2) {
+        index = position;
+        break;
+      }
+    }
+    setDropHint((current) => (current?.status === status && current.index === index ? current : { status, index }));
+  };
+
+  const dropCard = async (event: DragEvent, status: CardStatus) => {
+    event.preventDefault();
+    const id = drag?.id ?? event.dataTransfer.getData("text/plain");
+    const hint = dropHint;
+    finishDrag();
     if (!id) return;
     const current = board.cards.find((card) => card.id === id);
-    if (!current || (current.status === status && current.position === position)) return;
+    if (!current) return;
+    const column = board.cards.filter((card) => card.status === status).sort(comparePosition);
+    const without = column.filter((card) => card.id !== id);
+    let position = without.length;
+    if (hint && hint.status === status && status !== "backlog") {
+      const visibleBase = cardsByStatus[status as (typeof BOARD_STATUSES)[number]]
+        .filter((card) => card.id !== id);
+      const anchor = visibleBase[Math.min(hint.index, visibleBase.length)];
+      const anchored = anchor ? without.findIndex((card) => card.id === anchor.id) : -1;
+      position = anchored >= 0 ? anchored : without.length;
+    }
+    if (current.status === status && column.findIndex((card) => card.id === id) === position) return;
     await onUpdate(id, { status, position });
   };
 
@@ -194,10 +241,10 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
         <div className="work-filters" aria-label="Work filters">
           <button
             aria-label={`Open backlog, ${backlogCards.length} card${backlogCards.length === 1 ? "" : "s"}`}
-            className={`library-trigger ${draggedId ? "drop-ready" : ""}`}
+            className={`library-trigger ${drag ? "drop-ready" : ""}`}
             onClick={() => setBacklogOpen(true)}
-            onDragOver={(event) => { if (draggedId) event.preventDefault(); }}
-            onDrop={(event) => void moveCard(event, "backlog", backlogCards.length)}
+            onDragOver={(event) => { if (drag) { event.preventDefault(); setDropHint(null); } }}
+            onDrop={(event) => void dropCard(event, "backlog")}
             title="Backlog (B)"
             type="button"
           >
@@ -231,15 +278,17 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
         <div className="kanban" aria-label="Wizard Simulator board">
           {BOARD_STATUSES.map((status) => {
             const cards = cardsByStatus[status];
+            const baseCards = drag ? cards.filter((card) => card.id !== drag.id) : cards;
+            const hintIndex = drag && dropHint?.status === status ? Math.min(dropHint.index, baseCards.length) : null;
+            const placeholder = drag ? <div aria-hidden="true" className="drop-placeholder" style={{ height: drag.height }} /> : null;
             const visibleStatusCount = filteredCards.filter((card) => card.status === status).length;
-            const fullColumnLength = board.cards.filter((card) => card.status === status).length;
             return (
               <section
                 aria-label={columnNames[status]}
                 className={`kanban-column column-${status}`}
                 key={status}
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={(event) => void moveCard(event, status, fullColumnLength)}
+                onDragOver={(event) => trackColumnDrag(event, status)}
+                onDrop={(event) => void dropCard(event, status)}
               >
                 <header className="column-header">
                   {status === "done" ? (
@@ -254,25 +303,19 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
                 </header>
                 <div className="card-list">
                   {cards.map((card) => {
+                    const hidden = drag?.id === card.id;
+                    const slot = hidden ? -1 : baseCards.findIndex((candidate) => candidate.id === card.id);
                     const blockers = card.blockedBy
                       .map((id) => board.cards.find((candidate) => candidate.id === id))
                       .filter((candidate): candidate is Card => Boolean(candidate && candidate.status !== "done"));
                     return (
+                      <Fragment key={card.id}>
+                      {!hidden && slot === hintIndex && placeholder}
                       <article
-                        className={`board-card category-${card.category ?? "none"} ${draggedId === card.id ? "dragging" : ""}`}
+                        className={`board-card category-${card.category ?? "none"} ${hidden ? "drag-hidden" : ""}`}
                         draggable
-                        key={card.id}
-                        onDragEnd={() => setDraggedId(null)}
-                        onDragOver={(event) => event.preventDefault()}
-                        onDragStart={(event) => {
-                          setDraggedId(card.id);
-                          event.dataTransfer.effectAllowed = "move";
-                          event.dataTransfer.setData("text/plain", card.id);
-                        }}
-                        onDrop={(event) => {
-                          event.stopPropagation();
-                          void moveCard(event, status, card.position);
-                        }}
+                        onDragEnd={finishDrag}
+                        onDragStart={(event) => startCardDrag(event, card, slot)}
                       >
                         <button
                           aria-label={`Open ${card.title}${card.description ? `. ${card.description}` : ""}. ${card.category ?? "uncategorized"}. ${blockers.length ? `Blocked by ${blockers.map((blocker) => blocker.title).join(", ")}. ` : ""}${card.assigneeName ?? "unassigned"}`}
@@ -293,9 +336,11 @@ export function Board({ board, busy, ideas, view, onCreate, onUpdate, onArchive,
                           </span>
                         </button>
                       </article>
+                      </Fragment>
                     );
                   })}
-                  {cards.length === 0 && <div className="empty-column">{status === "done" ? "completed work appears here" : "drop a card here"}</div>}
+                  {hintIndex !== null && hintIndex === baseCards.length && placeholder}
+                  {cards.length === 0 && hintIndex === null && <div className="empty-column">{status === "done" ? "completed work appears here" : "drop a card here"}</div>}
                 </div>
                 {status !== "done" && (addingTo === status ? (
                   <form className="column-add-form" onSubmit={(event) => void createColumnCard(event, status)}>
