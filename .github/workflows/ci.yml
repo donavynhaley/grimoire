@@ -60,6 +60,22 @@ jobs:
             --exclude 'node_modules' --exclude '.lavish' \
             ./ /home/donavynhaley/grimoire/
 
+      - name: Record what was deployed
+        run: |
+          # rsync excludes .git, so the production directory has no way to
+          # report which commit is live. The homelab status dashboard reads
+          # this stamp; without it, "what is running right now" is a guess.
+          cat >/home/donavynhaley/grimoire/.deploy-stamp.json <<STAMP
+          {
+            "commit": "${GITHUB_SHA}",
+            "ref": "${GITHUB_REF}",
+            "run_id": "${GITHUB_RUN_ID}",
+            "run_url": "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}",
+            "actor": "${GITHUB_ACTOR}",
+            "deployed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          STAMP
+
       - name: Refresh the Cloudflare connector image
         working-directory: /home/donavynhaley/grimoire
         run: docker compose -f compose.production.yaml pull cloudflared

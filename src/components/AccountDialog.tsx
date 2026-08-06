@@ -5,6 +5,17 @@ import { Avatar } from "./Avatar";
 
 const AVATAR_TYPES = ["image/png", "image/jpeg", "image/webp"];
 const AVATAR_SIZE_LIMIT = 2_000_000;
+const PROFILE_ICONS = [
+  { name: "BMO", path: "/profile-icons/profile_pic_bmo.png" },
+  { name: "Finn", path: "/profile-icons/profile_pic_fin.png" },
+  { name: "Gunter", path: "/profile-icons/profile_pic_gunter.png" },
+  { name: "Ice King", path: "/profile-icons/profile_pic_ice_king.png" },
+  { name: "Jake", path: "/profile-icons/profile_pic_jake.png" },
+  { name: "Marceline", path: "/profile-icons/profile_pic_marceline.png" },
+  { name: "Peppermint Butler", path: "/profile-icons/profile_pic_peppermint_butler.png" },
+  { name: "Princess Bubblegum", path: "/profile-icons/profile_pic_princess_bubblegum.png" },
+  { name: "The Lich", path: "/profile-icons/profile_pic_the_litch.png" },
+] as const;
 
 type Props = {
   user: User;
@@ -24,6 +35,7 @@ export function AccountDialog({ user, onChangeAvatar, onChangePassword, onClose,
   const [changed, setChanged] = useState(false);
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [avatarError, setAvatarError] = useState("");
+  const [selectedIcon, setSelectedIcon] = useState<string | null>(null);
 
   const pickAvatar = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -41,8 +53,26 @@ export function AccountDialog({ user, onChangeAvatar, onChangePassword, onClose,
     setAvatarBusy(true);
     try {
       await onChangeAvatar(file);
+      setSelectedIcon(null);
     } catch (value) {
       setAvatarError(value instanceof ApiError ? value.message : "The picture could not be uploaded");
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
+
+  const chooseIcon = async (name: string, path: string) => {
+    setAvatarError("");
+    setAvatarBusy(true);
+    try {
+      const response = await fetch(path);
+      if (!response.ok) throw new Error("Profile icon could not be loaded");
+      const image = await response.blob();
+      const fileName = path.split("/").at(-1) ?? "profile-icon.png";
+      await onChangeAvatar(new File([image], fileName, { type: "image/png" }));
+      setSelectedIcon(path);
+    } catch (value) {
+      setAvatarError(value instanceof ApiError ? value.message : `${name} could not be selected`);
     } finally {
       setAvatarBusy(false);
     }
@@ -53,6 +83,7 @@ export function AccountDialog({ user, onChangeAvatar, onChangePassword, onClose,
     setAvatarBusy(true);
     try {
       await onRemoveAvatar();
+      setSelectedIcon(null);
     } catch (value) {
       setAvatarError(value instanceof ApiError ? value.message : "The picture could not be removed");
     } finally {
@@ -99,21 +130,41 @@ export function AccountDialog({ user, onChangeAvatar, onChangePassword, onClose,
         </div>
 
         <div className="avatar-editor">
-          <label className="quiet-button avatar-upload">
-            {avatarBusy ? "uploading..." : user.avatarUrl ? "change picture" : "upload picture"}
-            <input
-              accept={AVATAR_TYPES.join(",")}
-              aria-label="Upload profile picture"
-              disabled={avatarBusy}
-              onChange={(event) => void pickAvatar(event)}
-              type="file"
-            />
-          </label>
-          {user.avatarUrl && (
-            <button className="text-button" disabled={avatarBusy} onClick={() => void removeAvatar()} type="button">
-              remove picture
-            </button>
-          )}
+          <fieldset className="profile-icon-picker" disabled={avatarBusy}>
+            <legend className="field-label">Choose a profile icon</legend>
+            <div className="profile-icon-grid">
+              {PROFILE_ICONS.map((icon) => (
+                <button
+                  aria-label={`Use ${icon.name} as profile picture`}
+                  aria-pressed={selectedIcon === icon.path}
+                  className="profile-icon-option"
+                  key={icon.path}
+                  onClick={() => void chooseIcon(icon.name, icon.path)}
+                  title={icon.name}
+                  type="button"
+                >
+                  <img alt="" src={icon.path} />
+                </button>
+              ))}
+            </div>
+          </fieldset>
+          <div className="avatar-actions">
+            <label className="quiet-button avatar-upload">
+              {avatarBusy ? "saving..." : user.avatarUrl ? "upload a different picture" : "upload a picture"}
+              <input
+                accept={AVATAR_TYPES.join(",")}
+                aria-label="Upload profile picture"
+                disabled={avatarBusy}
+                onChange={(event) => void pickAvatar(event)}
+                type="file"
+              />
+            </label>
+            {user.avatarUrl && (
+              <button className="text-button" disabled={avatarBusy} onClick={() => void removeAvatar()} type="button">
+                remove picture
+              </button>
+            )}
+          </div>
           {avatarError && <span className="avatar-error" role="alert">{avatarError}</span>}
         </div>
 
