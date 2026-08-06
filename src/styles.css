@@ -240,15 +240,15 @@ textarea:focus-visible {
 }
 .workspace-tabs button {
   display: inline-flex;
-  min-height: 30px;
-  padding: 0 10px;
+  min-height: 32px;
+  padding: 0 12px;
   align-items: center;
   gap: 7px;
   color: var(--faint);
   background: transparent;
   border: 0;
   border-radius: 4px;
-  font-size: 8px;
+  font-size: 11px;
   font-weight: 800;
   cursor: pointer;
 }
@@ -257,7 +257,7 @@ textarea:focus-visible {
 .workspace-tabs kbd {
   color: var(--faint);
   font: inherit;
-  font-size: 7px;
+  font-size: 9px;
   opacity: 0.72;
 }
 .workspace-tabs button[aria-current="page"] kbd { color: var(--accent); }
