@@ -101,3 +101,47 @@ export type IdeaWorkspace = {
   currentUser: User;
   ideas: Idea[];
 };
+
+export const AUDIT_ENTITY_TYPES = ["card", "idea", "project", "category", "member"] as const;
+export type AuditEntityType = (typeof AUDIT_ENTITY_TYPES)[number];
+
+export const AUDIT_ACTIONS = [
+  "created",
+  "updated",
+  "moved",
+  "archived",
+  "restored",
+  "promoted",
+  "renamed",
+  "deleted",
+  "invited",
+  "joined",
+  "removed",
+] as const;
+export type AuditAction = (typeof AUDIT_ACTIONS)[number];
+
+/** One field that differed, already rendered for people rather than for code. */
+export type AuditChange = {
+  field: string;
+  from: string | null;
+  to: string | null;
+};
+
+export type AuditEvent = {
+  /** Monotonic write order, used as the paging cursor. */
+  sequence: number;
+  id: string;
+  actorId: string | null;
+  actorName: string;
+  entityType: AuditEntityType;
+  entityId: string | null;
+  entityTitle: string;
+  action: AuditAction;
+  changes: AuditChange[];
+  createdAt: string;
+};
+
+export type AuditPage = {
+  events: AuditEvent[];
+  hasMore: boolean;
+};

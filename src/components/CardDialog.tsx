@@ -1,12 +1,17 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CARD_STATUSES,
+  type AuditEvent,
+  type AuditPage,
   type Card,
   type CardStatus,
   type Member,
   type ProjectCategory,
 } from "../../shared/types";
 import { Avatar } from "./Avatar";
+import { describeChange, describeEvent, relativeLabel } from "./activity-copy";
+
+const CARD_HISTORY_LIMIT = 6;
 
 const labels: Record<CardStatus, string> = {
   backlog: "Backlog",
@@ -21,12 +26,14 @@ type Props = {
   cards: Card[];
   categories: ProjectCategory[];
   members: Member[];
+  revision: number;
   onUpdate: (input: Record<string, unknown>) => Promise<void>;
   onArchive: () => Promise<void>;
   onClose: () => void;
+  onLoadActivity: (options: { entityId?: string; limit?: number }) => Promise<AuditPage>;
 };
 
-export function CardDialog({ card, cards, categories, members, onUpdate, onArchive, onClose }: Props) {
+export function CardDialog({ card, cards, categories, members, revision, onUpdate, onArchive, onClose, onLoadActivity }: Props) {
   const categoryColor = (slug: string | null) =>
     slug ? categories.find((category) => category.slug === slug)?.color : undefined;
   const swatchStyle = (slug: string | null) => {
@@ -105,6 +112,8 @@ export function CardDialog({ card, cards, categories, members, onUpdate, onArchi
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, [title, description, card.id]);
+
+  const history = useCardHistory(card.id, revision, onLoadActivity);
 
   const close = async () => {
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -249,6 +258,8 @@ export function CardDialog({ card, cards, categories, members, onUpdate, onArchi
           </div>
         </div>
 
+        <CardHistory events={history} members={members} />
+
         <footer className="dialog-footer">
           <span>created by {card.createdByName}</span>
           {confirmArchive ? (
@@ -256,6 +267,68 @@ export function CardDialog({ card, cards, categories, members, onUpdate, onArchi
           ) : <button className="text-button danger-text" onClick={() => setConfirmArchive(true)} type="button">archive card</button>}
         </footer>
       </section>
+    </div>
+  );
+}
+
+/**
+ * Loads the recent history for one card.
+ *
+ * Results are kept alongside the card they belong to, so a refetch triggered by an
+ * autosave leaves the list in place instead of collapsing the section on every
+ * keystroke pause, while switching cards still hides the previous card's history.
+ *
+ * A failed lookup stays silent: the history is context, and an error banner over it
+ * would sit above editing controls that still work perfectly well.
+ */
+function useCardHistory(
+  cardId: string,
+  revision: number,
+  load: (options: { entityId?: string; limit?: number }) => Promise<AuditPage>,
+): AuditEvent[] | null {
+  const [loaded, setLoaded] = useState<{ cardId: string; events: AuditEvent[] } | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    load({ entityId: cardId, limit: CARD_HISTORY_LIMIT })
+      .then((page) => { if (alive) setLoaded({ cardId, events: page.events }); })
+      .catch(() => { if (alive) setLoaded({ cardId, events: [] }); });
+    return () => { alive = false; };
+  }, [cardId, load, revision]);
+
+  return loaded?.cardId === cardId ? loaded.events : null;
+}
+
+function CardHistory({ events, members }: { events: AuditEvent[] | null; members: Member[] }) {
+  const now = useMemo(() => new Date(), [events]);
+  if (events === null) return null;
+  return (
+    <div className="dialog-section card-history">
+      <span className="field-label">History</span>
+      {events.length === 0 ? (
+        <p className="empty-dependencies">No recorded changes yet.</p>
+      ) : (
+        <ol>
+          {events.map((event) => {
+            const { lead } = describeEvent(event);
+            const actor = members.find((member) => member.id === event.actorId);
+            return (
+              <li key={event.id}>
+                <Avatar avatarUrl={actor?.avatarUrl} className="avatar tiny" name={event.actorName} />
+                <span>
+                  <strong>{event.actorName}</strong> {lead}
+                  {event.changes.length > 0 && (
+                    <span className="activity-changes">
+                      {event.changes.map((change) => <span key={change.field}>{describeChange(change)}</span>)}
+                    </span>
+                  )}
+                </span>
+                <time dateTime={event.createdAt}>{relativeLabel(event.createdAt, now)}</time>
+              </li>
+            );
+          })}
+        </ol>
+      )}
     </div>
   );
 }

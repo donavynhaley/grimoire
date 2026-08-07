@@ -27,6 +27,19 @@ export function getIdeas(
   };
 }
 
+/** Reads one idea in the same shape the garden serves, for before-and-after comparisons. */
+export function findIdea(
+  database: DatabaseSync,
+  ideaStore: MarkdownIdeaStore,
+  projectId: string,
+  ideaId: string,
+): Idea | null {
+  const project = projectById(database, projectId);
+  if (!project) return null;
+  const stored = ideaStore.get(String(project.slug), ideaId);
+  return stored ? publicIdea(stored, membersForProject(database, projectId)) : null;
+}
+
 export function createIdea(
   database: DatabaseSync,
   ideaStore: MarkdownIdeaStore,

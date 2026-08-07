@@ -4,12 +4,14 @@ type Props = {
   name: string;
   avatarUrl?: string | null;
   className?: string;
+  online?: boolean;
   title?: string;
 };
 
-export function Avatar({ name, avatarUrl, className = "avatar", title }: Props) {
+export function Avatar({ name, avatarUrl, className = "avatar", online = false, title }: Props) {
+  const classes = `${className}${online ? " online" : ""}`;
   if (avatarUrl) {
-    return <img alt="" className={`${className} photo`} src={avatarUrl} title={title} />;
+    return <img alt="" className={`${classes} photo`} src={avatarUrl} title={title} />;
   }
-  return <span className={className} title={title}>{initials(name)}</span>;
+  return <span className={classes} title={title}>{initials(name)}</span>;
 }

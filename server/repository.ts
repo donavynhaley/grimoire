@@ -214,6 +214,30 @@ export function getBoard(
   };
 }
 
+/** Reads one card in the same shape the board serves, for before-and-after comparisons. */
+export function findCard(
+  database: DatabaseSync,
+  cardStore: MarkdownCardStore,
+  projectId: string,
+  cardId: string,
+): Card | null {
+  const project = projectById(database, projectId);
+  if (!project) return null;
+  const stored = cardStore.get(String(project.slug), cardId);
+  return stored ? publicCard(database, stored, membersForProject(database, projectId)) : null;
+}
+
+export function listCards(
+  database: DatabaseSync,
+  cardStore: MarkdownCardStore,
+  projectId: string,
+): Card[] {
+  const project = projectById(database, projectId);
+  if (!project) return [];
+  const members = membersForProject(database, projectId);
+  return cardStore.list(String(project.slug)).map((card) => publicCard(database, card, members));
+}
+
 type CardInput = {
   title: string;
   description?: string;

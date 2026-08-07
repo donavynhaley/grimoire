@@ -1,4 +1,4 @@
-import type { BoardWorkspace, IdeaWorkspace, SessionState } from "../../shared/types";
+import type { AuditPage, BoardWorkspace, IdeaWorkspace, SessionState } from "../../shared/types";
 
 const clientId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
@@ -37,6 +37,14 @@ export function board(): Promise<BoardWorkspace> {
 
 export function ideas(): Promise<IdeaWorkspace> {
   return request<IdeaWorkspace>("/api/ideas");
+}
+
+export function activity(options: { entityId?: string; before?: number; limit?: number } = {}): Promise<AuditPage> {
+  const params = new URLSearchParams();
+  if (options.entityId) params.set("entity", options.entityId);
+  if (options.before !== undefined) params.set("before", String(options.before));
+  if (options.limit !== undefined) params.set("limit", String(options.limit));
+  return request<AuditPage>(`/api/activity${params.size ? `?${params}` : ""}`);
 }
 
 export function liveEventsUrl(): string {

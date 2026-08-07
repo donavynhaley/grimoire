@@ -11,6 +11,7 @@ SQLite stores operational collaboration data:
 - Browser sessions.
 - Invitation records.
 - Project identity and membership.
+- The append-only project activity log.
 
 The configured project directory stores all work card and idea domain data:
 
@@ -26,6 +27,10 @@ The configured project directory stores all work card and idea domain data:
 - Temporary dependency restoration metadata for reversible card archives.
 
 This boundary keeps authentication private while allowing project work to remain readable, diffable, and portable.
+
+The activity log records who acted rather than what the work is, so it belongs with accounts and membership rather than with the cards.
+Keeping it out of the Markdown also avoids adding a Git diff to every card move.
+It is a deliberate consequence that a copied project directory carries the work but not its history.
 
 Only the newest unused invitation created by the owner remains valid, and a successful registration consumes it atomically.
 Removing a member deletes their project membership, active sessions, and live event streams and clears their assignments from the Markdown cards.
@@ -137,6 +142,25 @@ If positions are duplicated after an interrupted external edit, Grimoire uses cr
 Idea promotion writes the new Backlog card before archiving the source idea.
 The archived idea retains the created card UUID as a durable backlink.
 
+## Activity log
+
+Every change made through Grimoire appends one row to `audit_events`.
+Each row records the actor, the entity type and identifier, a title snapshot, an action, and a list of readable field changes.
+
+The recorded actions are `created`, `updated`, `moved`, `archived`, `restored`, `promoted`, `renamed`, `deleted`, `invited`, `joined`, and `removed`.
+Cards, ideas, projects, categories, and team membership are all covered.
+A column change is recorded as `moved` and any other edit as `updated`.
+
+Reordering a card inside one column, or reranking the shortlist, produces no readable change and is deliberately not recorded.
+Recording drags would bury real edits under a log shaped by pointer movement.
+
+The actor name and entity title are snapshots taken at write time, so an archived or renamed card still reads correctly in the timeline.
+Reads prefer the live account name when it is still available, so renaming an account stays consistent across that person's whole history.
+
+Because the log is written by the API, edits made directly to the Markdown files do not appear in it.
+The log is append-only, is never pruned, and is scoped to one project on both read and write.
+Reads page backwards through a monotonic sequence number rather than a timestamp, which keeps paging stable when several events share a millisecond.
+
 ## Live collaboration
 
 Authenticated browsers keep one Server-Sent Events connection open at `/api/events`.
@@ -148,6 +172,11 @@ Events identify Work, Ideas, or both as affected rather than carrying partial ca
 Receiving browsers coalesce nearby events and reload the affected workspace from Markdown.
 This invalidation model keeps one source of truth and avoids merging stale client-side patches when several people edit close together.
 The event stream sends periodic keepalive comments and is closed before the database during graceful server shutdown.
+
+The same stream carries presence.
+Who is online is derived from the set of open streams rather than stored, so a browser that closes, crashes, or loses its connection stops counting as present without a heartbeat table or an expiry sweep.
+Opening or closing a stream sends the project's current list of online user identifiers to everyone in that project.
+Several streams belonging to one person count once.
 
 ## Reversible actions
 

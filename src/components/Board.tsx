@@ -1,6 +1,7 @@
 import { type DragEvent, type FormEvent, Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { type BoardWorkspace, type Card, type CardStatus, type IdeaState, type IdeaWorkspace } from "../../shared/types";
+import { type AuditPage, type BoardWorkspace, type Card, type CardStatus, type IdeaState, type IdeaWorkspace } from "../../shared/types";
 import { AccountDialog } from "./AccountDialog";
+import { ActivityDialog } from "./ActivityDialog";
 import { Avatar } from "./Avatar";
 import { BacklogDialog } from "./BacklogDialog";
 import { CardDialog } from "./CardDialog";
@@ -10,6 +11,7 @@ import { type ProjectActions, ProjectMenu } from "./ProjectMenu";
 import { type CaptureCardInput, QuickCapture } from "./QuickCapture";
 import { TeamDialog } from "./TeamDialog";
 import { IdeasBoard } from "./IdeasBoard";
+import { useFlip } from "./use-flip";
 
 const BOARD_STATUSES = ["ready", "in_progress", "review", "done"] as const satisfies readonly CardStatus[];
 const RECENT_DONE_LIMIT = 8;
@@ -27,13 +29,16 @@ type Props = {
   busy: boolean;
   categoryActions: CategoryActions;
   ideas: IdeaWorkspace | null;
+  online: ReadonlySet<string>;
   projectActions: ProjectActions;
+  revision: number;
   view: "work" | "ideas";
   onCreate: (input: CaptureCardInput) => Promise<void>;
   onUpdate: (id: string, input: Record<string, unknown>) => Promise<void>;
   onArchive: (id: string) => Promise<void>;
   onCreateInvite: () => Promise<string>;
   onCreateIdea: (input: { title: string }) => Promise<void>;
+  onLoadActivity: (options: { entityId?: string; before?: number; limit?: number }) => Promise<AuditPage>;
   onChangeAvatar: (file: File) => Promise<void>;
   onChangePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   onRemoveAvatar: () => Promise<void>;
@@ -45,7 +50,7 @@ type Props = {
   onViewChange: (view: "work" | "ideas") => Promise<void>;
 };
 
-export function Board({ board, busy, categoryActions, ideas, projectActions, view, onCreate, onUpdate, onArchive, onCreateInvite, onCreateIdea, onChangeAvatar, onChangePassword, onLogout, onMoveBacklogToNext, onPromoteIdea, onRemoveAvatar, onRemoveMember, onUpdateIdea, onViewChange }: Props) {
+export function Board({ board, busy, categoryActions, ideas, online, projectActions, revision, view, onCreate, onUpdate, onArchive, onCreateInvite, onCreateIdea, onChangeAvatar, onChangePassword, onLoadActivity, onLogout, onMoveBacklogToNext, onPromoteIdea, onRemoveAvatar, onRemoveMember, onUpdateIdea, onViewChange }: Props) {
   const [addingTo, setAddingTo] = useState<CardStatus | null>(null);
   const [columnTitle, setColumnTitle] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -56,11 +61,14 @@ export function Board({ board, busy, categoryActions, ideas, projectActions, vie
   const [landed, setLanded] = useState<CardStatus | null>(null);
   const shellRef = useRef<HTMLDivElement>(null);
   const flightRef = useRef<HTMLDivElement>(null);
+  const kanbanRef = useRef<HTMLDivElement>(null);
+  useFlip(kanbanRef);
   const [teamOpen, setTeamOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [backlogOpen, setBacklogOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
+  const [activityOpen, setActivityOpen] = useState(false);
   const initialParams = useMemo(() => new URLSearchParams(location.search), []);
   const [query, setQuery] = useState(() => initialParams.get("q") ?? "");
   const [people, setPeople] = useState<Set<string>>(
@@ -307,11 +315,13 @@ export function Board({ board, busy, categoryActions, ideas, projectActions, vie
           />
         </div>
         <div className="board-actions">
+          {/* Presence lives on the people filters, not here: this row is mostly the signed-in person. */}
           <div className="member-faces" aria-label={`${board.members.length} project members`}>
             {board.members.slice(0, 4).map((member) => (
               <Avatar avatarUrl={member.avatarUrl} key={member.id} name={member.name} title={member.name} />
             ))}
           </div>
+          <button className="quiet-button" onClick={() => setActivityOpen(true)} type="button">activity</button>
           <button className="quiet-button" onClick={() => setTeamOpen(true)} type="button">team</button>
           <button aria-label={`Open account settings for ${board.currentUser.name}`} className="account-button" onClick={() => setAccountOpen(true)} title="Account settings" type="button">
             <Avatar avatarUrl={board.currentUser.avatarUrl} className="avatar current" name={board.currentUser.name} />
@@ -358,19 +368,28 @@ export function Board({ board, busy, categoryActions, ideas, projectActions, vie
                   type="button"
                 >
                   {isCurrentUser && <span className="self-filter-label">me</span>}
-                  <Avatar avatarUrl={member.avatarUrl} className="avatar tiny" name={member.name} title={member.name} />
+                  {/* The self chip clips its contents and slides on toggle, so the glow stays off it. */}
+                  <Avatar
+                    avatarUrl={member.avatarUrl}
+                    className="avatar tiny"
+                    name={member.name}
+                    online={!isCurrentUser && online.has(member.id)}
+                    title={online.has(member.id) ? `${member.name} (online)` : member.name}
+                  />
                 </button>
               );
             })}
           </div>
         </div>
 
-        <div className="kanban" aria-label="Wizard Simulator board">
+        <div className="kanban" aria-label="Wizard Simulator board" ref={kanbanRef}>
           {BOARD_STATUSES.map((status) => {
             const cards = cardsByStatus[status];
             const baseCards = drag ? cards.filter((card) => card.id !== drag.id) : cards;
             const hintIndex = drag && dropHint?.status === status ? Math.min(dropHint.index, baseCards.length) : null;
-            const placeholder = drag ? <div aria-hidden="true" className="drop-placeholder" style={{ height: drag.height }} /> : null;
+            const placeholder = drag
+              ? <div aria-hidden="true" className="drop-placeholder" data-flip-id="drop-placeholder" style={{ height: drag.height }} />
+              : null;
             const visibleStatusCount = filteredCards.filter((card) => card.status === status).length;
             return (
               <section
@@ -404,6 +423,7 @@ export function Board({ board, busy, categoryActions, ideas, projectActions, vie
                       {!hidden && slot === hintIndex && placeholder}
                       <article
                         className={`board-card ${card.category ? "" : "category-none"} ${hidden ? "drag-hidden" : ""}`}
+                        data-flip-id={card.id}
                         draggable
                         onDragEnd={finishDrag}
                         onDragStart={(event) => startCardDrag(event, card, slot)}
@@ -480,9 +500,24 @@ export function Board({ board, busy, categoryActions, ideas, projectActions, vie
           card={selectedCard}
           categories={board.categories}
           members={board.members}
+          revision={revision}
           onArchive={async () => { await onArchive(selectedCard.id); setSelectedId(null); }}
           onClose={() => setSelectedId(null)}
+          onLoadActivity={onLoadActivity}
           onUpdate={(input) => onUpdate(selectedCard.id, input)}
+        />
+      )}
+      {activityOpen && (
+        <ActivityDialog
+          members={board.members}
+          revision={revision}
+          onClose={() => setActivityOpen(false)}
+          onLoad={onLoadActivity}
+          onOpenCard={(id) => {
+            if (!board.cards.some((card) => card.id === id)) return;
+            setActivityOpen(false);
+            setSelectedId(id);
+          }}
         />
       )}
       {backlogOpen && (
@@ -523,6 +558,7 @@ export function Board({ board, busy, categoryActions, ideas, projectActions, vie
         <TeamDialog
           currentUser={board.currentUser}
           members={board.members}
+          online={online}
           onClose={() => setTeamOpen(false)}
           onCreateInvite={onCreateInvite}
           onRemoveMember={onRemoveMember}

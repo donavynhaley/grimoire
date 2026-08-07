@@ -5,12 +5,13 @@ import { Avatar } from "./Avatar";
 type Props = {
   currentUser: User;
   members: Member[];
+  online: ReadonlySet<string>;
   onCreateInvite: () => Promise<string>;
   onRemoveMember: (id: string) => Promise<void>;
   onClose: () => void;
 };
 
-export function TeamDialog({ currentUser, members, onCreateInvite, onRemoveMember, onClose }: Props) {
+export function TeamDialog({ currentUser, members, online, onCreateInvite, onRemoveMember, onClose }: Props) {
   const [invite, setInvite] = useState("");
   const [busy, setBusy] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
@@ -48,8 +49,11 @@ export function TeamDialog({ currentUser, members, onCreateInvite, onRemoveMembe
         <div className="team-list">
           {members.map((member) => (
             <div className="team-member" key={member.id}>
-              <Avatar avatarUrl={member.avatarUrl} name={member.name} />
-              <div className="team-member-copy"><strong>{member.name}</strong><span>{member.email}</span></div>
+              <Avatar avatarUrl={member.avatarUrl} name={member.name} online={online.has(member.id)} />
+              <div className="team-member-copy">
+                <strong>{member.name}{online.has(member.id) && <span className="member-online">online</span>}</strong>
+                <span>{member.email}</span>
+              </div>
               {currentUser.role === "owner" && member.id !== currentUser.id ? (
                 <div className="member-actions">
                   {removingId === member.id ? (

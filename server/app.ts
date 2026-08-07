@@ -9,14 +9,19 @@ import {
   archiveCard,
   archiveProject,
   CardDependencyError,
+  categoriesForProject,
   createCard,
   createCategory,
   defaultProjectIdForUser,
   deleteCategory,
+  findCard,
   findUserByEmail,
   findUserById,
   getBoard,
+  listCards,
   listProjectsForUser,
+  membersForProject,
+  projectById,
   publicUser,
   removeProjectMember,
   renameProject,
@@ -29,8 +34,19 @@ import {
 import { createOpaqueToken, hashPassword, hashToken, verifyPassword } from "./security";
 import { AVATAR_SIZE_LIMIT, AvatarStore, sniffAvatarType } from "./avatars";
 import { MarkdownCardStore } from "./markdown-cards";
-import { createIdea, getIdeas, promoteIdea, undoPromotion, updateIdea } from "./ideas-repository";
+import { createIdea, findIdea, getIdeas, promoteIdea, undoPromotion, updateIdea } from "./ideas-repository";
 import { MarkdownIdeaStore } from "./markdown-ideas";
+import {
+  AUDIT_PAGE_SIZE,
+  cardChanges,
+  cardCreationChanges,
+  changeAction,
+  ideaChanges,
+  listAuditEvents,
+  recordAuditEvent,
+  type CardLabels,
+  type RecordAuditInput,
+} from "./audit";
 
 const SESSION_COOKIE = "grimoire_session";
 const SESSION_AGE_SECONDS = 60 * 60 * 24 * 30;
@@ -188,13 +204,16 @@ export function createGrimoireServer(options: Options) {
       database
         .prepare("INSERT INTO users (id, name, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, 'owner', ?)")
         .run(userId, input.name, input.email, passwordHash, now);
+      let projectId: string;
       try {
-        createWizardSimulatorProject(database, userId);
+        projectId = createWizardSimulatorProject(database, userId);
       } catch (error) {
         database.prepare("DELETE FROM users WHERE id = ?").run(userId);
         throw error;
       }
       const user = withAvatar(publicUser(findUserById(database, userId)!));
+      audit(user, { projectId, entityType: "project", entityId: projectId, entityTitle: "Wizard Simulator", action: "created" });
+      audit(user, { projectId, entityType: "member", entityId: userId, entityTitle: user.name, action: "joined" });
       setSession(response, userId);
       json(response, 201, { user });
       return;
@@ -314,8 +333,10 @@ export function createGrimoireServer(options: Options) {
         throw error;
       }
       const user = withAvatar(publicUser(findUserById(database, userId)!));
+      audit(user, { projectId, entityType: "member", entityId: userId, entityTitle: user.name, action: "joined" });
       setSession(response, userId);
       json(response, 201, { user });
+      broadcast(projectId, "work", null);
       return;
     }
 
@@ -342,6 +363,7 @@ export function createGrimoireServer(options: Options) {
         database.exec("ROLLBACK");
         throw error;
       }
+      audit(user, { projectId, entityType: "member", entityId: null, entityTitle: "invitation link", action: "invited" });
       json(response, 201, { code, expiresAt: expires.toISOString() });
       return;
     }
@@ -357,6 +379,7 @@ export function createGrimoireServer(options: Options) {
       if (user.role !== "owner") throw new HttpError(403, "Only the owner can create projects");
       const input = projectSchema.parse(await readJson(request));
       const projectId = createProject(database, user.id, input.name);
+      audit(user, { projectId, entityType: "project", entityId: projectId, entityTitle: input.name, action: "created" });
       json(response, 201, { project: { id: projectId, name: input.name } });
       return;
     }
@@ -366,7 +389,16 @@ export function createGrimoireServer(options: Options) {
       const user = requireUser(context);
       if (user.role !== "owner") throw new HttpError(403, "Only the owner can rename projects");
       const input = projectSchema.parse(await readJson(request));
+      const previousName = projectById(database, projectMatch[1])?.name;
       if (!renameProject(database, projectMatch[1], input.name)) throw new HttpError(404, "Project not found");
+      audit(user, {
+        projectId: projectMatch[1],
+        entityType: "project",
+        entityId: projectMatch[1],
+        entityTitle: input.name,
+        action: "renamed",
+        changes: [{ field: "name", from: previousName === undefined ? null : String(previousName), to: input.name }],
+      });
       json(response, 200, { project: { id: projectMatch[1], name: input.name } });
       broadcast(projectMatch[1], "work", requestClientId(request));
       return;
@@ -376,9 +408,17 @@ export function createGrimoireServer(options: Options) {
       const user = requireUser(context);
       if (user.role !== "owner") throw new HttpError(403, "Only the owner can archive projects");
       await readJson(request);
+      const archivedName = projectById(database, projectMatch[1])?.name;
       const result = archiveProject(database, projectMatch[1]);
       if (result === "not_found") throw new HttpError(404, "Project not found");
       if (result === "last_project") throw new HttpError(409, "The last project cannot be archived");
+      audit(user, {
+        projectId: projectMatch[1],
+        entityType: "project",
+        entityId: projectMatch[1],
+        entityTitle: String(archivedName ?? "project"),
+        action: "archived",
+      });
       json(response, 200, { ok: true });
       broadcast(projectMatch[1], "work", requestClientId(request));
       return;
@@ -392,6 +432,13 @@ export function createGrimoireServer(options: Options) {
       const result = createCategory(database, projectId, input);
       if (result === "invalid_name") throw new HttpError(400, "The category needs a name with letters or numbers");
       if (result === "exists") throw new HttpError(409, "A category with this name already exists");
+      audit(user, {
+        projectId,
+        entityType: "category",
+        entityId: result.category.slug,
+        entityTitle: result.category.name,
+        action: "created",
+      });
       json(response, 201, { category: result.category });
       broadcast(projectId, "work", requestClientId(request));
       return;
@@ -403,8 +450,25 @@ export function createGrimoireServer(options: Options) {
       if (user.role !== "owner") throw new HttpError(403, "Only the owner can manage categories");
       const projectId = requireProject(context, user);
       const input = categoryUpdateSchema.parse(await readJson(request));
+      const previous = categoriesForProject(database, projectId).find((value) => value.slug === categoryMatch[1]);
       const category = updateCategory(database, projectId, categoryMatch[1], input);
       if (!category) throw new HttpError(404, "Category not found");
+      const categoryEdits = previous
+        ? [
+          ...(previous.name === category.name ? [] : [{ field: "name", from: previous.name, to: category.name }]),
+          ...(previous.color === category.color ? [] : [{ field: "color", from: previous.color, to: category.color }]),
+        ]
+        : [];
+      if (categoryEdits.length > 0) {
+        audit(user, {
+          projectId,
+          entityType: "category",
+          entityId: category.slug,
+          entityTitle: category.name,
+          action: "updated",
+          changes: categoryEdits,
+        });
+      }
       json(response, 200, { category });
       broadcast(projectId, "work", requestClientId(request));
       return;
@@ -414,9 +478,17 @@ export function createGrimoireServer(options: Options) {
       const user = requireUser(context);
       if (user.role !== "owner") throw new HttpError(403, "Only the owner can manage categories");
       const projectId = requireProject(context, user);
+      const removed = categoriesForProject(database, projectId).find((value) => value.slug === categoryMatch[1]);
       if (!deleteCategory(database, cardStore, projectId, categoryMatch[1])) {
         throw new HttpError(404, "Category not found");
       }
+      audit(user, {
+        projectId,
+        entityType: "category",
+        entityId: categoryMatch[1],
+        entityTitle: removed?.name ?? categoryMatch[1],
+        action: "deleted",
+      });
       json(response, 200, { ok: true });
       broadcast(projectId, "work", requestClientId(request));
       return;
@@ -428,9 +500,17 @@ export function createGrimoireServer(options: Options) {
       if (user.role !== "owner") throw new HttpError(403, "Only the project owner can remove members");
       await readJson(request);
       const projectId = requireProject(context, user);
+      const removedMember = membersForProject(database, projectId).find((value) => value.id === memberMatch[1]);
       const result = removeProjectMember(database, cardStore, projectId, memberMatch[1]);
       if (result === "owner") throw new HttpError(409, "The project owner cannot be removed");
       if (result === "not_found") throw new HttpError(404, "Member not found");
+      audit(user, {
+        projectId,
+        entityType: "member",
+        entityId: memberMatch[1],
+        entityTitle: removedMember?.name ?? "a member",
+        action: "removed",
+      });
       disconnectUserEvents(memberMatch[1]);
       json(response, 200, { ok: true });
       broadcast(projectId, "work", requestClientId(request));
@@ -456,11 +536,27 @@ export function createGrimoireServer(options: Options) {
         userId: user.id,
       };
       eventClients.add(client);
+      broadcastPresence(projectId);
       const remove = () => {
         clearInterval(client.keepAlive);
         eventClients.delete(client);
+        broadcastPresence(projectId);
       };
       response.once("close", remove);
+      return;
+    }
+
+    if (method === "GET" && url.pathname === "/api/activity") {
+      const user = requireUser(context);
+      const projectId = requireProject(context, user);
+      const entity = url.searchParams.get("entity");
+      if (entity && !/^[0-9a-z-]{1,64}$/i.test(entity)) throw new HttpError(400, "Invalid activity filter");
+      const page = listAuditEvents(database, projectId, {
+        entityId: entity ?? undefined,
+        before: readPositiveInteger(url.searchParams.get("before")),
+        limit: readPositiveInteger(url.searchParams.get("limit")) ?? AUDIT_PAGE_SIZE,
+      });
+      json(response, 200, page);
       return;
     }
 
@@ -481,6 +577,14 @@ export function createGrimoireServer(options: Options) {
       const projectId = requireProject(context, user);
       const card = createCard(database, cardStore, projectId, user.id, cardSchema.parse(await readJson(request)));
       if (!card) throw new HttpError(400, "Assignee is not a member of this board");
+      audit(user, {
+        projectId,
+        entityType: "card",
+        entityId: card.id,
+        entityTitle: card.title,
+        action: "created",
+        changes: cardCreationChanges(card, labelsForProject(projectId)),
+      });
       json(response, 201, { card });
       broadcast(projectId, "work", requestClientId(request));
       return;
@@ -505,6 +609,7 @@ export function createGrimoireServer(options: Options) {
         ideaSchema.parse(await readJson(request)),
       );
       if (!idea) throw new HttpError(404, "Idea garden not found");
+      audit(user, { projectId, entityType: "idea", entityId: idea.id, entityTitle: idea.title, action: "created" });
       json(response, 201, { idea });
       broadcast(projectId, "ideas", requestClientId(request));
       return;
@@ -515,6 +620,7 @@ export function createGrimoireServer(options: Options) {
       const user = requireUser(context);
       const projectId = requireProject(context, user);
       await readJson(request);
+      const source = findIdea(database, ideaStore, projectId, promotionMatch[1]);
       const card = promoteIdea(
         database,
         cardStore,
@@ -524,6 +630,22 @@ export function createGrimoireServer(options: Options) {
         promotionMatch[1],
       );
       if (!card) throw new HttpError(404, "Idea not found");
+      audit(user, {
+        projectId,
+        entityType: "idea",
+        entityId: promotionMatch[1],
+        entityTitle: source?.title ?? card.title,
+        action: "promoted",
+        changes: [{ field: "became a card", from: null, to: card.title }],
+      });
+      audit(user, {
+        projectId,
+        entityType: "card",
+        entityId: card.id,
+        entityTitle: card.title,
+        action: "created",
+        changes: [{ field: "promoted from an idea", from: null, to: source?.title ?? card.title }],
+      });
       json(response, 201, { card });
       broadcast(projectId, "both", requestClientId(request));
       return;
@@ -535,6 +657,7 @@ export function createGrimoireServer(options: Options) {
       const projectId = requireProject(context, user);
       const idea = undoPromotion(database, cardStore, ideaStore, projectId, promotionUndoMatch[1]);
       if (!idea) throw new HttpError(404, "Promoted idea not found");
+      audit(user, { projectId, entityType: "idea", entityId: idea.id, entityTitle: idea.title, action: "restored" });
       json(response, 200, { idea });
       broadcast(projectId, "both", requestClientId(request));
       return;
@@ -544,6 +667,7 @@ export function createGrimoireServer(options: Options) {
     if (method === "PATCH" && ideaMatch) {
       const user = requireUser(context);
       const projectId = requireProject(context, user);
+      const previousIdea = findIdea(database, ideaStore, projectId, ideaMatch[1]);
       const idea = updateIdea(
         database,
         ideaStore,
@@ -552,6 +676,14 @@ export function createGrimoireServer(options: Options) {
         ideaUpdateSchema.parse(await readJson(request)),
       );
       if (!idea) throw new HttpError(404, "Idea not found");
+      if (previousIdea) {
+        const changes = ideaChanges(previousIdea, idea);
+        const action = changeAction(changes);
+        // Reranking the shortlist changes nothing a reader would look for.
+        if (action) {
+          audit(user, { projectId, entityType: "idea", entityId: idea.id, entityTitle: idea.title, action, changes });
+        }
+      }
       json(response, 200, { idea });
       broadcast(projectId, "ideas", requestClientId(request));
       return;
@@ -564,6 +696,7 @@ export function createGrimoireServer(options: Options) {
       await readJson(request);
       const card = restoreCard(database, cardStore, projectId, cardRestoreMatch[1]);
       if (!card) throw new HttpError(404, "Archived card not found");
+      audit(user, { projectId, entityType: "card", entityId: card.id, entityTitle: card.title, action: "restored" });
       json(response, 200, { card });
       broadcast(projectId, "work", requestClientId(request));
       return;
@@ -573,6 +706,8 @@ export function createGrimoireServer(options: Options) {
     if (method === "PATCH" && cardMatch) {
       const user = requireUser(context);
       const projectId = requireProject(context, user);
+      const labels = labelsForProject(projectId);
+      const before = findCard(database, cardStore, projectId, cardMatch[1]);
       const card = updateCard(
         database,
         cardStore,
@@ -581,6 +716,14 @@ export function createGrimoireServer(options: Options) {
         cardUpdateSchema.parse(await readJson(request)),
       );
       if (!card) throw new HttpError(404, "Card or assignee not found");
+      if (before) {
+        const changes = cardChanges(before, card, labels);
+        const action = changeAction(changes);
+        // Reordering inside one column changes nothing a reader would look for.
+        if (action) {
+          audit(user, { projectId, entityType: "card", entityId: card.id, entityTitle: card.title, action, changes });
+        }
+      }
       json(response, 200, { card });
       broadcast(projectId, "work", requestClientId(request));
       return;
@@ -589,9 +732,17 @@ export function createGrimoireServer(options: Options) {
     if (method === "DELETE" && cardMatch) {
       const user = requireUser(context);
       const projectId = requireProject(context, user);
+      const archived = findCard(database, cardStore, projectId, cardMatch[1]);
       if (!archiveCard(database, cardStore, projectId, cardMatch[1])) {
         throw new HttpError(404, "Card not found");
       }
+      audit(user, {
+        projectId,
+        entityType: "card",
+        entityId: cardMatch[1],
+        entityTitle: archived?.title ?? "a card",
+        action: "archived",
+      });
       json(response, 200, { ok: true });
       broadcast(projectId, "work", requestClientId(request));
       return;
@@ -602,6 +753,32 @@ export function createGrimoireServer(options: Options) {
 
   function withAvatar<T extends User>(user: T): T {
     return { ...user, avatarUrl: avatarStore.urlFor(user.id) };
+  }
+
+  function audit(user: User, input: Omit<RecordAuditInput, "actor">): void {
+    recordAuditEvent(database, { ...input, actor: { id: user.id, name: user.name } });
+  }
+
+  /**
+   * Readable labels for a card diff, loaded only when a diff actually needs them.
+   *
+   * Most edits touch neither the category nor the blockers, and resolving blocker
+   * titles means reading every card file in the project.
+   */
+  function labelsForProject(projectId: string): CardLabels {
+    let categories: Map<string, string> | null = null;
+    let titles: Map<string, string> | null = null;
+    return {
+      categoryName: (slug) => {
+        if (slug === null) return "uncategorized";
+        categories ??= new Map(categoriesForProject(database, projectId).map((value) => [value.slug, value.name]));
+        return categories.get(slug) ?? slug;
+      },
+      cardTitle: (id) => {
+        titles ??= new Map(listCards(database, cardStore, projectId).map((card) => [card.id, card.title]));
+        return titles.get(id) ?? "a removed card";
+      },
+    };
   }
 
   function requireProject(context: RequestContext, user: User): string {
@@ -656,13 +833,33 @@ export function createGrimoireServer(options: Options) {
     }
   }
 
+  /**
+   * Presence is derived from the live event streams rather than stored, so a browser
+   * that closes, crashes, or loses its connection stops counting as present without
+   * needing a heartbeat table or an expiry sweep.
+   */
+  function broadcastPresence(projectId: string): void {
+    const online = new Set<string>();
+    for (const client of eventClients) {
+      if (client.projectId === projectId) online.add(client.userId);
+    }
+    const message = `event: presence\ndata: ${JSON.stringify({ online: [...online] })}\n\n`;
+    for (const client of eventClients) {
+      if (client.projectId !== projectId) continue;
+      client.response.write(message);
+    }
+  }
+
   function disconnectUserEvents(userId: string): void {
+    const affected = new Set<string>();
     for (const client of eventClients) {
       if (client.userId !== userId) continue;
       clearInterval(client.keepAlive);
       eventClients.delete(client);
+      affected.add(client.projectId);
       client.response.end();
     }
+    for (const projectId of affected) broadcastPresence(projectId);
   }
 
   function closeEventStreams(): void {
@@ -688,6 +885,12 @@ export function createGrimoireServer(options: Options) {
 function requireUser(context: RequestContext): User {
   if (!context.user) throw new HttpError(401, "Authentication required");
   return context.user;
+}
+
+function readPositiveInteger(value: string | null): number | undefined {
+  if (value === null) return undefined;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed >= 1 ? parsed : undefined;
 }
 
 async function readRaw(request: IncomingMessage, limit: number): Promise<Buffer> {

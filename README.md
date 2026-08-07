@@ -21,6 +21,7 @@ Accepted work outside the active deck lives in a searchable Backlog library inst
 The library can be filtered by category, assignee, or blocked state, and any card can move into Up Next with one action.
 Moving a card into Up Next keeps the library open so several cards can be selected in one pass.
 Cards can be dragged between active columns, reordered within a column, or dropped onto the Backlog control.
+Neighbouring cards glide aside as the drop target moves rather than snapping, and the motion is suppressed when the system asks for reduced motion.
 Press `B` while focus is on the board to open the Backlog library.
 
 Clicking the Done heading opens the complete searchable history, grouped by completion month and filterable by category or assignee.
@@ -44,6 +45,8 @@ On touch devices, the same compact status buttons provide an alternative to drag
 The work capture reveals compact category, assignment, and column controls after typing begins.
 Typing `#`, `@`, or `/` opens the matching picker without leaving the keyboard, and the command text is removed from the saved title.
 After a configured capture, a temporary `same settings` action can restore its category, assignment, and column for another related card.
+
+Columns stack into a single vertically scrolling page on tablet and phone widths, so the board never scrolls sideways.
 
 The visible filter bar can focus the board on unassigned work or work assigned to any team member, including the signed-in person.
 Search and people filters combine, and the current view is stored in the URL so a useful view can be bookmarked or shared.
@@ -71,7 +74,7 @@ The owner can create single-use invitation links from the Team dialog.
 Only the newest unused invitation remains valid, and invitation links expire after seven days.
 The owner can also remove members from the Team dialog, which revokes their sessions and live connections and clears their card assignments without erasing their authorship history.
 
-Accounts, sessions, invitations, and project membership are stored in a local SQLite database.
+Accounts, sessions, invitations, project membership, and the activity log are stored in a local SQLite database.
 Cards and ideas are stored as Markdown files with validated YAML frontmatter.
 Passwords are protected with scrypt, and browser sessions use HttpOnly SameSite cookies.
 After signing in, open the account menu from the top-right avatar to change your password or sign out.
@@ -79,6 +82,20 @@ Changing a password requires the current password and signs the account out on o
 
 Signed-in browsers receive project-scoped live updates whenever another browser changes work or ideas.
 The browser that made a change applies its own response directly, while every other connected browser reloads the affected workspace from the canonical Markdown files.
+
+Teammates with the project open are ringed in green on the people filter bar and in the Team dialog.
+Presence is deliberately absent from the header, where it would mostly report the signed-in person back to themselves.
+It follows the live connection itself, so it clears as soon as someone closes the tab or loses their network.
+
+## Activity
+
+The `activity` control in the header opens the project's history, newest first and grouped by day.
+It records who created, edited, moved, archived, restored, and promoted every card and idea, along with project renames, category changes, invitations, joins, and removals.
+Each entry names the fields that changed and what they changed from and to, and selecting a card entry opens that card.
+Opening a card also shows its own recent history above the archive action.
+
+Reordering a card inside a column, or reranking the shortlist, is not recorded, because a log shaped by dragging would bury the changes worth reading.
+The history is kept in SQLite rather than the Markdown files and is never pruned.
 
 ## Local development
 
@@ -107,7 +124,7 @@ npm test
 npm run build
 ```
 
-The test suite covers authentication, secure password changes, single-use invitations, member removal, Markdown persistence, legacy migration, external edits, live project events, the active deck, Backlog search, completion history, reversible archives and promotions, categories, card dependencies, assignments, filtering, idea ranking, ordering, and drag-and-drop interaction.
+The test suite covers authentication, secure password changes, single-use invitations, member removal, Markdown persistence, legacy migration, external edits, live project events, presence, the activity log, the active deck, Backlog search, completion history, reversible archives and promotions, categories, card dependencies, assignments, filtering, idea ranking, ordering, and drag-and-drop interaction.
 
 ## Self-hosting
 

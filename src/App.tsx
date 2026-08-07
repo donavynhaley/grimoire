@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { BoardWorkspace, CardStatus, IdeaState, IdeaWorkspace, SessionState, User } from "../shared/types";
-import { ApiError, board as loadBoard, ideas as loadIdeas, liveEventsUrl, mutate, request, session, setActiveProjectId, uploadAvatar } from "./api/client";
+import { activity as loadActivity, ApiError, board as loadBoard, ideas as loadIdeas, liveEventsUrl, mutate, request, session, setActiveProjectId, uploadAvatar } from "./api/client";
 import { AuthScreen } from "./components/AuthScreen";
 import { Board } from "./components/Board";
 import type { CaptureCardInput } from "./components/QuickCapture";
@@ -19,18 +19,24 @@ export function App() {
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [online, setOnline] = useState<ReadonlySet<string>>(() => new Set());
   const [undoNotice, setUndoNotice] = useState<PendingUndo | null>(null);
   const dismissUndo = useCallback(() => setUndoNotice(null), []);
+
+  // Bumped on every canonical reload so open history views know to refetch.
+  const [revision, setRevision] = useState(0);
 
   const refreshBoard = useCallback(async () => {
     const value = await loadBoard();
     setActiveProjectId(value.project.id);
     setBoard(value);
+    setRevision((current) => current + 1);
     setSessionState({ status: "authenticated", user: value.currentUser });
   }, []);
 
   const refreshIdeas = useCallback(async () => {
     setIdeas(await loadIdeas());
+    setRevision((current) => current + 1);
   }, []);
 
   useEffect(() => {
@@ -92,10 +98,22 @@ export function App() {
         // Ignore malformed stream messages and keep the connection alive.
       }
     };
+    const receivePresence = (event: Event) => {
+      try {
+        const payload = JSON.parse((event as MessageEvent<string>).data) as { online?: unknown };
+        if (Array.isArray(payload.online)) setOnline(new Set(payload.online.map(String)));
+      } catch {
+        // Ignore malformed stream messages and keep the connection alive.
+      }
+    };
+
     source.addEventListener("workspace", receiveWorkspaceChange);
+    source.addEventListener("presence", receivePresence);
     return () => {
       source.removeEventListener("workspace", receiveWorkspaceChange);
+      source.removeEventListener("presence", receivePresence);
       source.close();
+      setOnline(new Set());
     };
   }, [board?.project.id, ideas !== null, refreshBoard, refreshIdeas, sessionState?.status]);
 
@@ -325,8 +343,11 @@ export function App() {
         onCreate={createCard}
         onCreateInvite={createInvite}
         onCreateIdea={createIdea}
+        online={online}
+        onLoadActivity={loadActivity}
         onLogout={logout}
         onMoveBacklogToNext={moveBacklogToNext}
+        revision={revision}
         onPromoteIdea={promoteIdea}
         onRemoveMember={removeMember}
         onUpdate={updateCard}

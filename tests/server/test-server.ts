@@ -9,8 +9,10 @@ type TestServer = {
   baseUrl: string;
   cardsDirectory: string;
   close: () => Promise<void>;
+  /** The session cookie of the most recently authenticated request. */
+  cookie: () => string;
   databasePath: string;
-  events: (clientId: string) => Promise<Response>;
+  events: (clientId: string, sessionCookie?: string) => Promise<Response>;
   fetchRaw: (path: string, init?: RequestInit) => Promise<Response>;
   request: <T>(path: string, init?: RequestInit) => Promise<{ response: Response; body: T }>;
 };
@@ -48,10 +50,11 @@ export async function startTestServer(existingDirectory?: string): Promise<TestS
     baseUrl,
     cardsDirectory: join(directory, "cards"),
     close,
+    cookie: () => cookie,
     databasePath,
-    events(clientId: string) {
+    events(clientId: string, sessionCookie = cookie) {
       const headers = new Headers();
-      if (cookie) headers.set("cookie", cookie);
+      if (sessionCookie) headers.set("cookie", sessionCookie);
       return fetch(`${baseUrl}/api/events?client=${encodeURIComponent(clientId)}`, { headers });
     },
     fetchRaw(path: string, init: RequestInit = {}) {

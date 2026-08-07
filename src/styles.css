@@ -284,6 +284,18 @@ textarea:focus-visible {
 .avatar.large { width: 44px; height: 44px; font-size: 14px; }
 .avatar.photo { object-fit: cover; background: var(--surface-soft); }
 
+/* Presence reads as light pooling around the face rather than another badge to parse. */
+.avatar {
+  --online-ring: 0 0 0 2px color-mix(in srgb, var(--accent) 92%, transparent);
+  --online-glow: 0 3px 18px 1px color-mix(in srgb, var(--accent) 78%, transparent);
+  transition: box-shadow 220ms ease;
+}
+
+.avatar.online { box-shadow: var(--online-ring), var(--online-glow); }
+/* The people filters are the one place presence shows on the board, so it carries there. */
+.avatar.tiny.online { --online-glow: 0 2px 13px 1px color-mix(in srgb, var(--accent) 82%, transparent); }
+.people-filters button:has(.avatar.online) { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+
 .account-button,
 .quiet-button,
 .text-button,
@@ -1133,6 +1145,55 @@ textarea:hover { border-color: var(--border-bright); }
 .history-card-main strong { overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .history-card-main small,
 .history-card-main time { color: var(--faint); font-size: 7px; }
+
+.activity-results .history-group > div { gap: 4px; }
+.activity-row {
+  overflow: hidden;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+.activity-row:has(button:hover) { border-color: var(--border-bright); }
+.activity-row-main {
+  display: grid;
+  width: 100%;
+  min-height: 44px;
+  padding: 9px 13px;
+  align-items: start;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  gap: 10px;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  text-align: left;
+}
+.activity-row button.activity-row-main { cursor: pointer; }
+.activity-row-main > time { padding-top: 3px; color: var(--faint); font-size: 7px; white-space: nowrap; }
+.activity-copy { display: grid; min-width: 0; gap: 5px; }
+.activity-line { color: var(--muted); font-size: 9px; line-height: 1.5; }
+.activity-line strong { color: var(--text); font-weight: 700; }
+.activity-line em { color: var(--text); font-style: normal; font-weight: 600; }
+.activity-changes { display: flex; gap: 5px; flex-wrap: wrap; }
+.activity-changes > span {
+  padding: 2px 7px;
+  color: var(--faint);
+  background: var(--surface-soft);
+  border-radius: 999px;
+  font-size: 7px;
+  line-height: 1.6;
+}
+.load-more { justify-self: center; margin-top: 4px; }
+
+.card-history ol { display: grid; margin: 0; padding: 0; gap: 7px; list-style: none; }
+.card-history li {
+  display: grid;
+  align-items: start;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  gap: 9px;
+}
+.card-history li > span { display: grid; gap: 5px; color: var(--muted); font-size: 9px; line-height: 1.5; }
+.card-history strong { color: var(--text); font-weight: 700; }
+.card-history time { padding-top: 2px; color: var(--faint); font-size: 7px; white-space: nowrap; }
 .history-reopen {
   min-width: 72px;
   color: var(--faint);
@@ -1287,8 +1348,19 @@ textarea:hover { border-color: var(--border-bright); }
 .team-list { display: grid; }
 .team-member { min-height: 58px; gap: 11px; border-top: 1px solid var(--border); }
 .team-member-copy { display: grid; min-width: 0; flex: 1; gap: 4px; }
-.team-member strong { font-size: 10px; }
+.team-member strong { display: flex; align-items: center; gap: 7px; font-size: 10px; }
 .team-member-copy span { overflow: hidden; color: var(--muted); font-size: 8px; text-overflow: ellipsis; }
+.member-online {
+  padding: 2px 6px;
+  flex: none;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 999px;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
 .member-role { color: var(--faint); font-size: 8px; }
 .member-actions { display: flex; align-items: center; gap: 7px; color: var(--faint); font-size: 8px; }
 .member-actions button {
@@ -1581,15 +1653,20 @@ textarea:hover { border-color: var(--border-bright); }
   .board-topbar { grid-template-columns: auto 1fr auto; }
   .brand-word,
   .member-faces { display: none; }
+  /* Columns stack into one vertically scrolling page instead of a horizontal filmstrip. */
+  .board-main { overflow-x: hidden; overflow-y: auto; }
   .kanban {
-    width: max-content;
-    max-width: none;
     min-height: 0;
-    grid-template-columns: repeat(4, 300px);
+    flex: none;
+    grid-template-columns: minmax(0, 1fr);
+    overflow: visible;
   }
-  .board-main { overflow-x: auto; overflow-y: hidden; }
-  .board-intro { position: sticky; left: 0; width: calc(100vw - 48px); padding-bottom: 35px; }
-  .work-filters { position: sticky; left: 0; width: calc(100vw - 48px); }
+  .kanban-column { height: auto; }
+  .card-list { padding-right: 0; overflow-y: visible; scrollbar-gutter: auto; }
+  /* The page scrolls now, so nothing above the columns may be squeezed to fit. */
+  .board-intro,
+  .work-filters { flex: none; }
+  .board-intro { padding-bottom: 35px; }
   .idea-layout { grid-template-columns: 1fr; }
   .shortlist-section { grid-row: auto; }
   .ideas-intro { align-items: stretch; flex-direction: column; }
@@ -1598,23 +1675,24 @@ textarea:hover { border-color: var(--border-bright); }
 
 @media (max-width: 620px) {
   .board-topbar { min-height: 58px; padding: 0 14px; flex-basis: 58px; }
+  .board-actions { gap: 7px; }
   .board-project { justify-items: start; padding-left: 12px; }
   .board-project .eyebrow { display: none; }
   .board-project h1 { font-size: 11px; }
   .workspace-tabs button { padding: 0 6px; }
   .account-button > span:last-child { display: none; }
-  .quiet-button { padding: 0 9px; }
-  .board-main { padding: 16px 14px 14px; scroll-snap-type: x proximity; }
-  .board-intro { width: calc(100vw - 28px); margin-bottom: 17px; align-items: stretch; flex-direction: column; gap: 14px; }
+  .quiet-button { padding: 0 8px; font-size: 9px; }
+  .board-main { padding: 16px 14px 14px; }
+  .board-intro { margin-bottom: 17px; align-items: stretch; flex-direction: column; gap: 14px; }
   .board-intro > div { display: none; }
   .workspace-capture { width: 100%; }
   .capture-picker { right: 0; width: 100%; }
   .reuse-settings { max-width: 118px; }
   .reuse-settings small { display: none; }
-  .work-filters { width: calc(100vw - 28px); margin-top: 0; }
+  .work-filters { margin-top: 0; }
   .card-search { width: 100%; order: -1; }
-  .kanban { grid-template-columns: repeat(4, calc(100vw - 48px)); gap: 9px; }
-  .kanban-column { min-height: 0; height: 100%; scroll-snap-align: start; }
+  .kanban { gap: 9px; }
+  .kanban-column { min-height: 0; height: auto; }
   .modal-backdrop { padding: 0; align-items: end; }
   .card-dialog,
   .team-dialog,
@@ -1642,6 +1720,7 @@ textarea:hover { border-color: var(--border-bright); }
 
 @media (prefers-reduced-motion: reduce) {
   .capture-toolbar { animation: none; }
+  .avatar,
   .self-filter-label,
   .self-filter .avatar { transition: none; }
 }

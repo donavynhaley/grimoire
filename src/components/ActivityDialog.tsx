@@ -1,0 +1,204 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AUDIT_ENTITY_TYPES, type AuditEntityType, type AuditEvent, type AuditPage, type Member } from "../../shared/types";
+import { Avatar } from "./Avatar";
+import { dayLabel, describeChange, describeEvent, ENTITY_LABELS, eventText, timeLabel } from "./activity-copy";
+
+const PAGE_SIZE = 60;
+
+type Props = {
+  members: Member[];
+  revision: number;
+  onClose: () => void;
+  onLoad: (options: { entityId?: string; before?: number; limit?: number }) => Promise<AuditPage>;
+  onOpenCard: (id: string) => void;
+};
+
+export function ActivityDialog({ members, revision, onClose, onLoad, onOpenCard }: Props) {
+  const [events, setEvents] = useState<AuditEvent[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
+  const [person, setPerson] = useState<string | null>(null);
+  const [entityType, setEntityType] = useState<AuditEntityType | null>(null);
+  const now = useMemo(() => new Date(), [events]);
+
+  const load = useCallback(async (before?: number) => {
+    setLoading(true);
+    setError("");
+    try {
+      const page = await onLoad({ before, limit: PAGE_SIZE });
+      setEvents((current) => (before === undefined ? page.events : [...current, ...page.events]));
+      setHasMore(page.hasMore);
+    } catch (value) {
+      setError(value instanceof Error ? value.message : "The history could not be loaded");
+    } finally {
+      setLoading(false);
+    }
+  }, [onLoad]);
+
+  useEffect(() => {
+    void load();
+  }, [load, revision]);
+
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      onClose();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [onClose]);
+
+  const normalizedQuery = query.trim().toLowerCase();
+  const visible = useMemo(
+    () => events.filter((event) => {
+      if (person && event.actorId !== person) return false;
+      if (entityType && event.entityType !== entityType) return false;
+      return !normalizedQuery || eventText(event).includes(normalizedQuery);
+    }),
+    [entityType, events, normalizedQuery, person],
+  );
+  const usedTypes = useMemo(
+    () => AUDIT_ENTITY_TYPES.filter((type) => events.some((event) => event.entityType === type)),
+    [events],
+  );
+  const groups = useMemo(() => groupByDay(visible, now), [now, visible]);
+
+  return (
+    <div className="modal-backdrop library-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section aria-labelledby="activity-dialog-title" aria-modal="true" className="library-dialog" role="dialog">
+        <header className="dialog-header library-header">
+          <div>
+            <p className="eyebrow">project record</p>
+            <h2 id="activity-dialog-title">Activity</h2>
+            <p>Who changed what, newest first.</p>
+          </div>
+          <button aria-label="Close activity" className="icon-button" onClick={onClose} type="button">×</button>
+        </header>
+
+        <div className="library-tools">
+          <label className="library-search">
+            <span className="sr-only">Search activity</span>
+            <input
+              aria-label="Search activity"
+              autoFocus
+              id="activity-search"
+              name="activitySearch"
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search activity..."
+              type="search"
+              value={query}
+            />
+          </label>
+          <div aria-label="Activity people" className="library-filters">
+            {members.map((member) => (
+              <button
+                aria-pressed={person === member.id}
+                className={person === member.id ? "active" : ""}
+                key={member.id}
+                onClick={() => setPerson(person === member.id ? null : member.id)}
+                type="button"
+              >{member.name}</button>
+            ))}
+          </div>
+          {usedTypes.length > 1 && (
+            <div aria-label="Activity kinds" className="library-filters">
+              {usedTypes.map((type) => (
+                <button
+                  aria-pressed={entityType === type}
+                  className={entityType === type ? "active" : ""}
+                  key={type}
+                  onClick={() => setEntityType(entityType === type ? null : type)}
+                  type="button"
+                >{ENTITY_LABELS[type]}</button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="history-results activity-results" aria-live="polite">
+          {error && <div className="error-banner" role="alert">{error}</div>}
+          {groups.map(([label, dayEvents]) => (
+            <section className="history-group" key={label}>
+              <header><h3>{label}</h3><span>{dayEvents.length}</span></header>
+              <div>
+                {dayEvents.map((event) => (
+                  <ActivityRow
+                    event={event}
+                    key={event.id}
+                    members={members}
+                    onOpenCard={event.entityType === "card" && event.entityId ? onOpenCard : undefined}
+                  />
+                ))}
+              </div>
+            </section>
+          ))}
+          {visible.length === 0 && !loading && !error && (
+            <div className="library-empty">
+              <strong>{events.length === 0 ? "Nothing has happened yet." : "No activity matches."}</strong>
+              <span>{events.length === 0 ? "Changes to cards, ideas, and the team collect here." : "Try a broader search or remove a filter."}</span>
+            </div>
+          )}
+          {hasMore && (
+            <button
+              className="quiet-button load-more"
+              disabled={loading}
+              onClick={() => void load(events[events.length - 1]?.sequence)}
+              type="button"
+            >{loading ? "loading..." : "load older activity"}</button>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function ActivityRow({ event, members, onOpenCard }: {
+  event: AuditEvent;
+  members: Member[];
+  onOpenCard?: (id: string) => void;
+}) {
+  const { lead, title } = describeEvent(event);
+  const actor = members.find((member) => member.id === event.actorId);
+  const body = (
+    <>
+      <Avatar avatarUrl={actor?.avatarUrl} className="avatar tiny" name={event.actorName} />
+      <span className="activity-copy">
+        <span className="activity-line">
+          <strong>{event.actorName}</strong> {lead}{title && <> <em>{title}</em></>}
+        </span>
+        {event.changes.length > 0 && (
+          <span className="activity-changes">
+            {event.changes.map((change) => <span key={change.field}>{describeChange(change)}</span>)}
+          </span>
+        )}
+      </span>
+      <time dateTime={event.createdAt}>{timeLabel(event.createdAt)}</time>
+    </>
+  );
+
+  if (!onOpenCard || !event.entityId) {
+    return <article className="activity-row"><div className="activity-row-main">{body}</div></article>;
+  }
+  return (
+    <article className="activity-row">
+      <button
+        aria-label={`Open ${event.entityTitle}`}
+        className="activity-row-main"
+        onClick={() => onOpenCard(event.entityId!)}
+        type="button"
+      >{body}</button>
+    </article>
+  );
+}
+
+function groupByDay(events: AuditEvent[], now: Date): Array<[string, AuditEvent[]]> {
+  const groups = new Map<string, AuditEvent[]>();
+  for (const event of events) {
+    const label = dayLabel(event.createdAt, now);
+    groups.set(label, [...(groups.get(label) ?? []), event]);
+  }
+  return [...groups.entries()];
+}

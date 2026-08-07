@@ -4,7 +4,7 @@ import { act, cleanup, createEvent, fireEvent, render, screen, waitFor, within }
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "../../src/App";
-import type { Card } from "../../shared/types";
+import type { AuditEvent, Card } from "../../shared/types";
 import { boardFixture, ideaFixture } from "../fixtures/board";
 
 afterEach(() => {
@@ -27,6 +27,24 @@ function authenticatedFetch(board = boardFixture()) {
     .fn<typeof fetch>()
     .mockImplementationOnce(() => response({ status: "authenticated", user: board.currentUser }))
     .mockImplementationOnce(() => response(board));
+}
+
+/**
+ * Installs a fetch mock that answers history lookups itself.
+ *
+ * Card and project history load lazily whenever a dialog opens, so letting those
+ * requests reach the ordered mock would shift every queued response by one.
+ */
+function stubFetch(mock: typeof fetch, activity: unknown = { events: [], hasMore: false }) {
+  vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
+    if (requestUrl(input).startsWith("/api/activity")) return response(activity);
+    return mock(input, init);
+  });
+}
+
+function requestUrl(input: RequestInfo | URL): string {
+  if (typeof input === "string") return input;
+  return input instanceof URL ? `${input.pathname}${input.search}` : input.url;
 }
 
 async function openWorkCard(card: Card) {
@@ -57,7 +75,7 @@ describe("Grimoire board", () => {
     }
     vi.stubGlobal("EventSource", FakeEventSource);
     const fetchMock = authenticatedFetch(initial).mockImplementationOnce(() => response(updated));
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
 
     render(<App />);
     expect(await screen.findByRole("button", { name: /open backlog/i })).toHaveTextContent("1");
@@ -70,7 +88,7 @@ describe("Grimoire board", () => {
   });
 
   it("prefills the default owner email during first-run setup", async () => {
-    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockImplementationOnce(() => response({ status: "setup_required" })));
+    stubFetch(vi.fn<typeof fetch>().mockImplementationOnce(() => response({ status: "setup_required" })));
 
     render(<App />);
 
@@ -79,7 +97,7 @@ describe("Grimoire board", () => {
 
   it("lands on a compact active deck while keeping backlog work out of sight", async () => {
     const fetchMock = authenticatedFetch();
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
 
     render(<App />);
 
@@ -105,7 +123,7 @@ describe("Grimoire board", () => {
 
   it("places the Work and Ideas switcher beside the product identity", async () => {
     const fetchMock = authenticatedFetch();
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
 
     render(<App />);
 
@@ -117,7 +135,7 @@ describe("Grimoire board", () => {
   it("switches between Work and Ideas with 1 and 2 from an empty capture field", async () => {
     const initial = boardFixture();
     const fetchMock = authenticatedFetch(initial).mockImplementationOnce(() => response(ideaFixture()));
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
 
     render(<App />);
     expect(await screen.findByLabelText("Capture work card")).toHaveFocus();
@@ -151,7 +169,7 @@ describe("Grimoire board", () => {
     const fetchMock = authenticatedFetch(initial)
       .mockImplementationOnce(() => response({ card: created }, 201))
       .mockImplementationOnce(() => response(updated));
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
 
     render(<App />);
     const input = await screen.findByLabelText("Capture work card");
@@ -176,7 +194,7 @@ describe("Grimoire board", () => {
       .mockImplementationOnce(() => response(updated))
       .mockImplementationOnce(() => response({ card }))
       .mockImplementationOnce(() => response(initial));
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
 
     render(<App />);
     await screen.findByRole("button", { name: /open backlog/i });
@@ -224,7 +242,7 @@ describe("Grimoire board", () => {
     const fetchMock = authenticatedFetch(initial)
       .mockImplementationOnce(() => response({ card: created }, 201))
       .mockImplementationOnce(() => response(updated));
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
 
     render(<App />);
     const input = await screen.findByLabelText("Capture work card");
@@ -279,7 +297,7 @@ describe("Grimoire board", () => {
     const fetchMock = authenticatedFetch(initial)
       .mockImplementationOnce(() => response({ card: created }, 201))
       .mockImplementationOnce(() => response(updated));
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
 
     render(<App />);
     const input = await screen.findByLabelText("Capture work card");
@@ -313,7 +331,7 @@ describe("Grimoire board", () => {
     const fetchMock = authenticatedFetch(initial)
       .mockImplementationOnce(() => response({ card: moved }))
       .mockImplementationOnce(() => response(updated));
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
 
     render(<App />);
     const cardTitle = await screen.findByText(card.title);
@@ -352,7 +370,7 @@ describe("Grimoire board", () => {
     const fetchMock = authenticatedFetch(initial)
       .mockImplementationOnce(() => response({ card: moved }))
       .mockImplementationOnce(() => response({ ...initial, cards: [backlogCard, readyA, moved, readyB] }));
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
 
     render(<App />);
     const dragged = (await screen.findByText(progressCard.title)).closest("article")!;
@@ -396,7 +414,7 @@ describe("Grimoire board", () => {
       .mockImplementationOnce(() => response(ideas))
       .mockImplementationOnce(() => response({ idea: parkedIdea }))
       .mockImplementationOnce(() => response({ ...ideas, ideas: [ideas.ideas[0], parkedIdea, ideas.ideas[2]] }));
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
 
     render(<App />);
     await screen.findByLabelText("Capture work card");
@@ -427,7 +445,7 @@ describe("Grimoire board", () => {
     const fetchMock = authenticatedFetch(initial)
       .mockImplementationOnce(() => response({ card: moved }))
       .mockImplementationOnce(() => response(updated));
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
 
     render(<App />);
     await userEvent.click(await screen.findByRole("button", { name: "Filter by Maren" }));
@@ -468,7 +486,7 @@ describe("Grimoire board", () => {
     const fetchMock = authenticatedFetch(workspace)
       .mockImplementationOnce(() => response({ card: reopened }))
       .mockImplementationOnce(() => response(afterReopen));
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
 
     render(<App />);
     const done = await screen.findByRole("region", { name: "Done" });
@@ -499,7 +517,7 @@ describe("Grimoire board", () => {
     const fetchMock = authenticatedFetch(initial)
       .mockImplementationOnce(() => response({ card: assigned }))
       .mockImplementationOnce(() => response(updated));
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
 
     render(<App />);
     await openWorkCard(card);
@@ -527,7 +545,7 @@ describe("Grimoire board", () => {
       .mockImplementationOnce(() => response(afterCategory))
       .mockImplementationOnce(() => response({ card: blocked }))
       .mockImplementationOnce(() => response(afterBlocker));
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
 
     render(<App />);
     await openWorkCard(card);
@@ -566,7 +584,7 @@ describe("Grimoire board", () => {
     const fetchMock = authenticatedFetch(initial)
       .mockImplementationOnce(() => response({ card: saved }))
       .mockImplementationOnce(() => response(updated));
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
 
     render(<App />);
     await openWorkCard(card);
@@ -597,7 +615,7 @@ describe("Grimoire board", () => {
       .mockImplementationOnce(() => response(archived))
       .mockImplementationOnce(() => response({ card }))
       .mockImplementationOnce(() => response(initial));
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
 
     render(<App />);
     await openWorkCard(card);
@@ -637,7 +655,7 @@ describe("Grimoire board", () => {
       .mockImplementationOnce(() => response({ idea }))
       .mockImplementationOnce(() => response(initial))
       .mockImplementationOnce(() => response(ideaWorkspace));
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
 
     render(<App />);
     await userEvent.click(await screen.findByRole("button", { name: "ideas" }));
@@ -666,7 +684,7 @@ describe("Grimoire board", () => {
     const fetchMock = authenticatedFetch(initial)
       .mockImplementationOnce(() => response({ card: saved }))
       .mockImplementationOnce(() => response(updated));
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
 
     render(<App />);
     await openWorkCard(card);
@@ -687,7 +705,7 @@ describe("Grimoire board", () => {
   it("changes the signed-in user's password from account settings", async () => {
     const initial = boardFixture();
     const fetchMock = authenticatedFetch(initial).mockImplementationOnce(() => response({ ok: true }));
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
 
     render(<App />);
     await userEvent.click(await screen.findByRole("button", { name: /open account settings/i }));
@@ -725,7 +743,7 @@ describe("Grimoire board", () => {
     const fetchMock = authenticatedFetch(initial)
       .mockImplementationOnce(() => response({ ok: true }))
       .mockImplementationOnce(() => response(updated));
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
 
     render(<App />);
     await userEvent.click(await screen.findByRole("button", { name: "team" }));
@@ -744,7 +762,7 @@ describe("Grimoire board", () => {
   it("explains that only the newest invite works for one person", async () => {
     const initial = boardFixture();
     const fetchMock = authenticatedFetch(initial);
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
 
     render(<App />);
     await userEvent.click(await screen.findByRole("button", { name: "team" }));
@@ -757,7 +775,7 @@ describe("Grimoire board", () => {
     const initial = boardFixture();
     const ideaWorkspace = ideaFixture();
     const fetchMock = authenticatedFetch(initial).mockImplementationOnce(() => response(ideaWorkspace));
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
 
     render(<App />);
     await userEvent.click(await screen.findByRole("button", { name: "ideas" }));
@@ -797,7 +815,7 @@ describe("Grimoire board", () => {
       .mockImplementationOnce(() => response(afterCapture))
       .mockImplementationOnce(() => response({ idea: shortlisted }))
       .mockImplementationOnce(() => response(afterShortlist));
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
 
     render(<App />);
     await userEvent.click(await screen.findByRole("button", { name: "ideas" }));
@@ -825,7 +843,7 @@ describe("Grimoire board", () => {
     };
     const workspace = { ...initial, cards: [myCard, initial.cards[1]] };
     const fetchMock = authenticatedFetch(workspace);
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
 
     render(<App />);
     expect(await screen.findByRole("searchbox", { name: "Search cards" })).toBeInTheDocument();
@@ -852,4 +870,105 @@ describe("Grimoire board", () => {
     expect(screen.getByText("Model the potion workbench")).toBeInTheDocument();
     expect(window.location.search).toContain(`people=${initial.members[1].id}`);
   });
+
+  it("reads the project history as sentences and opens the card behind an entry", async () => {
+    const initial = boardFixture();
+    const card = initial.cards.find((candidate) => candidate.status === "in_progress")!;
+    const fetchMock = authenticatedFetch(initial);
+    stubFetch(fetchMock, {
+      hasMore: false,
+      events: [
+        auditFixture({
+          action: "moved",
+          entityId: card.id,
+          entityTitle: card.title,
+          changes: [{ field: "column", from: "Up Next", to: "In progress" }],
+        }),
+        auditFixture({
+          action: "joined",
+          actorName: "Maren",
+          actorId: initial.members[1].id,
+          entityType: "member",
+          entityTitle: "Maren",
+          id: "audit-2",
+        }),
+      ],
+    });
+
+    render(<App />);
+    await userEvent.click(await screen.findByRole("button", { name: "activity" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Activity" });
+    expect(within(dialog).getByText("moved card", { exact: false })).toBeInTheDocument();
+    expect(within(dialog).getByText("column: Up Next → In progress")).toBeInTheDocument();
+    expect(within(dialog).getByText("joined the project", { exact: false })).toBeInTheDocument();
+
+    await userEvent.click(within(dialog).getByRole("button", { name: `Open ${card.title}` }));
+    expect(await screen.findByRole("dialog", { name: "Edit card" })).toBeInTheDocument();
+  });
+
+  it("shows recent changes inside the card it opens", async () => {
+    const initial = boardFixture();
+    const card = initial.cards.find((candidate) => candidate.status === "in_progress")!;
+    stubFetch(authenticatedFetch(initial), {
+      hasMore: false,
+      events: [auditFixture({
+        action: "updated",
+        entityId: card.id,
+        entityTitle: card.title,
+        changes: [{ field: "assignee", from: "unassigned", to: "Maren" }],
+      })],
+    });
+
+    render(<App />);
+    await openWorkCard(card);
+
+    const dialog = screen.getByRole("dialog", { name: "Edit card" });
+    expect(within(dialog).getByText("History")).toBeInTheDocument();
+    expect(within(dialog).getByText("assignee: unassigned → Maren")).toBeInTheDocument();
+  });
+
+  it("marks connected teammates as online", async () => {
+    const initial = boardFixture();
+    let presenceListener: ((event: Event) => void) | null = null;
+    class FakeEventSource {
+      close = vi.fn();
+      constructor(readonly url: string) {}
+      addEventListener(type: string, listener: EventListener) {
+        if (type === "presence") presenceListener = listener;
+      }
+      removeEventListener = vi.fn();
+    }
+    vi.stubGlobal("EventSource", FakeEventSource);
+    stubFetch(authenticatedFetch(initial));
+
+    render(<App />);
+    const maren = await screen.findByRole("button", { name: "Filter by Maren" });
+    expect(maren.querySelector(".avatar")).not.toHaveClass("online");
+
+    act(() => {
+      presenceListener!(new MessageEvent("presence", {
+        data: JSON.stringify({ online: [initial.members[1].id] }),
+      }));
+    });
+
+    await waitFor(() => expect(maren.querySelector(".avatar")).toHaveClass("online"));
+    expect(screen.getAllByTitle("Maren (online)").length).toBeGreaterThan(0);
+  });
 });
+
+function auditFixture(overrides: Partial<AuditEvent> = {}): AuditEvent {
+  return {
+    sequence: 1,
+    id: "audit-1",
+    actorId: "00000000-0000-4000-8000-000000000010",
+    actorName: "Donavyn",
+    entityType: "card",
+    entityId: null,
+    entityTitle: "a card",
+    action: "updated",
+    changes: [],
+    createdAt: new Date().toISOString(),
+    ...overrides,
+  };
+}

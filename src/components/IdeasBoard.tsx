@@ -1,5 +1,6 @@
 import { type DragEvent, type FormEvent, Fragment, useEffect, useRef, useState } from "react";
 import type { Idea, IdeaState, IdeaWorkspace } from "../../shared/types";
+import { useFlip } from "./use-flip";
 
 type Props = {
   workspace: IdeaWorkspace;
@@ -15,13 +16,17 @@ export function IdeasBoard({ workspace, busy, onCreate, onUpdate, onPromote }: P
   const [drag, setDrag] = useState<{ id: string; height: number } | null>(null);
   const [dropHint, setDropHint] = useState<{ state: IdeaState; index: number } | null>(null);
   const dragSession = useRef(0);
+  const layoutRef = useRef<HTMLDivElement>(null);
+  useFlip(layoutRef);
   const shortlist = ideasIn(workspace, "shortlist");
   const inbox = ideasIn(workspace, "inbox");
   const parked = ideasIn(workspace, "parked");
   const selected = workspace.ideas.find((idea) => idea.id === selectedId) ?? null;
   const baseShortlist = drag ? shortlist.filter((idea) => idea.id !== drag.id) : shortlist;
   const hintIndex = drag && dropHint?.state === "shortlist" ? Math.min(dropHint.index, baseShortlist.length) : null;
-  const placeholder = drag ? <div aria-hidden="true" className="drop-placeholder" style={{ height: drag.height }} /> : null;
+  const placeholder = drag
+    ? <div aria-hidden="true" className="drop-placeholder" data-flip-id="drop-placeholder" style={{ height: drag.height }} />
+    : null;
 
   const capture = async (event: FormEvent) => {
     event.preventDefault();
@@ -103,7 +108,7 @@ export function IdeasBoard({ workspace, busy, onCreate, onUpdate, onPromote }: P
         </form>
       </div>
 
-      <div className="idea-layout">
+      <div className="idea-layout" ref={layoutRef}>
         <section aria-label="Shortlist" className="idea-section shortlist-section">
           <header className="idea-section-header">
             <div><span className="idea-glyph">✦</span><div><p className="eyebrow">ranked by hand</p><h3>Shortlist</h3></div></div>
@@ -119,6 +124,7 @@ export function IdeasBoard({ workspace, busy, onCreate, onUpdate, onPromote }: P
               {!hidden && slot === hintIndex && placeholder}
               <article
                 className={`idea-card shortlist-card ${hidden ? "drag-hidden" : ""}`}
+                data-flip-id={idea.id}
                 draggable
                 onDragEnd={finishDrag}
                 onDragStart={(event) => startIdeaDrag(event, idea, slot)}
@@ -152,6 +158,7 @@ export function IdeasBoard({ workspace, busy, onCreate, onUpdate, onPromote }: P
             {inbox.map((idea) => (
               <article
                 className={`idea-card ${drag?.id === idea.id ? "drag-hidden" : ""}`}
+                data-flip-id={idea.id}
                 draggable
                 key={idea.id}
                 onDragEnd={finishDrag}
@@ -182,6 +189,7 @@ export function IdeasBoard({ workspace, busy, onCreate, onUpdate, onPromote }: P
             {parked.map((idea) => (
               <article
                 className={`idea-card parked-card ${drag?.id === idea.id ? "drag-hidden" : ""}`}
+                data-flip-id={idea.id}
                 draggable
                 key={idea.id}
                 onDragEnd={finishDrag}

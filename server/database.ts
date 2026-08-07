@@ -198,6 +198,22 @@ CREATE TABLE IF NOT EXISTS cards (
   updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS audit_events (
+  sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+  id TEXT NOT NULL UNIQUE,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  actor_id TEXT REFERENCES users(id),
+  actor_name TEXT NOT NULL,
+  entity_type TEXT NOT NULL CHECK (entity_type IN ('card', 'idea', 'project', 'category', 'member')),
+  entity_id TEXT,
+  entity_title TEXT NOT NULL,
+  action TEXT NOT NULL,
+  changes TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token_hash);
 CREATE INDEX IF NOT EXISTS idx_cards_board ON cards(project_id, status, position) WHERE archived_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_audit_project ON audit_events(project_id, sequence DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_events(project_id, entity_id, sequence DESC);
 `;
