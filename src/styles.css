@@ -1237,6 +1237,8 @@ textarea:hover { border-color: var(--border-bright); }
 }
 .notes-view:hover { border-color: var(--border-bright); }
 .notes-placeholder { margin: 0; color: var(--faint); line-height: 1.6; }
+.notes-field.drop-active .notes-view,
+.notes-field.drop-active textarea { background: var(--accent-soft); border-color: var(--accent); }
 
 .markdown-body { font-size: 13px; line-height: 1.6; overflow-wrap: break-word; }
 .markdown-body > :first-child { margin-top: 0; }

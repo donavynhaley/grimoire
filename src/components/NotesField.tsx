@@ -61,18 +61,23 @@ type Props = {
  *
  * Clicking anywhere in the rendered view opens the editor with the caret at the
  * end; the `edit` button does the same for keyboard and screen-reader use, and
- * links stay real links in both worlds. Leaving the textarea returns to the
- * rendered view. The parent owns the value and its autosave, so switching modes
- * never touches unsaved text.
+ * links stay real links in both worlds. Leaving the textarea for another control
+ * returns to the rendered view, but switching to another application does not,
+ * so going to fetch a screenshot never closes the editor. The parent owns the
+ * value and its autosave, so switching modes never touches unsaved text.
  *
  * Pasting or dropping an image uploads it and embeds `![[name]]`, exactly the
- * reference Obsidian would create. A placeholder token holds the caret position
- * while the upload runs, so typing during the upload never misplaces the embed.
+ * reference Obsidian would create. Drops are accepted by the whole field in both
+ * modes, since a drag usually begins while the notes are at rest. A placeholder
+ * token holds the caret position while the upload runs, so typing during the
+ * upload never misplaces the embed.
  */
 export function NotesField({ label, editLabel, name, textareaLabel, placeholder, rows, value, onChange }: Props) {
   const [editing, setEditing] = useState(false);
   const [pendingUploads, setPendingUploads] = useState(0);
   const [uploadFailed, setUploadFailed] = useState(false);
+  const [dropActive, setDropActive] = useState(false);
+  const dragDepth = useRef(0);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const valueRef = useRef(value);
   valueRef.current = value;
@@ -111,7 +116,8 @@ export function NotesField({ label, editLabel, name, textareaLabel, placeholder,
     if (images.length === 0) return;
     setUploadFailed(false);
     const tokens = images.map(() => `![[uploading-${Math.random().toString(36).slice(2, 8)}]]`);
-    insertAtSelection(tokens.join("\n"));
+    const separated = !textareaRef.current && valueRef.current.trim() ? `\n\n${tokens.join("\n")}` : tokens.join("\n");
+    insertAtSelection(separated);
     setPendingUploads((count) => count + images.length);
     for (const [index, image] of images.entries()) {
       try {
@@ -128,9 +134,34 @@ export function NotesField({ label, editLabel, name, textareaLabel, placeholder,
 
   const collectFiles = (list: FileList | null | undefined) => Array.from(list ?? []);
   const hasImage = (files: File[]) => files.some((file) => file.type.startsWith("image/"));
+  const draggingFiles = (transfer: DataTransfer | null) => Boolean(transfer?.types.includes("Files"));
 
   return (
-    <div className="notes-field">
+    <div
+      className={dropActive ? "notes-field drop-active" : "notes-field"}
+      onDragEnter={(event) => {
+        if (!draggingFiles(event.dataTransfer)) return;
+        dragDepth.current += 1;
+        setDropActive(true);
+      }}
+      onDragLeave={() => {
+        if (dragDepth.current === 0) return;
+        dragDepth.current -= 1;
+        if (dragDepth.current === 0) setDropActive(false);
+      }}
+      onDragOver={(event) => {
+        if (draggingFiles(event.dataTransfer)) event.preventDefault();
+      }}
+      onDrop={(event) => {
+        dragDepth.current = 0;
+        setDropActive(false);
+        const files = collectFiles(event.dataTransfer?.files);
+        if (!hasImage(files)) return;
+        event.preventDefault();
+        if (!editing) setEditing(true);
+        void importImages(files);
+      }}
+    >
       <div className="notes-head">
         <span>{label}</span>
         <span className="notes-tools">
@@ -149,17 +180,10 @@ export function NotesField({ label, editLabel, name, textareaLabel, placeholder,
         <textarea
           aria-label={textareaLabel}
           name={name}
-          onBlur={() => setEditing(false)}
+          onBlur={() => {
+            if (document.hasFocus()) setEditing(false);
+          }}
           onChange={(event) => onChange(event.target.value)}
-          onDragOver={(event) => {
-            if (event.dataTransfer?.types.includes("Files")) event.preventDefault();
-          }}
-          onDrop={(event) => {
-            const files = collectFiles(event.dataTransfer?.files);
-            if (!hasImage(files)) return;
-            event.preventDefault();
-            void importImages(files);
-          }}
           onKeyDown={(event) => {
             if (event.key !== "Escape") return;
             event.stopPropagation();

@@ -16,6 +16,7 @@ vi.mock("../../src/api/client", async (importOriginal) => {
 afterEach(() => {
   cleanup();
   vi.mocked(uploadImage).mockReset();
+  vi.restoreAllMocks();
 });
 
 function renderNotes(value: string, onChange: (value: string) => void = () => undefined) {
@@ -56,6 +57,9 @@ describe("NotesField", () => {
   });
 
   it("opens the editor when the rendered notes are clicked and returns on blur", async () => {
+    // jsdom reports an unfocused document during synthetic tabbing; a browser
+    // moving focus inside the page always reports a focused one.
+    vi.spyOn(document, "hasFocus").mockReturnValue(true);
     renderNotes("Some **notes** here");
 
     await userEvent.click(screen.getByText("notes"));
@@ -194,6 +198,50 @@ describe("NotesField image paste", () => {
 
     expect(uploadImage).not.toHaveBeenCalled();
     expect(textarea).toHaveValue("Existing notes.");
+  });
+
+  it("accepts a drop on the rendered view and embeds on its own line", async () => {
+    vi.mocked(uploadImage).mockResolvedValue({ name: "dropped.png" });
+    const { container } = render(<PasteHarness />);
+
+    const view = container.querySelector(".notes-view");
+    expect(view).not.toBeNull();
+    const file = new File([Uint8Array.from([137, 80, 78, 71])], "sketch.png", { type: "image/png" });
+    fireEvent.drop(view as Element, { dataTransfer: { files: [file], types: ["Files"] } });
+
+    const textarea = await screen.findByRole("textbox", { name: "Notes" });
+    await waitFor(() => expect(textarea).toHaveValue("Existing notes.\n\n![[dropped.png]]"));
+    expect(uploadImage).toHaveBeenCalledWith(file);
+  });
+
+  it("shows the drop affordance while files drag across either mode", () => {
+    const { container } = render(<PasteHarness />);
+    const field = container.querySelector(".notes-field") as Element;
+
+    fireEvent.dragEnter(field, { dataTransfer: { types: ["Files"], files: [] } });
+    expect(field).toHaveClass("drop-active");
+    fireEvent.dragLeave(field, { dataTransfer: { types: ["Files"], files: [] } });
+    expect(field).not.toHaveClass("drop-active");
+
+    fireEvent.dragEnter(field, { dataTransfer: { types: ["text/plain"], files: [] } });
+    expect(field).not.toHaveClass("drop-active");
+  });
+
+  it("keeps the editor open when the window loses focus to another application", async () => {
+    const hasFocus = vi.spyOn(document, "hasFocus");
+    render(<PasteHarness />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit notes" }));
+    const textarea = screen.getByRole("textbox", { name: "Notes" });
+
+    hasFocus.mockReturnValue(false);
+    fireEvent.blur(textarea);
+    expect(screen.getByRole("textbox", { name: "Notes" })).toBeInTheDocument();
+
+    hasFocus.mockReturnValue(true);
+    fireEvent.blur(textarea);
+    expect(screen.queryByRole("textbox", { name: "Notes" })).not.toBeInTheDocument();
+    hasFocus.mockRestore();
   });
 });
 

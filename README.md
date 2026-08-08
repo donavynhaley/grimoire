@@ -32,7 +32,8 @@ Every card can contain a title, optional notes, and one assignee.
 Notes are written in Markdown and shown rendered, so headings, emphasis, links, lists, task checkboxes, quotes, and code display as formatting instead of syntax.
 Clicking the rendered notes, or the `edit` action beside them, opens the plain-text editor, and leaving it returns to the rendered view.
 Links in notes open in a new tab without disturbing the card.
-Pasting or dropping a screenshot into the notes editor uploads it to the project's `images/` directory and embeds it with Obsidian's `![[name]]` syntax, including support for Obsidian's `![[name|300]]` display sizes.
+Pasting or dropping a screenshot into the notes uploads it to the project's `images/` directory and embeds it with Obsidian's `![[name]]` syntax, including support for Obsidian's `![[name|300]]` display sizes.
+The whole notes field accepts drops whether it is being read or edited, highlights while a file is dragged across it, and the editor stays open while a screenshot is fetched from another window.
 Because the embed resolves by file name, images keep working when a card is archived, restored, or promoted from an idea, and they render natively if the project directory lives inside an Obsidian vault.
 Board and library tiles reduce notes to plain text so Markdown syntax never clutters a preview.
 Idea notes work the same way in both the idea dialog and the garden tiles.
