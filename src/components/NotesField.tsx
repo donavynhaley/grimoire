@@ -1,14 +1,40 @@
 import { useEffect, useRef, useState } from "react";
 import Markdown, { type Components, type ExtraProps } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { imageUrl, uploadImage } from "../api/client";
+import { remarkObsidianEmbeds } from "./obsidian-embeds";
 
-const REMARK_PLUGINS = [remarkGfm];
+const REMARK_PLUGINS = [remarkGfm, remarkObsidianEmbeds];
 
 function ExternalLink({ node: _node, ...props }: React.ComponentProps<"a"> & ExtraProps) {
   return <a {...props} onClick={(event) => event.stopPropagation()} rel="noreferrer" target="_blank" />;
 }
 
-const MARKDOWN_COMPONENTS: Components = { a: ExternalLink };
+/**
+ * Resolves the image references notes actually contain the way Obsidian would.
+ *
+ * Obsidian embeds arrive as bare file names, and hand-written relative paths such
+ * as `images/goal.png` resolve by their final segment, so both find the project
+ * images directory regardless of where the Markdown file itself lives. Absolute
+ * URLs pass through untouched.
+ */
+export function resolveImageSource(src: string): string {
+  if (/^(?:https?:|data:|blob:)/i.test(src) || src.startsWith("/")) return src;
+  let decoded = src;
+  try {
+    decoded = decodeURIComponent(src);
+  } catch {
+    // A malformed escape sequence is still a usable file name.
+  }
+  return imageUrl(decoded.split("/").pop() ?? decoded);
+}
+
+function EmbeddedImage({ node: _node, src, ...props }: React.ComponentProps<"img"> & ExtraProps) {
+  if (typeof src !== "string" || !src) return null;
+  return <img {...props} loading="lazy" src={resolveImageSource(src)} />;
+}
+
+const MARKDOWN_COMPONENTS: Components = { a: ExternalLink, img: EmbeddedImage };
 
 /** Renders trusted-shape Markdown; raw HTML in the source is shown as text, never injected. */
 export function MarkdownView({ markdown }: { markdown: string }) {
@@ -38,10 +64,18 @@ type Props = {
  * links stay real links in both worlds. Leaving the textarea returns to the
  * rendered view. The parent owns the value and its autosave, so switching modes
  * never touches unsaved text.
+ *
+ * Pasting or dropping an image uploads it and embeds `![[name]]`, exactly the
+ * reference Obsidian would create. A placeholder token holds the caret position
+ * while the upload runs, so typing during the upload never misplaces the embed.
  */
 export function NotesField({ label, editLabel, name, textareaLabel, placeholder, rows, value, onChange }: Props) {
   const [editing, setEditing] = useState(false);
+  const [pendingUploads, setPendingUploads] = useState(0);
+  const [uploadFailed, setUploadFailed] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const valueRef = useRef(value);
+  valueRef.current = value;
 
   useEffect(() => {
     if (!editing) return;
@@ -56,15 +90,60 @@ export function NotesField({ label, editLabel, name, textareaLabel, placeholder,
     setEditing(true);
   };
 
+  const insertAtSelection = (text: string) => {
+    const current = valueRef.current;
+    const textarea = textareaRef.current;
+    const start = textarea?.selectionStart ?? current.length;
+    const end = textarea?.selectionEnd ?? current.length;
+    onChange(current.slice(0, start) + text + current.slice(end));
+    const caret = start + text.length;
+    requestAnimationFrame(() => textareaRef.current?.setSelectionRange(caret, caret));
+  };
+
+  const replaceToken = (token: string, replacement: string) => {
+    const current = valueRef.current;
+    if (!current.includes(token)) return;
+    onChange(current.replace(token, replacement).replace(/\n{3,}/g, "\n\n"));
+  };
+
+  const importImages = async (files: File[]) => {
+    const images = files.filter((file) => file.type.startsWith("image/"));
+    if (images.length === 0) return;
+    setUploadFailed(false);
+    const tokens = images.map(() => `![[uploading-${Math.random().toString(36).slice(2, 8)}]]`);
+    insertAtSelection(tokens.join("\n"));
+    setPendingUploads((count) => count + images.length);
+    for (const [index, image] of images.entries()) {
+      try {
+        const { name: imageName } = await uploadImage(image);
+        replaceToken(tokens[index], `![[${imageName}]]`);
+      } catch {
+        replaceToken(tokens[index], "");
+        setUploadFailed(true);
+      } finally {
+        setPendingUploads((count) => count - 1);
+      }
+    }
+  };
+
+  const collectFiles = (list: FileList | null | undefined) => Array.from(list ?? []);
+  const hasImage = (files: File[]) => files.some((file) => file.type.startsWith("image/"));
+
   return (
     <div className="notes-field">
       <div className="notes-head">
         <span>{label}</span>
-        {!editing && (
-          <button aria-label={editLabel} className="text-button" onClick={() => setEditing(true)} type="button">
-            edit
-          </button>
-        )}
+        <span className="notes-tools">
+          {pendingUploads > 0 && <span aria-live="polite" className="notes-upload">uploading image...</span>}
+          {pendingUploads === 0 && uploadFailed && (
+            <span aria-live="polite" className="notes-upload failed">image upload failed</span>
+          )}
+          {!editing && (
+            <button aria-label={editLabel} className="text-button" onClick={() => setEditing(true)} type="button">
+              edit
+            </button>
+          )}
+        </span>
       </div>
       {editing ? (
         <textarea
@@ -72,10 +151,25 @@ export function NotesField({ label, editLabel, name, textareaLabel, placeholder,
           name={name}
           onBlur={() => setEditing(false)}
           onChange={(event) => onChange(event.target.value)}
+          onDragOver={(event) => {
+            if (event.dataTransfer?.types.includes("Files")) event.preventDefault();
+          }}
+          onDrop={(event) => {
+            const files = collectFiles(event.dataTransfer?.files);
+            if (!hasImage(files)) return;
+            event.preventDefault();
+            void importImages(files);
+          }}
           onKeyDown={(event) => {
             if (event.key !== "Escape") return;
             event.stopPropagation();
             setEditing(false);
+          }}
+          onPaste={(event) => {
+            const files = collectFiles(event.clipboardData?.files);
+            if (!hasImage(files)) return;
+            event.preventDefault();
+            void importImages(files);
           }}
           placeholder={placeholder}
           ref={textareaRef}

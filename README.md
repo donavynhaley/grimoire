@@ -32,6 +32,8 @@ Every card can contain a title, optional notes, and one assignee.
 Notes are written in Markdown and shown rendered, so headings, emphasis, links, lists, task checkboxes, quotes, and code display as formatting instead of syntax.
 Clicking the rendered notes, or the `edit` action beside them, opens the plain-text editor, and leaving it returns to the rendered view.
 Links in notes open in a new tab without disturbing the card.
+Pasting or dropping a screenshot into the notes editor uploads it to the project's `images/` directory and embeds it with Obsidian's `![[name]]` syntax, including support for Obsidian's `![[name|300]]` display sizes.
+Because the embed resolves by file name, images keep working when a card is archived, restored, or promoted from an idea, and they render natively if the project directory lives inside an Obsidian vault.
 Board and library tiles reduce notes to plain text so Markdown syntax never clutters a preview.
 Idea notes work the same way in both the idea dialog and the garden tiles.
 Assignees are visible directly on the board so the current team focus is clear at a glance.
@@ -129,7 +131,7 @@ npm test
 npm run build
 ```
 
-The test suite covers authentication, secure password changes, single-use invitations, member removal, Markdown persistence, legacy migration, external edits, live project events, presence, the activity log, the active deck, Backlog search, completion history, reversible archives and promotions, categories, card dependencies, assignments, filtering, idea ranking, ordering, drag-and-drop interaction, and Markdown note rendering.
+The test suite covers authentication, secure password changes, single-use invitations, member removal, Markdown persistence, legacy migration, external edits, live project events, presence, the activity log, the active deck, Backlog search, completion history, reversible archives and promotions, categories, card dependencies, assignments, filtering, idea ranking, ordering, drag-and-drop interaction, Markdown note rendering, and pasted note images.
 
 ## Self-hosting
 

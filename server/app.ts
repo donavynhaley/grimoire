@@ -22,6 +22,7 @@ import {
   listProjectsForUser,
   membersForProject,
   projectById,
+  projectSlug,
   publicUser,
   removeProjectMember,
   renameProject,
@@ -33,6 +34,7 @@ import {
 } from "./repository";
 import { createOpaqueToken, hashPassword, hashToken, verifyPassword } from "./security";
 import { AVATAR_SIZE_LIMIT, AvatarStore, sniffAvatarType } from "./avatars";
+import { IMAGE_SIZE_LIMIT, ProjectImageStore, sniffImageType } from "./project-images";
 import { MarkdownCardStore } from "./markdown-cards";
 import { createIdea, findIdea, getIdeas, promoteIdea, undoPromotion, updateIdea } from "./ideas-repository";
 import { MarkdownIdeaStore } from "./markdown-ideas";
@@ -136,6 +138,7 @@ export function createGrimoireServer(options: Options) {
   const database = openDatabase(options.databasePath);
   const cardStore = new MarkdownCardStore(options.cardsDirectory ?? join(dirname(options.databasePath), "cards"));
   const ideaStore = new MarkdownIdeaStore(cardStore.rootDirectory);
+  const imageStore = new ProjectImageStore(cardStore.rootDirectory);
   const avatarStore = new AvatarStore(join(dirname(options.databasePath), "avatars"));
   cardStore.migrateLegacyCards(database);
   let databaseClosed = false;
@@ -294,6 +297,38 @@ export function createGrimoireServer(options: Options) {
       response.setHeader("Content-Type", avatar.contentType);
       response.setHeader("Cache-Control", "private, max-age=31536000, immutable");
       createReadStream(avatar.path).pipe(response);
+      return;
+    }
+
+    if (method === "POST" && url.pathname === "/api/images") {
+      const user = requireUser(context);
+      const slug = projectSlug(database, requireProject(context, user));
+      if (!slug) throw new HttpError(404, "Board not found");
+      const data = await readRaw(request, IMAGE_SIZE_LIMIT);
+      const imageType = sniffImageType(data);
+      if (!imageType) throw new HttpError(400, "Notes images must be a PNG, JPEG, WebP, or GIF image");
+      const name = imageStore.save(slug, data, imageType);
+      json(response, 201, { name });
+      return;
+    }
+
+    const imageMatch = url.pathname.match(/^\/api\/images\/([^/]+)$/);
+    if (method === "GET" && imageMatch) {
+      const user = requireUser(context);
+      const slug = projectSlug(database, requireProject(context, user));
+      let imageName: string;
+      try {
+        imageName = decodeURIComponent(imageMatch[1]);
+      } catch {
+        throw new HttpError(404, "Image not found");
+      }
+      const image = slug ? imageStore.get(slug, imageName) : null;
+      if (!image) throw new HttpError(404, "Image not found");
+      response.statusCode = 200;
+      response.setHeader("Content-Type", image.contentType);
+      response.setHeader("X-Content-Type-Options", "nosniff");
+      response.setHeader("Cache-Control", "private, max-age=31536000, immutable");
+      createReadStream(image.path).pipe(response);
       return;
     }
 

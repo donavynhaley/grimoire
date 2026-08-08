@@ -1,12 +1,22 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { useState } from "react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { uploadImage } from "../../src/api/client";
 import { NotesField } from "../../src/components/NotesField";
 import { plainTextFromMarkdown } from "../../src/components/markdown-text";
 
-afterEach(cleanup);
+vi.mock("../../src/api/client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../src/api/client")>();
+  return { ...actual, uploadImage: vi.fn() };
+});
+
+afterEach(() => {
+  cleanup();
+  vi.mocked(uploadImage).mockReset();
+});
 
 function renderNotes(value: string, onChange: (value: string) => void = () => undefined) {
   return render(
@@ -85,6 +95,108 @@ describe("NotesField", () => {
   });
 });
 
+describe("NotesField Obsidian embeds", () => {
+  it("renders ![[name]] embeds as project images the way Obsidian does", () => {
+    const { container } = renderNotes("See ![[shot.png]] for the layout.");
+
+    const image = container.querySelector("img");
+    expect(image).toHaveAttribute("src", "/api/images/shot.png");
+    expect(image).toHaveAttribute("loading", "lazy");
+    expect(screen.getByText(/for the layout/)).toBeInTheDocument();
+  });
+
+  it("honors Obsidian display sizes and alt modifiers", () => {
+    const { container } = renderNotes("![[shot.png|300]]\n\n![[plan.png|300x200]]\n\n![[door.png|door sketch]]");
+
+    const images = container.querySelectorAll("img");
+    expect(images[0]).toHaveAttribute("width", "300");
+    expect(images[0]).not.toHaveAttribute("height");
+    expect(images[1]).toHaveAttribute("width", "300");
+    expect(images[1]).toHaveAttribute("height", "200");
+    expect(images[2]).toHaveAttribute("alt", "door sketch");
+    expect(images[2]).not.toHaveAttribute("width");
+  });
+
+  it("leaves embeds inside code as literal text", () => {
+    const { container } = renderNotes("Use `![[literal.png]]` to embed.\n\n```\n![[fenced.png]]\n```");
+
+    expect(container.querySelector("img")).toBeNull();
+    expect(screen.getByText("![[literal.png]]")).toBeInTheDocument();
+    expect(screen.getByText("![[fenced.png]]")).toBeInTheDocument();
+  });
+
+  it("resolves hand-written relative image paths by file name", () => {
+    const { container } = renderNotes("![goal](images/goal.png)");
+
+    const image = container.querySelector("img");
+    expect(image).toHaveAttribute("src", "/api/images/goal.png");
+    expect(image).toHaveAttribute("alt", "goal");
+  });
+
+  it("leaves absolute image sources untouched", () => {
+    const { container } = renderNotes("![chart](https://example.com/chart.png)");
+
+    expect(container.querySelector("img")).toHaveAttribute("src", "https://example.com/chart.png");
+  });
+});
+
+function PasteHarness() {
+  const [value, setValue] = useState("Existing notes.");
+  return (
+    <NotesField
+      editLabel="Edit notes"
+      label="Notes"
+      name="description"
+      onChange={setValue}
+      placeholder="Add only the context someone needs to act..."
+      rows={6}
+      textareaLabel="Notes"
+      value={value}
+    />
+  );
+}
+
+describe("NotesField image paste", () => {
+  it("uploads a pasted screenshot and embeds it Obsidian-style", async () => {
+    vi.mocked(uploadImage).mockResolvedValue({ name: "pasted-image-20260807-183045-ab12.png" });
+    render(<PasteHarness />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit notes" }));
+    const textarea = screen.getByRole("textbox", { name: "Notes" });
+    const file = new File([Uint8Array.from([137, 80, 78, 71])], "screenshot.png", { type: "image/png" });
+    fireEvent.paste(textarea, { clipboardData: { files: [file] } });
+
+    await waitFor(() =>
+      expect(textarea).toHaveValue("Existing notes.![[pasted-image-20260807-183045-ab12.png]]"),
+    );
+    expect(uploadImage).toHaveBeenCalledWith(file);
+  });
+
+  it("removes the placeholder and reports when an upload fails", async () => {
+    vi.mocked(uploadImage).mockRejectedValue(new Error("boom"));
+    render(<PasteHarness />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit notes" }));
+    const textarea = screen.getByRole("textbox", { name: "Notes" });
+    const file = new File([Uint8Array.from([137, 80, 78, 71])], "screenshot.png", { type: "image/png" });
+    fireEvent.paste(textarea, { clipboardData: { files: [file] } });
+
+    await waitFor(() => expect(screen.getByText("image upload failed")).toBeInTheDocument());
+    expect(textarea).toHaveValue("Existing notes.");
+  });
+
+  it("ignores pastes that contain no image", async () => {
+    render(<PasteHarness />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit notes" }));
+    const textarea = screen.getByRole("textbox", { name: "Notes" });
+    fireEvent.paste(textarea, { clipboardData: { files: [] } });
+
+    expect(uploadImage).not.toHaveBeenCalled();
+    expect(textarea).toHaveValue("Existing notes.");
+  });
+});
+
 describe("plainTextFromMarkdown", () => {
   it("strips the syntax that would clutter a card tile", () => {
     const markdown = "# Goal\n\n- Use **bold** words\n- See the [docs](https://example.com)\n\n> quoted `code` and *soft* text";
@@ -93,6 +205,11 @@ describe("plainTextFromMarkdown", () => {
 
   it("keeps snake_case identifiers intact", () => {
     expect(plainTextFromMarkdown("tune wizard_tower_door speed")).toBe("tune wizard_tower_door speed");
+  });
+
+  it("drops Obsidian embeds from previews entirely", () => {
+    expect(plainTextFromMarkdown("before ![[pasted-image.png]] after")).toBe("before after");
+    expect(plainTextFromMarkdown("![[door.png|300]]\n\nThe door sketch.")).toBe("The door sketch.");
   });
 
   it("keeps code content while dropping the fences", () => {

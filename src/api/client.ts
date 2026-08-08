@@ -60,6 +60,23 @@ export function mutate<T>(path: string, method: "POST" | "PATCH" | "DELETE", bod
   });
 }
 
+export function uploadImage(file: Blob): Promise<{ name: string }> {
+  return request<{ name: string }>("/api/images", {
+    method: "POST",
+    body: file,
+    headers: {
+      "content-type": file.type || "application/octet-stream",
+      "x-grimoire-client-id": clientId,
+    },
+  });
+}
+
+/** Resolves an Obsidian-style embed name to the authenticated image route for the active project. */
+export function imageUrl(name: string): string {
+  const project = activeProjectId ? `?project=${encodeURIComponent(activeProjectId)}` : "";
+  return `/api/images/${encodeURIComponent(name)}${project}`;
+}
+
 export function uploadAvatar(file: Blob): Promise<{ avatarUrl: string }> {
   return request<{ avatarUrl: string }>("/api/account/avatar", {
     method: "PUT",

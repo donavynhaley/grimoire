@@ -59,6 +59,11 @@ export function defaultProjectIdForUser(database: DatabaseSync, user: User): str
   return value ? String(value.project_id) : null;
 }
 
+export function projectSlug(database: DatabaseSync, projectId: string): string | null {
+  const project = row(database, "SELECT slug FROM projects WHERE id = ?", projectId);
+  return project ? String(project.slug) : null;
+}
+
 export function userCanAccessProject(database: DatabaseSync, user: User, projectId: string): boolean {
   if (user.role === "owner") {
     return Boolean(row(database, "SELECT 1 AS ok FROM projects WHERE id = ? AND archived_at IS NULL", projectId));

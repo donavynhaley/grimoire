@@ -53,9 +53,16 @@ cards/
       30981e89-3615-45bb-b25b-e544266502fa.md
       archive/
         4ed8f3c6-8e24-4386-8508-a28275c9f178.md
+    images/
+      pasted-image-20260807-183045-ab12.png
 ```
 
 Filenames use record UUIDs so changing a title does not create Git rename noise or break references.
+
+Images pasted into notes are stored once per project in `images/` and embedded with Obsidian's `![[name]]` syntax.
+Embeds resolve by file name rather than by relative path, so a card keeps its images through archive and restore, and an idea keeps them through promotion.
+The web application serves the same files through an authenticated project-scoped route, and a vault or repository that contains the project directory renders them natively in Obsidian.
+Uploads are verified by content signature (PNG, JPEG, WebP, or GIF), written atomically with generated names, and never deleted by the application.
 
 ## Card format
 

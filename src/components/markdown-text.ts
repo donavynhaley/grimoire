@@ -10,6 +10,7 @@
 export function plainTextFromMarkdown(markdown: string): string {
   return markdown
     .replace(/^ {0,3}(?:```|~~~).*$/gm, "")
+    .replace(/!\[\[[^\][\n]*\]\]/g, "")
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
     .replace(/(\*\*|__)(?=\S)([\s\S]*?\S)\1/g, "$2")

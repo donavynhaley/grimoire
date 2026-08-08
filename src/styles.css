@@ -1222,8 +1222,11 @@ textarea:hover { border-color: var(--border-bright); }
 .card-form label > span { color: var(--muted); font-size: 9px; }
 
 .notes-field { display: grid; gap: 7px; }
-.notes-head { display: flex; min-height: 14px; align-items: baseline; justify-content: space-between; }
-.notes-head > span { color: var(--muted); font-size: 9px; }
+.notes-head { display: flex; min-height: 14px; align-items: baseline; justify-content: space-between; gap: 10px; }
+.notes-head > span:first-child { color: var(--muted); font-size: 9px; }
+.notes-tools { display: flex; align-items: baseline; gap: 10px; }
+.notes-upload { color: var(--amber); font-size: 8px; }
+.notes-upload.failed { color: var(--red); }
 .notes-view {
   min-height: 46px;
   padding: 12px;
