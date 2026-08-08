@@ -10,6 +10,7 @@ import { DoneHistoryDialog } from "./DoneHistoryDialog";
 import { type ProjectActions, ProjectMenu } from "./ProjectMenu";
 import { type CaptureCardInput, QuickCapture } from "./QuickCapture";
 import { TeamDialog } from "./TeamDialog";
+import { plainTextFromMarkdown } from "./markdown-text";
 import { IdeasBoard } from "./IdeasBoard";
 import { useFlip } from "./use-flip";
 
@@ -418,6 +419,7 @@ export function Board({ board, busy, categoryActions, ideas, online, projectActi
                       .map((id) => board.cards.find((candidate) => candidate.id === id))
                       .filter((candidate): candidate is Card => Boolean(candidate && candidate.status !== "done"));
                     const category = card.category ? categoriesBySlug.get(card.category) : undefined;
+                    const preview = card.description ? plainTextFromMarkdown(card.description) : "";
                     return (
                       <Fragment key={card.id}>
                       {!hidden && slot === hintIndex && placeholder}
@@ -430,7 +432,7 @@ export function Board({ board, busy, categoryActions, ideas, online, projectActi
                         style={category ? ({ "--category-color": category.color } as React.CSSProperties) : undefined}
                       >
                         <button
-                          aria-label={`Open ${card.title}${card.description ? `. ${card.description}` : ""}. ${categoryName(card.category)}. ${blockers.length ? `Blocked by ${blockers.map((blocker) => blocker.title).join(", ")}. ` : ""}${card.assigneeName ?? "unassigned"}`}
+                          aria-label={`Open ${card.title}${preview ? `. ${preview}` : ""}. ${categoryName(card.category)}. ${blockers.length ? `Blocked by ${blockers.map((blocker) => blocker.title).join(", ")}. ` : ""}${card.assigneeName ?? "unassigned"}`}
                           className="card-open"
                           draggable
                           onClick={() => setSelectedId(card.id)}
@@ -442,7 +444,7 @@ export function Board({ board, busy, categoryActions, ideas, online, projectActi
                             {blockers.length > 0 && <span className="card-blocked">blocked by {blockers.length}</span>}
                           </span>}
                           <strong>{card.title}</strong>
-                          {card.description && <p>{card.description}</p>}
+                          {preview && <p>{preview}</p>}
                           <span className={`assignee ${card.assigneeId ? "assigned" : ""}`}>
                             {card.assigneeName ? <>
                               <Avatar

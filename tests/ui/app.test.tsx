@@ -590,6 +590,7 @@ describe("Grimoire board", () => {
     await openWorkCard(card);
 
     expect(screen.queryByRole("button", { name: /save changes/i })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Edit notes" }));
     await userEvent.clear(screen.getByLabelText("Notes"));
     await userEvent.type(screen.getByLabelText("Notes"), note);
 

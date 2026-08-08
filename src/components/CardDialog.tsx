@@ -9,6 +9,7 @@ import {
   type ProjectCategory,
 } from "../../shared/types";
 import { Avatar } from "./Avatar";
+import { NotesField } from "./NotesField";
 import { describeChange, describeEvent, relativeLabel } from "./activity-copy";
 
 const CARD_HISTORY_LIMIT = 6;
@@ -144,7 +145,16 @@ export function CardDialog({ card, cards, categories, members, revision, onUpdat
 
         <div className="card-form">
           <label><span>Title</span><input name="title" onChange={(event) => setTitle(event.target.value)} value={title} /></label>
-          <label><span>Notes</span><textarea name="description" onChange={(event) => setDescription(event.target.value)} placeholder="Add only the context someone needs to act..." rows={6} value={description} /></label>
+          <NotesField
+            editLabel="Edit notes"
+            label="Notes"
+            name="description"
+            onChange={setDescription}
+            placeholder="Add only the context someone needs to act..."
+            rows={6}
+            textareaLabel="Notes"
+            value={description}
+          />
           <div aria-live="polite" className={`autosave-state ${saveState.replaceAll(" ", "-")}`}><span className="autosave-dot" />{saveState}</div>
         </div>
 

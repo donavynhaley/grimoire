@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { type Card, type CardCategory, type Member, type ProjectCategory } from "../../shared/types";
 import { categoryDisplay, categoryStyle } from "./category-style";
+import { plainTextFromMarkdown } from "./markdown-text";
 
 type Props = {
   allCards: Card[];
@@ -108,7 +109,7 @@ export function BacklogDialog({ allCards, busy, cards, categories, members, onCl
                   {isBlocked(card, allCards) && <span className="card-blocked">blocked</span>}
                 </span>
                 <strong>{card.title}</strong>
-                {card.description && <p>{card.description}</p>}
+                {card.description && <p>{plainTextFromMarkdown(card.description)}</p>}
                 <span>{card.assigneeName ?? "unassigned"}</span>
               </button>
               <button

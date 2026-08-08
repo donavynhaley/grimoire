@@ -1,5 +1,7 @@
 import { type DragEvent, type FormEvent, Fragment, useEffect, useRef, useState } from "react";
 import type { Idea, IdeaState, IdeaWorkspace } from "../../shared/types";
+import { NotesField } from "./NotesField";
+import { plainTextFromMarkdown } from "./markdown-text";
 import { useFlip } from "./use-flip";
 
 type Props = {
@@ -228,7 +230,7 @@ function IdeaOpenButton({ idea, onOpen }: { idea: Idea; onOpen: () => void }) {
   return (
     <button aria-label={`Open idea ${idea.title}`} className="idea-open" onClick={onOpen} type="button">
       <strong>{idea.title}</strong>
-      {idea.description && <p>{idea.description}</p>}
+      {idea.description && <p>{plainTextFromMarkdown(idea.description)}</p>}
       <span>captured by {idea.createdByName}</span>
     </button>
   );
@@ -290,7 +292,16 @@ function IdeaDialog({ idea, shortlistPosition, onUpdate, onPromote, onClose }: {
         </header>
         <div className="card-form">
           <label><span>Title</span><input aria-label="Idea title" name="ideaTitle" onChange={(event) => setTitle(event.target.value)} value={title} /></label>
-          <label><span>Notes</span><textarea aria-label="Idea notes" name="ideaDescription" onChange={(event) => setDescription(event.target.value)} placeholder="What makes this interesting?" rows={7} value={description} /></label>
+          <NotesField
+            editLabel="Edit idea notes"
+            label="Notes"
+            name="ideaDescription"
+            onChange={setDescription}
+            placeholder="What makes this interesting?"
+            rows={7}
+            textareaLabel="Idea notes"
+            value={description}
+          />
           <div aria-live="polite" className={`autosave-state ${saveState.replaceAll(" ", "-")}`}><span className="autosave-dot" />{saveState}</div>
         </div>
         <div className="dialog-section">
