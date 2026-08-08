@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import type { BoardWorkspace, CardStatus, IdeaState, IdeaWorkspace, SessionState, User } from "../shared/types";
-import { activity as loadActivity, ApiError, board as loadBoard, ideas as loadIdeas, liveEventsUrl, mutate, request, session, setActiveProjectId, uploadAvatar } from "./api/client";
+import type { AwayState, BoardWorkspace, CardStatus, IdeaState, IdeaWorkspace, SessionState, User } from "../shared/types";
+import { activity as loadActivity, ApiError, away as loadAway, board as loadBoard, ideas as loadIdeas, liveEventsUrl, markSeen, mutate, request, session, setActiveProjectId, uploadAvatar } from "./api/client";
 import { AuthScreen } from "./components/AuthScreen";
 import { Board } from "./components/Board";
 import type { CaptureCardInput } from "./components/QuickCapture";
@@ -21,7 +21,20 @@ export function App() {
   const [error, setError] = useState("");
   const [online, setOnline] = useState<ReadonlySet<string>>(() => new Set());
   const [undoNotice, setUndoNotice] = useState<PendingUndo | null>(null);
+  const [awayState, setAwayState] = useState<AwayState | null>(null);
   const dismissUndo = useCallback(() => setUndoNotice(null), []);
+
+  /**
+   * Marks everything current as seen, but only while the tab is actually on screen.
+   * A board reloading behind a hidden tab stays unseen so it can greet the reader
+   * on their next visit instead of silently slipping past them.
+   */
+  const advanceSeen = useCallback(() => {
+    if (document.visibilityState !== "visible") return;
+    markSeen().catch(() => {
+      // A missed advance only means the same changes greet the reader again.
+    });
+  }, []);
 
   // Bumped on every canonical reload so open history views know to refetch.
   const [revision, setRevision] = useState(0);
@@ -60,6 +73,31 @@ export function App() {
     return () => { alive = false; };
   }, []);
 
+  // The away boundary is captured once per project session: what the digest and
+  // markers show stays stable for the whole visit even as the cursor advances.
+  useEffect(() => {
+    if (sessionState?.status !== "authenticated" || !board) return;
+    let alive = true;
+    setAwayState(null);
+    loadAway()
+      .then((value) => {
+        if (!alive) return;
+        setAwayState(value);
+        advanceSeen();
+      })
+      .catch(() => {
+        // The board works without its welcome-back decoration.
+      });
+    return () => { alive = false; };
+  }, [advanceSeen, board?.project.id, sessionState?.status]);
+
+  useEffect(() => {
+    if (sessionState?.status !== "authenticated") return;
+    const onVisibilityChange = () => advanceSeen();
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, [advanceSeen, sessionState?.status]);
+
   useEffect(() => {
     if (sessionState?.status !== "authenticated" || !board || typeof EventSource === "undefined") return;
     const source = new EventSource(liveEventsUrl());
@@ -80,6 +118,8 @@ export function App() {
             work ? refreshBoard() : Promise.resolve(),
             ideaGarden && ideas !== null ? refreshIdeas() : Promise.resolve(),
           ]);
+          // Watching a live change happen counts as seeing it; hidden tabs skip this.
+          advanceSeen();
         }
       } catch (value) {
         setError(value instanceof ApiError ? value.message : "Live changes could not be loaded");
@@ -115,7 +155,7 @@ export function App() {
       source.close();
       setOnline(new Set());
     };
-  }, [board?.project.id, ideas !== null, refreshBoard, refreshIdeas, sessionState?.status]);
+  }, [advanceSeen, board?.project.id, ideas !== null, refreshBoard, refreshIdeas, sessionState?.status]);
 
   const onAuthenticated = async (_user: User) => {
     await refreshBoard();
@@ -331,6 +371,7 @@ export function App() {
       {error && <div className="error-banner global-error" role="alert">{error}<button aria-label="Dismiss error" onClick={() => setError("")} type="button">×</button></div>}
       {undoNotice && <UndoToast notice={undoNotice} onDismiss={dismissUndo} onUndo={() => void undoLastChange()} />}
       <Board
+        away={awayState}
         board={board}
         busy={busy}
         categoryActions={{ create: createCategory, update: updateCategory, remove: deleteCategory }}

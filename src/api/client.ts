@@ -1,4 +1,4 @@
-import type { AuditPage, BoardWorkspace, IdeaWorkspace, SessionState } from "../../shared/types";
+import type { AuditPage, AwayState, BoardWorkspace, IdeaWorkspace, SessionState } from "../../shared/types";
 
 const clientId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
@@ -45,6 +45,15 @@ export function activity(options: { entityId?: string; before?: number; limit?: 
   if (options.before !== undefined) params.set("before", String(options.before));
   if (options.limit !== undefined) params.set("limit", String(options.limit));
   return request<AuditPage>(`/api/activity${params.size ? `?${params}` : ""}`);
+}
+
+export function away(): Promise<AwayState> {
+  return request<AwayState>("/api/away");
+}
+
+/** Advances the private seen cursor to the newest change; the server clamps and MAX-guards it. */
+export function markSeen(): Promise<{ ok: boolean }> {
+  return mutate("/api/seen", "POST", {});
 }
 
 export function liveEventsUrl(): string {

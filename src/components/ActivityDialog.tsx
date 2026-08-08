@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { AUDIT_ENTITY_TYPES, type AuditEntityType, type AuditEvent, type AuditPage, type Member } from "../../shared/types";
 import { Avatar } from "./Avatar";
 import { dayLabel, describeChange, describeEvent, ENTITY_LABELS, eventText, timeLabel } from "./activity-copy";
@@ -6,6 +6,8 @@ import { dayLabel, describeChange, describeEvent, ENTITY_LABELS, eventText, time
 const PAGE_SIZE = 60;
 
 type Props = {
+  /** The reader's last-seen sequence; events above it are new since their last visit. */
+  awaySince?: number;
   members: Member[];
   revision: number;
   onClose: () => void;
@@ -13,7 +15,7 @@ type Props = {
   onOpenCard: (id: string) => void;
 };
 
-export function ActivityDialog({ members, revision, onClose, onLoad, onOpenCard }: Props) {
+export function ActivityDialog({ awaySince, members, revision, onClose, onLoad, onOpenCard }: Props) {
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -65,6 +67,14 @@ export function ActivityDialog({ members, revision, onClose, onLoad, onOpenCard 
     [events],
   );
   const groups = useMemo(() => groupByDay(visible, now), [now, visible]);
+
+  // The unread line sits before the first already-seen event, provided something
+  // newer sits above it - a fully-read log needs no line at all.
+  const dividerBeforeId = useMemo(() => {
+    if (awaySince === undefined) return null;
+    const firstSeen = visible.findIndex((event) => event.sequence <= awaySince);
+    return firstSeen > 0 ? visible[firstSeen].id : null;
+  }, [awaySince, visible]);
 
   return (
     <div className="modal-backdrop library-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
@@ -125,12 +135,16 @@ export function ActivityDialog({ members, revision, onClose, onLoad, onOpenCard 
               <header><h3>{label}</h3><span>{dayEvents.length}</span></header>
               <div>
                 {dayEvents.map((event) => (
-                  <ActivityRow
-                    event={event}
-                    key={event.id}
-                    members={members}
-                    onOpenCard={event.entityType === "card" && event.entityId ? onOpenCard : undefined}
-                  />
+                  <Fragment key={event.id}>
+                    {event.id === dividerBeforeId && (
+                      <div className="unread-divider" role="separator">new since your last visit</div>
+                    )}
+                    <ActivityRow
+                      event={event}
+                      members={members}
+                      onOpenCard={event.entityType === "card" && event.entityId ? onOpenCard : undefined}
+                    />
+                  </Fragment>
                 ))}
               </div>
             </section>

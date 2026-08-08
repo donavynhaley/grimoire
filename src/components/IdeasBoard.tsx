@@ -7,14 +7,29 @@ import { useFlip } from "./use-flip";
 type Props = {
   workspace: IdeaWorkspace;
   busy: boolean;
+  /** Ideas changed while the reader was away; opening one answers its dot. */
+  unseenIdeaIds?: ReadonlySet<string>;
   onCreate: (input: { title: string }) => Promise<void>;
   onUpdate: (id: string, input: { title?: string; description?: string; state?: IdeaState; position?: number }) => Promise<void>;
   onPromote: (id: string) => Promise<void>;
 };
 
-export function IdeasBoard({ workspace, busy, onCreate, onUpdate, onPromote }: Props) {
+export function IdeasBoard({ workspace, busy, unseenIdeaIds, onCreate, onUpdate, onPromote }: Props) {
   const [title, setTitle] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [openedUnseen, setOpenedUnseen] = useState<ReadonlySet<string>>(() => new Set());
+  const isUnseen = (id: string) => Boolean(unseenIdeaIds?.has(id)) && !openedUnseen.has(id);
+
+  // Opening an idea answers its dot for the rest of the visit.
+  useEffect(() => {
+    if (!selectedId) return;
+    setOpenedUnseen((current) => {
+      if (current.has(selectedId)) return current;
+      const next = new Set(current);
+      next.add(selectedId);
+      return next;
+    });
+  }, [selectedId]);
   const [drag, setDrag] = useState<{ id: string; height: number } | null>(null);
   const [dropHint, setDropHint] = useState<{ state: IdeaState; index: number } | null>(null);
   const dragSession = useRef(0);
@@ -125,14 +140,14 @@ export function IdeasBoard({ workspace, busy, onCreate, onUpdate, onPromote }: P
               <Fragment key={idea.id}>
               {!hidden && slot === hintIndex && placeholder}
               <article
-                className={`idea-card shortlist-card ${hidden ? "drag-hidden" : ""}`}
+                className={`idea-card shortlist-card ${hidden ? "drag-hidden" : ""} ${isUnseen(idea.id) ? "unseen" : ""}`}
                 data-flip-id={idea.id}
                 draggable
                 onDragEnd={finishDrag}
                 onDragStart={(event) => startIdeaDrag(event, idea, slot)}
               >
                 <span className="rank-number">{String(rank + 1).padStart(2, "0")}</span>
-                <IdeaOpenButton idea={idea} onOpen={() => setSelectedId(idea.id)} />
+                <IdeaOpenButton idea={idea} onOpen={() => setSelectedId(idea.id)} unseen={isUnseen(idea.id)} />
                 <div className="idea-actions">
                   <button aria-label={`Make work card from ${idea.title}`} onClick={() => setSelectedId(idea.id)} type="button">make card</button>
                   <button aria-label={`Park ${idea.title}`} onClick={() => void onUpdate(idea.id, { state: "parked" })} type="button">park</button>
@@ -159,14 +174,14 @@ export function IdeasBoard({ workspace, busy, onCreate, onUpdate, onPromote }: P
           <div className="inbox-list">
             {inbox.map((idea) => (
               <article
-                className={`idea-card ${drag?.id === idea.id ? "drag-hidden" : ""}`}
+                className={`idea-card ${drag?.id === idea.id ? "drag-hidden" : ""} ${isUnseen(idea.id) ? "unseen" : ""}`}
                 data-flip-id={idea.id}
                 draggable
                 key={idea.id}
                 onDragEnd={finishDrag}
                 onDragStart={(event) => startIdeaDrag(event, idea, -1)}
               >
-                <IdeaOpenButton idea={idea} onOpen={() => setSelectedId(idea.id)} />
+                <IdeaOpenButton idea={idea} onOpen={() => setSelectedId(idea.id)} unseen={isUnseen(idea.id)} />
                 <div className="idea-actions">
                   <button aria-label={`Shortlist ${idea.title}`} onClick={() => void onUpdate(idea.id, { state: "shortlist", position: shortlist.length })} type="button">shortlist</button>
                   <button aria-label={`Park ${idea.title}`} onClick={() => void onUpdate(idea.id, { state: "parked" })} type="button">park</button>
@@ -190,14 +205,14 @@ export function IdeasBoard({ workspace, busy, onCreate, onUpdate, onPromote }: P
           <div className="parked-list">
             {parked.map((idea) => (
               <article
-                className={`idea-card parked-card ${drag?.id === idea.id ? "drag-hidden" : ""}`}
+                className={`idea-card parked-card ${drag?.id === idea.id ? "drag-hidden" : ""} ${isUnseen(idea.id) ? "unseen" : ""}`}
                 data-flip-id={idea.id}
                 draggable
                 key={idea.id}
                 onDragEnd={finishDrag}
                 onDragStart={(event) => startIdeaDrag(event, idea, -1)}
               >
-                <IdeaOpenButton idea={idea} onOpen={() => setSelectedId(idea.id)} />
+                <IdeaOpenButton idea={idea} onOpen={() => setSelectedId(idea.id)} unseen={isUnseen(idea.id)} />
                 <div className="idea-actions">
                   <button aria-label={`Return ${idea.title} to inbox`} onClick={() => void onUpdate(idea.id, { state: "inbox" })} type="button">return to inbox</button>
                   <button aria-label={`Shortlist ${idea.title}`} onClick={() => void onUpdate(idea.id, { state: "shortlist", position: shortlist.length })} type="button">shortlist</button>
@@ -226,9 +241,9 @@ function ideasIn(workspace: IdeaWorkspace, state: IdeaState): Idea[] {
   return workspace.ideas.filter((idea) => idea.state === state).sort((left, right) => left.position - right.position);
 }
 
-function IdeaOpenButton({ idea, onOpen }: { idea: Idea; onOpen: () => void }) {
+function IdeaOpenButton({ idea, onOpen, unseen = false }: { idea: Idea; onOpen: () => void; unseen?: boolean }) {
   return (
-    <button aria-label={`Open idea ${idea.title}`} className="idea-open" onClick={onOpen} type="button">
+    <button aria-label={`Open idea ${idea.title}${unseen ? ". Changed while you were away" : ""}`} className="idea-open" onClick={onOpen} type="button">
       <strong>{idea.title}</strong>
       {idea.description && <p>{plainTextFromMarkdown(idea.description)}</p>}
       <span>captured by {idea.createdByName}</span>

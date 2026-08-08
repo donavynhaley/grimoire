@@ -35,9 +35,18 @@ function authenticatedFetch(board = boardFixture()) {
  * Card and project history load lazily whenever a dialog opens, so letting those
  * requests reach the ordered mock would shift every queued response by one.
  */
-function stubFetch(mock: typeof fetch, activity: unknown = { events: [], hasMore: false }) {
+function stubFetch(
+  mock: typeof fetch,
+  activity: unknown = { events: [], hasMore: false },
+  awayValue: unknown = { since: 0, latest: 0, total: 0, events: [] },
+) {
   vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
-    if (requestUrl(input).startsWith("/api/activity")) return response(activity);
+    const url = requestUrl(input);
+    if (url.startsWith("/api/activity")) return response(activity);
+    // The away lookup and cursor advance fire on every load; answering them here
+    // keeps the ordered mock aligned with the responses each test actually queues.
+    if (url.startsWith("/api/away")) return response(awayValue);
+    if (url.startsWith("/api/seen")) return response({ ok: true });
     return mock(input, init);
   });
 }

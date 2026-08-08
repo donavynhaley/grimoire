@@ -64,6 +64,41 @@ export function projectSlug(database: DatabaseSync, projectId: string): string |
   return project ? String(project.slug) : null;
 }
 
+/** The reader's private boundary into the activity log, or null before their first look. */
+export function seenCursor(database: DatabaseSync, projectId: string, userId: string): number | null {
+  const value = row(
+    database,
+    "SELECT last_seen_sequence FROM seen_cursors WHERE project_id = ? AND user_id = ?",
+    projectId,
+    userId,
+  );
+  return value ? Number(value.last_seen_sequence) : null;
+}
+
+/**
+ * First look at a project starts at the present, so joining never dumps the
+ * whole history as unread. Racing tabs both succeed; the first row wins.
+ */
+export function initializeSeenCursor(database: DatabaseSync, projectId: string, userId: string, sequence: number): void {
+  database
+    .prepare(
+      "INSERT OR IGNORE INTO seen_cursors (project_id, user_id, last_seen_sequence, updated_at) VALUES (?, ?, ?, ?)",
+    )
+    .run(projectId, userId, sequence, new Date().toISOString());
+}
+
+/** Advances with MAX semantics, so stale tabs and repeats can never rewind the boundary. */
+export function advanceSeenCursor(database: DatabaseSync, projectId: string, userId: string, sequence: number): void {
+  database
+    .prepare(
+      `INSERT INTO seen_cursors (project_id, user_id, last_seen_sequence, updated_at) VALUES (?, ?, ?, ?)
+       ON CONFLICT (project_id, user_id) DO UPDATE SET
+         last_seen_sequence = MAX(last_seen_sequence, excluded.last_seen_sequence),
+         updated_at = excluded.updated_at`,
+    )
+    .run(projectId, userId, sequence, new Date().toISOString());
+}
+
 export function userCanAccessProject(database: DatabaseSync, user: User, projectId: string): boolean {
   if (user.role === "owner") {
     return Boolean(row(database, "SELECT 1 AS ok FROM projects WHERE id = ? AND archived_at IS NULL", projectId));
@@ -470,6 +505,7 @@ export function removeProjectMember(
       .prepare("DELETE FROM project_members WHERE project_id = ? AND user_id = ? AND role != 'owner'")
       .run(projectId, memberId);
     if (Number(removed.changes) !== 1) throw new Error("Project membership changed while it was being removed");
+    database.prepare("DELETE FROM seen_cursors WHERE project_id = ? AND user_id = ?").run(projectId, memberId);
     const remaining = row(database, "SELECT COUNT(*) AS count FROM project_members WHERE user_id = ?", memberId);
     if (Number(remaining?.count ?? 0) === 0) {
       database.prepare("DELETE FROM sessions WHERE user_id = ?").run(memberId);

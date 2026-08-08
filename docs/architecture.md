@@ -12,6 +12,7 @@ SQLite stores operational collaboration data:
 - Invitation records.
 - Project identity and membership.
 - The append-only project activity log.
+- Each member's private last-seen cursor into that log.
 
 The configured project directory stores all work card and idea domain data:
 
@@ -32,8 +33,12 @@ The activity log records who acted rather than what the work is, so it belongs w
 Keeping it out of the Markdown also avoids adding a Git diff to every card move.
 It is a deliberate consequence that a copied project directory carries the work but not its history.
 
+The while-you-were-away digest is one row per member per project in `seen_cursors`: the newest `audit_events.sequence` that member has seen while their tab was visible.
+Everything the returning reader is shown - the digest, the card and idea markers, the owner's badge and unread line - derives from the events after that cursor, with the reader's own actions excluded at the query.
+Advances are MAX-guarded and clamped to the newest real sequence, so racing tabs, repeats, and stale requests can never rewind or overshoot the boundary, and a first look pins the cursor to the present so joining never dumps history as unread.
+
 Only the newest unused invitation created by the owner remains valid, and a successful registration consumes it atomically.
-Removing a member deletes their project membership, active sessions, and live event streams and clears their assignments from the Markdown cards.
+Removing a member deletes their project membership, active sessions, live event streams, and seen cursor, and clears their assignments from the Markdown cards.
 Their user identity remains in SQLite so cards they created continue to show accurate authorship history.
 
 ## Directory layout

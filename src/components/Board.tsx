@@ -1,8 +1,9 @@
 import { type DragEvent, type FormEvent, Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { type AuditPage, type BoardWorkspace, type Card, type CardStatus, type IdeaState, type IdeaWorkspace } from "../../shared/types";
+import { type AuditPage, type AwayState, type BoardWorkspace, type Card, type CardStatus, type IdeaState, type IdeaWorkspace } from "../../shared/types";
 import { AccountDialog } from "./AccountDialog";
 import { ActivityDialog } from "./ActivityDialog";
 import { Avatar } from "./Avatar";
+import { AwayDigest } from "./AwayDigest";
 import { BacklogDialog } from "./BacklogDialog";
 import { CardDialog } from "./CardDialog";
 import { type CategoryActions, CategoriesDialog } from "./CategoriesDialog";
@@ -26,6 +27,7 @@ const columnNames: Record<CardStatus, string> = {
 };
 
 type Props = {
+  away: AwayState | null;
   board: BoardWorkspace;
   busy: boolean;
   categoryActions: CategoryActions;
@@ -51,7 +53,7 @@ type Props = {
   onViewChange: (view: "work" | "ideas") => Promise<void>;
 };
 
-export function Board({ board, busy, categoryActions, ideas, online, projectActions, revision, view, onCreate, onUpdate, onArchive, onCreateInvite, onCreateIdea, onChangeAvatar, onChangePassword, onLoadActivity, onLogout, onMoveBacklogToNext, onPromoteIdea, onRemoveAvatar, onRemoveMember, onUpdateIdea, onViewChange }: Props) {
+export function Board({ away, board, busy, categoryActions, ideas, online, projectActions, revision, view, onCreate, onUpdate, onArchive, onCreateInvite, onCreateIdea, onChangeAvatar, onChangePassword, onLoadActivity, onLogout, onMoveBacklogToNext, onPromoteIdea, onRemoveAvatar, onRemoveMember, onUpdateIdea, onViewChange }: Props) {
   const [addingTo, setAddingTo] = useState<CardStatus | null>(null);
   const [columnTitle, setColumnTitle] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -70,12 +72,46 @@ export function Board({ board, busy, categoryActions, ideas, online, projectActi
   const [historyOpen, setHistoryOpen] = useState(false);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
+  // Once the history has been opened, its badge has done its job for this visit.
+  const [activityVisited, setActivityVisited] = useState(false);
+  const [awayDismissed, setAwayDismissed] = useState(false);
+  // Cards the reader has opened this visit; their dots have been answered.
+  const [openedUnseen, setOpenedUnseen] = useState<ReadonlySet<string>>(() => new Set());
+  const isOwner = board.currentUser.role === "owner";
+  const unseenCount = away && !awayDismissed && !activityVisited ? away.total : 0;
+  const unseenCardIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (!away || awayDismissed) return ids;
+    for (const event of away.events) {
+      if (event.entityType === "card" && event.entityId && !openedUnseen.has(event.entityId)) ids.add(event.entityId);
+    }
+    return ids;
+  }, [away, awayDismissed, openedUnseen]);
+  const unseenIdeaIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (!away || awayDismissed) return ids;
+    for (const event of away.events) {
+      if (event.entityType === "idea" && event.entityId) ids.add(event.entityId);
+    }
+    return ids;
+  }, [away, awayDismissed]);
   const initialParams = useMemo(() => new URLSearchParams(location.search), []);
   const [query, setQuery] = useState(() => initialParams.get("q") ?? "");
   const [people, setPeople] = useState<Set<string>>(
     () => new Set((initialParams.get("people") ?? "").split(",").filter(Boolean)),
   );
   const selectedCard = board.cards.find((card) => card.id === selectedId) ?? null;
+
+  // Opening a card answers its dot, whichever surface the card was opened from.
+  useEffect(() => {
+    if (!selectedId) return;
+    setOpenedUnseen((current) => {
+      if (current.has(selectedId)) return current;
+      const next = new Set(current);
+      next.add(selectedId);
+      return next;
+    });
+  }, [selectedId]);
   const categoriesBySlug = useMemo(
     () => new Map(board.categories.map((category) => [category.slug, category])),
     [board.categories],
@@ -322,7 +358,20 @@ export function Board({ board, busy, categoryActions, ideas, online, projectActi
               <Avatar avatarUrl={member.avatarUrl} key={member.id} name={member.name} title={member.name} />
             ))}
           </div>
-          <button className="quiet-button" onClick={() => setActivityOpen(true)} type="button">activity</button>
+          {isOwner && (
+            <button
+              className="quiet-button activity-trigger"
+              onClick={() => { setActivityOpen(true); setActivityVisited(true); }}
+              type="button"
+            >
+              activity
+              {unseenCount > 0 && (
+                <span aria-label={`${unseenCount} changes since your last visit`} className="away-badge">
+                  {unseenCount > 99 ? "99+" : unseenCount}
+                </span>
+              )}
+            </button>
+          )}
           <button className="quiet-button" onClick={() => setTeamOpen(true)} type="button">team</button>
           <button aria-label={`Open account settings for ${board.currentUser.name}`} className="account-button" onClick={() => setAccountOpen(true)} title="Account settings" type="button">
             <Avatar avatarUrl={board.currentUser.avatarUrl} className="avatar current" name={board.currentUser.name} />
@@ -330,6 +379,10 @@ export function Board({ board, busy, categoryActions, ideas, online, projectActi
           </button>
         </div>
       </header>
+
+      {away && !awayDismissed && (
+        <AwayDigest away={away} board={board} onDismiss={() => setAwayDismissed(true)} />
+      )}
 
       {view === "work" ? <main className="board-main">
         <div className="board-intro">
@@ -420,11 +473,12 @@ export function Board({ board, busy, categoryActions, ideas, online, projectActi
                       .filter((candidate): candidate is Card => Boolean(candidate && candidate.status !== "done"));
                     const category = card.category ? categoriesBySlug.get(card.category) : undefined;
                     const preview = card.description ? plainTextFromMarkdown(card.description) : "";
+                    const unseen = unseenCardIds.has(card.id);
                     return (
                       <Fragment key={card.id}>
                       {!hidden && slot === hintIndex && placeholder}
                       <article
-                        className={`board-card ${card.category ? "" : "category-none"} ${hidden ? "drag-hidden" : ""}`}
+                        className={`board-card ${card.category ? "" : "category-none"} ${hidden ? "drag-hidden" : ""} ${unseen ? "unseen" : ""}`}
                         data-flip-id={card.id}
                         draggable
                         onDragEnd={finishDrag}
@@ -432,7 +486,7 @@ export function Board({ board, busy, categoryActions, ideas, online, projectActi
                         style={category ? ({ "--category-color": category.color } as React.CSSProperties) : undefined}
                       >
                         <button
-                          aria-label={`Open ${card.title}${preview ? `. ${preview}` : ""}. ${categoryName(card.category)}. ${blockers.length ? `Blocked by ${blockers.map((blocker) => blocker.title).join(", ")}. ` : ""}${card.assigneeName ?? "unassigned"}`}
+                          aria-label={`Open ${card.title}${preview ? `. ${preview}` : ""}. ${categoryName(card.category)}. ${blockers.length ? `Blocked by ${blockers.map((blocker) => blocker.title).join(", ")}. ` : ""}${card.assigneeName ?? "unassigned"}${unseen ? ". Changed while you were away" : ""}`}
                           className="card-open"
                           draggable
                           onClick={() => setSelectedId(card.id)}
@@ -488,6 +542,7 @@ export function Board({ board, busy, categoryActions, ideas, online, projectActi
         ideas ? (
           <IdeasBoard
             busy={busy}
+            unseenIdeaIds={unseenIdeaIds}
             workspace={ideas}
             onCreate={onCreateIdea}
             onPromote={onPromoteIdea}
@@ -511,6 +566,7 @@ export function Board({ board, busy, categoryActions, ideas, online, projectActi
       )}
       {activityOpen && (
         <ActivityDialog
+          awaySince={away?.since}
           members={board.members}
           revision={revision}
           onClose={() => setActivityOpen(false)}

@@ -212,6 +212,14 @@ CREATE TABLE IF NOT EXISTS audit_events (
   created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS seen_cursors (
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  last_seen_sequence INTEGER NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (project_id, user_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token_hash);
 CREATE INDEX IF NOT EXISTS idx_cards_board ON cards(project_id, status, position) WHERE archived_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_audit_project ON audit_events(project_id, sequence DESC);

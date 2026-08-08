@@ -145,3 +145,17 @@ export type AuditPage = {
   events: AuditEvent[];
   hasMore: boolean;
 };
+
+/**
+ * What happened since this reader's last visible visit.
+ *
+ * `since` is the boundary the digest and markers are computed from, `latest` is the
+ * newest sequence the project has written, and `events` holds up to the away cap
+ * while `total` stays exact.
+ */
+export type AwayState = {
+  since: number;
+  latest: number;
+  total: number;
+  events: AuditEvent[];
+};

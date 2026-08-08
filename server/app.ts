@@ -20,10 +20,13 @@ import {
   getBoard,
   listCards,
   listProjectsForUser,
+  advanceSeenCursor,
+  initializeSeenCursor,
   membersForProject,
   projectById,
   projectSlug,
   publicUser,
+  seenCursor,
   removeProjectMember,
   renameProject,
   restoreCard,
@@ -44,7 +47,9 @@ import {
   cardCreationChanges,
   changeAction,
   ideaChanges,
+  latestAuditSequence,
   listAuditEvents,
+  listUnseenEvents,
   recordAuditEvent,
   type CardLabels,
   type RecordAuditInput,
@@ -133,6 +138,9 @@ const ideaSchema = z.object({
 const ideaUpdateSchema = ideaSchema.partial().extend({
   position: z.number().int().min(0).optional(),
 });
+
+/** Omitting the sequence means "advance to whatever is newest right now". */
+const seenSchema = z.object({ sequence: z.number().int().min(0).optional() }).strict();
 
 export function createGrimoireServer(options: Options) {
   const database = openDatabase(options.databasePath);
@@ -586,12 +594,41 @@ export function createGrimoireServer(options: Options) {
       const projectId = requireProject(context, user);
       const entity = url.searchParams.get("entity");
       if (entity && !/^[0-9a-z-]{1,64}$/i.test(entity)) throw new HttpError(400, "Invalid activity filter");
+      // The project-wide history is the owner's tool; per-entity history stays
+      // available to every member because the card dialog shows it inline.
+      if (!entity && user.role !== "owner") {
+        throw new HttpError(403, "Only the project owner can open the project history");
+      }
       const page = listAuditEvents(database, projectId, {
         entityId: entity ?? undefined,
         before: readPositiveInteger(url.searchParams.get("before")),
         limit: readPositiveInteger(url.searchParams.get("limit")) ?? AUDIT_PAGE_SIZE,
       });
       json(response, 200, page);
+      return;
+    }
+
+    if (method === "GET" && url.pathname === "/api/away") {
+      const user = requireUser(context);
+      const projectId = requireProject(context, user);
+      const latest = latestAuditSequence(database, projectId);
+      let since = seenCursor(database, projectId, user.id);
+      if (since === null) {
+        initializeSeenCursor(database, projectId, user.id, latest);
+        since = latest;
+      }
+      const unseen = listUnseenEvents(database, projectId, { after: since, excludeActorId: user.id });
+      json(response, 200, { since, latest, total: unseen.total, events: unseen.events });
+      return;
+    }
+
+    if (method === "POST" && url.pathname === "/api/seen") {
+      const user = requireUser(context);
+      const projectId = requireProject(context, user);
+      const input = seenSchema.parse(await readJson(request));
+      const latest = latestAuditSequence(database, projectId);
+      advanceSeenCursor(database, projectId, user.id, Math.min(input.sequence ?? latest, latest));
+      json(response, 200, { ok: true });
       return;
     }
 

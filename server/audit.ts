@@ -12,6 +12,7 @@ import type {
 
 export const AUDIT_PAGE_SIZE = 40;
 export const AUDIT_MAX_PAGE_SIZE = 200;
+export const AWAY_EVENT_LIMIT = 200;
 
 const CARD_COLUMN_LABELS: Record<Card["status"], string> = {
   backlog: "Backlog",
@@ -102,6 +103,44 @@ export function listAuditEvents(
     events: values.slice(0, limit).map(publicAuditEvent),
     hasMore: values.length > limit,
   };
+}
+
+/** The newest sequence a project has written, or 0 for an untouched log. */
+export function latestAuditSequence(database: DatabaseSync, projectId: string): number {
+  const value = database
+    .prepare("SELECT MAX(sequence) AS latest FROM audit_events WHERE project_id = ?")
+    .get(projectId) as { latest: number | null } | undefined;
+  return Number(value?.latest ?? 0);
+}
+
+/**
+ * Everything that happened after a reader's cursor, excluding their own actions.
+ *
+ * Events return oldest first because the digest reads them as a story, and the cap
+ * keeps a months-long absence from turning one request into the whole history. The
+ * total is exact either way so the digest can be honest about what it left out.
+ */
+export function listUnseenEvents(
+  database: DatabaseSync,
+  projectId: string,
+  options: { after: number; excludeActorId: string },
+): { events: AuditEvent[]; total: number } {
+  const predicate =
+    "audit_events.project_id = ? AND audit_events.sequence > ? AND (audit_events.actor_id IS NULL OR audit_events.actor_id != ?)";
+  const params = [projectId, options.after, options.excludeActorId];
+  const counted = database
+    .prepare(`SELECT COUNT(*) AS total FROM audit_events WHERE ${predicate}`)
+    .get(...params) as { total: number };
+  const values = database
+    .prepare(
+      `SELECT audit_events.*, users.name AS current_actor_name
+       FROM audit_events LEFT JOIN users ON users.id = audit_events.actor_id
+       WHERE ${predicate}
+       ORDER BY audit_events.sequence ASC
+       LIMIT ?`,
+    )
+    .all(...params, AWAY_EVENT_LIMIT) as Array<Record<string, string | number | null>>;
+  return { events: values.map(publicAuditEvent), total: Number(counted.total) };
 }
 
 function publicAuditEvent(value: Record<string, string | number | null>): AuditEvent {

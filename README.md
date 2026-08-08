@@ -95,9 +95,20 @@ Teammates with the project open are ringed in green on the people filter bar and
 Presence is deliberately absent from the header, where it would mostly report the signed-in person back to themselves.
 It follows the live connection itself, so it clears as soon as someone closes the tab or loses their network.
 
+## While you were away
+
+Opening a project after time away starts with a digest strip above the board: at most five human sentences describing what teammates changed, with the changes about you - new assignments and blockers that resolved - always first.
+`+ N more` expands the strip in place, and dismissing it removes it completely for this visit.
+Every card and idea changed while you were away carries a small accent dot; opening it clears its dot, dismissing the digest clears them all, and the next visit always starts clean.
+The summary is driven by a private per-person cursor over the activity log, so nobody can see how caught up anyone else is, and your own actions never appear.
+The cursor only advances while the tab is actually visible, so changes that arrive behind a hidden tab stay unseen until you return.
+There are no emails, notifications, or push messages - Grimoire waits until you visit.
+
 ## Activity
 
-The `activity` control in the header opens the project's history, newest first and grouped by day.
+The `activity` control in the header opens the project's history for the project owner, newest first and grouped by day.
+Owners also see an unseen-change count on the control, and inside the history a `new since your last visit` line marks how far back to read.
+Members keep the per-card history inside each card dialog; the project-wide log and its API are owner-only.
 It records who created, edited, moved, archived, restored, and promoted every card and idea, along with project renames, category changes, invitations, joins, and removals.
 Each entry names the fields that changed and what they changed from and to, and selecting a card entry opens that card.
 Opening a card also shows its own recent history above the archive action.
@@ -132,7 +143,7 @@ npm test
 npm run build
 ```
 
-The test suite covers authentication, secure password changes, single-use invitations, member removal, Markdown persistence, legacy migration, external edits, live project events, presence, the activity log, the active deck, Backlog search, completion history, reversible archives and promotions, categories, card dependencies, assignments, filtering, idea ranking, ordering, drag-and-drop interaction, Markdown note rendering, and pasted note images.
+The test suite covers authentication, secure password changes, single-use invitations, member removal, Markdown persistence, legacy migration, external edits, live project events, presence, the activity log, the active deck, Backlog search, completion history, reversible archives and promotions, categories, card dependencies, assignments, filtering, idea ranking, ordering, drag-and-drop interaction, Markdown note rendering, pasted note images, and the while-you-were-away digest, markers, and seen cursor.
 
 ## Self-hosting
 
