@@ -584,6 +584,55 @@ describe("Grimoire board", () => {
     expect((await screen.findAllByText(initial.cards[1].title)).length).toBeGreaterThan(0);
   });
 
+  it("opens a card straight from a shared link", async () => {
+    const initial = boardFixture();
+    const card = initial.cards[1];
+    window.history.replaceState({}, "", `/?card=${card.id}`);
+    stubFetch(authenticatedFetch(initial));
+
+    render(<App />);
+    await screen.findByRole("dialog", { name: "Edit card" });
+    expect(screen.getByLabelText("Title")).toHaveValue(card.title);
+  });
+
+  it("keeps the open card in the URL and clears it on close", async () => {
+    const initial = boardFixture();
+    const card = initial.cards[1];
+    stubFetch(authenticatedFetch(initial));
+
+    render(<App />);
+    await openWorkCard(card);
+    expect(window.location.search).toContain(`card=${card.id}`);
+
+    await userEvent.click(screen.getByRole("button", { name: "Close card" }));
+    await waitFor(() => expect(window.location.search).not.toContain("card="));
+  });
+
+  it("drops a shared link to a card that no longer exists", async () => {
+    const initial = boardFixture();
+    window.history.replaceState({}, "", "/?card=00000000-0000-4000-8000-00000000dead");
+    stubFetch(authenticatedFetch(initial));
+
+    render(<App />);
+    await screen.findByText(initial.cards[1].title);
+    expect(screen.queryByRole("dialog", { name: "Edit card" })).not.toBeInTheDocument();
+    await waitFor(() => expect(window.location.search).not.toContain("card="));
+  });
+
+  it("opens an idea straight from a shared link in the ideas view", async () => {
+    const initial = boardFixture();
+    const ideaWorkspace = ideaFixture();
+    const idea = ideaWorkspace.ideas[0];
+    window.history.replaceState({}, "", `/?view=ideas&idea=${idea.id}`);
+    const fetchMock = authenticatedFetch(initial).mockImplementationOnce(() => response(ideaWorkspace));
+    stubFetch(fetchMock);
+
+    render(<App />);
+    await screen.findByRole("dialog", { name: "Edit idea" });
+    expect(screen.getByLabelText("Idea title")).toHaveValue(idea.title);
+    expect(window.location.search).toContain(`idea=${idea.id}`);
+  });
+
   it("automatically saves title and notes without a save button", async () => {
     const initial = boardFixture();
     const card = initial.cards[0];

@@ -56,7 +56,9 @@ type Props = {
 export function Board({ away, board, busy, categoryActions, ideas, online, projectActions, revision, view, onCreate, onUpdate, onArchive, onCreateInvite, onCreateIdea, onChangeAvatar, onChangePassword, onLoadActivity, onLogout, onMoveBacklogToNext, onPromoteIdea, onRemoveAvatar, onRemoveMember, onUpdateIdea, onViewChange }: Props) {
   const [addingTo, setAddingTo] = useState<CardStatus | null>(null);
   const [columnTitle, setColumnTitle] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    () => new URLSearchParams(location.search).get("card"),
+  );
   const [drag, setDrag] = useState<{ id: string; height: number } | null>(null);
   const [dropHint, setDropHint] = useState<{ status: CardStatus; index: number } | null>(null);
   const dragSession = useRef(0);
@@ -112,6 +114,16 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
       return next;
     });
   }, [selectedId]);
+
+  // The open card lives in the URL, so the address bar is always a shareable
+  // link to exactly what is on screen. A link to a card this board no longer
+  // has simply falls away.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (selectedCard) params.set("card", selectedCard.id);
+    else params.delete("card");
+    history.replaceState({}, "", `${location.pathname}${params.size ? `?${params}` : ""}`);
+  }, [selectedCard?.id]);
   const categoriesBySlug = useMemo(
     () => new Map(board.categories.map((category) => [category.slug, category])),
     [board.categories],

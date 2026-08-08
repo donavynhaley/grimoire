@@ -58,6 +58,7 @@ Columns stack into a single vertically scrolling page on tablet and phone widths
 
 The visible filter bar can focus the board on unassigned work or work assigned to any team member, including the signed-in person.
 Search and people filters combine, and the current view is stored in the URL so a useful view can be bookmarked or shared.
+The open card or idea is part of the URL too, so copying the address bar sends a link that opens that exact card in the right view for any signed-in teammate.
 Dragging remains available while filters are active, and visible drop targets map back to the full column order.
 Press `1` for Work or `2` for Ideas globally or from an empty capture field.
 

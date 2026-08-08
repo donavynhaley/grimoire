@@ -16,7 +16,9 @@ type Props = {
 
 export function IdeasBoard({ workspace, busy, unseenIdeaIds, onCreate, onUpdate, onPromote }: Props) {
   const [title, setTitle] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    () => new URLSearchParams(location.search).get("idea"),
+  );
   const [openedUnseen, setOpenedUnseen] = useState<ReadonlySet<string>>(() => new Set());
   const isUnseen = (id: string) => Boolean(unseenIdeaIds?.has(id)) && !openedUnseen.has(id);
 
@@ -39,6 +41,14 @@ export function IdeasBoard({ workspace, busy, unseenIdeaIds, onCreate, onUpdate,
   const inbox = ideasIn(workspace, "inbox");
   const parked = ideasIn(workspace, "parked");
   const selected = workspace.ideas.find((idea) => idea.id === selectedId) ?? null;
+
+  // The open idea lives in the URL, mirroring how cards become shareable links.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (selected) params.set("idea", selected.id);
+    else params.delete("idea");
+    history.replaceState({}, "", `${location.pathname}${params.size ? `?${params}` : ""}`);
+  }, [selected?.id]);
   const baseShortlist = drag ? shortlist.filter((idea) => idea.id !== drag.id) : shortlist;
   const hintIndex = drag && dropHint?.state === "shortlist" ? Math.min(dropHint.index, baseShortlist.length) : null;
   const placeholder = drag
