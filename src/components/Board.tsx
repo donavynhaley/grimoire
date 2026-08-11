@@ -16,7 +16,13 @@ import { IdeasBoard } from "./IdeasBoard";
 import { useFlip } from "./use-flip";
 
 const BOARD_STATUSES = ["ready", "in_progress", "review", "done"] as const satisfies readonly CardStatus[];
-const RECENT_DONE_LIMIT = 8;
+
+/**
+ * Done is a hybrid column: it reads like the other three until it outgrows them, then it
+ * grows a backlog-style escape hatch instead of scrolling forever. Board filters run over
+ * every card before this slice, so a match buried deep in the history still surfaces here.
+ */
+const DONE_COLUMN_LIMIT = 10;
 
 const columnNames: Record<CardStatus, string> = {
   backlog: "Backlog",
@@ -151,7 +157,7 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
           filteredCards
             .filter((card) => card.status === status)
             .sort(status === "done" ? compareCompletion : comparePosition)
-            .slice(0, status === "done" ? RECENT_DONE_LIMIT : undefined),
+            .slice(0, status === "done" ? DONE_COLUMN_LIMIT : undefined),
         ]),
       ) as Record<(typeof BOARD_STATUSES)[number], Card[]>,
     [filteredCards],
@@ -466,15 +472,8 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
                 onDrop={(event) => void dropCard(event, status)}
               >
                 <header className="column-header">
-                  {status === "done" ? (
-                    <button
-                      aria-label={`Open completed work history, ${visibleStatusCount} total`}
-                      className="done-history-trigger"
-                      onClick={() => setHistoryOpen(true)}
-                      type="button"
-                    ><span className="column-dot" /><h3>{columnNames[status]}</h3></button>
-                  ) : <div><span className="column-dot" /><h3>{columnNames[status]}</h3></div>}
-                  <span className="column-count">{status === "done" && visibleStatusCount > RECENT_DONE_LIMIT ? `${cards.length} of ${visibleStatusCount}` : visibleStatusCount}</span>
+                  <div><span className="column-dot" /><h3>{columnNames[status]}</h3></div>
+                  <span className="column-count">{status === "done" && visibleStatusCount > DONE_COLUMN_LIMIT ? `${cards.length} of ${visibleStatusCount}` : visibleStatusCount}</span>
                 </header>
                 <div className="card-list">
                   {cards.map((card) => {
@@ -529,6 +528,16 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
                   {hintIndex !== null && hintIndex === baseCards.length && placeholder}
                   {cards.length === 0 && hintIndex === null && <div className="empty-column">{status === "done" ? "completed work appears here" : "drop a card here"}</div>}
                 </div>
+                {status === "done" && completedCards.length > DONE_COLUMN_LIMIT && (
+                  <button
+                    aria-label={`Search all completed work, ${completedCards.length} cards`}
+                    className="library-trigger completed-trigger"
+                    onClick={() => setHistoryOpen(true)}
+                    type="button"
+                  >
+                    <span>all completed</span><strong>{completedCards.length}</strong>
+                  </button>
+                )}
                 {status !== "done" && (addingTo === status ? (
                   <form className="column-add-form" onSubmit={(event) => void createColumnCard(event, status)}>
                     <label className="sr-only" htmlFor={`new-${status}`}>New {columnNames[status]} card</label>

@@ -853,18 +853,6 @@ textarea:hover { border-color: var(--border-bright); }
 
 .column-header > div { gap: 8px; }
 .column-header h3 { margin: 0; font-size: 11px; font-weight: 800; text-transform: lowercase; }
-.done-history-trigger {
-  display: flex;
-  margin: -6px 0;
-  padding: 6px 0;
-  align-items: center;
-  gap: 8px;
-  color: inherit;
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-}
-.done-history-trigger:hover h3 { color: var(--accent); }
 
 .column-dot {
   width: 7px;
@@ -1067,6 +1055,15 @@ textarea:hover { border-color: var(--border-bright); }
 }
 
 .add-to-column:hover { color: var(--accent); }
+
+/* Sits in the slot the other columns give to "+ add card", so every column ends the same height. */
+.completed-trigger {
+  display: flex;
+  width: 100%;
+  min-height: 34px;
+  margin-top: auto;
+  justify-content: space-between;
+}
 
 .column-add-form {
   display: grid;

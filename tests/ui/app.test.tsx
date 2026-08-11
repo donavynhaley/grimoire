@@ -476,9 +476,9 @@ describe("Grimoire board", () => {
     );
   });
 
-  it("shows only the eight most recently completed cards and keeps all work in history", async () => {
+  it("shows only the ten most recently completed cards and keeps all work in history", async () => {
     const initial = boardFixture();
-    const completed = Array.from({ length: 10 }, (_, index) => ({
+    const completed = Array.from({ length: 14 }, (_, index) => ({
       ...initial.cards[0],
       id: `00000000-0000-4000-8000-${String(index + 100).padStart(12, "0")}`,
       title: `Completed spell ${index + 1}`,
@@ -500,14 +500,14 @@ describe("Grimoire board", () => {
     render(<App />);
     const done = await screen.findByRole("region", { name: "Done" });
 
-    expect(done).toHaveTextContent("8 of 10");
-    expect(done).toHaveTextContent("Completed spell 10");
+    expect(done).toHaveTextContent("10 of 14");
+    expect(done).toHaveTextContent("Completed spell 14");
     expect(screen.queryByText("Completed spell 1", { exact: true })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: /open completed work history/i }));
+    await userEvent.click(screen.getByRole("button", { name: /search all completed work/i }));
 
     const history = screen.getByRole("dialog", { name: "Completed work" });
     expect(history).toHaveTextContent("Completed spell 1");
-    expect(history).toHaveTextContent("Completed spell 10");
+    expect(history).toHaveTextContent("Completed spell 14");
     expect(screen.getByRole("searchbox", { name: "Search completed work" })).toHaveFocus();
     await userEvent.click(screen.getByRole("button", { name: "Move Completed spell 1 to Up Next" }));
 
@@ -516,6 +516,50 @@ describe("Grimoire board", () => {
       `/api/cards/${reopened.id}`,
       expect.objectContaining({ method: "PATCH", body: JSON.stringify({ status: "ready", position: 0 }) }),
     );
+  });
+
+  it("reads like an ordinary column until completed work outgrows ten cards", async () => {
+    const initial = boardFixture();
+    const completed = Array.from({ length: 10 }, (_, index) => ({
+      ...initial.cards[0],
+      id: `00000000-0000-4000-8000-${String(index + 300).padStart(12, "0")}`,
+      title: `Completed spell ${index + 1}`,
+      status: "done" as const,
+      position: index,
+      completedAt: `2026-08-${String(index + 1).padStart(2, "0")}T12:00:00.000Z`,
+    }));
+    stubFetch(authenticatedFetch({ ...initial, cards: [initial.cards[0], initial.cards[1], ...completed] }));
+
+    render(<App />);
+    const done = await screen.findByRole("region", { name: "Done" });
+
+    expect(done).toHaveTextContent("Completed spell 1");
+    expect(done).toHaveTextContent("Completed spell 10");
+    expect(done).not.toHaveTextContent("of 10");
+    expect(screen.queryByRole("button", { name: /search all completed work/i })).not.toBeInTheDocument();
+  });
+
+  it("lets board filters reach completed work buried past the visible ten", async () => {
+    const initial = boardFixture();
+    const completed = Array.from({ length: 14 }, (_, index) => ({
+      ...initial.cards[0],
+      id: `00000000-0000-4000-8000-${String(index + 400).padStart(12, "0")}`,
+      title: index === 0 ? "Ancient sealed vault" : `Completed spell ${index + 1}`,
+      status: "done" as const,
+      position: index,
+      completedAt: `2026-08-${String(index + 1).padStart(2, "0")}T12:00:00.000Z`,
+    }));
+    stubFetch(authenticatedFetch({ ...initial, cards: [initial.cards[0], initial.cards[1], ...completed] }));
+
+    render(<App />);
+    const done = await screen.findByRole("region", { name: "Done" });
+
+    // Oldest of fourteen, so the ten-card column has no room for it.
+    expect(done).not.toHaveTextContent("Ancient sealed vault");
+
+    await userEvent.type(screen.getByRole("searchbox", { name: "Search cards" }), "Ancient sealed");
+
+    expect(done).toHaveTextContent("Ancient sealed vault");
   });
 
   it("edits a card with member buttons instead of dropdowns", async () => {
