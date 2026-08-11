@@ -23,10 +23,22 @@ afterEach(async () => {
   await Promise.all(cleanups.splice(0).map((cleanup) => cleanup()));
 });
 
-export async function startTestServer(existingDirectory?: string): Promise<TestServer> {
+type TestServerOptions = {
+  /** Serves the built shell, which only production does, for link preview coverage. */
+  staticDirectory?: string;
+};
+
+export async function startTestServer(
+  existingDirectory?: string,
+  options: TestServerOptions = {},
+): Promise<TestServer> {
   const directory = existingDirectory ?? mkdtempSync(join(tmpdir(), "grimoire-test-"));
   const databasePath = join(directory, "grimoire.sqlite");
-  const app = createGrimoireServer({ databasePath, production: false });
+  const app = createGrimoireServer({
+    databasePath,
+    production: options.staticDirectory !== undefined,
+    staticDirectory: options.staticDirectory,
+  });
 
   await new Promise<void>((resolve) => app.server.listen(0, "127.0.0.1", resolve));
   const address = app.server.address() as AddressInfo;

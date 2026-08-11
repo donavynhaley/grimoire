@@ -190,6 +190,17 @@ Who is online is derived from the set of open streams rather than stored, so a b
 Opening or closing a stream sends the project's current list of online user identifiers to everyone in that project.
 Several streams belonging to one person count once.
 
+## Link previews
+
+A card or idea link pasted into a chat client is fetched by that client, not by the person who received it, and always without a session.
+Grimoire answers those requests by rewriting the title and description of the application shell between the `link-preview` markers in `index.html`, so the served document names the card rather than the product.
+Everything else in the shell, including the client bundle and the `noindex` directive, is untouched.
+
+The preview carries the title, board name, column, category, assignee, and blocked state, and never the Markdown notes body.
+That set is a deliberate boundary: holding the link is enough to read it, so the preview says only what a teammate needs to recognize the card.
+Ids are unique across projects, so a link carries only the id and the lookup walks the live projects to place it.
+An archived card and a promoted idea still describe themselves, and a link naming nothing that can be read falls back to the generic Grimoire preview rather than failing the page.
+
 ## Reversible actions
 
 Card archive and idea promotion are server-backed reversible operations.

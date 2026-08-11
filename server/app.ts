@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { createReadStream, existsSync, statSync } from "node:fs";
+import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { dirname, extname, join, normalize } from "node:path";
 import { z, ZodError } from "zod";
@@ -41,6 +41,7 @@ import { IMAGE_SIZE_LIMIT, ProjectImageStore, sniffImageType } from "./project-i
 import { MarkdownCardStore } from "./markdown-cards";
 import { createIdea, findIdea, getIdeas, promoteIdea, undoPromotion, updateIdea } from "./ideas-repository";
 import { MarkdownIdeaStore } from "./markdown-ideas";
+import { applyLinkPreview, cardPreview, ideaPreview, type LinkPreview } from "./link-preview";
 import {
   AUDIT_PAGE_SIZE,
   cardChanges,
@@ -183,7 +184,13 @@ export function createGrimoireServer(options: Options) {
       return;
     }
     if (options.production && options.staticDirectory) {
-      serveStatic(response, url.pathname, options.staticDirectory);
+      const filePath = resolveStaticPath(url.pathname, options.staticDirectory);
+      if (!filePath) {
+        json(response, 404, { error: "Application build not found" });
+        return;
+      }
+      if (extname(filePath) === ".html") serveDocument(response, filePath, linkPreviewFor(url));
+      else serveFile(response, filePath);
       return;
     }
     json(response, 404, { error: "Not found" });
@@ -853,6 +860,52 @@ export function createGrimoireServer(options: Options) {
     };
   }
 
+  /**
+   * Chat clients fetch a shared link anonymously to unfurl it, so this runs without a
+   * session and must never fail the page: a card that cannot be read falls back to the
+   * generic Grimoire preview. Card and idea ids are unique across projects, so the link
+   * only carries the id and the lookup walks the live projects to place it.
+   */
+  function linkPreviewFor(url: URL): LinkPreview | null {
+    const cardId = previewEntityId(url.searchParams.get("card"));
+    const ideaId = previewEntityId(url.searchParams.get("idea"));
+    if (!cardId && !ideaId) return null;
+    try {
+      for (const project of previewProjects()) {
+        const projectName = String(project.name);
+        const slug = String(project.slug);
+        if (cardId) {
+          const card = cardStore.get(slug, cardId) ?? cardStore.getArchived(slug, cardId);
+          if (!card) continue;
+          return cardPreview({
+            assigneeName: memberName(card.assignee),
+            card,
+            categories: categoriesForProject(database, String(project.id)),
+            projectName,
+          });
+        }
+        const idea = ideaStore.get(slug, ideaId!) ?? ideaStore.getArchived(slug, ideaId!);
+        if (idea) return ideaPreview({ authorName: memberName(idea.createdBy), idea, projectName });
+      }
+    } catch (error) {
+      console.error(error);
+    }
+    return null;
+  }
+
+  function previewProjects(): Array<Record<string, string | number | null>> {
+    return database
+      .prepare("SELECT id, name, slug FROM projects WHERE archived_at IS NULL ORDER BY created_at")
+      .all() as Array<Record<string, string | number | null>>;
+  }
+
+  /** Cards and ideas store the email, and a member who has since left leaves no name behind. */
+  function memberName(email: string | null): string | null {
+    if (!email) return null;
+    const stored = findUserByEmail(database, email);
+    return stored ? String(stored.name) : null;
+  }
+
   function requireProject(context: RequestContext, user: User): string {
     const header = context.request.headers["x-grimoire-project"];
     const fromHeader = typeof header === "string" ? header : header?.[0];
@@ -959,6 +1012,12 @@ function requireUser(context: RequestContext): User {
   return context.user;
 }
 
+/** Ids name a file on disk, so anything that is not a plain uuid names nothing. */
+function previewEntityId(value: string | null): string | null {
+  if (value === null) return null;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value) ? value : null;
+}
+
 function readPositiveInteger(value: string | null): number | undefined {
   if (value === null) return undefined;
   const parsed = Number(value);
@@ -1017,17 +1076,31 @@ function applySecurityHeaders(response: ServerResponse): void {
   response.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
 }
 
-function serveStatic(response: ServerResponse, pathname: string, directory: string): void {
-  const decoded = decodeURIComponent(pathname);
-  const relative = normalize(decoded).replace(/^(\.\.[/\\])+/, "").replace(/^[/\\]+/, "");
-  let filePath = join(directory, relative || "index.html");
-  if (!existsSync(filePath) || !statSync(filePath).isFile()) filePath = join(directory, "index.html");
-  if (!existsSync(filePath)) {
-    json(response, 404, { error: "Application build not found" });
-    return;
+/** Unknown paths fall back to the shell so the client router can answer them. */
+function resolveStaticPath(pathname: string, directory: string): string | null {
+  let decoded = pathname;
+  try {
+    decoded = decodeURIComponent(pathname);
+  } catch {
+    // A malformed escape cannot name a build file, so the shell answers instead.
   }
+  const relative = normalize(decoded).replace(/^(\.\.[/\\])+/, "").replace(/^[/\\]+/, "");
+  const filePath = join(directory, relative || "index.html");
+  if (existsSync(filePath) && statSync(filePath).isFile()) return filePath;
+  const shell = join(directory, "index.html");
+  return existsSync(shell) ? shell : null;
+}
+
+/** The shell is rewritten per request, so it is never stored by a cache or a proxy. */
+function serveDocument(response: ServerResponse, filePath: string, preview: LinkPreview | null): void {
+  response.statusCode = 200;
+  response.setHeader("Content-Type", "text/html; charset=utf-8");
+  response.setHeader("Cache-Control", "no-store");
+  response.end(applyLinkPreview(readFileSync(filePath, "utf8"), preview));
+}
+
+function serveFile(response: ServerResponse, filePath: string): void {
   const contentTypes: Record<string, string> = {
-    ".html": "text/html; charset=utf-8",
     ".js": "text/javascript; charset=utf-8",
     ".css": "text/css; charset=utf-8",
     ".svg": "image/svg+xml",

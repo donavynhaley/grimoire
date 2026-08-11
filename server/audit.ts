@@ -14,7 +14,7 @@ export const AUDIT_PAGE_SIZE = 40;
 export const AUDIT_MAX_PAGE_SIZE = 200;
 export const AWAY_EVENT_LIMIT = 200;
 
-const CARD_COLUMN_LABELS: Record<Card["status"], string> = {
+export const CARD_COLUMN_LABELS: Record<Card["status"], string> = {
   backlog: "Backlog",
   ready: "Up Next",
   in_progress: "In progress",
@@ -22,7 +22,7 @@ const CARD_COLUMN_LABELS: Record<Card["status"], string> = {
   done: "Done",
 };
 
-const IDEA_LIST_LABELS: Record<Idea["state"], string> = {
+export const IDEA_LIST_LABELS: Record<Idea["state"], string> = {
   inbox: "Idea inbox",
   shortlist: "Shortlist",
   parked: "Parked",
