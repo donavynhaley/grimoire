@@ -185,6 +185,9 @@ Snippets are reduced to plain text, so Markdown syntax and Obsidian embeds never
 Archived ideas are excluded on purpose.
 Promotion archives an idea and creates a card with the same title, so including them would return every promotion twice.
 
+Search is the only interface route into the archive after the eight-second undo has passed, so it also carries the way out.
+An archived result restores through the same `POST /api/cards/{id}/restore` the undo uses, with the same dependency validation, and is then opened rather than merely announced.
+
 ## Live collaboration
 
 Authenticated browsers keep one Server-Sent Events connection open at `/api/events`.

@@ -121,7 +121,7 @@ describe("searching the whole project", () => {
     expect(within(card).getByLabelText("Title")).toHaveValue("Make the tower door remember Maren");
   });
 
-  it("leaves archived results readable but not openable", async () => {
+  it("offers an archived card its way back instead of opening it", async () => {
     stubFetch();
 
     render(<App />);
@@ -129,10 +129,42 @@ describe("searching the whole project", () => {
     await userEvent.type(within(dialog).getByRole("searchbox"), "door");
     await screen.findByText("Old door prototype");
 
-    // An archived card has no editable home to return to; the snippet is the answer.
-    const buttons = within(dialog).getAllByRole("button").map((button) => button.textContent ?? "");
-    expect(buttons.some((label) => label.includes("Old door prototype"))).toBe(false);
+    // An archived card has no editable home to open, so the row reads and restores.
+    const rows = within(dialog).getAllByRole("button").map((button) => button.textContent ?? "");
+    expect(rows.some((label) => label.includes("Old door prototype"))).toBe(false);
     expect(within(dialog).getByText("Replaced by the tower door work.")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Restore Old door prototype" })).toBeInTheDocument();
+  });
+
+  it("restores an archived card and shows where it landed", async () => {
+    const board = boardFixture();
+    const restored = {
+      ...board.cards[0],
+      id: "00000000-0000-4000-8000-000000000099",
+      title: "Old door prototype",
+      status: "backlog" as const,
+    };
+    const mock = stubFetch(board);
+    mock
+      .mockImplementationOnce(() => response({ card: restored }))
+      .mockImplementationOnce(() => response({ ...board, cards: [restored, ...board.cards] }));
+
+    render(<App />);
+    const dialog = await openSearch();
+    await userEvent.type(within(dialog).getByRole("searchbox"), "door");
+    await userEvent.click(await screen.findByRole("button", { name: "Restore Old door prototype" }));
+
+    await waitFor(() =>
+      expect(mock).toHaveBeenCalledWith(
+        `/api/cards/${restored.id}/restore`,
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+    // A card returns to the column it was archived from, which the board may not draw,
+    // so the card itself answers where it went.
+    const card = await screen.findByRole("dialog", { name: "Edit card" });
+    expect(within(card).getByLabelText("Title")).toHaveValue("Old door prototype");
+    expect(screen.queryByRole("dialog", { name: "Search everything" })).not.toBeInTheDocument();
   });
 
   it("tells the board filter to stop pretending it searched everything", async () => {

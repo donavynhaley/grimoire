@@ -227,6 +227,9 @@ export function App() {
     });
   };
 
+  /** Brings an archived card back to its former column and place, long after the undo toast. */
+  const restoreCard = (id: string) => perform(() => mutate(`/api/cards/${id}/restore`, "POST"));
+
   const moveBacklogToNext = async (id: string) => {
     const card = board?.cards.find((candidate) => candidate.id === id);
     if (!card || !board) return;
@@ -418,6 +421,7 @@ export function App() {
         revision={revision}
         onPromoteIdea={promoteIdea}
         onRemoveMember={removeMember}
+        onRestoreCard={restoreCard}
         onUpdate={updateCard}
         onUpdateIdea={updateIdea}
         onViewChange={changeView}

@@ -56,11 +56,12 @@ type Props = {
   onMoveBacklogToNext: (id: string) => Promise<void>;
   onPromoteIdea: (id: string) => Promise<void>;
   onRemoveMember: (id: string) => Promise<void>;
+  onRestoreCard: (id: string) => Promise<void>;
   onUpdateIdea: (id: string, input: Record<string, unknown>) => Promise<void>;
   onViewChange: (view: "work" | "ideas") => Promise<void>;
 };
 
-export function Board({ away, board, busy, categoryActions, ideas, online, projectActions, revision, view, onCreate, onUpdate, onArchive, onCreateInvite, onCreateIdea, onChangeAvatar, onChangePassword, onLoadActivity, onLogout, onMoveBacklogToNext, onPromoteIdea, onRemoveAvatar, onRemoveMember, onUpdateIdea, onViewChange }: Props) {
+export function Board({ away, board, busy, categoryActions, ideas, online, projectActions, revision, view, onCreate, onUpdate, onArchive, onCreateInvite, onCreateIdea, onChangeAvatar, onChangePassword, onLoadActivity, onLogout, onMoveBacklogToNext, onPromoteIdea, onRemoveAvatar, onRemoveMember, onRestoreCard, onUpdateIdea, onViewChange }: Props) {
   const [addingTo, setAddingTo] = useState<CardStatus | null>(null);
   const [columnTitle, setColumnTitle] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -633,6 +634,7 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
           onClose={() => setSearchOpen(false)}
           onOpenCard={openCardFromSearch}
           onOpenIdea={openIdeaFromSearch}
+          onRestoreCard={onRestoreCard}
         />
       )}
       {selectedCard && (

@@ -116,6 +116,25 @@ describe("project search", () => {
     expect(body.hits[0].group).toBe("backlog");
   });
 
+  it("stops listing a card as archived once it has been restored", async () => {
+    const server = await startTestServer();
+    await bootstrap(server);
+    const card = await addCard(server, { title: "Herb drying rack", status: "backlog" });
+    await server.request(`/api/cards/${card.id}`, { method: "DELETE" });
+
+    const archived = await search(server, "drying rack");
+    expect(archived.body.hits.map((hit) => hit.group)).toEqual(["archived"]);
+
+    // Search is the only route back to an archived card, so the round trip has to close.
+    const restored = await server.request(`/api/cards/${card.id}/restore`, { method: "POST" });
+    expect(restored.response.status).toBe(200);
+
+    const after = await search(server, "drying rack");
+    expect(after.body.total).toBe(1);
+    expect(after.body.hits[0].group).toBe("backlog");
+    expect(after.body.hits[0].where).toBe("Backlog");
+  });
+
   it("answers an unmatched query with nothing rather than everything", async () => {
     const server = await startTestServer();
     await bootstrap(server);

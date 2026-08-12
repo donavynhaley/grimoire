@@ -17,6 +17,8 @@ type Props = {
   onClose: () => void;
   onOpenCard: (id: string) => void;
   onOpenIdea: (id: string) => void;
+  /** Brings an archived card back to the place it was archived from. */
+  onRestoreCard: (id: string) => Promise<void>;
 };
 
 /**
@@ -26,14 +28,16 @@ type Props = {
  * the backlog, in the idea garden, or in a card that was archived. This asks the server
  * instead, and says where each answer lives so the result is a place to go, not just a row.
  *
- * Archived cards are listed but not opened: they have no editable home to return to, and
- * seeing that a card existed and what it said is the reason to look for it.
+ * An archived card has no editable home to open, so its row carries a restore instead.
+ * This is the only route back to one: the eight-second undo after archiving is long gone,
+ * and nothing else in the interface can reach the archive at all.
  */
-export function SearchDialog({ initialQuery, onClose, onOpenCard, onOpenIdea }: Props) {
+export function SearchDialog({ initialQuery, onClose, onOpenCard, onOpenIdea, onRestoreCard }: Props) {
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<SearchResults | null>(null);
   const [failed, setFailed] = useState(false);
   const [active, setActive] = useState(0);
+  const [restoring, setRestoring] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -88,6 +92,24 @@ export function SearchDialog({ initialQuery, onClose, onOpenCard, onOpenIdea }: 
   const open = (hit: SearchHit) => {
     if (hit.kind === "idea") onOpenIdea(hit.id);
     else onOpenCard(hit.id);
+  };
+
+  /**
+   * Restoring closes the search and opens the card.
+   *
+   * A card returns to the column it was archived from, which may not be one the board
+   * draws, so showing the card itself is the only honest answer to "where did it go".
+   */
+  const restore = async (id: string) => {
+    if (restoring) return;
+    setRestoring(id);
+    try {
+      await onRestoreCard(id);
+      onOpenCard(id);
+    } catch {
+      // The failure is already reported outside the overlay; the row stays put.
+      setRestoring(null);
+    }
   };
 
   const onKeyDown = (event: React.KeyboardEvent) => {
@@ -155,7 +177,7 @@ export function SearchDialog({ initialQuery, onClose, onOpenCard, onOpenIdea }: 
                 const openableHit = index >= 0;
                 const className = `search-hit ${openableHit && index === active ? "active" : ""} ${openableHit ? "" : "closed"}`;
                 const body = (
-                  <>
+                  <span className="search-hit-body">
                     <span className="search-hit-line">
                       {hit.category && (
                         <span
@@ -167,7 +189,7 @@ export function SearchDialog({ initialQuery, onClose, onOpenCard, onOpenIdea }: 
                       <span className="search-hit-where">{hit.where}</span>
                     </span>
                     {hit.snippet && <span className="search-hit-snippet">{hit.snippet}</span>}
-                  </>
+                  </span>
                 );
                 return openableHit ? (
                   <button
@@ -178,7 +200,17 @@ export function SearchDialog({ initialQuery, onClose, onOpenCard, onOpenIdea }: 
                     type="button"
                   >{body}</button>
                 ) : (
-                  <div className={className} key={hit.id}>{body}</div>
+                  <div className={className} key={hit.id}>
+                    {body}
+                    {/* Search is the only way back to an archived card, so it carries the way back. */}
+                    <button
+                      aria-label={`Restore ${hit.title}`}
+                      className="search-restore"
+                      disabled={restoring !== null}
+                      onClick={() => void restore(hit.id)}
+                      type="button"
+                    >{restoring === hit.id ? "restoring..." : "restore"}</button>
+                  </div>
                 );
               })}
             </div>

@@ -59,7 +59,10 @@ Columns stack into a single vertically scrolling page on tablet and phone widths
 Press `/` anywhere to search the whole project at once.
 The overlay covers every column, the backlog, the idea garden, completed work, and cards that were archived, and it reads note bodies as well as titles.
 Results are grouped by where each one lives, so a match is a place to go rather than a bare row, and selecting one opens it in its home view.
-Archived cards are listed with the text that matched but cannot be opened, because they have no editable place to return to.
+Archived cards are listed with the text that matched.
+They cannot be opened, because an archived card has no editable place to return to, so their row carries a `restore` action instead.
+Restoring puts the card back in the column and position it was archived from and opens it, which is the only honest answer when that column is one the board does not draw.
+Search is the only route back into the archive once the eight-second undo after archiving has passed.
 
 The filter bar beside the Backlog control narrows the four visible columns rather than searching everything.
 When a filter matches work the board has no column for, a line beneath it says how much is waiting in the Backlog or further back in Done, and opens the full search on the same query.

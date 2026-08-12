@@ -1172,7 +1172,9 @@ textarea:hover { border-color: var(--border-bright); }
   display: grid;
   width: 100%;
   padding: 7px 18px;
-  gap: 3px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
   color: inherit;
   text-align: left;
   background: transparent;
@@ -1180,8 +1182,23 @@ textarea:hover { border-color: var(--border-bright); }
   border-left: 2px solid transparent;
   cursor: pointer;
 }
+.search-hit-body { display: grid; min-width: 0; gap: 3px; }
 .search-hit.active { background: var(--surface-raised); border-left-color: var(--accent); }
 .search-hit.closed { cursor: default; opacity: 0.72; }
+.search-hit.closed:hover { opacity: 1; }
+.search-restore {
+  padding: 3px 10px;
+  flex: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 8px;
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  cursor: pointer;
+}
+.search-restore:hover:not(:disabled) { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.search-restore:disabled { cursor: default; opacity: 0.5; }
 .search-hit-line { display: flex; align-items: center; gap: 8px; }
 .search-hit-line strong {
   overflow: hidden;
