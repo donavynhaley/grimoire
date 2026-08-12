@@ -173,6 +173,18 @@ Because the log is written by the API, edits made directly to the Markdown files
 The log is append-only, is never pruned, and is scoped to one project on both read and write.
 Reads page backwards through a monotonic sequence number rather than a timestamp, which keeps paging stable when several events share a millisecond.
 
+## Search
+
+`GET /api/search` answers for one whole project rather than for one workspace.
+
+The board can only render four columns, so a match in the backlog, in the idea garden, or in a card that was archived has nowhere to appear in it.
+The endpoint reads the same canonical Markdown the board and garden read, matches titles and note bodies, and returns each hit with the group it belongs to and the column, idea state, or archival month a reader would name it by.
+Ranking prefers a title that starts with the query, then a title that contains it, then a mention in the notes, and groups arrive in reading order so the interface never sorts them again.
+Snippets are reduced to plain text, so Markdown syntax and Obsidian embeds never reach a result row.
+
+Archived ideas are excluded on purpose.
+Promotion archives an idea and creates a card with the same title, so including them would return every promotion twice.
+
 ## Live collaboration
 
 Authenticated browsers keep one Server-Sent Events connection open at `/api/events`.
@@ -213,7 +225,22 @@ Undoing an idea promotion removes its generated card and moves the archived idea
 Grimoire refuses this operation when the generated card has been edited or another card depends on it, which prevents undo from deleting subsequent work by a collaborator.
 
 One Grimoire server process should own a project directory at a time.
-Optimistic revision checks should be added before supporting simultaneous edits from Grimoire and external editors as a normal workflow.
+
+## Concurrent edits
+
+Card and idea content is written with a per-field compare and swap rather than last writer wins.
+
+A client that rewrites `title` or `description` sends that field together with the value it was working from, as `expectedTitle` or `expectedDescription`.
+The server compares the expectation against what is stored and refuses the write with `409` when they differ, returning `conflict: true`, the field, and the stored record so the editor can show the collision without a second request.
+The check is per field and opt in per request, which keeps two independent facts true at once: renaming a card cannot collide with a teammate rewriting its notes, and a column move or reorder carries no text and therefore sends no expectation at all.
+
+The interface holds the matching half of the contract.
+An open editor sends only the fields the reader changed, so an untouched field is never transmitted and can never overwrite anything.
+A field the reader has not touched adopts incoming content from the live update instead of holding a stale copy, and names the actor from the activity log rather than adding an author field to the Markdown.
+While a refusal is unresolved the editor writes nothing at all and will not close, so the choice between the two versions is always made by a person.
+
+This is also what protects edits made outside Grimoire.
+A body rewritten directly in the Markdown file survives a rename made in the browser, because the rename never carries a description, and a browser rewriting the same body is refused against the external text.
 
 ## Legacy migration
 

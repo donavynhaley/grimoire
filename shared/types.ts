@@ -102,6 +102,49 @@ export type IdeaWorkspace = {
   ideas: Idea[];
 };
 
+/**
+ * Where a search result lives, in the order the overlay presents its groups.
+ *
+ * The group answers "where would I go to act on this", which is why backlog and
+ * completed work are separated from the active board rather than folded into it.
+ */
+export const SEARCH_GROUPS = ["active", "backlog", "ideas", "done", "archived"] as const;
+export type SearchGroup = (typeof SEARCH_GROUPS)[number];
+
+export type SearchHit = {
+  kind: "card" | "idea";
+  group: SearchGroup;
+  id: string;
+  title: string;
+  /** A plain-text window around the first note match, or "" when only the title matched. */
+  snippet: string;
+  /** The column, idea state, or archival note, as a reader would name it. */
+  where: string;
+  category: string | null;
+  categoryColor: string | null;
+  assigneeName: string | null;
+};
+
+export type SearchResults = {
+  query: string;
+  /** Exact match count, even when `hits` was capped. */
+  total: number;
+  hits: SearchHit[];
+};
+
+/**
+ * A rejected write, returned instead of overwriting content the client never saw.
+ *
+ * `current` carries the stored record so the editor can show what it collided with
+ * without a second request.
+ */
+export type EditConflict<T> = {
+  error: string;
+  conflict: true;
+  field: "title" | "description";
+  current: T;
+};
+
 export const AUDIT_ENTITY_TYPES = ["card", "idea", "project", "category", "member"] as const;
 export type AuditEntityType = (typeof AUDIT_ENTITY_TYPES)[number];
 

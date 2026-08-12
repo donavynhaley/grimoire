@@ -81,7 +81,8 @@ export function ProjectMenu({ project, projects, isOwner, busy, actions, onManag
           onClick={() => (open ? close() : setOpen(true))}
           type="button"
         >
-          {project.name}
+          {/* Named separately so a long project name can give way on narrow screens. */}
+          <span className="project-menu-name">{project.name}</span>
           <span aria-hidden="true">▾</span>
         </button>
       </h1>

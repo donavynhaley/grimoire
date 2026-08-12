@@ -88,6 +88,9 @@ describe("Grimoire board", () => {
 
     render(<App />);
     expect(await screen.findByRole("button", { name: /open backlog/i })).toHaveTextContent("1");
+    // The stream is opened by an effect, so the board can be on screen a tick before
+    // anything is listening. Firing early made this test flaky.
+    await waitFor(() => expect(workspaceListener).not.toBeNull());
 
     workspaceListener!(new MessageEvent("workspace", { data: JSON.stringify({ scope: "work" }) }));
 
@@ -696,13 +699,15 @@ describe("Grimoire board", () => {
     await userEvent.clear(screen.getByLabelText("Notes"));
     await userEvent.type(screen.getByLabelText("Notes"), note);
 
+    // Only the rewritten field travels, and it carries the value it is replacing, so an
+    // untouched title can never overwrite a teammate's edit to it.
     await waitFor(
       () =>
         expect(fetchMock).toHaveBeenCalledWith(
           `/api/cards/${card.id}`,
           expect.objectContaining({
             method: "PATCH",
-            body: JSON.stringify({ title: card.title, description: note }),
+            body: JSON.stringify({ description: note, expectedDescription: card.description }),
           }),
         ),
       { timeout: 2_000 },
@@ -800,7 +805,7 @@ describe("Grimoire board", () => {
       `/api/cards/${card.id}`,
       expect.objectContaining({
         method: "PATCH",
-        body: JSON.stringify({ title, description: card.description }),
+        body: JSON.stringify({ title, expectedTitle: card.title }),
       }),
     );
   });

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Member, User } from "../../shared/types";
 import { Avatar } from "./Avatar";
+import { useDialogEscape } from "./use-dialog-escape";
 
 type Props = {
   currentUser: User;
@@ -38,6 +39,8 @@ export function TeamDialog({ currentUser, members, online, onCreateInvite, onRem
       setBusy(false);
     }
   };
+
+  useDialogEscape(onClose);
 
   return (
     <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>

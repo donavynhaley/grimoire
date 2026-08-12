@@ -67,6 +67,16 @@ export class MarkdownCardStore {
     return existsSync(path) ? this.readPath(path) : null;
   }
 
+  /** Archived cards are unreachable from the board, so search is the only way back to them. */
+  listArchived(projectSlug: string): StoredCard[] {
+    const directory = this.archiveDirectory(projectSlug);
+    if (!existsSync(directory)) return [];
+    return readdirSync(directory, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith(".md") && !entry.name.startsWith("."))
+      .map((entry) => this.readPath(join(directory, entry.name)))
+      .sort((left, right) => (right.archivedAt ?? "").localeCompare(left.archivedAt ?? ""));
+  }
+
   save(projectSlug: string, card: StoredCard): void {
     if (card.archivedAt !== null) throw new Error("Active cards cannot have an archived_at value");
     if (card.unblockedCards.length > 0) throw new Error("Active cards cannot have unblocked_cards values");

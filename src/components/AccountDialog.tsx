@@ -2,6 +2,7 @@ import { type ChangeEvent, type FormEvent, useState } from "react";
 import type { User } from "../../shared/types";
 import { ApiError } from "../api/client";
 import { Avatar } from "./Avatar";
+import { useDialogEscape } from "./use-dialog-escape";
 
 const AVATAR_TYPES = ["image/png", "image/jpeg", "image/webp"];
 const AVATAR_SIZE_LIMIT = 2_000_000;
@@ -112,6 +113,8 @@ export function AccountDialog({ user, onChangeAvatar, onChangePassword, onClose,
       setBusy(false);
     }
   };
+
+  useDialogEscape(onClose);
 
   return (
     <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>

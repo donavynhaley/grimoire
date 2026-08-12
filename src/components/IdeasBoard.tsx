@@ -1,26 +1,36 @@
-import { type DragEvent, type FormEvent, Fragment, useEffect, useRef, useState } from "react";
+import { type DragEvent, type FormEvent, Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { Idea, IdeaState, IdeaWorkspace } from "../../shared/types";
+import { EditorState } from "./EditorState";
 import { NotesField } from "./NotesField";
 import { plainTextFromMarkdown } from "./markdown-text";
+import { useContentEditor } from "./use-content-editor";
+import { useDialogEscape } from "./use-dialog-escape";
 import { useFlip } from "./use-flip";
 
 type Props = {
   workspace: IdeaWorkspace;
   busy: boolean;
+  /** An idea chosen elsewhere - in search - that the garden should open on arrival. */
+  openIdea?: { id: string; token: number } | null;
   /** Ideas changed while the reader was away; opening one answers its dot. */
   unseenIdeaIds?: ReadonlySet<string>;
   onCreate: (input: { title: string }) => Promise<void>;
-  onUpdate: (id: string, input: { title?: string; description?: string; state?: IdeaState; position?: number }) => Promise<void>;
+  onUpdate: (id: string, input: Record<string, unknown>) => Promise<void>;
   onPromote: (id: string) => Promise<void>;
 };
 
-export function IdeasBoard({ workspace, busy, unseenIdeaIds, onCreate, onUpdate, onPromote }: Props) {
+export function IdeasBoard({ workspace, busy, openIdea, unseenIdeaIds, onCreate, onUpdate, onPromote }: Props) {
   const [title, setTitle] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(
     () => new URLSearchParams(location.search).get("idea"),
   );
   const [openedUnseen, setOpenedUnseen] = useState<ReadonlySet<string>>(() => new Set());
   const isUnseen = (id: string) => Boolean(unseenIdeaIds?.has(id)) && !openedUnseen.has(id);
+
+  // Arriving from search opens the idea, even if the garden was already on screen.
+  useEffect(() => {
+    if (openIdea) setSelectedId(openIdea.id);
+  }, [openIdea?.token]);
 
   // Opening an idea answers its dot for the rest of the visit.
   useEffect(() => {
@@ -268,45 +278,29 @@ function EmptyIdeas({ children }: { children: string }) {
 function IdeaDialog({ idea, shortlistPosition, onUpdate, onPromote, onClose }: {
   idea: Idea;
   shortlistPosition: number;
-  onUpdate: (input: { title?: string; description?: string; state?: IdeaState; position?: number }) => Promise<void>;
+  onUpdate: (input: Record<string, unknown>) => Promise<void>;
   onPromote: () => Promise<void>;
   onClose: () => void;
 }) {
-  const [title, setTitle] = useState(idea.title);
-  const [description, setDescription] = useState(idea.description);
-  const [saveState, setSaveState] = useState("saved");
   const [confirmPromotion, setConfirmPromotion] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastSavedRef = useRef({ title: idea.title, description: idea.description });
+  const updateRef = useRef(onUpdate);
+  updateRef.current = onUpdate;
 
-  useEffect(() => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    const next = { title: title.trim(), description: description.trim() };
-    if (!next.title) { setSaveState("title required"); return; }
-    if (next.title === lastSavedRef.current.title && next.description === lastSavedRef.current.description) {
-      setSaveState("saved");
-      return;
-    }
-    setSaveState("changes pending");
-    timerRef.current = setTimeout(() => {
-      setSaveState("saving...");
-      void onUpdate(next).then(() => {
-        lastSavedRef.current = next;
-        setSaveState("saved");
-      }).catch(() => setSaveState("save failed"));
-    }, 500);
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-  }, [description, title]);
+  const remote = useMemo(
+    () => ({ title: idea.title, description: idea.description }),
+    [idea.title, idea.description],
+  );
+  const editor = useContentEditor({
+    remote,
+    resetKey: idea.id,
+    save: (input) => updateRef.current(input),
+  });
 
   const close = async () => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    const next = { title: title.trim(), description: description.trim() };
-    if (!next.title) { setSaveState("title required"); return; }
-    if (next.title !== lastSavedRef.current.title || next.description !== lastSavedRef.current.description) {
-      try { await onUpdate(next); } catch { setSaveState("save failed"); return; }
-    }
-    onClose();
+    if (await editor.flush()) onClose();
   };
+
+  useDialogEscape(close);
 
   return (
     <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) void close(); }}>
@@ -316,18 +310,18 @@ function IdeaDialog({ idea, shortlistPosition, onUpdate, onPromote, onClose }: {
           <button aria-label="Close idea" className="icon-button" onClick={() => void close()} type="button">×</button>
         </header>
         <div className="card-form">
-          <label><span>Title</span><input aria-label="Idea title" name="ideaTitle" onChange={(event) => setTitle(event.target.value)} value={title} /></label>
+          <label><span>Title</span><input aria-label="Idea title" name="ideaTitle" onChange={(event) => editor.setTitle(event.target.value)} value={editor.title} /></label>
           <NotesField
             editLabel="Edit idea notes"
             label="Notes"
             name="ideaDescription"
-            onChange={setDescription}
+            onChange={editor.setDescription}
             placeholder="What makes this interesting?"
             rows={7}
             textareaLabel="Idea notes"
-            value={description}
+            value={editor.description}
           />
-          <div aria-live="polite" className={`autosave-state ${saveState.replaceAll(" ", "-")}`}><span className="autosave-dot" />{saveState}</div>
+          <EditorState editor={editor} who={null} />
         </div>
         <div className="dialog-section">
           <span className="field-label">Keep it where?</span>

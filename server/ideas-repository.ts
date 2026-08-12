@@ -3,7 +3,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { IDEA_STATES, type Card, type Idea, type IdeaState, type IdeaWorkspace, type User } from "../shared/types";
 import { MarkdownCardStore } from "./markdown-cards";
 import { MarkdownIdeaStore, type StoredIdea } from "./markdown-ideas";
-import { CardDependencyError, createCard, membersForProject, projectById } from "./repository";
+import { CardDependencyError, createCard, membersForProject, projectById, requireUnchangedContent } from "./repository";
 
 type IdeaInput = {
   title: string;
@@ -74,7 +74,7 @@ export function updateIdea(
   ideaStore: MarkdownIdeaStore,
   projectId: string,
   ideaId: string,
-  input: Partial<IdeaInput> & { position?: number },
+  input: Partial<IdeaInput> & { position?: number; expectedTitle?: string; expectedDescription?: string },
 ): Idea | null {
   const project = projectById(database, projectId);
   if (!project) return null;
@@ -83,6 +83,7 @@ export function updateIdea(
   const ideas = ideaStore.list(projectSlug);
   const current = ideas.find((idea) => idea.id === ideaId);
   if (!current || current.promotedTo) return null;
+  requireUnchangedContent(current, input, publicIdea(current, members), "idea");
   const nextState = input.state ?? current.state;
   const shouldMove = input.state !== undefined || input.position !== undefined;
   const updated: StoredIdea = {

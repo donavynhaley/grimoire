@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from "react";
 import { CATEGORY_COLOR_PALETTE, type ProjectCategory } from "../../shared/types";
 import { ApiError } from "../api/client";
+import { useDialogEscape } from "./use-dialog-escape";
 
 export type CategoryActions = {
   create: (input: { name: string; color: string }) => Promise<void>;
@@ -51,6 +52,8 @@ export function CategoriesDialog({ categories, busy, actions, onClose }: Props) 
     }
     void run(() => actions.update(category.slug, { name: draft }), "The category could not be renamed");
   };
+
+  useDialogEscape(onClose);
 
   return (
     <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>

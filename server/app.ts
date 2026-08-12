@@ -14,6 +14,7 @@ import {
   createCategory,
   defaultProjectIdForUser,
   deleteCategory,
+  EditConflictError,
   findCard,
   findUserByEmail,
   findUserById,
@@ -41,6 +42,7 @@ import { IMAGE_SIZE_LIMIT, ProjectImageStore, sniffImageType } from "./project-i
 import { MarkdownCardStore } from "./markdown-cards";
 import { createIdea, findIdea, getIdeas, promoteIdea, undoPromotion, updateIdea } from "./ideas-repository";
 import { MarkdownIdeaStore } from "./markdown-ideas";
+import { searchProject } from "./search";
 import { applyLinkPreview, cardPreview, ideaPreview, type LinkPreview } from "./link-preview";
 import {
   AUDIT_PAGE_SIZE,
@@ -119,8 +121,18 @@ const cardSchema = z.object({
   status: cardStatus.optional(),
   assigneeId: z.string().uuid().nullable().optional(),
 });
+/**
+ * Compare-and-swap fields, sent only for the content a client is actually rewriting.
+ * A save that omits them keeps the previous last-writer-wins behaviour, which is what
+ * ordering and column moves want - a drag has no content to lose.
+ */
+const contentPreconditions = {
+  expectedTitle: z.string().trim().max(240).optional(),
+  expectedDescription: z.string().trim().max(20_000).optional(),
+};
 const cardUpdateSchema = cardSchema.partial().extend({
   position: z.number().int().min(0).optional(),
+  ...contentPreconditions,
 });
 const projectSchema = z.object({
   name: z.string().trim().min(2).max(80),
@@ -138,6 +150,12 @@ const ideaSchema = z.object({
 });
 const ideaUpdateSchema = ideaSchema.partial().extend({
   position: z.number().int().min(0).optional(),
+  ...contentPreconditions,
+});
+
+const searchSchema = z.object({
+  q: z.string().trim().min(1).max(240),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
 });
 
 /** Omitting the sequence means "advance to whatever is newest right now". */
@@ -157,6 +175,12 @@ export function createGrimoireServer(options: Options) {
     void handle(request, response).catch((error) => {
       if (error instanceof ZodError) {
         json(response, 400, { error: "Invalid request", details: error.issues });
+        return;
+      }
+      if (error instanceof EditConflictError) {
+        // The stored record travels with the refusal so the editor can show the
+        // collision without asking for it again.
+        json(response, 409, { error: error.message, conflict: true, field: error.field, current: error.current });
         return;
       }
       if (error instanceof CardDependencyError) {
@@ -648,6 +672,14 @@ export function createGrimoireServer(options: Options) {
         currentUser: withAvatar(board.currentUser),
         members: board.members.map(withAvatar),
       });
+      return;
+    }
+
+    if (method === "GET" && url.pathname === "/api/search") {
+      const user = requireUser(context);
+      const projectId = requireProject(context, user);
+      const input = searchSchema.parse(Object.fromEntries(url.searchParams));
+      json(response, 200, searchProject(database, cardStore, ideaStore, projectId, input.q, input.limit));
       return;
     }
 

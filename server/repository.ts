@@ -331,7 +331,7 @@ export function updateCard(
   cardStore: MarkdownCardStore,
   projectId: string,
   cardId: string,
-  input: Partial<CardInput> & { position?: number },
+  input: Partial<CardInput> & { position?: number; expectedTitle?: string; expectedDescription?: string },
 ): Card | null {
   const project = projectById(database, projectId);
   if (!project) return null;
@@ -340,6 +340,7 @@ export function updateCard(
   const cards = cardStore.list(projectSlug);
   const current = cards.find((card) => card.id === cardId);
   if (!current) return null;
+  requireUnchangedContent(current, input, publicCard(database, current, members), "card");
   const assignee = input.assigneeId ? members.find((member) => member.id === input.assigneeId) : null;
   if (input.assigneeId && !assignee) return null;
   if (input.category) requireProjectCategory(database, projectId, input.category);
@@ -547,6 +548,43 @@ function publicCard(database: DatabaseSync, value: StoredCard, members: Member[]
 export class CardDependencyError extends Error {
   constructor(message: string, readonly status: 400 | 409 = 400) {
     super(message);
+  }
+}
+
+/**
+ * A write refused because the stored value is not the one the editor was working from.
+ *
+ * The check is per field rather than per record so that editing a title never collides
+ * with a teammate rewriting the notes. `current` is returned to the caller so the editor
+ * can show what it collided with instead of asking for the record again.
+ */
+export class EditConflictError extends Error {
+  constructor(
+    message: string,
+    readonly field: "title" | "description",
+    readonly current: unknown,
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * Rejects a write whose expected values no longer match what is stored.
+ *
+ * Callers send an expected value only for the fields they are actually changing, so an
+ * untouched field can never manufacture a conflict.
+ */
+export function requireUnchangedContent(
+  stored: { title: string; description: string },
+  input: { expectedTitle?: string; expectedDescription?: string },
+  current: unknown,
+  noun: "card" | "idea",
+): void {
+  if (input.expectedTitle !== undefined && stored.title !== input.expectedTitle) {
+    throw new EditConflictError(`This ${noun}'s title changed while you were editing it`, "title", current);
+  }
+  if (input.expectedDescription !== undefined && stored.description !== input.expectedDescription) {
+    throw new EditConflictError("These notes changed while you were writing", "description", current);
   }
 }
 

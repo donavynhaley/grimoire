@@ -10,6 +10,7 @@ import { type CategoryActions, CategoriesDialog } from "./CategoriesDialog";
 import { DoneHistoryDialog } from "./DoneHistoryDialog";
 import { type ProjectActions, ProjectMenu } from "./ProjectMenu";
 import { type CaptureCardInput, QuickCapture } from "./QuickCapture";
+import { SearchDialog } from "./SearchDialog";
 import { TeamDialog } from "./TeamDialog";
 import { plainTextFromMarkdown } from "./markdown-text";
 import { IdeasBoard } from "./IdeasBoard";
@@ -55,7 +56,7 @@ type Props = {
   onMoveBacklogToNext: (id: string) => Promise<void>;
   onPromoteIdea: (id: string) => Promise<void>;
   onRemoveMember: (id: string) => Promise<void>;
-  onUpdateIdea: (id: string, input: { title?: string; description?: string; state?: IdeaState; position?: number }) => Promise<void>;
+  onUpdateIdea: (id: string, input: Record<string, unknown>) => Promise<void>;
   onViewChange: (view: "work" | "ideas") => Promise<void>;
 };
 
@@ -77,6 +78,9 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
   const [teamOpen, setTeamOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [backlogOpen, setBacklogOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  // Bumped so choosing the same idea twice still reopens it in the garden.
+  const [openIdea, setOpenIdea] = useState<{ id: string; token: number } | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
@@ -148,6 +152,13 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
   const activeCount = filteredCards.filter((card) => card.status === "ready" || card.status === "in_progress" || card.status === "review").length;
   const backlogCards = board.cards.filter((card) => card.status === "backlog");
   const completedCards = board.cards.filter((card) => card.status === "done");
+  const offBoardMatches = useMemo(
+    () => ({
+      backlog: filteredCards.filter((card) => card.status === "backlog").length,
+      completed: Math.max(0, filteredCards.filter((card) => card.status === "done").length - DONE_COLUMN_LIMIT),
+    }),
+    [filteredCards],
+  );
 
   const cardsByStatus = useMemo(
     () =>
@@ -173,12 +184,25 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
     const useKeyboardShortcut = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.repeat || event.isComposing || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
       const target = event.target;
-      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || (target instanceof HTMLElement && target.isContentEditable)) {
+      // An open dialog owns the keyboard: a board shortcut fired underneath one would
+      // act on a surface the reader cannot see.
+      if (document.querySelector(".modal-backdrop")) return;
+      const typing =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target instanceof HTMLElement && target.isContentEditable);
+      if (typing) {
         const isEmptyCapture =
           target instanceof HTMLInputElement &&
           (target.id === "quick-card" || target.id === "capture-idea") &&
           target.value.length === 0;
         if (event.key.toLowerCase() === "b" || !isEmptyCapture) return;
+      }
+      // Search reaches the whole project, so it answers from either workspace.
+      if (event.key === "/") {
+        event.preventDefault();
+        setSearchOpen(true);
+        return;
       }
       if (event.key.toLowerCase() === "b" && view === "work") {
         event.preventDefault();
@@ -193,6 +217,20 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
     window.addEventListener("keydown", useKeyboardShortcut);
     return () => window.removeEventListener("keydown", useKeyboardShortcut);
   }, [onViewChange, view]);
+
+  const openCardFromSearch = (id: string) => {
+    setSearchOpen(false);
+    setBacklogOpen(false);
+    setHistoryOpen(false);
+    if (view === "ideas") void onViewChange("work");
+    setSelectedId(id);
+  };
+
+  const openIdeaFromSearch = (id: string) => {
+    setSearchOpen(false);
+    setOpenIdea({ id, token: Date.now() });
+    if (view !== "ideas") void onViewChange("ideas");
+  };
 
   const updateUrl = (nextQuery: string, nextPeople: Set<string>) => {
     const params = new URLSearchParams(location.search);
@@ -454,6 +492,22 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
           </div>
         </div>
 
+        {/* The board can only draw four columns, so a filter that found nothing here has
+            not searched the project. This says where the rest of the matches are. */}
+        {normalizedQuery && (
+          <div className="off-board-hint">
+            {offBoardMatches.backlog > 0 && (
+              <span>{offBoardMatches.backlog} in Backlog</span>
+            )}
+            {offBoardMatches.completed > 0 && (
+              <span>{offBoardMatches.completed} more completed</span>
+            )}
+            <button className="text-button search-everything" onClick={() => setSearchOpen(true)} type="button">
+              search everything <kbd aria-hidden="true">/</kbd>
+            </button>
+          </div>
+        )}
+
         <div className="kanban" aria-label="Wizard Simulator board" ref={kanbanRef}>
           {BOARD_STATUSES.map((status) => {
             const cards = cardsByStatus[status];
@@ -563,6 +617,7 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
         ideas ? (
           <IdeasBoard
             busy={busy}
+            openIdea={openIdea}
             unseenIdeaIds={unseenIdeaIds}
             workspace={ideas}
             onCreate={onCreateIdea}
@@ -572,11 +627,20 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
         ) : <main className="ideas-main"><p className="ideas-loading">opening the idea garden...</p></main>
       )}
 
+      {searchOpen && (
+        <SearchDialog
+          initialQuery={query}
+          onClose={() => setSearchOpen(false)}
+          onOpenCard={openCardFromSearch}
+          onOpenIdea={openIdeaFromSearch}
+        />
+      )}
       {selectedCard && (
         <CardDialog
           cards={board.cards}
           card={selectedCard}
           categories={board.categories}
+          currentUserId={board.currentUser.id}
           members={board.members}
           revision={revision}
           onArchive={async () => { await onArchive(selectedCard.id); setSelectedId(null); }}

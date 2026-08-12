@@ -56,11 +56,20 @@ After a configured capture, a temporary `same settings` action can restore its c
 
 Columns stack into a single vertically scrolling page on tablet and phone widths, so the board never scrolls sideways.
 
+Press `/` anywhere to search the whole project at once.
+The overlay covers every column, the backlog, the idea garden, completed work, and cards that were archived, and it reads note bodies as well as titles.
+Results are grouped by where each one lives, so a match is a place to go rather than a bare row, and selecting one opens it in its home view.
+Archived cards are listed with the text that matched but cannot be opened, because they have no editable place to return to.
+
+The filter bar beside the Backlog control narrows the four visible columns rather than searching everything.
+When a filter matches work the board has no column for, a line beneath it says how much is waiting in the Backlog or further back in Done, and opens the full search on the same query.
+
 The visible filter bar can focus the board on unassigned work or work assigned to any team member, including the signed-in person.
 Search and people filters combine, and the current view is stored in the URL so a useful view can be bookmarked or shared.
 The open card or idea is part of the URL too, so copying the address bar sends a link that opens that exact card in the right view for any signed-in teammate.
 Dragging remains available while filters are active, and visible drop targets map back to the full column order.
 Press `1` for Work or `2` for Ideas globally or from an empty capture field.
+An open dialog keeps the keyboard to itself, and `Escape` closes whichever one is in front.
 
 ## Ideas
 
@@ -91,6 +100,13 @@ Changing a password requires the current password and signs the account out on o
 
 Signed-in browsers receive project-scoped live updates whenever another browser changes work or ideas.
 The browser that made a change applies its own response directly, while every other connected browser reloads the affected workspace from the canonical Markdown files.
+
+Two people can hold the same card or idea open without either of them losing writing.
+An open editor sends only the fields someone actually rewrote, so renaming a card never carries a stale copy of its notes along with it.
+A field nobody is rewriting simply adopts the incoming version and says who changed it, instead of sitting on a copy that would collide later.
+When two people do write the same field, the second save is refused rather than applied: the editor shows what it collided with and offers to keep either version, and nothing reaches the file until someone chooses.
+The same protection covers edits made outside Grimoire, so a change written straight into the Markdown by another editor survives a rename made in the browser.
+Moving a card between columns or reordering one carries no text, so those stay immediate.
 
 Teammates with the project open are ringed in green on the people filter bar and in the Team dialog.
 Presence is deliberately absent from the header, where it would mostly report the signed-in person back to themselves.
@@ -144,7 +160,7 @@ npm test
 npm run build
 ```
 
-The test suite covers authentication, secure password changes, single-use invitations, member removal, Markdown persistence, legacy migration, external edits, live project events, presence, the activity log, the active deck, Backlog search, completion history, reversible archives and promotions, categories, card dependencies, assignments, filtering, idea ranking, ordering, drag-and-drop interaction, Markdown note rendering, pasted note images, and the while-you-were-away digest, markers, and seen cursor.
+The test suite covers authentication, secure password changes, single-use invitations, member removal, Markdown persistence, legacy migration, external edits, live project events, presence, the activity log, the active deck, Backlog search, project-wide search, completion history, reversible archives and promotions, categories, card dependencies, assignments, filtering, idea ranking, ordering, drag-and-drop interaction, Markdown note rendering, pasted note images, concurrent editing and refused overwrites, and the while-you-were-away digest, markers, and seen cursor.
 
 ## Self-hosting
 

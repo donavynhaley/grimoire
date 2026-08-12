@@ -1,4 +1,12 @@
-import type { AuditPage, AwayState, BoardWorkspace, IdeaWorkspace, SessionState } from "../../shared/types";
+import type {
+  AuditPage,
+  AwayState,
+  BoardWorkspace,
+  EditConflict,
+  IdeaWorkspace,
+  SearchResults,
+  SessionState,
+} from "../../shared/types";
 
 const clientId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
@@ -12,9 +20,23 @@ export class ApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    /** The parsed error body, so a caller can read a refusal's details without a second request. */
+    readonly payload: unknown = null,
   ) {
     super(message);
   }
+}
+
+/**
+ * A save the server refused because the stored content had already moved on.
+ *
+ * Distinguished from every other 409 by the `conflict` marker, so an editor can answer
+ * it in place while unrelated refusals still reach the global error banner.
+ */
+export function editConflict<T>(error: unknown): EditConflict<T> | null {
+  if (!(error instanceof ApiError) || error.status !== 409) return null;
+  const payload = error.payload as Partial<EditConflict<T>> | null;
+  return payload?.conflict === true && payload.current !== undefined ? (payload as EditConflict<T>) : null;
 }
 
 export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -23,7 +45,9 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
   if (activeProjectId) headers.set("x-grimoire-project", activeProjectId);
   const response = await fetch(path, { ...init, headers, credentials: "same-origin" });
   const body = (await response.json()) as T & { error?: string };
-  if (!response.ok) throw new ApiError(body.error ?? `Request failed with status ${response.status}`, response.status);
+  if (!response.ok) {
+    throw new ApiError(body.error ?? `Request failed with status ${response.status}`, response.status, body);
+  }
   return body;
 }
 
@@ -45,6 +69,11 @@ export function activity(options: { entityId?: string; before?: number; limit?: 
   if (options.before !== undefined) params.set("before", String(options.before));
   if (options.limit !== undefined) params.set("limit", String(options.limit));
   return request<AuditPage>(`/api/activity${params.size ? `?${params}` : ""}`);
+}
+
+/** Searches the whole project - every column, the idea garden, and archived cards. */
+export function search(query: string, signal?: AbortSignal): Promise<SearchResults> {
+  return request<SearchResults>(`/api/search?q=${encodeURIComponent(query)}`, { signal });
 }
 
 export function away(): Promise<AwayState> {

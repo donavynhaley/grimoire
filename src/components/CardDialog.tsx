@@ -9,8 +9,11 @@ import {
   type ProjectCategory,
 } from "../../shared/types";
 import { Avatar } from "./Avatar";
+import { EditorState, otherEditorName } from "./EditorState";
 import { NotesField } from "./NotesField";
 import { describeChange, describeEvent, relativeLabel } from "./activity-copy";
+import { useContentEditor } from "./use-content-editor";
+import { useDialogEscape } from "./use-dialog-escape";
 
 const CARD_HISTORY_LIMIT = 6;
 
@@ -26,6 +29,7 @@ type Props = {
   card: Card;
   cards: Card[];
   categories: ProjectCategory[];
+  currentUserId: string;
   members: Member[];
   revision: number;
   onUpdate: (input: Record<string, unknown>) => Promise<void>;
@@ -34,34 +38,32 @@ type Props = {
   onLoadActivity: (options: { entityId?: string; limit?: number }) => Promise<AuditPage>;
 };
 
-export function CardDialog({ card, cards, categories, members, revision, onUpdate, onArchive, onClose, onLoadActivity }: Props) {
+export function CardDialog({ card, cards, categories, currentUserId, members, revision, onUpdate, onArchive, onClose, onLoadActivity }: Props) {
   const categoryColor = (slug: string | null) =>
     slug ? categories.find((category) => category.slug === slug)?.color : undefined;
   const swatchStyle = (slug: string | null) => {
     const color = categoryColor(slug);
     return color ? ({ "--category-color": color } as React.CSSProperties) : undefined;
   };
-  const [title, setTitle] = useState(card.title);
-  const [description, setDescription] = useState(card.description);
-  const [saveState, setSaveState] = useState("saved");
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [findingBlocker, setFindingBlocker] = useState(false);
   const [blockerQuery, setBlockerQuery] = useState("");
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const updateRef = useRef(onUpdate);
-  const draftRef = useRef({ title, description });
-  const lastSavedRef = useRef({ title: card.title, description: card.description });
-
   updateRef.current = onUpdate;
-  draftRef.current = { title, description };
+
+  const remote = useMemo(
+    () => ({ title: card.title, description: card.description }),
+    [card.title, card.description],
+  );
+  const editor = useContentEditor({
+    remote,
+    resetKey: card.id,
+    save: (input) => updateRef.current(input),
+  });
 
   useEffect(() => {
-    setTitle(card.title);
-    setDescription(card.description);
-    setSaveState("saved");
     setFindingBlocker(false);
     setBlockerQuery("");
-    lastSavedRef.current = { title: card.title, description: card.description };
   }, [card.id]);
 
   const blockers = card.blockedBy
@@ -88,52 +90,14 @@ export function CardDialog({ card, cards, categories, members, revision, onUpdat
     blockedBy: card.blockedBy.filter((dependencyId) => dependencyId !== id),
   });
 
-  useEffect(() => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    const next = { title: title.trim(), description: description.trim() };
-    if (!next.title) {
-      setSaveState("title required");
-      return;
-    }
-    if (next.title === lastSavedRef.current.title && next.description === lastSavedRef.current.description) {
-      setSaveState("saved");
-      return;
-    }
-
-    setSaveState("changes pending");
-    timerRef.current = setTimeout(() => {
-      setSaveState("saving...");
-      void updateRef.current(next).then(() => {
-        lastSavedRef.current = next;
-        const latest = { title: draftRef.current.title.trim(), description: draftRef.current.description.trim() };
-        setSaveState(latest.title === next.title && latest.description === next.description ? "saved" : "changes pending");
-      }).catch(() => setSaveState("save failed"));
-    }, 500);
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, [title, description, card.id]);
-
   const history = useCardHistory(card.id, revision, onLoadActivity);
+  const otherEditor = otherEditorName(history, currentUserId);
 
   const close = async () => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    const next = { title: title.trim(), description: description.trim() };
-    if (!next.title) {
-      setSaveState("title required");
-      return;
-    }
-    if (next.title !== lastSavedRef.current.title || next.description !== lastSavedRef.current.description) {
-      setSaveState("saving...");
-      try {
-        await updateRef.current(next);
-      } catch {
-        setSaveState("save failed");
-        return;
-      }
-    }
-    onClose();
+    if (await editor.flush()) onClose();
   };
+
+  useDialogEscape(close);
 
   return (
     <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) void close(); }}>
@@ -144,18 +108,18 @@ export function CardDialog({ card, cards, categories, members, revision, onUpdat
         </header>
 
         <div className="card-form">
-          <label><span>Title</span><input name="title" onChange={(event) => setTitle(event.target.value)} value={title} /></label>
+          <label><span>Title</span><input name="title" onChange={(event) => editor.setTitle(event.target.value)} value={editor.title} /></label>
           <NotesField
             editLabel="Edit notes"
             label="Notes"
             name="description"
-            onChange={setDescription}
+            onChange={editor.setDescription}
             placeholder="Add only the context someone needs to act..."
             rows={6}
             textareaLabel="Notes"
-            value={description}
+            value={editor.description}
           />
-          <div aria-live="polite" className={`autosave-state ${saveState.replaceAll(" ", "-")}`}><span className="autosave-dot" />{saveState}</div>
+          <EditorState editor={editor} who={otherEditor} />
         </div>
 
         <div className="dialog-section">
@@ -204,7 +168,12 @@ export function CardDialog({ card, cards, categories, members, revision, onUpdat
                   aria-label="Find a blocking card"
                   autoFocus
                   onChange={(event) => setBlockerQuery(event.target.value)}
-                  onKeyDown={(event) => { if (event.key === "Escape") setFindingBlocker(false); }}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Escape") return;
+                    // Leaving the search must not also close the whole card.
+                    event.stopPropagation();
+                    setFindingBlocker(false);
+                  }}
                   placeholder="Type a card title..."
                   type="search"
                   value={blockerQuery}

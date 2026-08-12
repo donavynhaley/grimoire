@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { AwayState, BoardWorkspace, CardStatus, IdeaState, IdeaWorkspace, SessionState, User } from "../shared/types";
-import { activity as loadActivity, ApiError, away as loadAway, board as loadBoard, ideas as loadIdeas, liveEventsUrl, markSeen, mutate, request, session, setActiveProjectId, uploadAvatar } from "./api/client";
+import { activity as loadActivity, ApiError, away as loadAway, board as loadBoard, editConflict, ideas as loadIdeas, liveEventsUrl, markSeen, mutate, request, session, setActiveProjectId, uploadAvatar } from "./api/client";
 import { AuthScreen } from "./components/AuthScreen";
 import { Board } from "./components/Board";
 import type { CaptureCardInput } from "./components/QuickCapture";
@@ -178,13 +178,40 @@ export function App() {
   const createCard = (input: CaptureCardInput) =>
     perform(() => mutate("/api/cards", "POST", input));
 
+  /**
+   * A refused save is the editor's business, not the banner's.
+   *
+   * The server rejects a write whose expected content no longer matches storage. That is
+   * not a failure the reader can act on from a global error strip - it needs the record it
+   * collided with, in the editor holding the text. So the canonical state is reloaded and
+   * the refusal is rethrown for the dialog to answer.
+   */
+  const performEdit = async (change: () => Promise<unknown>, reload: () => Promise<void>, message: string) => {
+    setBusy(true);
+    setError("");
+    try {
+      await change();
+      await reload();
+    } catch (value) {
+      if (editConflict(value)) await reload().catch(() => undefined);
+      else setError(value instanceof ApiError ? value.message : message);
+      throw value;
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const updateCard = async (id: string, input: Record<string, unknown>) => {
     const previous = board;
     if (previous) setBoard(applyOptimisticCardUpdate(previous, id, input));
     try {
-      await perform(() => mutate(`/api/cards/${id}`, "PATCH", input));
+      await performEdit(
+        () => mutate(`/api/cards/${id}`, "PATCH", input),
+        refreshBoard,
+        "The change could not be saved",
+      );
     } catch (error) {
-      if (previous) setBoard(previous);
+      if (previous && !editConflict(error)) setBoard(previous);
       throw error;
     }
   };
@@ -244,8 +271,8 @@ export function App() {
   };
 
   const createIdea = (input: { title: string }) => performIdea(() => mutate("/api/ideas", "POST", input));
-  const updateIdea = (id: string, input: { title?: string; description?: string; state?: IdeaState; position?: number }) =>
-    performIdea(() => mutate(`/api/ideas/${id}`, "PATCH", input));
+  const updateIdea = (id: string, input: Record<string, unknown>) =>
+    performEdit(() => mutate(`/api/ideas/${id}`, "PATCH", input), refreshIdeas, "The idea could not be saved");
   const promoteIdea = async (id: string) => {
     const title = ideas?.ideas.find((idea) => idea.id === id)?.title ?? "idea";
     await performIdea(() => mutate(`/api/ideas/${id}/promote`, "POST"));
