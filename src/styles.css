@@ -875,11 +875,15 @@ textarea:hover { border-color: var(--border-bright); }
   display: grid;
   min-width: 22px;
   height: 20px;
+  /* Padding rather than width alone: Done reads "10 of 18" once its history outgrows
+     the column, and a bare count would sit flush against both ends of the pill. */
+  padding: 0 8px;
   place-items: center;
   color: var(--muted);
   background: var(--surface-soft);
   border-radius: 999px;
   font-size: 9px;
+  white-space: nowrap;
 }
 
 .card-list {
