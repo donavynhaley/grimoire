@@ -83,7 +83,7 @@ export function ProjectMenu({ project, projects, isOwner, busy, actions, onManag
         >
           {/* Named separately so a long project name can give way on narrow screens. */}
           <span className="project-menu-name">{project.name}</span>
-          <span aria-hidden="true">▾</span>
+          <span aria-hidden="true" className="project-menu-caret">▾</span>
         </button>
       </h1>
       {open && (

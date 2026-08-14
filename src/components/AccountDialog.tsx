@@ -21,19 +21,24 @@ const PROFILE_ICONS = [
 type Props = {
   user: User;
   onChangeAvatar: (file: File) => Promise<void>;
+  onChangeName: (name: string) => Promise<void>;
   onChangePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   onClose: () => void;
   onLogout: () => Promise<void>;
   onRemoveAvatar: () => Promise<void>;
 };
 
-export function AccountDialog({ user, onChangeAvatar, onChangePassword, onClose, onLogout, onRemoveAvatar }: Props) {
+export function AccountDialog({ user, onChangeAvatar, onChangeName, onChangePassword, onClose, onLogout, onRemoveAvatar }: Props) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [changed, setChanged] = useState(false);
+  const [displayName, setDisplayName] = useState(user.name);
+  const [nameBusy, setNameBusy] = useState(false);
+  const [nameError, setNameError] = useState("");
+  const [nameSaved, setNameSaved] = useState(false);
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [avatarError, setAvatarError] = useState("");
   const [selectedIcon, setSelectedIcon] = useState<string | null>(null);
@@ -92,6 +97,23 @@ export function AccountDialog({ user, onChangeAvatar, onChangePassword, onClose,
     }
   };
 
+  const submitName = async (event: FormEvent) => {
+    event.preventDefault();
+    setNameError("");
+    setNameSaved(false);
+    const trimmed = displayName.trim();
+    if (trimmed === user.name) return;
+    setNameBusy(true);
+    try {
+      await onChangeName(trimmed);
+      setNameSaved(true);
+    } catch (value) {
+      setNameError(value instanceof ApiError ? value.message : "Your name could not be changed");
+    } finally {
+      setNameBusy(false);
+    }
+  };
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setError("");
@@ -131,6 +153,28 @@ export function AccountDialog({ user, onChangeAvatar, onChangePassword, onClose,
             <span>{user.email}</span>
           </div>
         </div>
+
+        <form className="display-name-form" onSubmit={submitName}>
+          <label>
+            <span className="field-label">Display name</span>
+            <input
+              aria-label="Display name"
+              autoComplete="name"
+              maxLength={80}
+              minLength={2}
+              name="displayName"
+              onChange={(event) => { setDisplayName(event.target.value); setNameSaved(false); }}
+              required
+              value={displayName}
+            />
+          </label>
+          <button className="quiet-button" disabled={nameBusy || !displayName.trim() || displayName.trim() === user.name} type="submit">
+            {nameBusy ? "saving..." : "save name"}
+          </button>
+          <small>This is the name on your cards, ideas, and mentions everywhere in Grimoire.</small>
+          {nameError && <div className="error-banner" role="alert">{nameError}</div>}
+          {nameSaved && <div className="success-banner" role="status">name updated</div>}
+        </form>
 
         <div className="avatar-editor">
           <fieldset className="profile-icon-picker" disabled={avatarBusy}>

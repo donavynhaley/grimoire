@@ -131,7 +131,7 @@ textarea:focus-visible {
 .brand-word { font-size: 12px; font-weight: 800; letter-spacing: 0.04em; }
 
 .board-project { display: grid; justify-items: center; }
-.board-project h1 { margin: 0; font-size: 13px; text-transform: lowercase; }
+.board-project h1 { margin: 0; font-size: 11px; text-transform: lowercase; }
 
 .project-menu { position: relative; display: grid; justify-items: center; }
 
@@ -149,7 +149,7 @@ textarea:focus-visible {
 }
 
 .project-menu-trigger:hover { background: var(--surface-soft); }
-.project-menu-trigger > span { color: var(--faint); font-size: 8px; }
+.project-menu-caret { color: var(--faint); font-size: 10px; }
 
 .project-menu-panel {
   position: absolute;
@@ -1771,6 +1771,20 @@ textarea:hover { border-color: var(--border-bright); }
 .account-identity strong { font-size: 11px; }
 .account-identity span { color: var(--muted); font-size: 9px; }
 
+/* The name sits with the picture: both are how the rest of the team sees you. */
+.display-name-form {
+  display: grid;
+  margin-bottom: 18px;
+  gap: 9px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+}
+
+.display-name-form label { display: grid; min-width: 0; gap: 7px; }
+.display-name-form small { grid-column: 1 / -1; color: var(--faint); font-size: 9px; }
+.display-name-form .error-banner,
+.display-name-form .success-banner { grid-column: 1 / -1; }
+
 .avatar-editor {
   display: grid;
   margin-bottom: 22px;
@@ -2055,7 +2069,6 @@ textarea:hover { border-color: var(--border-bright); }
   .board-project h1,
   .project-menu,
   .project-menu-trigger { min-width: 0; max-width: 100%; }
-  .board-project h1 { font-size: 11px; }
   .project-menu-name {
     overflow: hidden;
     min-width: 0;

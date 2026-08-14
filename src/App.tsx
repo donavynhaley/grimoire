@@ -322,6 +322,13 @@ export function App() {
     await mutate("/api/account/password", "POST", { currentPassword, newPassword });
   };
 
+  const changeName = async (name: string) => {
+    const result = await mutate<{ user: User }>("/api/account/name", "POST", { name });
+    setSessionState({ status: "authenticated", user: result.user });
+    await refreshBoard();
+    if (ideas) await refreshIdeas();
+  };
+
   const changeAvatar = (file: File) => perform(() => uploadAvatar(file));
   const removeAvatar = () => perform(() => mutate("/api/account/avatar", "DELETE"));
 
@@ -408,6 +415,7 @@ export function App() {
         ideas={ideas}
         key={board.project.id}
         onChangeAvatar={changeAvatar}
+        onChangeName={changeName}
         onChangePassword={changePassword}
         onRemoveAvatar={removeAvatar}
         onArchive={archiveCard}
