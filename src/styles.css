@@ -2258,6 +2258,23 @@ textarea:hover { border-color: var(--border-bright); }
 }
 .chapter-manage:hover { color: var(--text); background: var(--surface-soft); }
 
+/*
+ * On a narrow screen the picker sits too far along the filter bar for a 320px panel to fit
+ * beside it, whichever edge it is anchored to. It becomes a sheet spanning the filter bar
+ * instead, which is both reachable by thumb and impossible to push off-screen.
+ */
+@media (max-width: 620px) {
+  .work-filters { position: relative; }
+  .chapter-picker { position: static; }
+  .chapter-panel {
+    left: 0;
+    right: 0;
+    width: auto;
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+}
+
 /* The chapter's own line under the board heading: what it is for, and when. */
 .board-intro .chapter-line { margin: 0; color: var(--muted); font-size: 11px; }
 .board-intro .chapter-line em { color: var(--accent); font-style: normal; }
@@ -2320,6 +2337,10 @@ textarea:hover { border-color: var(--border-bright); }
 .chapter-row-dates { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--faint); font-size: 9px; }
 .chapter-row-dates input,
 .chapter-add-dates input {
+  /* Inputs are width:100% by default, which made two date fields claim a line each. */
+  width: auto;
+  min-width: 0;
+  flex: 1 1 116px;
   padding: 4px 7px;
   color: var(--muted);
   background: var(--surface);
@@ -2372,6 +2393,29 @@ textarea:hover { border-color: var(--border-bright); }
 }
 .chapter-add-dates { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--faint); font-size: 9px; }
 .chapter-dates-note { color: var(--faint); font-size: 8px; }
+
+/*
+ * Bare text controls are comfortable to click and awkward to tap. On a touch-sized screen
+ * they keep their look but get a finger-sized box around them.
+ */
+/* Any touch device, plus a window narrow enough to be one. */
+@media (pointer: coarse), (max-width: 620px) {
+  .chapter-row-actions > button,
+  .chapter-close-choices button,
+  .chapter-manage,
+  .settings-link,
+  .settings-toggle,
+  .settings-row.danger .danger-text,
+  .rail-change,
+  .add-dependency,
+  .text-button {
+    min-height: 34px;
+  }
+  .chapter-row-actions,
+  .chapter-close-choices { gap: 16px; }
+  /* The project switcher is the one piece of top-bar chrome a thumb has to hit. */
+  .project-menu-trigger { min-height: 34px; }
+}
 
 /* Project settings ------------------------------------------------------ */
 
@@ -2504,7 +2548,21 @@ textarea:hover { border-color: var(--border-bright); }
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
+/*
+ * `up next` used to be a full-height slab on the row's edge. Now that it shares the column
+ * with the chapter action it is a button among buttons, and has to carry its own height -
+ * stretching to the row is no longer what sizes it.
+ */
 .library-page-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: end; }
+.library-page-actions .library-promote {
+  min-width: 0;
+  min-height: 26px;
+  padding: 0 11px;
+  border: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+  border-radius: 6px;
+}
+.library-page-actions .library-promote:hover { border-color: var(--accent-edge); }
 .library-chapter {
   min-height: 26px;
   padding: 0 10px;
