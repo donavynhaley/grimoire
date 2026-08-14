@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
-import type { BoardWorkspace, Card, Chapter } from "../../shared/types";
+import type { BoardWorkspace, Page, Chapter } from "../../shared/types";
 import { parseMarkdown } from "../../server/markdown-files";
 import { bootstrap, startTestServer } from "./test-server";
 
@@ -36,16 +36,16 @@ async function createChapter(server: Server, body: Record<string, unknown>) {
   });
 }
 
-async function createCard(server: Server, body: Record<string, unknown>) {
-  return server.request<{ card: Card }>("/api/cards", { method: "POST", body: JSON.stringify(body) });
+async function createPage(server: Server, body: Record<string, unknown>) {
+  return server.request<{ page: Page }>("/api/pages", { method: "POST", body: JSON.stringify(body) });
 }
 
 function chapterFile(server: Server, slug: string): string {
-  return join(server.cardsDirectory, "wizard-simulator", "chapters", `${slug}.md`);
+  return join(server.pagesDirectory, "wizard-simulator", "chapters", `${slug}.md`);
 }
 
-function cardFiles(server: Server): string[] {
-  const directory = join(server.cardsDirectory, "wizard-simulator", "cards");
+function pageFiles(server: Server): string[] {
+  const directory = join(server.pagesDirectory, "wizard-simulator", "pages");
   return readdirSync(directory)
     .filter((name) => name.endsWith(".md"))
     .map((name) => readFileSync(join(directory, name), "utf8"));
@@ -83,17 +83,17 @@ describe("chapters", () => {
       await bootstrap(server);
       await enableChapters(server);
       await createChapter(server, { name: "First Brew", state: "open" });
-      const card = await createCard(server, { title: "Brew a potion", chapter: "first-brew" });
-      expect(card.response.status).toBe(201);
+      const page = await createPage(server, { title: "Brew a potion", chapter: "first-brew" });
+      expect(page.response.status).toBe(201);
 
       await enableChapters(server, false);
 
       const hidden = await board(server);
       expect(hidden.project.chaptersEnabled).toBe(false);
       expect(hidden.chapters).toEqual([]);
-      // The card keeps its chapter and the chapter file stays on disk: turning the gate off
+      // The page keeps its chapter and the chapter file stays on disk: turning the gate off
       // is a change of surface, never a deletion.
-      expect(hidden.cards[0].chapter).toBe("first-brew");
+      expect(hidden.pages[0].chapter).toBe("first-brew");
       expect(readFileSync(chapterFile(server, "first-brew"), "utf8")).toContain("slug: first-brew");
 
       await enableChapters(server, true);
@@ -101,11 +101,11 @@ describe("chapters", () => {
       expect(restored.chapters.map((chapter) => chapter.slug)).toEqual(["first-brew"]);
     });
 
-    it("refuses to place a card in a chapter while the gate is off", async () => {
+    it("refuses to place a page in a chapter while the gate is off", async () => {
       const server = await startTestServer();
       await bootstrap(server);
 
-      const refused = await createCard(server, { title: "Brew a potion", chapter: "first-brew" });
+      const refused = await createPage(server, { title: "Brew a potion", chapter: "first-brew" });
       expect(refused.response.status).toBe(403);
     });
   });
@@ -157,7 +157,7 @@ describe("chapters", () => {
       await enableChapters(server);
       await createChapter(server, { name: "First Brew" });
 
-      const directory = join(server.cardsDirectory, "wizard-simulator", "chapters");
+      const directory = join(server.pagesDirectory, "wizard-simulator", "chapters");
       writeFileSync(join(directory, "second-brew.md"), readFileSync(chapterFile(server, "first-brew"), "utf8"));
 
       const { response } = await server.request("/api/board");
@@ -242,12 +242,12 @@ describe("chapters", () => {
   });
 
   describe("closing", () => {
-    it("stamps closedAt, clears it on reopening, and never touches a card", async () => {
+    it("stamps closedAt, clears it on reopening, and never touches a page", async () => {
       const server = await startTestServer();
       await bootstrap(server);
       await enableChapters(server);
       await createChapter(server, { name: "First Brew", state: "open" });
-      await createCard(server, { title: "Unfinished work", chapter: "first-brew", status: "ready" });
+      await createPage(server, { title: "Unfinished work", chapter: "first-brew", status: "ready" });
 
       const closed = await server.request<{ chapter: Chapter }>("/api/chapters/first-brew", {
         method: "PATCH",
@@ -257,11 +257,11 @@ describe("chapters", () => {
       expect(closed.body.chapter.closedAt).not.toBeNull();
 
       // Closing is a statement about the chapter, not an instruction to the board. The
-      // unfinished card stays exactly where it was, which is what makes a closed chapter an
+      // unfinished page stays exactly where it was, which is what makes a closed chapter an
       // honest record of what did and did not land.
       const afterClose = await board(server);
-      expect(afterClose.cards[0].chapter).toBe("first-brew");
-      expect(afterClose.cards[0].status).toBe("ready");
+      expect(afterClose.pages[0].chapter).toBe("first-brew");
+      expect(afterClose.pages[0].status).toBe("ready");
 
       const reopened = await server.request<{ chapter: Chapter }>("/api/chapters/first-brew", {
         method: "PATCH",
@@ -272,22 +272,22 @@ describe("chapters", () => {
   });
 
   describe("referential integrity", () => {
-    it("refuses a card pointing at a chapter that does not exist", async () => {
+    it("refuses a page pointing at a chapter that does not exist", async () => {
       const server = await startTestServer();
       await bootstrap(server);
       await enableChapters(server);
 
-      const { response } = await createCard(server, { title: "Nowhere", chapter: "made-up" });
+      const { response } = await createPage(server, { title: "Nowhere", chapter: "made-up" });
       expect(response.status).toBe(400);
     });
 
-    it("clears the chapter from its cards when the chapter is deleted", async () => {
+    it("clears the chapter from its pages when the chapter is deleted", async () => {
       const server = await startTestServer();
       await bootstrap(server);
       await enableChapters(server);
       await createChapter(server, { name: "First Brew", state: "open" });
-      await createCard(server, { title: "Brew a potion", chapter: "first-brew" });
-      await createCard(server, { title: "Unrelated" });
+      await createPage(server, { title: "Brew a potion", chapter: "first-brew" });
+      await createPage(server, { title: "Unrelated" });
 
       const removed = await server.request<{ released: number }>("/api/chapters/first-brew", {
         method: "DELETE",
@@ -297,26 +297,26 @@ describe("chapters", () => {
 
       const workspace = await board(server);
       expect(workspace.chapters).toEqual([]);
-      expect(workspace.cards.every((card) => card.chapter === null)).toBe(true);
+      expect(workspace.pages.every((page) => page.chapter === null)).toBe(true);
     });
   });
 
   describe("chapter and column are independent", () => {
-    it("keeps a card in the Backlog while it belongs to a chapter", async () => {
+    it("keeps a page in the Backlog while it belongs to a chapter", async () => {
       const server = await startTestServer();
       await bootstrap(server);
       await enableChapters(server);
       await createChapter(server, { name: "Second Brew" });
 
-      const created = await createCard(server, {
+      const created = await createPage(server, {
         title: "Pulled from the backlog",
         chapter: "second-brew",
         status: "backlog",
       });
 
       // This is the property that lets a chapter be filled without flooding Up Next.
-      expect(created.body.card.status).toBe("backlog");
-      expect(created.body.card.chapter).toBe("second-brew");
+      expect(created.body.page.status).toBe("backlog");
+      expect(created.body.page.chapter).toBe("second-brew");
     });
 
     it("carries the chapter through archive and restore", async () => {
@@ -324,44 +324,44 @@ describe("chapters", () => {
       await bootstrap(server);
       await enableChapters(server);
       await createChapter(server, { name: "First Brew", state: "open" });
-      const created = await createCard(server, { title: "Brew a potion", chapter: "first-brew" });
-      const cardId = created.body.card.id;
+      const created = await createPage(server, { title: "Brew a potion", chapter: "first-brew" });
+      const pageId = created.body.page.id;
 
-      await server.request(`/api/cards/${cardId}`, { method: "DELETE" });
-      const restored = await server.request<{ card: Card }>(`/api/cards/${cardId}/restore`, { method: "POST" });
+      await server.request(`/api/pages/${pageId}`, { method: "DELETE" });
+      const restored = await server.request<{ page: Page }>(`/api/pages/${pageId}/restore`, { method: "POST" });
 
       expect(restored.response.status).toBe(200);
-      expect(restored.body.card.chapter).toBe("first-brew");
+      expect(restored.body.page.chapter).toBe("first-brew");
     });
   });
 
   describe("compatibility with a build that predates chapters", () => {
-    it("writes no chapter key at all onto a card that has no chapter", async () => {
+    it("writes no chapter key at all onto a page that has no chapter", async () => {
       const server = await startTestServer();
       await bootstrap(server);
       await enableChapters(server);
       await createChapter(server, { name: "First Brew", state: "open" });
-      await createCard(server, { title: "Placed", chapter: "first-brew" });
-      await createCard(server, { title: "Unplaced" });
+      await createPage(server, { title: "Placed", chapter: "first-brew" });
+      await createPage(server, { title: "Unplaced" });
 
-      const files = cardFiles(server);
+      const files = pageFiles(server);
       const placed = files.filter((contents) => contents.includes("chapter: first-brew"));
       const unplaced = files.filter((contents) => !contents.includes("chapter:"));
 
       // An older strict parser rejects any frontmatter key it does not know, and one bad file
       // fails the whole listing. Emitting the key only when it carries a value means a
-      // rollback has to answer for the cards someone deliberately placed and nothing else.
+      // rollback has to answer for the pages someone deliberately placed and nothing else.
       expect(placed).toHaveLength(1);
       expect(unplaced).toHaveLength(1);
     });
 
-    it("keeps reading cards written before the field existed", async () => {
+    it("keeps reading pages written before the field existed", async () => {
       const server = await startTestServer();
       await bootstrap(server);
-      const created = await createCard(server, { title: "Older card" });
-      const cardId = created.body.card.id;
+      const created = await createPage(server, { title: "Older page" });
+      const pageId = created.body.page.id;
 
-      const path = join(server.cardsDirectory, "wizard-simulator", "cards", `${cardId}.md`);
+      const path = join(server.pagesDirectory, "wizard-simulator", "pages", `${pageId}.md`);
       const legacy = readFileSync(path, "utf8")
         .split("\n")
         .filter((line) => !line.startsWith("chapter:"))
@@ -369,19 +369,19 @@ describe("chapters", () => {
       writeFileSync(path, legacy);
 
       const workspace = await board(server);
-      expect(workspace.cards[0].chapter).toBeNull();
+      expect(workspace.pages[0].chapter).toBeNull();
     });
   });
 
   describe("the activity log", () => {
-    it("records moving a card into a chapter by name", async () => {
+    it("records moving a page into a chapter by name", async () => {
       const server = await startTestServer();
       await bootstrap(server);
       await enableChapters(server);
       await createChapter(server, { name: "First Brew", state: "open" });
-      const created = await createCard(server, { title: "Brew a potion" });
+      const created = await createPage(server, { title: "Brew a potion" });
 
-      await server.request(`/api/cards/${created.body.card.id}`, {
+      await server.request(`/api/pages/${created.body.page.id}`, {
         method: "PATCH",
         body: JSON.stringify({ chapter: "first-brew" }),
       });
@@ -416,14 +416,14 @@ describe("chapters", () => {
   });
 });
 
-describe("where a chaptered card turns up", () => {
+describe("where a chaptered page turns up", () => {
   it("names the chapter beside the column in a search result", async () => {
     const server = await startTestServer();
     await bootstrap(server);
     await enableChapters(server);
     await createChapter(server, { name: "First Brew", state: "open" });
-    await createCard(server, { title: "Brew a potion", chapter: "first-brew", status: "in_progress" });
-    await createCard(server, { title: "Brew nothing", status: "in_progress" });
+    await createPage(server, { title: "Brew a potion", chapter: "first-brew", status: "in_progress" });
+    await createPage(server, { title: "Brew nothing", status: "in_progress" });
 
     const found = await server.request<{ hits: Array<{ title: string; where: string }> }>(
       "/api/search?q=brew",
@@ -431,7 +431,7 @@ describe("where a chaptered card turns up", () => {
     const wheres = Object.fromEntries(found.body.hits.map((hit) => [hit.title, hit.where]));
 
     expect(wheres["Brew a potion"]).toBe("In progress · First Brew");
-    // A card in no chapter still reads exactly as it did before.
+    // A page in no chapter still reads exactly as it did before.
     expect(wheres["Brew nothing"]).toBe("In progress");
   });
 
@@ -440,7 +440,7 @@ describe("where a chaptered card turns up", () => {
     await bootstrap(server);
     await enableChapters(server);
     await createChapter(server, { name: "First Brew", state: "open" });
-    await createCard(server, { title: "Brew a potion", chapter: "first-brew", status: "in_progress" });
+    await createPage(server, { title: "Brew a potion", chapter: "first-brew", status: "in_progress" });
     await enableChapters(server, false);
 
     const found = await server.request<{ hits: Array<{ where: string }> }>("/api/search?q=brew");
@@ -449,13 +449,13 @@ describe("where a chaptered card turns up", () => {
 });
 
 describe("the rollback script", () => {
-  it("makes every card readable again by a build that predates chapters", async () => {
+  it("makes every page readable again by a build that predates chapters", async () => {
     const server = await startTestServer();
     await bootstrap(server);
     await enableChapters(server);
     await createChapter(server, { name: "First Brew", state: "open" });
-    await createCard(server, { title: "Placed", chapter: "first-brew" });
-    await createCard(server, { title: "Unplaced" });
+    await createPage(server, { title: "Placed", chapter: "first-brew" });
+    await createPage(server, { title: "Unplaced" });
 
     // The schema as it stands on the branch this would roll back to: strict, and with no
     // idea what a chapter is.
@@ -476,14 +476,14 @@ describe("the rollback script", () => {
         archived_at: z.string().nullable().optional(),
       })
       .strict();
-    const readAll = () => cardFiles(server).map((contents) => parseMarkdown(contents).metadata);
+    const readAll = () => pageFiles(server).map((contents) => parseMarkdown(contents).metadata);
 
-    // Before: the placed card is unreadable, which is what would take the board down.
+    // Before: the placed page is unreadable, which is what would take the board down.
     expect(readAll().filter((metadata) => !legacySchema.safeParse(metadata).success)).toHaveLength(1);
 
     execFileSync(process.execPath, [
       join(process.cwd(), "ops", "strip-chapter-frontmatter.mjs"),
-      server.cardsDirectory,
+      server.pagesDirectory,
       "--apply",
     ]);
 
@@ -493,7 +493,7 @@ describe("the rollback script", () => {
     }
 
     // The chapter file itself is untouched, so rolling forward again restores the chapter -
-    // only which cards were in it is lost.
+    // only which pages were in it is lost.
     expect(readFileSync(chapterFile(server, "first-brew"), "utf8")).toContain("name: First Brew");
   });
 
@@ -502,16 +502,16 @@ describe("the rollback script", () => {
     await bootstrap(server);
     await enableChapters(server);
     await createChapter(server, { name: "First Brew", state: "open" });
-    await createCard(server, { title: "Placed", chapter: "first-brew" });
-    const before = cardFiles(server);
+    await createPage(server, { title: "Placed", chapter: "first-brew" });
+    const before = pageFiles(server);
 
     const output = execFileSync(process.execPath, [
       join(process.cwd(), "ops", "strip-chapter-frontmatter.mjs"),
-      server.cardsDirectory,
+      server.pagesDirectory,
     ]).toString();
 
     expect(output).toContain("would strip");
-    expect(cardFiles(server)).toEqual(before);
+    expect(pageFiles(server)).toEqual(before);
   });
 });
 
@@ -538,7 +538,7 @@ describe("widening the audit entity types", () => {
         project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
         actor_id TEXT REFERENCES users(id),
         actor_name TEXT NOT NULL,
-        entity_type TEXT NOT NULL CHECK (entity_type IN ('card', 'idea', 'project', 'category', 'member')),
+        entity_type TEXT NOT NULL CHECK (entity_type IN ('page', 'idea', 'project', 'category', 'member')),
         entity_id TEXT,
         entity_title TEXT NOT NULL,
         action TEXT NOT NULL,
@@ -555,9 +555,9 @@ describe("widening the audit entity types", () => {
       .run("project-1", "Wizard Simulator", "wizard-simulator", "2026-08-01T00:00:00.000Z", "2026-08-01T00:00:00.000Z");
     const insert = legacy.prepare(
       `INSERT INTO audit_events (id, project_id, actor_id, actor_name, entity_type, entity_id, entity_title, action, created_at)
-       VALUES (?, 'project-1', 'user-1', 'Donavyn', 'card', ?, ?, 'created', '2026-08-01T00:00:00.000Z')`,
+       VALUES (?, 'project-1', 'user-1', 'Donavyn', 'page', ?, ?, 'created', '2026-08-01T00:00:00.000Z')`,
     );
-    for (let index = 1; index <= 5; index += 1) insert.run(`event-${index}`, `card-${index}`, `Card ${index}`);
+    for (let index = 1; index <= 5; index += 1) insert.run(`event-${index}`, `page-${index}`, `Page ${index}`);
     legacy
       .prepare("INSERT INTO seen_cursors VALUES ('project-1', 'user-1', 3, '2026-08-01T00:00:00.000Z')")
       .run();

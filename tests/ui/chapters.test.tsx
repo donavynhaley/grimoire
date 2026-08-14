@@ -4,7 +4,7 @@ import { cleanup, render, screen, waitFor, within } from "@testing-library/react
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "../../src/App";
-import type { BoardWorkspace, Card, Chapter } from "../../shared/types";
+import type { BoardWorkspace, Page, Chapter } from "../../shared/types";
 import { boardFixture } from "../fixtures/board";
 
 afterEach(() => {
@@ -42,23 +42,23 @@ function chapter(overrides: Partial<Chapter> = {}): Chapter {
   };
 }
 
-function card(overrides: Partial<Card>): Card {
-  const base = boardFixture().cards[1];
+function page(overrides: Partial<Page>): Page {
+  const base = boardFixture().pages[1];
   return { ...base, ...overrides };
 }
 
-/** A board with chapters on, one open chapter, and cards on both sides of it. */
+/** A board with chapters on, one open chapter, and pages on both sides of it. */
 function chapteredBoard(): BoardWorkspace {
   const board = boardFixture();
   return {
     ...board,
     project: { ...board.project, chaptersEnabled: true },
     chapters: [chapter(), chapter({ slug: "second-brew", name: "Second Brew", state: "planned", startsOn: null, endsOn: null })],
-    cards: [
-      card({ id: "card-in", title: "Inside the chapter", chapter: "first-brew", status: "ready", position: 0 }),
-      card({ id: "card-out", title: "Outside the chapter", chapter: null, status: "ready", position: 1 }),
-      card({ id: "card-backlog", title: "Reserved for later", chapter: "first-brew", status: "backlog", position: 0 }),
-      card({ id: "card-unplaced", title: "Waiting to be placed", chapter: null, status: "backlog", position: 1 }),
+    pages: [
+      page({ id: "page-in", title: "Inside the chapter", chapter: "first-brew", status: "ready", position: 0 }),
+      page({ id: "page-out", title: "Outside the chapter", chapter: null, status: "ready", position: 1 }),
+      page({ id: "page-backlog", title: "Reserved for later", chapter: "first-brew", status: "backlog", position: 0 }),
+      page({ id: "page-unplaced", title: "Waiting to be placed", chapter: null, status: "backlog", position: 1 }),
     ],
   };
 }
@@ -89,12 +89,12 @@ describe("chapters on the board", () => {
     const trigger = await screen.findByRole("button", { name: /Filter by chapter/ });
     expect(trigger).toHaveAccessibleName(/First Brew/);
 
-    // The chapter's own card is on the board; the unplaced one is filtered out.
+    // The chapter's own page is on the board; the unplaced one is filtered out.
     expect(await screen.findByText("Inside the chapter")).toBeInTheDocument();
     expect(screen.queryByText("Outside the chapter")).toBeNull();
   });
 
-  it("names the chapter and its dates instead of a bare card count", async () => {
+  it("names the chapter and its dates instead of a bare page count", async () => {
     mountWith(chapteredBoard());
 
     expect(await screen.findByRole("heading", { name: "First Brew", level: 2 })).toBeInTheDocument();
@@ -104,11 +104,11 @@ describe("chapters on the board", () => {
   it("reports the chapter's backlog reserve without leaving the board", async () => {
     mountWith(chapteredBoard());
 
-    // One of the chapter's cards is still in the Backlog, which the board cannot draw.
+    // One of the chapter's pages is still in the Backlog, which the board cannot draw.
     expect(await screen.findByText("1 in Backlog")).toBeInTheDocument();
   });
 
-  it("widens back to every card through All work, and records it in the URL", async () => {
+  it("widens back to every page through All work, and records it in the URL", async () => {
     const user = userEvent.setup();
     mountWith(chapteredBoard());
 
@@ -121,7 +121,7 @@ describe("chapters on the board", () => {
     await waitFor(() => expect(new URLSearchParams(location.search).get("chapter")).toBeNull());
   });
 
-  it("filters to cards nobody has placed", async () => {
+  it("filters to pages nobody has placed", async () => {
     const user = userEvent.setup();
     mountWith(chapteredBoard());
 
@@ -161,7 +161,7 @@ describe("chapters on the board", () => {
     await screen.findByText("Inside the chapter");
     await user.click(screen.getByRole("button", { name: "unassigned" }));
 
-    // Both filters apply: the chapter's card is assigned, so nothing survives.
+    // Both filters apply: the chapter's page is assigned, so nothing survives.
     await waitFor(() => expect(screen.queryByText("Inside the chapter")).toBeNull());
     expect(new URLSearchParams(location.search).get("chapter")).toBe("first-brew");
     expect(new URLSearchParams(location.search).get("people")).toBe("unassigned");
@@ -169,7 +169,7 @@ describe("chapters on the board", () => {
 });
 
 describe("pulling from the backlog", () => {
-  it("offers the viewed chapter on every row and leaves the card in the Backlog", async () => {
+  it("offers the viewed chapter on every row and leaves the page in the Backlog", async () => {
     const user = userEvent.setup();
     const board = chapteredBoard();
     const patched: Array<Record<string, unknown>> = [];
@@ -181,7 +181,7 @@ describe("pulling from the backlog", () => {
       if (url.startsWith("/api/session")) return response({ status: "authenticated", user: board.currentUser });
       if (init?.method === "PATCH") {
         patched.push(JSON.parse(String(init.body)));
-        return response({ card: board.cards[0] });
+        return response({ page: board.pages[0] });
       }
       return response(board);
     });
@@ -196,7 +196,7 @@ describe("pulling from the backlog", () => {
     expect(patched).toEqual([{ chapter: "first-brew" }]);
   });
 
-  it("shows a card already in the chapter as a state rather than an action", async () => {
+  it("shows a page already in the chapter as a state rather than an action", async () => {
     const user = userEvent.setup();
     mountWith(chapteredBoard());
 
@@ -217,8 +217,8 @@ describe("closing a chapter", () => {
     const dialog = await screen.findByRole("dialog", { name: "Chapters" });
     await user.click(within(dialog).getByRole("button", { name: "close" }));
 
-    // Two of First Brew's cards are unfinished, and every route out is a named choice.
-    expect(within(dialog).getByText(/2 cards are unfinished/)).toBeInTheDocument();
+    // Two of First Brew's pages are unfinished, and every route out is a named choice.
+    expect(within(dialog).getByText(/2 pages are unfinished/)).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "leave them here" })).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "move them to Second Brew" })).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "release them" })).toBeInTheDocument();

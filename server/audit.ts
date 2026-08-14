@@ -6,7 +6,7 @@ import type {
   AuditEntityType,
   AuditEvent,
   AuditPage,
-  Card,
+  Page,
   Chapter,
   Idea,
 } from "../shared/types";
@@ -15,7 +15,7 @@ export const AUDIT_PAGE_SIZE = 40;
 export const AUDIT_MAX_PAGE_SIZE = 200;
 export const AWAY_EVENT_LIMIT = 200;
 
-export const CARD_COLUMN_LABELS: Record<Card["status"], string> = {
+export const PAGE_COLUMN_LABELS: Record<Page["status"], string> = {
   backlog: "Backlog",
   ready: "Up Next",
   in_progress: "In progress",
@@ -48,7 +48,7 @@ export type RecordAuditInput = {
  * Appends one event to the project history.
  *
  * The actor name and entity title are snapshots taken at write time so the timeline
- * still reads correctly after a card is renamed or archived. Reads prefer the live
+ * still reads correctly after a page is renamed or archived. Reads prefer the live
  * account name when it is still available, which keeps a renamed person consistent
  * across their whole history.
  */
@@ -175,14 +175,14 @@ function parseChanges(value: string | number | null): AuditChange[] {
  * Implementations are expected to be lazy, because most edits change neither the
  * category nor the blockers and should not pay to load either.
  */
-export type CardLabels = {
+export type PageLabels = {
   categoryName: (slug: string | null) => string;
   chapterName: (slug: string | null) => string;
-  cardTitle: (id: string) => string;
+  pageTitle: (id: string) => string;
 };
 
-/** Fields a person would recognise, in the order they appear on the card. */
-export function cardChanges(before: Card, after: Card, labels: CardLabels): AuditChange[] {
+/** Fields a person would recognise, in the order they appear on the page. */
+export function pageChanges(before: Page, after: Page, labels: PageLabels): AuditChange[] {
   const changes: AuditChange[] = [];
   if (before.title !== after.title) changes.push({ field: "title", from: before.title, to: after.title });
   if (before.description !== after.description) {
@@ -212,8 +212,8 @@ export function cardChanges(before: Card, after: Card, labels: CardLabels): Audi
   if (before.status !== after.status) {
     changes.push({
       field: "column",
-      from: CARD_COLUMN_LABELS[before.status],
-      to: CARD_COLUMN_LABELS[after.status],
+      from: PAGE_COLUMN_LABELS[before.status],
+      to: PAGE_COLUMN_LABELS[after.status],
     });
   }
   if (!sameIds(before.blockedBy, after.blockedBy)) {
@@ -227,14 +227,14 @@ export function cardChanges(before: Card, after: Card, labels: CardLabels): Audi
 }
 
 /**
- * Records where a new card landed, rather than diffing it against a fictional empty
- * card that would report every field as an edit.
+ * Records where a new page landed, rather than diffing it against a fictional empty
+ * page that would report every field as an edit.
  */
-export function cardCreationChanges(card: Card, labels: CardLabels): AuditChange[] {
-  const changes: AuditChange[] = [{ field: "column", from: null, to: CARD_COLUMN_LABELS[card.status] }];
-  if (card.category) changes.push({ field: "category", from: null, to: labels.categoryName(card.category) });
-  if (card.chapter) changes.push({ field: "chapter", from: null, to: labels.chapterName(card.chapter) });
-  if (card.assigneeName) changes.push({ field: "assignee", from: null, to: card.assigneeName });
+export function pageCreationChanges(page: Page, labels: PageLabels): AuditChange[] {
+  const changes: AuditChange[] = [{ field: "column", from: null, to: PAGE_COLUMN_LABELS[page.status] }];
+  if (page.category) changes.push({ field: "category", from: null, to: labels.categoryName(page.category) });
+  if (page.chapter) changes.push({ field: "chapter", from: null, to: labels.chapterName(page.chapter) });
+  if (page.assigneeName) changes.push({ field: "assignee", from: null, to: page.assigneeName });
   return changes;
 }
 
@@ -313,6 +313,6 @@ function sameIds(left: string[], right: string[]): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
-function describeIds(ids: string[], labels: CardLabels): string | null {
-  return ids.length === 0 ? null : ids.map((id) => labels.cardTitle(id)).join(", ");
+function describeIds(ids: string[], labels: PageLabels): string | null {
+  return ids.length === 0 ? null : ids.map((id) => labels.pageTitle(id)).join(", ");
 }

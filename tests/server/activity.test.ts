@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { AuditPage, BoardWorkspace, Card, Idea, ProjectSummary } from "../../shared/types";
+import type { AuditPage, BoardWorkspace, Page, Idea, ProjectSummary } from "../../shared/types";
 import { bootstrap, startTestServer } from "./test-server";
 
 type Server = Awaited<ReturnType<typeof startTestServer>>;
@@ -12,12 +12,12 @@ async function activity(server: Server, query = ""): Promise<AuditPage> {
   return (await server.request<AuditPage>(`/api/activity${query}`)).body;
 }
 
-async function createCard(server: Server, title: string, extra: Record<string, unknown> = {}): Promise<Card> {
-  const created = await server.request<{ card: Card }>("/api/cards", {
+async function createPage(server: Server, title: string, extra: Record<string, unknown> = {}): Promise<Page> {
+  const created = await server.request<{ page: Page }>("/api/pages", {
     method: "POST",
     body: JSON.stringify({ title, ...extra }),
   });
-  return created.body.card;
+  return created.body.page;
 }
 
 describe("project activity", () => {
@@ -36,12 +36,12 @@ describe("project activity", () => {
     expect(page.events[0].actorName).toBe("Donavyn");
   });
 
-  it("records where a new card landed", async () => {
+  it("records where a new page landed", async () => {
     const server = await startTestServer();
     await bootstrap(server);
     const owner = (await board(server)).currentUser;
 
-    await createCard(server, "Model the potion workbench", {
+    await createPage(server, "Model the potion workbench", {
       status: "ready",
       category: "modeling",
       assigneeId: owner.id,
@@ -49,7 +49,7 @@ describe("project activity", () => {
 
     const [event] = (await activity(server)).events;
     expect(event.action).toBe("created");
-    expect(event.entityType).toBe("card");
+    expect(event.entityType).toBe("page");
     expect(event.entityTitle).toBe("Model the potion workbench");
     expect(event.changes).toEqual([
       { field: "column", from: null, to: "Up Next" },
@@ -61,19 +61,19 @@ describe("project activity", () => {
   it("separates a column move from an edit and ignores reordering", async () => {
     const server = await startTestServer();
     await bootstrap(server);
-    const first = await createCard(server, "Sweep the tower", { status: "ready" });
-    await createCard(server, "Polish the broom", { status: "ready" });
+    const first = await createPage(server, "Sweep the tower", { status: "ready" });
+    await createPage(server, "Polish the broom", { status: "ready" });
 
-    await server.request(`/api/cards/${first.id}`, {
+    await server.request(`/api/pages/${first.id}`, {
       method: "PATCH",
       body: JSON.stringify({ status: "in_progress", position: 0 }),
     });
-    await server.request(`/api/cards/${first.id}`, {
+    await server.request(`/api/pages/${first.id}`, {
       method: "PATCH",
       body: JSON.stringify({ title: "Sweep the whole tower", description: "Every floor." }),
     });
     // A pure reorder inside one column carries no readable change and is not recorded.
-    await server.request(`/api/cards/${first.id}`, {
+    await server.request(`/api/pages/${first.id}`, {
       method: "PATCH",
       body: JSON.stringify({ position: 0 }),
     });
@@ -87,35 +87,35 @@ describe("project activity", () => {
     ]);
   });
 
-  it("names the blockers and categories a card gained or lost", async () => {
+  it("names the blockers and categories a page gained or lost", async () => {
     const server = await startTestServer();
     await bootstrap(server);
-    const blocker = await createCard(server, "Design the ritual table");
-    const card = await createCard(server, "Build the ritual table");
+    const blocker = await createPage(server, "Design the ritual table");
+    const page = await createPage(server, "Build the ritual table");
 
-    await server.request(`/api/cards/${card.id}`, {
+    await server.request(`/api/pages/${page.id}`, {
       method: "PATCH",
       body: JSON.stringify({ blockedBy: [blocker.id], category: "code" }),
     });
 
-    const [event] = (await activity(server, `?entity=${card.id}`)).events;
+    const [event] = (await activity(server, `?entity=${page.id}`)).events;
     expect(event.changes).toEqual([
       { field: "category", from: "uncategorized", to: "Code" },
       { field: "blockers", from: null, to: "Design the ritual table" },
     ]);
   });
 
-  it("keeps the title a card had when it was archived", async () => {
+  it("keeps the title a page had when it was archived", async () => {
     const server = await startTestServer();
     await bootstrap(server);
-    const card = await createCard(server, "Retire the old workbench");
+    const page = await createPage(server, "Retire the old workbench");
 
-    await server.request(`/api/cards/${card.id}`, { method: "DELETE", body: JSON.stringify({}) });
-    await server.request(`/api/cards/${card.id}/restore`, { method: "POST", body: JSON.stringify({}) });
+    await server.request(`/api/pages/${page.id}`, { method: "DELETE", body: JSON.stringify({}) });
+    await server.request(`/api/pages/${page.id}/restore`, { method: "POST", body: JSON.stringify({}) });
 
-    const page = await activity(server, `?entity=${card.id}`);
-    expect(page.events.map((event) => event.action)).toEqual(["restored", "archived", "created"]);
-    expect(page.events[1].entityTitle).toBe("Retire the old workbench");
+    const history = await activity(server, `?entity=${page.id}`);
+    expect(history.events.map((event) => event.action)).toEqual(["restored", "archived", "created"]);
+    expect(history.events[1].entityTitle).toBe("Retire the old workbench");
   });
 
   it("records ideas, promotions, categories, and project renames", async () => {
@@ -144,7 +144,7 @@ describe("project activity", () => {
     expect(page.events.map((event) => [event.entityType, event.action])).toEqual([
       ["project", "renamed"],
       ["category", "created"],
-      ["card", "created"],
+      ["page", "created"],
       ["idea", "promoted"],
       ["idea", "moved"],
       ["idea", "created"],
@@ -200,7 +200,7 @@ describe("project activity", () => {
       method: "POST",
       body: JSON.stringify({ name: "Familiar Tycoon" }),
     });
-    await server.request("/api/cards", {
+    await server.request("/api/pages", {
       method: "POST",
       headers: { "x-grimoire-project": created.body.project.id },
       body: JSON.stringify({ title: "Sketch the familiar shop" }),
@@ -220,14 +220,14 @@ describe("project activity", () => {
   it("pages backwards through a long history", async () => {
     const server = await startTestServer();
     await bootstrap(server);
-    for (let index = 0; index < 6; index += 1) await createCard(server, `Card ${index}`);
+    for (let index = 0; index < 6; index += 1) await createPage(server, `Page ${index}`);
 
     const first = await activity(server, "?limit=3");
     expect(first.hasMore).toBe(true);
     expect(first.events).toHaveLength(3);
 
     const second = await activity(server, `?limit=3&before=${first.events[2].sequence}`);
-    expect(second.events.map((event) => event.entityTitle)).toEqual(["Card 2", "Card 1", "Card 0"]);
+    expect(second.events.map((event) => event.entityTitle)).toEqual(["Page 2", "Page 1", "Page 0"]);
     expect(second.hasMore).toBe(true);
   });
 

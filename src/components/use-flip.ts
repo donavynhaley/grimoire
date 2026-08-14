@@ -66,7 +66,7 @@ function placementOf(node: HTMLElement): Placement {
   let left = node.offsetLeft;
   let top = node.offsetTop;
   const laidOut = node.offsetWidth > 0 || node.offsetHeight > 0;
-  // Walk to a common origin so a card keeps the same coordinate space when it moves
+  // Walk to a common origin so a page keeps the same coordinate space when it moves
   // between columns, which are separate offset parents once anything is positioned.
   for (let parent = node.offsetParent; parent instanceof HTMLElement; parent = parent.offsetParent) {
     left += parent.offsetLeft;

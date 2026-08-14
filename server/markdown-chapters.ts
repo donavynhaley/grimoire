@@ -48,11 +48,11 @@ const metadataSchema = z
  * Chapters live in the project directory rather than in SQLite.
  *
  * A chapter is domain data about the work - it has a name, a time frame, and a body saying
- * what the stretch is for - so it belongs with the cards it describes. Copying a project
+ * what the stretch is for - so it belongs with the pages it describes. Copying a project
  * directory therefore carries the work and the chapters it was done in.
  *
- * Files are named by slug rather than by UUID. A card title changes constantly, which is why
- * cards use UUID filenames, but a chapter's slug is fixed at creation and survives renames,
+ * Files are named by slug rather than by UUID. A page title changes constantly, which is why
+ * pages use UUID filenames, but a chapter's slug is fixed at creation and survives renames,
  * and there are few enough of them that a readable directory listing is worth more.
  */
 export class MarkdownChapterStore {

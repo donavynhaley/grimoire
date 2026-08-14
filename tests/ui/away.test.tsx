@@ -63,7 +63,7 @@ function awayEvent(overrides: Partial<AuditEvent>): AuditEvent {
     id: `event-${overrides.sequence ?? 1}`,
     actorId: "00000000-0000-4000-8000-000000000011",
     actorName: "Maren",
-    entityType: "card",
+    entityType: "page",
     entityId: "00000000-0000-4000-8000-000000000020",
     entityTitle: "Make the tower door remember Maren",
     action: "updated",
@@ -132,9 +132,9 @@ describe("while you were away - quiet signals", () => {
     expect(text.indexOf("new since your last visit")).toBeLessThan(text.indexOf("Old seen change"));
   });
 
-  it("shows the digest, marks changed cards, and dismiss clears everything at once", async () => {
+  it("shows the digest, marks changed pages, and dismiss clears everything at once", async () => {
     const board = boardFixture();
-    const changed = board.cards[1]; // in progress, visible on the board
+    const changed = board.pages[1]; // in progress, visible on the board
     const away: AwayState = {
       since: 5,
       latest: 8,
@@ -152,7 +152,7 @@ describe("while you were away - quiet signals", () => {
     expect(digest).toHaveTextContent(`started ${changed.title}`);
 
     const tile = screen.getByRole("button", { name: new RegExp(`Open ${changed.title}.*Changed while you were away`) });
-    expect(tile.closest(".board-card")).toHaveClass("unseen");
+    expect(tile.closest(".board-page")).toHaveClass("unseen");
 
     await userEvent.click(screen.getByRole("button", { name: "Dismiss the away summary" }));
     expect(screen.queryByRole("region", { name: "While you were away" })).not.toBeInTheDocument();
@@ -160,9 +160,9 @@ describe("while you were away - quiet signals", () => {
     expect(screen.queryByLabelText(/changes since your last visit/)).not.toBeInTheDocument();
   });
 
-  it("clears a card's dot as soon as the card is opened", async () => {
+  it("clears a page's dot as soon as the page is opened", async () => {
     const board = boardFixture();
-    const changed = board.cards[1];
+    const changed = board.pages[1];
     const away: AwayState = {
       since: 5,
       latest: 7,
@@ -174,8 +174,8 @@ describe("while you were away - quiet signals", () => {
     render(<App />);
     const tile = await screen.findByRole("button", { name: /Changed while you were away/ });
     await userEvent.click(tile);
-    await screen.findByRole("dialog", { name: "Edit card" });
-    await userEvent.click(screen.getByRole("button", { name: "Close card" }));
+    await screen.findByRole("dialog", { name: "Edit page" });
+    await userEvent.click(screen.getByRole("button", { name: "Close page" }));
 
     expect(screen.queryByRole("button", { name: /Changed while you were away/ })).not.toBeInTheDocument();
     // The digest itself stays until dismissed; only the answered dot retires.
@@ -189,7 +189,7 @@ describe("while you were away - quiet signals", () => {
         sequence: 10 + index,
         action: "created",
         entityId: `00000000-0000-4000-8000-0000000001${index}0`.slice(0, 36),
-        entityTitle: `Fresh card ${index}`,
+        entityTitle: `Fresh page ${index}`,
         actorId: index % 2 === 0 ? "00000000-0000-4000-8000-000000000011" : "00000000-0000-4000-8000-000000000012",
         actorName: index % 2 === 0 ? "Maren" : "Sam",
         changes: [{ field: "column", from: null, to: index % 4 < 2 ? "Up Next" : "Review" }],
@@ -246,26 +246,26 @@ describe("buildDigestLines", () => {
     expect(lines[1].aboutYou).toBe(false);
   });
 
-  it("links a finished blocker to the reader's blocked card", () => {
+  it("links a finished blocker to the reader's blocked page", () => {
     const board = boardFixture();
-    const blocker = board.cards[0];
-    board.cards[1] = { ...board.cards[1], assigneeId: board.currentUser.id, assigneeName: "Donavyn", blockedBy: [blocker.id] };
+    const blocker = board.pages[0];
+    board.pages[1] = { ...board.pages[1], assigneeId: board.currentUser.id, assigneeName: "Donavyn", blockedBy: [blocker.id] };
     const lines = digest(
       [awayEvent({ sequence: 1, action: "moved", entityId: blocker.id, entityTitle: blocker.title, changes: [{ field: "column", from: "In progress", to: "Done" }] })],
       board,
     );
-    expect(lineText(lines[0])).toBe(`Maren finished ${blocker.title} - your ${board.cards[1].title} is no longer blocked`);
+    expect(lineText(lines[0])).toBe(`Maren finished ${blocker.title} - your ${board.pages[1].title} is no longer blocked`);
     expect(lines[0].tier).toBe(1);
   });
 
-  it("groups a same-actor run of new cards into one line", () => {
+  it("groups a same-actor run of new pages into one line", () => {
     const lines = digest([
-      awayEvent({ sequence: 1, action: "created", entityId: "00000000-0000-4000-8000-000000000050", entityTitle: "First card", changes: [{ field: "column", from: null, to: "Up Next" }] }),
-      awayEvent({ sequence: 2, action: "created", entityId: "00000000-0000-4000-8000-000000000051", entityTitle: "Second card", changes: [{ field: "column", from: null, to: "Up Next" }] }),
-      awayEvent({ sequence: 3, action: "created", entityId: "00000000-0000-4000-8000-000000000052", entityTitle: "Third card", changes: [{ field: "column", from: null, to: "Up Next" }] }),
+      awayEvent({ sequence: 1, action: "created", entityId: "00000000-0000-4000-8000-000000000050", entityTitle: "First page", changes: [{ field: "column", from: null, to: "Up Next" }] }),
+      awayEvent({ sequence: 2, action: "created", entityId: "00000000-0000-4000-8000-000000000051", entityTitle: "Second page", changes: [{ field: "column", from: null, to: "Up Next" }] }),
+      awayEvent({ sequence: 3, action: "created", entityId: "00000000-0000-4000-8000-000000000052", entityTitle: "Third page", changes: [{ field: "column", from: null, to: "Up Next" }] }),
     ]);
     expect(lines).toHaveLength(1);
-    expect(lineText(lines[0])).toBe("Maren added First card and 2 more cards to Up Next");
+    expect(lineText(lines[0])).toBe("Maren added First page and 2 more pages to Up Next");
   });
 
   it("collapses repeat edits and speaks each idea change in its own words", () => {
@@ -273,7 +273,7 @@ describe("buildDigestLines", () => {
       awayEvent({ sequence: 1, action: "updated", entityTitle: "Potion bench", changes: [{ field: "notes", from: null, to: "a" }] }),
       awayEvent({ sequence: 2, action: "updated", entityTitle: "Potion bench", changes: [{ field: "notes", from: "a", to: "b" }] }),
       awayEvent({ sequence: 3, entityType: "idea", entityId: "00000000-0000-4000-8000-000000000040", entityTitle: "Rune spells", action: "moved", changes: [{ field: "list", from: "Idea inbox", to: "Shortlist" }] }),
-      awayEvent({ sequence: 4, entityType: "idea", entityId: "00000000-0000-4000-8000-000000000041", entityTitle: "Tower garden", action: "promoted", changes: [{ field: "became a card", from: null, to: "Tower garden" }] }),
+      awayEvent({ sequence: 4, entityType: "idea", entityId: "00000000-0000-4000-8000-000000000041", entityTitle: "Tower garden", action: "promoted", changes: [{ field: "became a page", from: null, to: "Tower garden" }] }),
     ]);
     expect(lines.map(lineText)).toEqual([
       "Maren edited Potion bench",
@@ -282,7 +282,7 @@ describe("buildDigestLines", () => {
     ]);
   });
 
-  it("skips the card creation a promotion already covers, and invitation links entirely", () => {
+  it("skips the page creation a promotion already covers, and invitation links entirely", () => {
     const lines = digest([
       awayEvent({ sequence: 1, action: "created", entityTitle: "Tower garden", changes: [{ field: "promoted from an idea", from: null, to: "Tower garden" }] }),
       awayEvent({ sequence: 2, entityType: "member", entityId: null, entityTitle: "invitation link", action: "invited" }),

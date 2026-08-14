@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from "react";
-import type { Card, Chapter } from "../../shared/types";
+import type { Page, Chapter } from "../../shared/types";
 import { ApiError } from "../api/client";
 import { useDialogEscape } from "./use-dialog-escape";
 
@@ -13,12 +13,12 @@ export type ChapterActions = {
 };
 
 type Props = {
-  cards: Card[];
+  pages: Page[];
   chapters: Chapter[];
   busy: boolean;
   actions: ChapterActions;
   onClose: () => void;
-  onSetCardChapter: (id: string, chapter: string | null) => Promise<void>;
+  onSetPageChapter: (id: string, chapter: string | null) => Promise<void>;
 };
 
 /** The one open chapter, if the project is in one. */
@@ -26,7 +26,7 @@ function openChapter(chapters: Chapter[]): Chapter | undefined {
   return chapters.find((chapter) => chapter.state === "open");
 }
 
-export function ChaptersDialog({ cards, chapters, busy, actions, onClose, onSetCardChapter }: Props) {
+export function ChaptersDialog({ pages, chapters, busy, actions, onClose, onSetPageChapter }: Props) {
   const [newName, setNewName] = useState("");
   const [newStart, setNewStart] = useState("");
   const [newEnd, setNewEnd] = useState("");
@@ -36,9 +36,9 @@ export function ChaptersDialog({ cards, chapters, busy, actions, onClose, onSetC
   const [error, setError] = useState("");
   const current = openChapter(chapters);
 
-  const countIn = (slug: string) => cards.filter((card) => card.chapter === slug).length;
+  const countIn = (slug: string) => pages.filter((page) => page.chapter === slug).length;
   const unfinishedIn = (slug: string) =>
-    cards.filter((card) => card.chapter === slug && card.status !== "done").length;
+    pages.filter((page) => page.chapter === slug && page.status !== "done").length;
   const plannedChapters = chapters.filter((chapter) => chapter.state === "planned");
 
   const close = async (slug: string) => {
@@ -47,12 +47,12 @@ export function ChaptersDialog({ cards, chapters, busy, actions, onClose, onSetC
   };
 
   /**
-   * Moves only the cards that did not land, leaving the finished ones as the record of what
+   * Moves only the pages that did not land, leaving the finished ones as the record of what
    * the chapter delivered.
    */
   const moveUnfinished = async (from: string, to: string | null) => {
-    for (const card of cards.filter((value) => value.chapter === from && value.status !== "done")) {
-      await onSetCardChapter(card.id, to);
+    for (const page of pages.filter((value) => value.chapter === from && value.status !== "done")) {
+      await onSetPageChapter(page.id, to);
     }
   };
 
@@ -91,7 +91,7 @@ export function ChaptersDialog({ cards, chapters, busy, actions, onClose, onSetC
 
   return (
     <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section aria-labelledby="chapters-dialog-title" aria-modal="true" className="card-dialog chapters-dialog" role="dialog">
+      <section aria-labelledby="chapters-dialog-title" aria-modal="true" className="dialog-panel chapters-dialog" role="dialog">
         <header className="dialog-header">
           <div>
             <p className="eyebrow">project setup</p>
@@ -102,7 +102,7 @@ export function ChaptersDialog({ cards, chapters, busy, actions, onClose, onSetC
 
         <p className="chapters-note">
           A chapter is a stretch of work with a name and, if it helps, dates. Nothing is counted, nothing rolls
-          over, and closing one never moves a card.
+          over, and closing one never moves a page.
         </p>
 
         <div className="chapter-manager">
@@ -148,7 +148,7 @@ export function ChaptersDialog({ cards, chapters, busy, actions, onClose, onSetC
                     type="date"
                     value={chapter.endsOn ?? ""}
                   />
-                  <span className="chapter-count">{placed} card{placed === 1 ? "" : "s"}</span>
+                  <span className="chapter-count">{placed} page{placed === 1 ? "" : "s"}</span>
                 </div>
 
                 <div className="chapter-row-actions">
@@ -174,10 +174,10 @@ export function ChaptersDialog({ cards, chapters, busy, actions, onClose, onSetC
                       <div className="chapter-close">
                         <p className="chapter-close-question">
                           Close {chapter.name}?
-                          {unfinished > 0 && ` ${unfinished} card${unfinished === 1 ? " is" : "s are"} unfinished.`}
+                          {unfinished > 0 && ` ${unfinished} page${unfinished === 1 ? " is" : "s are"} unfinished.`}
                         </p>
                         {/* Nothing here happens by default. Automatic rollover is the most
-                            sprint-like behaviour there is, so the unfinished cards move only
+                            sprint-like behaviour there is, so the unfinished pages move only
                             because someone chose one of these, and dismissing does nothing. */}
                         <div className="chapter-close-choices">
                           <button
@@ -196,7 +196,7 @@ export function ChaptersDialog({ cards, chapters, busy, actions, onClose, onSetC
                                 onClick={() => void run(async () => {
                                   await moveUnfinished(chapter.slug, candidate.slug);
                                   await close(chapter.slug);
-                                }, "The cards could not be moved")}
+                                }, "The pages could not be moved")}
                                 type="button"
                               >move them to {candidate.name}</button>
                             ))}
@@ -206,7 +206,7 @@ export function ChaptersDialog({ cards, chapters, busy, actions, onClose, onSetC
                               onClick={() => void run(async () => {
                                 await moveUnfinished(chapter.slug, null);
                                 await close(chapter.slug);
-                              }, "The cards could not be released")}
+                              }, "The pages could not be released")}
                               type="button"
                             >release them</button>
                           )}
@@ -219,7 +219,7 @@ export function ChaptersDialog({ cards, chapters, busy, actions, onClose, onSetC
                   )}
                   {removing === chapter.slug ? (
                     <span className="archive-confirm">
-                      <span>delete?{placed > 0 && ` ${placed} card${placed === 1 ? "" : "s"} lose it`}</span>
+                      <span>delete?{placed > 0 && ` ${placed} page${placed === 1 ? "" : "s"} lose it`}</span>
                       <button
                         aria-label={`Confirm delete ${chapter.name}`}
                         className="danger-text"

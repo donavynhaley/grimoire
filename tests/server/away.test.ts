@@ -1,6 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
-import type { AwayState, BoardWorkspace, Card } from "../../shared/types";
+import type { AwayState, BoardWorkspace, Page } from "../../shared/types";
 import { bootstrap, ownerAccount, startTestServer } from "./test-server";
 
 type TestServer = Awaited<ReturnType<typeof startTestServer>>;
@@ -34,18 +34,18 @@ async function registerMember(server: TestServer) {
   });
 }
 
-async function createCard(server: TestServer, title: string): Promise<Card> {
-  return (await server.request<{ card: Card }>("/api/cards", {
+async function createPage(server: TestServer, title: string): Promise<Page> {
+  return (await server.request<{ page: Page }>("/api/pages", {
     method: "POST",
     body: JSON.stringify({ title, status: "ready" }),
-  })).body.card;
+  })).body.page;
 }
 
 describe("while you were away", () => {
   it("starts a new reader at the present instead of dumping history", async () => {
     const server = await startTestServer();
     await bootstrap(server);
-    await createCard(server, "Pre-existing work");
+    await createPage(server, "Pre-existing work");
 
     const first = await away(server);
     expect(first.total).toBe(0);
@@ -59,11 +59,11 @@ describe("while you were away", () => {
     await bootstrap(server);
     await registerMember(server);
     await away(server); // Maren's first look pins her cursor to the present.
-    await createCard(server, "Maren's own card");
+    await createPage(server, "Maren's own page");
 
     await loginOwner(server);
-    const card = await createCard(server, "Enchant the tower door");
-    await server.request(`/api/cards/${card.id}`, {
+    const page = await createPage(server, "Enchant the tower door");
+    await server.request(`/api/pages/${page.id}`, {
       method: "PATCH",
       body: JSON.stringify({ status: "done", position: 0 }),
     });
@@ -86,7 +86,7 @@ describe("while you were away", () => {
     await away(server);
 
     await loginOwner(server);
-    await createCard(server, "First change");
+    await createPage(server, "First change");
 
     await loginMember(server);
     expect((await away(server)).total).toBe(1);
@@ -96,7 +96,7 @@ describe("while you were away", () => {
     // A wildly future sequence clamps to the present, so the next real change still counts.
     await server.request("/api/seen", { method: "POST", body: JSON.stringify({ sequence: 9_999_999 }) });
     await loginOwner(server);
-    await createCard(server, "Second change");
+    await createPage(server, "Second change");
     await loginMember(server);
     expect((await away(server)).total).toBe(1);
 
@@ -126,16 +126,16 @@ describe("while you were away", () => {
     }
   });
 
-  it("gates the project-wide history to the owner while card history stays shared", async () => {
+  it("gates the project-wide history to the owner while page history stays shared", async () => {
     const server = await startTestServer();
     await bootstrap(server);
-    const card = await createCard(server, "Shared card");
+    const page = await createPage(server, "Shared page");
     await registerMember(server);
 
     const denied = await server.request<{ error: string }>("/api/activity");
     expect(denied.response.status).toBe(403);
-    const cardHistory = await server.request(`/api/activity?entity=${card.id}`);
-    expect(cardHistory.response.status).toBe(200);
+    const pageHistory = await server.request(`/api/activity?entity=${page.id}`);
+    expect(pageHistory.response.status).toBe(200);
 
     await loginOwner(server);
     expect((await server.request("/api/activity")).response.status).toBe(200);

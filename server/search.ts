@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
-import type { CardStatus, IdeaState, SearchGroup, SearchHit, SearchResults } from "../shared/types";
-import type { MarkdownCardStore, StoredCard } from "./markdown-cards";
+import type { PageStatus, IdeaState, SearchGroup, SearchHit, SearchResults } from "../shared/types";
+import type { MarkdownPageStore, StoredPage } from "./markdown-pages";
 import type { MarkdownChapterStore } from "./markdown-chapters";
 import type { MarkdownIdeaStore } from "./markdown-ideas";
 import { categoriesForProject, chaptersEnabled, membersForProject, projectById } from "./repository";
@@ -10,7 +10,7 @@ export const SEARCH_RESULT_LIMIT = 40;
 /** How much note text to keep on either side of a body match. */
 const SNIPPET_RADIUS = 44;
 
-const columnNames: Record<CardStatus, string> = {
+const columnNames: Record<PageStatus, string> = {
   backlog: "Backlog",
   ready: "Up Next",
   in_progress: "In progress",
@@ -38,15 +38,15 @@ type Ranked = { hit: SearchHit; rank: number; recency: string };
  * Finds everything in one project that mentions the query.
  *
  * The board can only render four columns, so a match in the backlog, in the idea garden,
- * or in a card that was archived has nowhere to appear. This reads the same canonical
+ * or in a page that was archived has nowhere to appear. This reads the same canonical
  * Markdown the board reads and answers for the whole project instead.
  *
  * Archived ideas are deliberately excluded: promoting an idea archives it and creates a
- * card with the same title, so including them would return every promotion twice.
+ * page with the same title, so including them would return every promotion twice.
  */
 export function searchProject(
   database: DatabaseSync,
-  cardStore: MarkdownCardStore,
+  pageStore: MarkdownPageStore,
   chapterStore: MarkdownChapterStore,
   ideaStore: MarkdownIdeaStore,
   projectId: string,
@@ -67,47 +67,47 @@ export function searchProject(
   );
   const assigneeName = (email: string | null) =>
     members.find((member) => member.email.toLowerCase() === email?.toLowerCase())?.name ?? null;
-  // A chapter is part of where a card lives, so a result names it beside its column - but
+  // A chapter is part of where a page lives, so a result names it beside its column - but
   // only for a project that actually uses chapters.
   const chapterNames = chaptersEnabled(database, projectId)
     ? new Map(chapterStore.list(projectSlug).map((chapter) => [chapter.slug, chapter.name]))
     : new Map<string, string>();
-  const placeOf = (card: StoredCard, column: string) => {
-    const chapter = card.chapter ? chapterNames.get(card.chapter) : undefined;
+  const placeOf = (page: StoredPage, column: string) => {
+    const chapter = page.chapter ? chapterNames.get(page.chapter) : undefined;
     return chapter ? `${column} · ${chapter}` : column;
   };
 
   const ranked: Ranked[] = [];
 
-  const addCard = (card: StoredCard, group: SearchGroup, where: string) => {
-    const rank = matchRank(card.title, card.description, needle);
+  const addPage = (page: StoredPage, group: SearchGroup, where: string) => {
+    const rank = matchRank(page.title, page.description, needle);
     if (rank === null) return;
-    const category = card.category ? categories.get(card.category) : undefined;
+    const category = page.category ? categories.get(page.category) : undefined;
     ranked.push({
       rank,
-      recency: card.updatedAt,
+      recency: page.updatedAt,
       hit: {
-        kind: "card",
+        kind: "page",
         group,
-        id: card.id,
-        title: card.title,
-        snippet: snippetFor(card.description, needle),
+        id: page.id,
+        title: page.title,
+        snippet: snippetFor(page.description, needle),
         where,
-        category: category?.name ?? card.category,
+        category: category?.name ?? page.category,
         categoryColor: category?.color ?? null,
-        assigneeName: assigneeName(card.assignee),
+        assigneeName: assigneeName(page.assignee),
       },
     });
   };
 
-  for (const card of cardStore.list(projectSlug)) {
-    if (card.status === "backlog") addCard(card, "backlog", placeOf(card, columnNames.backlog));
-    else if (card.status === "done") addCard(card, "done", placeOf(card, completionLabel(card)));
-    else addCard(card, "active", placeOf(card, columnNames[card.status]));
+  for (const page of pageStore.list(projectSlug)) {
+    if (page.status === "backlog") addPage(page, "backlog", placeOf(page, columnNames.backlog));
+    else if (page.status === "done") addPage(page, "done", placeOf(page, completionLabel(page)));
+    else addPage(page, "active", placeOf(page, columnNames[page.status]));
   }
 
-  for (const card of cardStore.listArchived(projectSlug)) {
-    addCard(card, "archived", card.archivedAt ? `Archived ${monthLabel(card.archivedAt)}` : "Archived");
+  for (const page of pageStore.listArchived(projectSlug)) {
+    addPage(page, "archived", page.archivedAt ? `Archived ${monthLabel(page.archivedAt)}` : "Archived");
   }
 
   for (const idea of ideaStore.list(projectSlug)) {
@@ -175,8 +175,8 @@ function plainText(markdown: string): string {
     .trim();
 }
 
-function completionLabel(card: StoredCard): string {
-  const completed = card.completedAt ?? card.updatedAt;
+function completionLabel(page: StoredPage): string {
+  const completed = page.completedAt ?? page.updatedAt;
   return `Done ${monthLabel(completed)}`;
 }
 

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { BoardWorkspace, Card, Idea, IdeaWorkspace } from "../../shared/types";
+import type { BoardWorkspace, Page, Idea, IdeaWorkspace } from "../../shared/types";
 import { bootstrap, startTestServer } from "./test-server";
 
 async function ideas(server: Awaited<ReturnType<typeof startTestServer>>) {
@@ -25,10 +25,10 @@ describe("idea garden", () => {
     expect(created.body.idea).toMatchObject({ state: "inbox", position: 0, createdByName: "Donavyn" });
     expect((await ideas(server)).ideas).toEqual([expect.objectContaining({ title: created.body.idea.title })]);
     const workspace = (await server.request<BoardWorkspace>("/api/board")).body;
-    expect(workspace.cards).toEqual([]);
+    expect(workspace.pages).toEqual([]);
 
     const path = join(
-      server.cardsDirectory,
+      server.pagesDirectory,
       "wizard-simulator",
       "ideas",
       `${created.body.idea.id}.md`,
@@ -69,7 +69,7 @@ describe("idea garden", () => {
     expect(parked.body.idea.state).toBe("parked");
   });
 
-  it("promotes an idea into one backlog card and archives the source idea", async () => {
+  it("promotes an idea into one backlog page and archives the source idea", async () => {
     const server = await startTestServer();
     await bootstrap(server);
     const created = await server.request<{ idea: Idea }>("/api/ideas", {
@@ -77,36 +77,36 @@ describe("idea garden", () => {
       body: JSON.stringify({ title: "Draw runes in sequence", description: "The sequence forms a spell." }),
     });
 
-    const promoted = await server.request<{ card: Card }>(`/api/ideas/${created.body.idea.id}/promote`, {
+    const promoted = await server.request<{ page: Page }>(`/api/ideas/${created.body.idea.id}/promote`, {
       method: "POST",
       body: JSON.stringify({}),
     });
 
     expect(promoted.response.status).toBe(201);
-    expect(promoted.body.card).toMatchObject({
+    expect(promoted.body.page).toMatchObject({
       title: "Draw runes in sequence",
       description: "The sequence forms a spell.",
       status: "backlog",
     });
     expect((await ideas(server)).ideas).toEqual([]);
     const board = (await server.request<BoardWorkspace>("/api/board")).body;
-    expect(board.cards).toEqual([expect.objectContaining({ id: promoted.body.card.id })]);
+    expect(board.pages).toEqual([expect.objectContaining({ id: promoted.body.page.id })]);
 
     const activePath = join(
-      server.cardsDirectory,
+      server.pagesDirectory,
       "wizard-simulator",
       "ideas",
       `${created.body.idea.id}.md`,
     );
     const archivedPath = join(
-      server.cardsDirectory,
+      server.pagesDirectory,
       "wizard-simulator",
       "ideas",
       "archive",
       `${created.body.idea.id}.md`,
     );
     expect(existsSync(activePath)).toBe(false);
-    expect(readFileSync(archivedPath, "utf8")).toContain(`promoted_to: ${promoted.body.card.id}`);
+    expect(readFileSync(archivedPath, "utf8")).toContain(`promoted_to: ${promoted.body.page.id}`);
 
     const undone = await server.request<{ idea: Idea }>(`/api/ideas/${created.body.idea.id}/promotion`, {
       method: "DELETE",
@@ -114,7 +114,7 @@ describe("idea garden", () => {
     expect(undone.response.status).toBe(200);
     expect(undone.body.idea).toMatchObject({ id: created.body.idea.id, title: created.body.idea.title });
     expect((await ideas(server)).ideas).toEqual([expect.objectContaining({ id: created.body.idea.id })]);
-    expect((await server.request<BoardWorkspace>("/api/board")).body.cards).toEqual([]);
+    expect((await server.request<BoardWorkspace>("/api/board")).body.pages).toEqual([]);
     expect(existsSync(activePath)).toBe(true);
     expect(existsSync(archivedPath)).toBe(false);
   });

@@ -1,37 +1,37 @@
 import { useEffect, useMemo, useState } from "react";
-import { type Card, type CardCategory, type Member, type ProjectCategory } from "../../shared/types";
+import { type Page, type PageCategory, type Member, type ProjectCategory } from "../../shared/types";
 import { categoryDisplay, categoryStyle } from "./category-style";
 
 type Props = {
   busy: boolean;
-  cards: Card[];
+  pages: Page[];
   categories: ProjectCategory[];
   members: Member[];
   onClose: () => void;
-  onOpenCard: (id: string) => void;
+  onOpenPage: (id: string) => void;
   onReopen: (id: string) => Promise<void>;
 };
 
-export function DoneHistoryDialog({ busy, cards, categories, members, onClose, onOpenCard, onReopen }: Props) {
+export function DoneHistoryDialog({ busy, pages, categories, members, onClose, onOpenPage, onReopen }: Props) {
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<CardCategory | null>(null);
+  const [category, setCategory] = useState<PageCategory | null>(null);
   const [person, setPerson] = useState<string | null>(null);
   const normalizedQuery = query.trim().toLowerCase();
   const usedCategories = useMemo(
-    () => [...new Set(cards.map((card) => card.category).filter((value): value is CardCategory => Boolean(value)))],
-    [cards],
+    () => [...new Set(pages.map((page) => page.category).filter((value): value is PageCategory => Boolean(value)))],
+    [pages],
   );
-  const visibleCards = useMemo(
-    () => cards
-      .filter((card) => {
-        if (category && card.category !== category) return false;
-        if (person && (card.assigneeId ?? "unassigned") !== person) return false;
-        return !normalizedQuery || cardText(card).includes(normalizedQuery);
+  const visiblePages = useMemo(
+    () => pages
+      .filter((page) => {
+        if (category && page.category !== category) return false;
+        if (person && (page.assigneeId ?? "unassigned") !== person) return false;
+        return !normalizedQuery || pageText(page).includes(normalizedQuery);
       })
       .sort(compareCompletion),
-    [cards, category, normalizedQuery, person],
+    [pages, category, normalizedQuery, person],
   );
-  const groups = useMemo(() => groupByMonth(visibleCards), [visibleCards]);
+  const groups = useMemo(() => groupByMonth(visiblePages), [visiblePages]);
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -50,7 +50,7 @@ export function DoneHistoryDialog({ busy, cards, categories, members, onClose, o
           <div>
             <p className="eyebrow">project record</p>
             <h2 id="history-dialog-title">Completed work</h2>
-            <p>{cards.length} finished card{cards.length === 1 ? "" : "s"}</p>
+            <p>{pages.length} finished page{pages.length === 1 ? "" : "s"}</p>
           </div>
           <button aria-label="Close completed work" className="icon-button" onClick={onClose} type="button">×</button>
         </header>
@@ -97,27 +97,27 @@ export function DoneHistoryDialog({ busy, cards, categories, members, onClose, o
         </div>
 
         <div className="history-results" aria-live="polite">
-          {groups.map(([label, groupCards]) => (
+          {groups.map(([label, groupPages]) => (
             <section className="history-group" key={label}>
-              <header><h3>{label}</h3><span>{groupCards.length}</span></header>
+              <header><h3>{label}</h3><span>{groupPages.length}</span></header>
               <div>
-                {groupCards.map((card) => (
-                  <article className={`history-card ${card.category ? "" : "category-none"}`} key={card.id} style={categoryStyle(categories, card.category)}>
-                    <button className="history-card-main" onClick={() => onOpenCard(card.id)} type="button">
-                      <span className={`category-swatch ${card.category ? "" : "category-none"}`} style={categoryStyle(categories, card.category)} />
-                      <span><strong>{card.title}</strong><small>{card.assigneeName ?? "unassigned"}</small></span>
-                      <time dateTime={card.completedAt ?? card.updatedAt}>{formatCompletion(card)}</time>
+                {groupPages.map((page) => (
+                  <article className={`history-page ${page.category ? "" : "category-none"}`} key={page.id} style={categoryStyle(categories, page.category)}>
+                    <button className="history-page-main" onClick={() => onOpenPage(page.id)} type="button">
+                      <span className={`category-swatch ${page.category ? "" : "category-none"}`} style={categoryStyle(categories, page.category)} />
+                      <span><strong>{page.title}</strong><small>{page.assigneeName ?? "unassigned"}</small></span>
+                      <time dateTime={page.completedAt ?? page.updatedAt}>{formatCompletion(page)}</time>
                     </button>
-                    <button aria-label={`Move ${card.title} to Up Next`} className="history-reopen" disabled={busy} onClick={() => void onReopen(card.id)} type="button">reopen</button>
+                    <button aria-label={`Move ${page.title} to Up Next`} className="history-reopen" disabled={busy} onClick={() => void onReopen(page.id)} type="button">reopen</button>
                   </article>
                 ))}
               </div>
             </section>
           ))}
-          {visibleCards.length === 0 && (
+          {visiblePages.length === 0 && (
             <div className="library-empty">
-              <strong>{cards.length === 0 ? "Nothing finished yet." : "No completed cards match."}</strong>
-              <span>{cards.length === 0 ? "Finished work will collect here automatically." : "Try a broader search or remove a filter."}</span>
+              <strong>{pages.length === 0 ? "Nothing finished yet." : "No completed pages match."}</strong>
+              <span>{pages.length === 0 ? "Finished work will collect here automatically." : "Try a broader search or remove a filter."}</span>
             </div>
           )}
         </div>
@@ -126,27 +126,27 @@ export function DoneHistoryDialog({ busy, cards, categories, members, onClose, o
   );
 }
 
-function cardText(card: Card): string {
-  return `${card.title}\n${card.description}\n${card.category ?? "uncategorized"}\n${card.assigneeName ?? "unassigned"}`.toLowerCase();
+function pageText(page: Page): string {
+  return `${page.title}\n${page.description}\n${page.category ?? "uncategorized"}\n${page.assigneeName ?? "unassigned"}`.toLowerCase();
 }
 
-function compareCompletion(left: Card, right: Card): number {
+function compareCompletion(left: Page, right: Page): number {
   const timestamp = (right.completedAt ?? right.updatedAt).localeCompare(left.completedAt ?? left.updatedAt);
   return timestamp || right.position - left.position;
 }
 
-function groupByMonth(cards: Card[]): Array<[string, Card[]]> {
-  const groups = new Map<string, Card[]>();
+function groupByMonth(pages: Page[]): Array<[string, Page[]]> {
+  const groups = new Map<string, Page[]>();
   const formatter = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" });
-  for (const card of cards) {
-    const label = formatter.format(new Date(card.completedAt ?? card.updatedAt));
-    groups.set(label, [...(groups.get(label) ?? []), card]);
+  for (const page of pages) {
+    const label = formatter.format(new Date(page.completedAt ?? page.updatedAt));
+    groups.set(label, [...(groups.get(label) ?? []), page]);
   }
   return [...groups.entries()];
 }
 
-function formatCompletion(card: Card): string {
+function formatCompletion(page: Page): string {
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(
-    new Date(card.completedAt ?? card.updatedAt),
+    new Date(page.completedAt ?? page.updatedAt),
   );
 }

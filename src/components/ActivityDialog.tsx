@@ -12,10 +12,10 @@ type Props = {
   revision: number;
   onClose: () => void;
   onLoad: (options: { entityId?: string; before?: number; limit?: number }) => Promise<AuditPage>;
-  onOpenCard: (id: string) => void;
+  onOpenPage: (id: string) => void;
 };
 
-export function ActivityDialog({ awaySince, members, revision, onClose, onLoad, onOpenCard }: Props) {
+export function ActivityDialog({ awaySince, members, revision, onClose, onLoad, onOpenPage }: Props) {
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -142,7 +142,7 @@ export function ActivityDialog({ awaySince, members, revision, onClose, onLoad, 
                     <ActivityRow
                       event={event}
                       members={members}
-                      onOpenCard={event.entityType === "card" && event.entityId ? onOpenCard : undefined}
+                      onOpenPage={event.entityType === "page" && event.entityId ? onOpenPage : undefined}
                     />
                   </Fragment>
                 ))}
@@ -152,7 +152,7 @@ export function ActivityDialog({ awaySince, members, revision, onClose, onLoad, 
           {visible.length === 0 && !loading && !error && (
             <div className="library-empty">
               <strong>{events.length === 0 ? "Nothing has happened yet." : "No activity matches."}</strong>
-              <span>{events.length === 0 ? "Changes to cards, ideas, and the team collect here." : "Try a broader search or remove a filter."}</span>
+              <span>{events.length === 0 ? "Changes to pages, ideas, and the team collect here." : "Try a broader search or remove a filter."}</span>
             </div>
           )}
           {hasMore && (
@@ -169,10 +169,10 @@ export function ActivityDialog({ awaySince, members, revision, onClose, onLoad, 
   );
 }
 
-function ActivityRow({ event, members, onOpenCard }: {
+function ActivityRow({ event, members, onOpenPage }: {
   event: AuditEvent;
   members: Member[];
-  onOpenCard?: (id: string) => void;
+  onOpenPage?: (id: string) => void;
 }) {
   const { lead, title } = describeEvent(event);
   const actor = members.find((member) => member.id === event.actorId);
@@ -193,7 +193,7 @@ function ActivityRow({ event, members, onOpenCard }: {
     </>
   );
 
-  if (!onOpenCard || !event.entityId) {
+  if (!onOpenPage || !event.entityId) {
     return <article className="activity-row"><div className="activity-row-main">{body}</div></article>;
   }
   return (
@@ -201,7 +201,7 @@ function ActivityRow({ event, members, onOpenCard }: {
       <button
         aria-label={`Open ${event.entityTitle}`}
         className="activity-row-main"
-        onClick={() => onOpenCard(event.entityId!)}
+        onClick={() => onOpenPage(event.entityId!)}
         type="button"
       >{body}</button>
     </article>

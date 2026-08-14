@@ -151,7 +151,12 @@ function migrate(database: DatabaseSync): void {
 }
 
 /**
- * Widens `audit_events.entity_type` to accept newer entity kinds, such as `chapter`.
+ * Brings `audit_events.entity_type` in line with the entity kinds the product now has.
+ *
+ * That means accepting `chapter`, and renaming historical `card` rows to `page`. The rows are
+ * rewritten rather than left alone because the log records what happened, and what happened
+ * was that a page was created - only the word for it changed. Leaving them would also break
+ * the copy outright, since the new constraint no longer allows `card`.
  *
  * SQLite cannot alter a CHECK constraint in place, so this rebuilds the table. Two things
  * make that more delicate than a normal rebuild, and both are why the copy names `sequence`
@@ -187,7 +192,9 @@ function widenAuditEntityTypes(database: DatabaseSync): void {
     database.exec(
       `INSERT INTO audit_events_rebuild
          (sequence, id, project_id, actor_id, actor_name, entity_type, entity_id, entity_title, action, changes, created_at)
-       SELECT sequence, id, project_id, actor_id, actor_name, entity_type, entity_id, entity_title, action, changes, created_at
+       SELECT sequence, id, project_id, actor_id, actor_name,
+              CASE entity_type WHEN 'card' THEN 'page' ELSE entity_type END,
+              entity_id, entity_title, action, changes, created_at
        FROM audit_events`,
     );
     database.exec("DROP TABLE audit_events");

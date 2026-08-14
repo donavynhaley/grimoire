@@ -143,11 +143,11 @@ describe("authentication", () => {
     const forbidden = await server.request(`/api/members/${ownerId}`, { method: "DELETE" });
     expect(forbidden.response.status).toBe(403);
 
-    const card = await server.request<{ card: { id: string } }>("/api/cards", {
+    const page = await server.request<{ page: { id: string } }>("/api/pages", {
       method: "POST",
       body: JSON.stringify({ title: "Write Frankie's spell notes", assigneeId: memberId }),
     });
-    expect(card.response.status).toBe(201);
+    expect(page.response.status).toBe(201);
 
     const memberEvents = await server.events("removed-member");
     const eventReader = memberEvents.body!.getReader();
@@ -167,11 +167,11 @@ describe("authentication", () => {
     expect((await eventReader.read()).done).toBe(true);
 
     const ownerBoard = await server.request<{
-      cards: Array<{ id: string; assigneeId: string | null; createdByName: string }>;
+      pages: Array<{ id: string; assigneeId: string | null; createdByName: string }>;
       members: Array<{ id: string }>;
     }>("/api/board");
     expect(ownerBoard.body.members.some((member) => member.id === memberId)).toBe(false);
-    expect(ownerBoard.body.cards.find((candidate) => candidate.id === card.body.card.id)).toMatchObject({
+    expect(ownerBoard.body.pages.find((candidate) => candidate.id === page.body.page.id)).toMatchObject({
       assigneeId: null,
       createdByName: "Frankie",
     });

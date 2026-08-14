@@ -52,7 +52,7 @@ export function IdeasBoard({ workspace, busy, openIdea, unseenIdeaIds, onCreate,
   const parked = ideasIn(workspace, "parked");
   const selected = workspace.ideas.find((idea) => idea.id === selectedId) ?? null;
 
-  // The open idea lives in the URL, mirroring how cards become shareable links.
+  // The open idea lives in the URL, mirroring how pages become shareable links.
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (selected) params.set("idea", selected.id);
@@ -84,7 +84,7 @@ export function IdeasBoard({ workspace, busy, openIdea, unseenIdeaIds, onCreate,
     event.dataTransfer.setData("text/plain", idea.id);
     const height = event.currentTarget.offsetHeight;
     const session = ++dragSession.current;
-    // Hide the card one frame later so the browser captures a visible drag image first.
+    // Hide the idea one frame later so the browser captures a visible drag image first.
     requestAnimationFrame(() => {
       if (dragSession.current !== session) return;
       setDrag({ id: idea.id, height });
@@ -169,7 +169,7 @@ export function IdeasBoard({ workspace, busy, openIdea, unseenIdeaIds, onCreate,
                 <span className="rank-number">{String(rank + 1).padStart(2, "0")}</span>
                 <IdeaOpenButton idea={idea} onOpen={() => setSelectedId(idea.id)} unseen={isUnseen(idea.id)} />
                 <div className="idea-actions">
-                  <button aria-label={`Make work card from ${idea.title}`} onClick={() => setSelectedId(idea.id)} type="button">make card</button>
+                  <button aria-label={`Make work page from ${idea.title}`} onClick={() => setSelectedId(idea.id)} type="button">make page</button>
                   <button aria-label={`Park ${idea.title}`} onClick={() => void onUpdate(idea.id, { state: "parked" })} type="button">park</button>
                 </div>
               </article>
@@ -304,12 +304,12 @@ function IdeaDialog({ idea, shortlistPosition, onUpdate, onPromote, onClose }: {
 
   return (
     <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) void close(); }}>
-      <section aria-labelledby="idea-dialog-title" aria-modal="true" className="card-dialog idea-dialog" role="dialog">
+      <section aria-labelledby="idea-dialog-title" aria-modal="true" className="dialog-panel idea-dialog" role="dialog">
         <header className="dialog-header">
           <div><p className="eyebrow">possibility, not commitment</p><h2 id="idea-dialog-title">Edit idea</h2></div>
           <button aria-label="Close idea" className="icon-button" onClick={() => void close()} type="button">×</button>
         </header>
-        <div className="card-form">
+        <div className="record-form">
           <label><span>Title</span><input aria-label="Idea title" name="ideaTitle" onChange={(event) => editor.setTitle(event.target.value)} value={editor.title} /></label>
           <NotesField
             editLabel="Edit idea notes"
@@ -334,8 +334,8 @@ function IdeaDialog({ idea, shortlistPosition, onUpdate, onPromote, onClose }: {
         <footer className="dialog-footer promotion-footer">
           <span>captured by {idea.createdByName}</span>
           {confirmPromotion ? (
-            <div className="archive-confirm"><span>create a backlog card and archive this idea?</span><button className="primary-button compact" onClick={onPromote} type="button">yes, make card</button><button className="text-button" onClick={() => setConfirmPromotion(false)} type="button">cancel</button></div>
-          ) : <button className="primary-button compact" onClick={() => setConfirmPromotion(true)} type="button">make work card</button>}
+            <div className="archive-confirm"><span>create a backlog page and archive this idea?</span><button className="primary-button compact" onClick={onPromote} type="button">yes, make page</button><button className="text-button" onClick={() => setConfirmPromotion(false)} type="button">cancel</button></div>
+          ) : <button className="primary-button compact" onClick={() => setConfirmPromotion(true)} type="button">make work page</button>}
         </footer>
       </section>
     </div>

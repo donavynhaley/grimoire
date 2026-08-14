@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  CARD_STATUSES,
+  PAGE_STATUSES,
   type AuditEvent,
   type AuditPage,
-  type Card,
-  type CardStatus,
+  type Page,
+  type PageStatus,
   type Chapter,
   type Member,
   type ProjectCategory,
@@ -16,9 +16,9 @@ import { describeChange, describeEvent, relativeLabel } from "./activity-copy";
 import { useContentEditor } from "./use-content-editor";
 import { useDialogEscape } from "./use-dialog-escape";
 
-const CARD_HISTORY_LIMIT = 6;
+const PAGE_HISTORY_LIMIT = 6;
 
-const labels: Record<CardStatus, string> = {
+const labels: Record<PageStatus, string> = {
   backlog: "Backlog",
   ready: "Up Next",
   in_progress: "In progress",
@@ -27,8 +27,8 @@ const labels: Record<CardStatus, string> = {
 };
 
 type Props = {
-  card: Card;
-  cards: Card[];
+  page: Page;
+  pages: Page[];
   categories: ProjectCategory[];
   chapters: Chapter[];
   currentUserId: string;
@@ -40,7 +40,7 @@ type Props = {
   onLoadActivity: (options: { entityId?: string; limit?: number }) => Promise<AuditPage>;
 };
 
-export function CardDialog({ card, cards, categories, chapters, currentUserId, members, revision, onUpdate, onArchive, onClose, onLoadActivity }: Props) {
+export function PageDialog({ page, pages, categories, chapters, currentUserId, members, revision, onUpdate, onArchive, onClose, onLoadActivity }: Props) {
   const categoryColor = (slug: string | null) =>
     slug ? categories.find((category) => category.slug === slug)?.color : undefined;
   const swatchStyle = (slug: string | null) => {
@@ -54,45 +54,45 @@ export function CardDialog({ card, cards, categories, chapters, currentUserId, m
   updateRef.current = onUpdate;
 
   const remote = useMemo(
-    () => ({ title: card.title, description: card.description }),
-    [card.title, card.description],
+    () => ({ title: page.title, description: page.description }),
+    [page.title, page.description],
   );
   const editor = useContentEditor({
     remote,
-    resetKey: card.id,
+    resetKey: page.id,
     save: (input) => updateRef.current(input),
   });
 
   useEffect(() => {
     setFindingBlocker(false);
     setBlockerQuery("");
-  }, [card.id]);
+  }, [page.id]);
 
-  const blockers = card.blockedBy
-    .map((id) => cards.find((candidate) => candidate.id === id))
-    .filter((candidate): candidate is Card => Boolean(candidate));
+  const blockers = page.blockedBy
+    .map((id) => pages.find((candidate) => candidate.id === id))
+    .filter((candidate): candidate is Page => Boolean(candidate));
   const normalizedBlockerQuery = blockerQuery.trim().toLowerCase();
   const blockerResults = normalizedBlockerQuery
-    ? cards
+    ? pages
       .filter((candidate) =>
-        candidate.id !== card.id &&
+        candidate.id !== page.id &&
         candidate.status !== "done" &&
-        !card.blockedBy.includes(candidate.id) &&
+        !page.blockedBy.includes(candidate.id) &&
         `${candidate.title}\n${candidate.category ?? "uncategorized"}`.toLowerCase().includes(normalizedBlockerQuery))
       .slice(0, 6)
     : [];
 
   const addBlocker = async (id: string) => {
-    await onUpdate({ blockedBy: [...card.blockedBy, id] });
+    await onUpdate({ blockedBy: [...page.blockedBy, id] });
     setFindingBlocker(false);
     setBlockerQuery("");
   };
 
   const removeBlocker = (id: string) => onUpdate({
-    blockedBy: card.blockedBy.filter((dependencyId) => dependencyId !== id),
+    blockedBy: page.blockedBy.filter((dependencyId) => dependencyId !== id),
   });
 
-  const history = useCardHistory(card.id, revision, onLoadActivity);
+  const history = usePageHistory(page.id, revision, onLoadActivity);
   const otherEditor = otherEditorName(history, currentUserId);
 
   const close = async () => {
@@ -103,13 +103,13 @@ export function CardDialog({ card, cards, categories, chapters, currentUserId, m
 
   return (
     <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) void close(); }}>
-      <section aria-labelledby="card-dialog-title" aria-modal="true" className="card-dialog" role="dialog">
+      <section aria-labelledby="dialog-panel-title" aria-modal="true" className="dialog-panel" role="dialog">
         <header className="dialog-header">
-          <div><p className="eyebrow">card details</p><h2 id="card-dialog-title">Edit card</h2></div>
-          <button aria-label="Close card" className="icon-button" onClick={() => void close()} type="button">×</button>
+          <div><p className="eyebrow">page details</p><h2 id="dialog-panel-title">Edit page</h2></div>
+          <button aria-label="Close page" className="icon-button" onClick={() => void close()} type="button">×</button>
         </header>
 
-        <div className="card-form">
+        <div className="record-form">
           <label><span>Title</span><input name="title" onChange={(event) => editor.setTitle(event.target.value)} value={editor.title} /></label>
           <NotesField
             editLabel="Edit notes"
@@ -129,7 +129,7 @@ export function CardDialog({ card, cards, categories, chapters, currentUserId, m
           <div className="choice-grid category-choices">
             <button
               aria-label="Clear category"
-              className={!card.category ? "choice active" : "choice"}
+              className={!page.category ? "choice active" : "choice"}
               onClick={() => onUpdate({ category: null })}
               type="button"
             >
@@ -138,7 +138,7 @@ export function CardDialog({ card, cards, categories, chapters, currentUserId, m
             {categories.map((category) => (
               <button
                 aria-label={`Categorize as ${category.name}`}
-                className={card.category === category.slug ? "choice active" : "choice"}
+                className={page.category === category.slug ? "choice active" : "choice"}
                 key={category.slug}
                 onClick={() => onUpdate({ category: category.slug })}
                 type="button"
@@ -152,11 +152,11 @@ export function CardDialog({ card, cards, categories, chapters, currentUserId, m
         {chapters.length > 0 && (
           <div className="dialog-section">
             <span className="field-label">Chapter</span>
-            {/* Direct buttons, like every other card control, rather than a menu. */}
+            {/* Direct buttons, like every other page control, rather than a menu. */}
             <div className="choice-grid chapter-choices">
               <button
                 aria-label="Remove from every chapter"
-                className={!card.chapter ? "choice active" : "choice"}
+                className={!page.chapter ? "choice active" : "choice"}
                 onClick={() => onUpdate({ chapter: null })}
                 type="button"
               >
@@ -165,7 +165,7 @@ export function CardDialog({ card, cards, categories, chapters, currentUserId, m
               {chapters.map((chapter) => (
                 <button
                   aria-label={`Place in ${chapter.name}`}
-                  className={card.chapter === chapter.slug ? "choice active" : "choice"}
+                  className={page.chapter === chapter.slug ? "choice active" : "choice"}
                   key={chapter.slug}
                   onClick={() => onUpdate({ chapter: chapter.slug })}
                   type="button"
@@ -190,22 +190,22 @@ export function CardDialog({ card, cards, categories, chapters, currentUserId, m
                 </div>
               ))}
             </div>
-          ) : <p className="empty-dependencies">This card can move forward now.</p>}
+          ) : <p className="empty-dependencies">This page can move forward now.</p>}
           {findingBlocker ? (
             <div className="dependency-search">
               <label>
-                <span className="sr-only">Find a blocking card</span>
+                <span className="sr-only">Find a blocking page</span>
                 <input
-                  aria-label="Find a blocking card"
+                  aria-label="Find a blocking page"
                   autoFocus
                   onChange={(event) => setBlockerQuery(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key !== "Escape") return;
-                    // Leaving the search must not also close the whole card.
+                    // Leaving the search must not also close the whole page.
                     event.stopPropagation();
                     setFindingBlocker(false);
                   }}
-                  placeholder="Type a card title..."
+                  placeholder="Type a page title..."
                   type="search"
                   value={blockerQuery}
                 />
@@ -223,24 +223,24 @@ export function CardDialog({ card, cards, categories, chapters, currentUserId, m
                       <span><strong>{candidate.title}</strong><small>{candidate.category ? categories.find((category) => category.slug === candidate.category)?.name ?? candidate.category : "uncategorized"}</small></span>
                     </button>
                   ))}
-                  {blockerResults.length === 0 && <p>No matching open cards.</p>}
+                  {blockerResults.length === 0 && <p>No matching open pages.</p>}
                 </div>
               )}
               <button className="text-button" onClick={() => { setFindingBlocker(false); setBlockerQuery(""); }} type="button">cancel</button>
             </div>
           ) : (
-            <button aria-label="Add blocking card" className="add-dependency" onClick={() => setFindingBlocker(true)} type="button">+ add blocking card</button>
+            <button aria-label="Add blocking page" className="add-dependency" onClick={() => setFindingBlocker(true)} type="button">+ add blocking page</button>
           )}
         </div>
 
         <div className="dialog-section">
           <span className="field-label">Who is working on it?</span>
           <div className="choice-grid assignee-choices">
-            <button className={!card.assigneeId ? "choice active" : "choice"} onClick={() => onUpdate({ assigneeId: null })} type="button">unassigned</button>
+            <button className={!page.assigneeId ? "choice active" : "choice"} onClick={() => onUpdate({ assigneeId: null })} type="button">unassigned</button>
             {members.map((member) => (
               <button
                 aria-label={`Assign ${member.name}`}
-                className={card.assigneeId === member.id ? "choice active" : "choice"}
+                className={page.assigneeId === member.id ? "choice active" : "choice"}
                 key={member.id}
                 onClick={() => onUpdate({ assigneeId: member.id })}
                 type="button"
@@ -254,10 +254,10 @@ export function CardDialog({ card, cards, categories, chapters, currentUserId, m
         <div className="dialog-section">
           <span className="field-label">Column</span>
           <div className="choice-grid status-choices">
-            {CARD_STATUSES.map((status) => (
+            {PAGE_STATUSES.map((status) => (
               <button
                 aria-label={`Move to ${labels[status]}`}
-                className={card.status === status ? "choice active" : "choice"}
+                className={page.status === status ? "choice active" : "choice"}
                 key={status}
                 onClick={() => onUpdate({ status, position: 99_999 })}
                 type="button"
@@ -268,13 +268,13 @@ export function CardDialog({ card, cards, categories, chapters, currentUserId, m
           </div>
         </div>
 
-        <CardHistory events={history} members={members} />
+        <PageHistory events={history} members={members} />
 
         <footer className="dialog-footer">
-          <span>created by {card.createdByName}</span>
+          <span>created by {page.createdByName}</span>
           {confirmArchive ? (
-            <div className="archive-confirm"><span>archive this card?</span><button className="danger-button" onClick={onArchive} type="button">yes, archive</button><button className="text-button" onClick={() => setConfirmArchive(false)} type="button">cancel</button></div>
-          ) : <button className="text-button danger-text" onClick={() => setConfirmArchive(true)} type="button">archive card</button>}
+            <div className="archive-confirm"><span>archive this page?</span><button className="danger-button" onClick={onArchive} type="button">yes, archive</button><button className="text-button" onClick={() => setConfirmArchive(false)} type="button">cancel</button></div>
+          ) : <button className="text-button danger-text" onClick={() => setConfirmArchive(true)} type="button">archive page</button>}
         </footer>
       </section>
     </div>
@@ -282,38 +282,38 @@ export function CardDialog({ card, cards, categories, chapters, currentUserId, m
 }
 
 /**
- * Loads the recent history for one card.
+ * Loads the recent history for one page.
  *
- * Results are kept alongside the card they belong to, so a refetch triggered by an
+ * Results are kept alongside the page they belong to, so a refetch triggered by an
  * autosave leaves the list in place instead of collapsing the section on every
- * keystroke pause, while switching cards still hides the previous card's history.
+ * keystroke pause, while switching pages still hides the previous page's history.
  *
  * A failed lookup stays silent: the history is context, and an error banner over it
  * would sit above editing controls that still work perfectly well.
  */
-function useCardHistory(
-  cardId: string,
+function usePageHistory(
+  pageId: string,
   revision: number,
   load: (options: { entityId?: string; limit?: number }) => Promise<AuditPage>,
 ): AuditEvent[] | null {
-  const [loaded, setLoaded] = useState<{ cardId: string; events: AuditEvent[] } | null>(null);
+  const [loaded, setLoaded] = useState<{ pageId: string; events: AuditEvent[] } | null>(null);
 
   useEffect(() => {
     let alive = true;
-    load({ entityId: cardId, limit: CARD_HISTORY_LIMIT })
-      .then((page) => { if (alive) setLoaded({ cardId, events: page.events }); })
-      .catch(() => { if (alive) setLoaded({ cardId, events: [] }); });
+    load({ entityId: pageId, limit: PAGE_HISTORY_LIMIT })
+      .then((page) => { if (alive) setLoaded({ pageId, events: page.events }); })
+      .catch(() => { if (alive) setLoaded({ pageId, events: [] }); });
     return () => { alive = false; };
-  }, [cardId, load, revision]);
+  }, [pageId, load, revision]);
 
-  return loaded?.cardId === cardId ? loaded.events : null;
+  return loaded?.pageId === pageId ? loaded.events : null;
 }
 
-function CardHistory({ events, members }: { events: AuditEvent[] | null; members: Member[] }) {
+function PageHistory({ events, members }: { events: AuditEvent[] | null; members: Member[] }) {
   const now = useMemo(() => new Date(), [events]);
   if (events === null) return null;
   return (
-    <div className="dialog-section card-history">
+    <div className="dialog-section page-history">
       <span className="field-label">History</span>
       {events.length === 0 ? (
         <p className="empty-dependencies">No recorded changes yet.</p>

@@ -17,10 +17,10 @@ export type Member = User & {
   projectRole: UserRole;
 };
 
-export const CARD_STATUSES = ["backlog", "ready", "in_progress", "review", "done"] as const;
-export type CardStatus = (typeof CARD_STATUSES)[number];
+export const PAGE_STATUSES = ["backlog", "ready", "in_progress", "review", "done"] as const;
+export type PageStatus = (typeof PAGE_STATUSES)[number];
 
-export type CardCategory = string;
+export type PageCategory = string;
 
 export type ProjectCategory = {
   slug: string;
@@ -50,18 +50,18 @@ export type ProjectSummary = {
 };
 
 /**
- * A named stretch of the project's work, which cards can belong to.
+ * A named stretch of the project's work, which pages can belong to.
  *
  * A chapter answers "what were we working on, and roughly when", never "how much did we
  * commit to". It carries no estimate, no capacity, and no progress figure, and nothing in
- * it moves a card on its own. Dates are optional and descriptive: a chapter with neither
+ * it moves a page on its own. Dates are optional and descriptive: a chapter with neither
  * is still a chapter, and one whose end date has passed keeps running until someone closes it.
  */
 export const CHAPTER_STATES = ["planned", "open", "closed"] as const;
 export type ChapterState = (typeof CHAPTER_STATES)[number];
 
 export type Chapter = {
-  /** Stable across renames, and what a card's `chapter` field points at. */
+  /** Stable across renames, and what a page's `chapter` field points at. */
   slug: string;
   name: string;
   /** Markdown notes saying what this stretch is for. The honest replacement for a sprint goal. */
@@ -78,20 +78,20 @@ export type Chapter = {
   closedAt: string | null;
 };
 
-export type Card = {
+export type Page = {
   id: string;
   title: string;
   description: string;
-  category: CardCategory | null;
+  category: PageCategory | null;
   /**
-   * The chapter this card belongs to, or null.
+   * The chapter this page belongs to, or null.
    *
-   * Deliberately independent of `status`: a card can sit in the Backlog while already
+   * Deliberately independent of `status`: a page can sit in the Backlog while already
    * belonging to a chapter, which is what lets a chapter be filled without flooding Up Next.
    */
   chapter: string | null;
   blockedBy: string[];
-  status: CardStatus;
+  status: PageStatus;
   position: number;
   assigneeId: string | null;
   assigneeName: string | null;
@@ -115,7 +115,7 @@ export type BoardWorkspace = {
   chapters: Chapter[];
   currentUser: User;
   members: Member[];
-  cards: Card[];
+  pages: Page[];
 };
 
 export const IDEA_STATES = ["inbox", "shortlist", "parked"] as const;
@@ -152,7 +152,7 @@ export const SEARCH_GROUPS = ["active", "backlog", "ideas", "done", "archived"] 
 export type SearchGroup = (typeof SEARCH_GROUPS)[number];
 
 export type SearchHit = {
-  kind: "card" | "idea";
+  kind: "page" | "idea";
   group: SearchGroup;
   id: string;
   title: string;
@@ -185,7 +185,7 @@ export type EditConflict<T> = {
   current: T;
 };
 
-export const AUDIT_ENTITY_TYPES = ["card", "idea", "project", "category", "chapter", "member"] as const;
+export const AUDIT_ENTITY_TYPES = ["page", "idea", "project", "category", "chapter", "member"] as const;
 export type AuditEntityType = (typeof AUDIT_ENTITY_TYPES)[number];
 
 export const AUDIT_ACTIONS = [

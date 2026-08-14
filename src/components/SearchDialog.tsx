@@ -15,24 +15,24 @@ const QUERY_DELAY = 160;
 type Props = {
   initialQuery: string;
   onClose: () => void;
-  onOpenCard: (id: string) => void;
+  onOpenPage: (id: string) => void;
   onOpenIdea: (id: string) => void;
-  /** Brings an archived card back to the place it was archived from. */
-  onRestoreCard: (id: string) => Promise<void>;
+  /** Brings an archived page back to the place it was archived from. */
+  onRestorePage: (id: string) => Promise<void>;
 };
 
 /**
  * One search over the whole project.
  *
  * The board can only draw four columns, so its filter quietly drops matches that live in
- * the backlog, in the idea garden, or in a card that was archived. This asks the server
+ * the backlog, in the idea garden, or in a page that was archived. This asks the server
  * instead, and says where each answer lives so the result is a place to go, not just a row.
  *
- * An archived card has no editable home to open, so its row carries a restore instead.
+ * An archived page has no editable home to open, so its row carries a restore instead.
  * This is the only route back to one: the eight-second undo after archiving is long gone,
  * and nothing else in the interface can reach the archive at all.
  */
-export function SearchDialog({ initialQuery, onClose, onOpenCard, onOpenIdea, onRestoreCard }: Props) {
+export function SearchDialog({ initialQuery, onClose, onOpenPage, onOpenIdea, onRestorePage }: Props) {
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<SearchResults | null>(null);
   const [failed, setFailed] = useState(false);
@@ -79,7 +79,7 @@ export function SearchDialog({ initialQuery, onClose, onOpenCard, onOpenIdea, on
       .filter((section) => section.hits.length > 0);
   }, [results, trimmed]);
 
-  // Archived cards cannot be opened, so they are not part of the keyboard walk either.
+  // Archived pages cannot be opened, so they are not part of the keyboard walk either.
   const openable = useMemo(
     () => grouped.flatMap((section) => section.hits).filter(canOpen),
     [grouped],
@@ -91,21 +91,21 @@ export function SearchDialog({ initialQuery, onClose, onOpenCard, onOpenIdea, on
 
   const open = (hit: SearchHit) => {
     if (hit.kind === "idea") onOpenIdea(hit.id);
-    else onOpenCard(hit.id);
+    else onOpenPage(hit.id);
   };
 
   /**
-   * Restoring closes the search and opens the card.
+   * Restoring closes the search and opens the page.
    *
-   * A card returns to the column it was archived from, which may not be one the board
-   * draws, so showing the card itself is the only honest answer to "where did it go".
+   * A page returns to the column it was archived from, which may not be one the board
+   * draws, so showing the page itself is the only honest answer to "where did it go".
    */
   const restore = async (id: string) => {
     if (restoring) return;
     setRestoring(id);
     try {
-      await onRestoreCard(id);
-      onOpenCard(id);
+      await onRestorePage(id);
+      onOpenPage(id);
     } catch {
       // The failure is already reported outside the overlay; the row stays put.
       setRestoring(null);
@@ -146,14 +146,14 @@ export function SearchDialog({ initialQuery, onClose, onOpenCard, onOpenIdea, on
       <section aria-label="Search everything" aria-modal="true" className="search-dialog" role="dialog">
         <div className="search-input">
           <span aria-hidden="true" className="search-glyph">/</span>
-          <label className="sr-only" htmlFor="global-search">Search cards, notes, ideas, and archived work</label>
+          <label className="sr-only" htmlFor="global-search">Search pages, notes, ideas, and archived work</label>
           <input
             autoFocus
             id="global-search"
             name="globalSearch"
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Search cards, notes, ideas, archived work..."
+            placeholder="Search pages, notes, ideas, archived work..."
             ref={inputRef}
             type="search"
             value={query}
@@ -164,7 +164,7 @@ export function SearchDialog({ initialQuery, onClose, onOpenCard, onOpenIdea, on
         <div aria-live="polite" className="search-results" ref={listRef}>
           {!trimmed && (
             <p className="search-hint">
-              Everything is in here: every column, the backlog, the idea garden, completed work, and cards that were archived.
+              Everything is in here: every column, the backlog, the idea garden, completed work, and pages that were archived.
             </p>
           )}
           {failed && <p className="search-hint">Search could not be reached. Try again in a moment.</p>}
@@ -202,7 +202,7 @@ export function SearchDialog({ initialQuery, onClose, onOpenCard, onOpenIdea, on
                 ) : (
                   <div className={className} key={hit.id}>
                     {body}
-                    {/* Search is the only way back to an archived card, so it carries the way back. */}
+                    {/* Search is the only way back to an archived page, so it carries the way back. */}
                     <button
                       aria-label={`Restore ${hit.title}`}
                       className="search-restore"

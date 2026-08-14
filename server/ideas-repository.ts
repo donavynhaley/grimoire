@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import { IDEA_STATES, type Card, type Idea, type IdeaState, type IdeaWorkspace, type User } from "../shared/types";
-import { MarkdownCardStore } from "./markdown-cards";
+import { IDEA_STATES, type Page, type Idea, type IdeaState, type IdeaWorkspace, type User } from "../shared/types";
+import { MarkdownPageStore } from "./markdown-pages";
 import { MarkdownChapterStore } from "./markdown-chapters";
 import { MarkdownIdeaStore, type StoredIdea } from "./markdown-ideas";
-import { CardDependencyError, createCard, membersForProject, projectById, requireUnchangedContent } from "./repository";
+import { PageDependencyError, createPage, membersForProject, projectById, requireUnchangedContent } from "./repository";
 
 type IdeaInput = {
   title: string;
@@ -117,13 +117,13 @@ export function updateIdea(
 
 export function promoteIdea(
   database: DatabaseSync,
-  cardStore: MarkdownCardStore,
+  pageStore: MarkdownPageStore,
   chapterStore: MarkdownChapterStore,
   ideaStore: MarkdownIdeaStore,
   projectId: string,
   creatorId: string,
   ideaId: string,
-): Card | null {
+): Page | null {
   const project = projectById(database, projectId);
   if (!project) return null;
   const projectSlug = String(project.slug);
@@ -131,21 +131,21 @@ export function promoteIdea(
   if (!idea || idea.promotedTo) return null;
   // A promoted idea lands unchaptered. Deciding it is work is a separate act from deciding
   // when the work happens, and the Backlog is where that second decision gets made.
-  const card = createCard(database, cardStore, chapterStore, projectId, creatorId, {
+  const page = createPage(database, pageStore, chapterStore, projectId, creatorId, {
     title: idea.title,
     description: idea.description,
     status: "backlog",
   });
-  if (!card) return null;
+  if (!page) return null;
   const now = new Date().toISOString();
-  ideaStore.archive(projectSlug, { ...idea, promotedTo: card.id, promotedAt: now, updatedAt: now });
+  ideaStore.archive(projectSlug, { ...idea, promotedTo: page.id, promotedAt: now, updatedAt: now });
   normalizeIdeaPositions(ideaStore, projectSlug, idea.state);
-  return card;
+  return page;
 }
 
 export function undoPromotion(
   database: DatabaseSync,
-  cardStore: MarkdownCardStore,
+  pageStore: MarkdownPageStore,
   ideaStore: MarkdownIdeaStore,
   projectId: string,
   ideaId: string,
@@ -155,29 +155,29 @@ export function undoPromotion(
   const projectSlug = String(project.slug);
   const archived = ideaStore.getArchived(projectSlug, ideaId);
   if (!archived?.promotedTo) return null;
-  const promotedCard = cardStore.get(projectSlug, archived.promotedTo);
-  if (!promotedCard) return null;
-  const cards = cardStore.list(projectSlug);
+  const promotedPage = pageStore.get(projectSlug, archived.promotedTo);
+  if (!promotedPage) return null;
+  const pages = pageStore.list(projectSlug);
   if (
-    promotedCard.updatedAt !== promotedCard.createdAt ||
-    promotedCard.title !== archived.title ||
-    promotedCard.description !== archived.description ||
-    promotedCard.status !== "backlog" ||
-    promotedCard.category !== null ||
-    promotedCard.assignee !== null ||
-    promotedCard.blockedBy.length > 0
+    promotedPage.updatedAt !== promotedPage.createdAt ||
+    promotedPage.title !== archived.title ||
+    promotedPage.description !== archived.description ||
+    promotedPage.status !== "backlog" ||
+    promotedPage.category !== null ||
+    promotedPage.assignee !== null ||
+    promotedPage.blockedBy.length > 0
   ) {
-    throw new CardDependencyError("This work card has changed and its promotion cannot be undone", 409);
+    throw new PageDependencyError("This work page has changed and its promotion cannot be undone", 409);
   }
-  if (cards.some((card) => card.id !== promotedCard.id && card.blockedBy.includes(promotedCard.id))) {
-    throw new CardDependencyError("This promoted card blocks other work and cannot be undone", 409);
+  if (pages.some((page) => page.id !== promotedPage.id && page.blockedBy.includes(promotedPage.id))) {
+    throw new PageDependencyError("This promoted page blocks other work and cannot be undone", 409);
   }
 
-  cardStore.remove(projectSlug, promotedCard.id);
-  cards
-    .filter((card) => card.id !== promotedCard.id && card.status === promotedCard.status)
-    .forEach((card, position) => {
-      if (card.position !== position) cardStore.save(projectSlug, { ...card, position });
+  pageStore.remove(projectSlug, promotedPage.id);
+  pages
+    .filter((page) => page.id !== promotedPage.id && page.status === promotedPage.status)
+    .forEach((page, position) => {
+      if (page.position !== position) pageStore.save(projectSlug, { ...page, position });
     });
 
   const restored: StoredIdea = {

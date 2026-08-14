@@ -48,7 +48,7 @@ export function boardFixture(): BoardWorkspace {
         projectRole: "member",
       },
     ],
-    cards: [
+    pages: [
       {
         id: "00000000-0000-4000-8000-000000000020",
         title: "Make the tower door remember Maren",

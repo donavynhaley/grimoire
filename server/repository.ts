@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import {
-  CARD_STATUSES,
+  PAGE_STATUSES,
   type BoardWorkspace,
-  type Card,
-  type CardCategory,
-  type CardStatus,
+  type Page,
+  type PageCategory,
+  type PageStatus,
   type Chapter,
   type ChapterState,
   type Member,
@@ -13,7 +13,7 @@ import {
   type ProjectSummary,
   type User,
 } from "../shared/types";
-import { MarkdownCardStore, type StoredCard } from "./markdown-cards";
+import { MarkdownPageStore, type StoredPage } from "./markdown-pages";
 import { MarkdownChapterStore, type StoredChapter } from "./markdown-chapters";
 
 type Row = Record<string, string | number | null>;
@@ -216,7 +216,7 @@ export function updateCategory(
 
 export function deleteCategory(
   database: DatabaseSync,
-  cardStore: MarkdownCardStore,
+  pageStore: MarkdownPageStore,
   projectId: string,
   slug: string,
 ): boolean {
@@ -227,9 +227,9 @@ export function deleteCategory(
     .run(projectId, slug);
   if (Number(removed.changes) !== 1) return false;
   const now = new Date().toISOString();
-  cardStore.list(String(project.slug)).forEach((card) => {
-    if (card.category !== slug) return;
-    cardStore.save(String(project.slug), { ...card, category: null, updatedAt: now });
+  pageStore.list(String(project.slug)).forEach((page) => {
+    if (page.category !== slug) return;
+    pageStore.save(String(project.slug), { ...page, category: null, updatedAt: now });
   });
   return true;
 }
@@ -243,7 +243,7 @@ export function chaptersEnabled(database: DatabaseSync, projectId: string): bool
  * Flips the per-project gate.
  *
  * Turning chapters off is deliberately not destructive: the chapter files stay on disk and
- * cards keep their `chapter` field, so the only thing that changes is whether the interface
+ * pages keep their `chapter` field, so the only thing that changes is whether the interface
  * draws any of it. Turning it back on restores exactly the prior state.
  */
 export function setChaptersEnabled(database: DatabaseSync, projectId: string, enabled: boolean): boolean {
@@ -332,7 +332,7 @@ export type UpdateChapterResult = { chapter: Chapter } | "not_found" | "already_
  * which is what keeps the feature meaning "what are we working on now" instead of becoming a
  * grid of parallel workstreams; the caller is expected to close the current one first, as an
  * explicit act. And closing stamps `closedAt` while reopening clears it, mirroring how a
- * card's `completedAt` behaves - crucially, without touching a single card either way.
+ * page's `completedAt` behaves - crucially, without touching a single page either way.
  */
 export function updateChapter(
   database: DatabaseSync,
@@ -381,14 +381,14 @@ export function updateChapter(
 }
 
 /**
- * Removes a chapter and clears it from every card that referenced it.
+ * Removes a chapter and clears it from every page that referenced it.
  *
  * This mirrors category deletion. It is the one genuinely lossy chapter operation, which is
  * why the interface names the affected count before asking.
  */
 export function deleteChapter(
   database: DatabaseSync,
-  cardStore: MarkdownCardStore,
+  pageStore: MarkdownPageStore,
   chapterStore: MarkdownChapterStore,
   projectId: string,
   slug: string,
@@ -399,28 +399,28 @@ export function deleteChapter(
   if (!chapterStore.get(projectSlug, slug)) return false;
   chapterStore.remove(projectSlug, slug);
   const now = new Date().toISOString();
-  cardStore.list(projectSlug).forEach((card) => {
-    if (card.chapter !== slug) return;
-    cardStore.save(projectSlug, { ...card, chapter: null, updatedAt: now });
+  pageStore.list(projectSlug).forEach((page) => {
+    if (page.chapter !== slug) return;
+    pageStore.save(projectSlug, { ...page, chapter: null, updatedAt: now });
   });
   return true;
 }
 
-/** How many cards a chapter would release if it were deleted. */
-export function cardsInChapter(
+/** How many pages a chapter would release if it were deleted. */
+export function pagesInChapter(
   database: DatabaseSync,
-  cardStore: MarkdownCardStore,
+  pageStore: MarkdownPageStore,
   projectId: string,
   slug: string,
 ): number {
   const project = projectById(database, projectId);
   if (!project) return 0;
-  return cardStore.list(String(project.slug)).filter((card) => card.chapter === slug).length;
+  return pageStore.list(String(project.slug)).filter((page) => page.chapter === slug).length;
 }
 
 export function getBoard(
   database: DatabaseSync,
-  cardStore: MarkdownCardStore,
+  pageStore: MarkdownPageStore,
   chapterStore: MarkdownChapterStore,
   user: User,
   projectId: string,
@@ -433,8 +433,8 @@ export function getBoard(
   if (!project) return null;
 
   const members = membersForProject(database, projectId);
-  const cards = cardStore.list(String(project.slug));
-  validateDependencyGraph(cards);
+  const pages = pageStore.list(String(project.slug));
+  validateDependencyGraph(pages);
   const enabled = Number(project.chapters_enabled ?? 0) === 1;
 
   return {
@@ -448,52 +448,52 @@ export function getBoard(
       : [],
     currentUser: user,
     members,
-    cards: cards.map((card) => publicCard(database, card, members)),
+    pages: pages.map((page) => publicPage(database, page, members)),
   };
 }
 
-/** Reads one card in the same shape the board serves, for before-and-after comparisons. */
-export function findCard(
+/** Reads one page in the same shape the board serves, for before-and-after comparisons. */
+export function findPage(
   database: DatabaseSync,
-  cardStore: MarkdownCardStore,
+  pageStore: MarkdownPageStore,
   projectId: string,
-  cardId: string,
-): Card | null {
+  pageId: string,
+): Page | null {
   const project = projectById(database, projectId);
   if (!project) return null;
-  const stored = cardStore.get(String(project.slug), cardId);
-  return stored ? publicCard(database, stored, membersForProject(database, projectId)) : null;
+  const stored = pageStore.get(String(project.slug), pageId);
+  return stored ? publicPage(database, stored, membersForProject(database, projectId)) : null;
 }
 
-export function listCards(
+export function listPages(
   database: DatabaseSync,
-  cardStore: MarkdownCardStore,
+  pageStore: MarkdownPageStore,
   projectId: string,
-): Card[] {
+): Page[] {
   const project = projectById(database, projectId);
   if (!project) return [];
   const members = membersForProject(database, projectId);
-  return cardStore.list(String(project.slug)).map((card) => publicCard(database, card, members));
+  return pageStore.list(String(project.slug)).map((page) => publicPage(database, page, members));
 }
 
-type CardInput = {
+type PageInput = {
   title: string;
   description?: string;
-  category?: CardCategory | null;
+  category?: PageCategory | null;
   chapter?: string | null;
   blockedBy?: string[];
-  status?: CardStatus;
+  status?: PageStatus;
   assigneeId?: string | null;
 };
 
-export function createCard(
+export function createPage(
   database: DatabaseSync,
-  cardStore: MarkdownCardStore,
+  pageStore: MarkdownPageStore,
   chapterStore: MarkdownChapterStore,
   projectId: string,
   creatorId: string,
-  input: CardInput,
-): Card | null {
+  input: PageInput,
+): Page | null {
   const project = projectById(database, projectId);
   const members = membersForProject(database, projectId);
   const creator = members.find((member) => member.id === creatorId);
@@ -504,16 +504,16 @@ export function createCard(
   const id = randomUUID();
   const now = new Date().toISOString();
   const status = input.status ?? "backlog";
-  const cards = cardStore.list(String(project.slug));
-  const position = cards.filter((card) => card.status === status).length;
-  const card: StoredCard = {
+  const pages = pageStore.list(String(project.slug));
+  const position = pages.filter((page) => page.status === status).length;
+  const page: StoredPage = {
     id,
     title: input.title,
     description: input.description ?? "",
     category: input.category ?? null,
     chapter: input.chapter ?? null,
     blockedBy: input.blockedBy ?? [],
-    unblockedCards: [],
+    unblockedPages: [],
     status,
     position,
     assignee: assignee?.email.toLowerCase() ?? null,
@@ -523,27 +523,27 @@ export function createCard(
     completedAt: status === "done" ? now : null,
     archivedAt: null,
   };
-  validateDependencyGraph([...cards, card]);
-  cardStore.save(String(project.slug), card);
-  return publicCard(database, card, members);
+  validateDependencyGraph([...pages, page]);
+  pageStore.save(String(project.slug), page);
+  return publicPage(database, page, members);
 }
 
-export function updateCard(
+export function updatePage(
   database: DatabaseSync,
-  cardStore: MarkdownCardStore,
+  pageStore: MarkdownPageStore,
   chapterStore: MarkdownChapterStore,
   projectId: string,
-  cardId: string,
-  input: Partial<CardInput> & { position?: number; expectedTitle?: string; expectedDescription?: string },
-): Card | null {
+  pageId: string,
+  input: Partial<PageInput> & { position?: number; expectedTitle?: string; expectedDescription?: string },
+): Page | null {
   const project = projectById(database, projectId);
   if (!project) return null;
   const projectSlug = String(project.slug);
   const members = membersForProject(database, projectId);
-  const cards = cardStore.list(projectSlug);
-  const current = cards.find((card) => card.id === cardId);
+  const pages = pageStore.list(projectSlug);
+  const current = pages.find((page) => page.id === pageId);
   if (!current) return null;
-  requireUnchangedContent(current, input, publicCard(database, current, members), "card");
+  requireUnchangedContent(current, input, publicPage(database, current, members), "page");
   const assignee = input.assigneeId ? members.find((member) => member.id === input.assigneeId) : null;
   if (input.assigneeId && !assignee) return null;
   if (input.category) requireProjectCategory(database, projectId, input.category);
@@ -555,7 +555,7 @@ export function updateCard(
   const completedAt = nextStatus === "done"
     ? current.status === "done" ? current.completedAt ?? current.updatedAt : now
     : null;
-  const updated: StoredCard = {
+  const updated: StoredPage = {
     ...current,
     title: input.title ?? current.title,
     description: input.description ?? current.description,
@@ -567,104 +567,104 @@ export function updateCard(
     updatedAt: now,
     completedAt,
   };
-  validateDependencyGraph(cards.map((card) => card.id === cardId ? updated : card));
+  validateDependencyGraph(pages.map((page) => page.id === pageId ? updated : page));
 
   if (!shouldMove) {
-    cardStore.save(projectSlug, updated);
-    return publicCard(database, updated, members);
+    pageStore.save(projectSlug, updated);
+    return publicPage(database, updated, members);
   }
 
-  for (const status of CARD_STATUSES) {
-    const ordered = cards.filter((card) => card.id !== cardId && card.status === status);
+  for (const status of PAGE_STATUSES) {
+    const ordered = pages.filter((page) => page.id !== pageId && page.status === status);
     if (status === nextStatus) {
       const requestedPosition = input.position ?? ordered.length;
       ordered.splice(Math.max(0, Math.min(requestedPosition, ordered.length)), 0, updated);
     }
-    ordered.forEach((card, position) => {
-      const positioned = { ...card, position };
-      if (card.id === cardId || card.position !== position) cardStore.save(projectSlug, positioned);
-      if (card.id === cardId) updated.position = position;
+    ordered.forEach((page, position) => {
+      const positioned = { ...page, position };
+      if (page.id === pageId || page.position !== position) pageStore.save(projectSlug, positioned);
+      if (page.id === pageId) updated.position = position;
     });
   }
-  return publicCard(database, updated, members);
+  return publicPage(database, updated, members);
 }
 
-export function archiveCard(
+export function archivePage(
   database: DatabaseSync,
-  cardStore: MarkdownCardStore,
+  pageStore: MarkdownPageStore,
   projectId: string,
-  cardId: string,
+  pageId: string,
 ): boolean {
   const project = projectById(database, projectId);
   if (!project) return false;
   const projectSlug = String(project.slug);
-  const current = cardStore.get(projectSlug, cardId);
+  const current = pageStore.get(projectSlug, pageId);
   if (!current) return false;
-  const cards = cardStore.list(projectSlug);
-  const dependents = cards.filter((card) => card.id !== cardId && card.blockedBy.includes(cardId));
-  if (current.status !== "done" && dependents.some((card) => card.status !== "done")) {
-    throw new CardDependencyError("This card blocks active work and cannot be archived", 409);
+  const pages = pageStore.list(projectSlug);
+  const dependents = pages.filter((page) => page.id !== pageId && page.blockedBy.includes(pageId));
+  if (current.status !== "done" && dependents.some((page) => page.status !== "done")) {
+    throw new PageDependencyError("This page blocks active work and cannot be archived", 409);
   }
   const now = new Date().toISOString();
-  dependents.forEach((card) => {
-    cardStore.save(projectSlug, {
-      ...card,
-      blockedBy: card.blockedBy.filter((dependencyId) => dependencyId !== cardId),
+  dependents.forEach((page) => {
+    pageStore.save(projectSlug, {
+      ...page,
+      blockedBy: page.blockedBy.filter((dependencyId) => dependencyId !== pageId),
       updatedAt: now,
     });
   });
-  cardStore.archive(projectSlug, {
+  pageStore.archive(projectSlug, {
     ...current,
-    unblockedCards: dependents.map((card) => card.id),
+    unblockedPages: dependents.map((page) => page.id),
     archivedAt: now,
     updatedAt: now,
   });
-  cardStore
+  pageStore
     .list(projectSlug)
-    .filter((card) => card.status === current.status)
-    .forEach((card, position) => {
-      if (card.position !== position) cardStore.save(projectSlug, { ...card, position });
+    .filter((page) => page.status === current.status)
+    .forEach((page, position) => {
+      if (page.position !== position) pageStore.save(projectSlug, { ...page, position });
     });
   return true;
 }
 
-export function restoreCard(
+export function restorePage(
   database: DatabaseSync,
-  cardStore: MarkdownCardStore,
+  pageStore: MarkdownPageStore,
   projectId: string,
-  cardId: string,
-): Card | null {
+  pageId: string,
+): Page | null {
   const project = projectById(database, projectId);
   if (!project) return null;
   const projectSlug = String(project.slug);
-  const archived = cardStore.getArchived(projectSlug, cardId);
+  const archived = pageStore.getArchived(projectSlug, pageId);
   if (!archived) return null;
-  const cards = cardStore.list(projectSlug);
-  const restored: StoredCard = {
+  const pages = pageStore.list(projectSlug);
+  const restored: StoredPage = {
     ...archived,
-    unblockedCards: [],
+    unblockedPages: [],
     archivedAt: null,
     updatedAt: new Date().toISOString(),
   };
-  const previouslyBlocked = new Set(archived.unblockedCards);
-  const restoredCards = cards.map((card) => previouslyBlocked.has(card.id)
-    ? { ...card, blockedBy: [...card.blockedBy, restored.id], updatedAt: restored.updatedAt }
-    : card);
-  validateDependencyGraph([...restoredCards, restored]);
-  cardStore.restore(projectSlug, restored);
+  const previouslyBlocked = new Set(archived.unblockedPages);
+  const restoredPages = pages.map((page) => previouslyBlocked.has(page.id)
+    ? { ...page, blockedBy: [...page.blockedBy, restored.id], updatedAt: restored.updatedAt }
+    : page);
+  validateDependencyGraph([...restoredPages, restored]);
+  pageStore.restore(projectSlug, restored);
 
-  restoredCards.forEach((card) => {
-    const previous = cards.find((candidate) => candidate.id === card.id);
-    if (previous && previous.blockedBy.length !== card.blockedBy.length) cardStore.save(projectSlug, card);
+  restoredPages.forEach((page) => {
+    const previous = pages.find((candidate) => candidate.id === page.id);
+    if (previous && previous.blockedBy.length !== page.blockedBy.length) pageStore.save(projectSlug, page);
   });
 
-  const ordered = restoredCards.filter((card) => card.status === restored.status);
+  const ordered = restoredPages.filter((page) => page.status === restored.status);
   ordered.splice(Math.max(0, Math.min(restored.position, ordered.length)), 0, restored);
-  ordered.forEach((card, position) => {
-    if (card.position !== position) cardStore.save(projectSlug, { ...card, position });
-    if (card.id === restored.id) restored.position = position;
+  ordered.forEach((page, position) => {
+    if (page.position !== position) pageStore.save(projectSlug, { ...page, position });
+    if (page.id === restored.id) restored.position = position;
   });
-  return publicCard(database, restored, membersForProject(database, projectId));
+  return publicPage(database, restored, membersForProject(database, projectId));
 }
 
 export function projectById(database: DatabaseSync, projectId: string): Row | undefined {
@@ -690,7 +690,7 @@ export type RemoveMemberResult = "removed" | "not_found" | "owner";
 
 export function removeProjectMember(
   database: DatabaseSync,
-  cardStore: MarkdownCardStore,
+  pageStore: MarkdownPageStore,
   projectId: string,
   memberId: string,
 ): RemoveMemberResult {
@@ -700,9 +700,9 @@ export function removeProjectMember(
   if (member.projectRole === "owner") return "owner";
 
   const now = new Date().toISOString();
-  cardStore.list(String(project.slug)).forEach((card) => {
-    if (card.assignee?.toLowerCase() !== member.email.toLowerCase()) return;
-    cardStore.save(String(project.slug), { ...card, assignee: null, updatedAt: now });
+  pageStore.list(String(project.slug)).forEach((page) => {
+    if (page.assignee?.toLowerCase() !== member.email.toLowerCase()) return;
+    pageStore.save(String(project.slug), { ...page, assignee: null, updatedAt: now });
   });
 
   database.exec("BEGIN IMMEDIATE");
@@ -724,14 +724,14 @@ export function removeProjectMember(
   return "removed";
 }
 
-function publicCard(database: DatabaseSync, value: StoredCard, members: Member[]): Card {
+function publicPage(database: DatabaseSync, value: StoredPage, members: Member[]): Page {
   const assignee = value.assignee
     ? members.find((member) => member.email.toLowerCase() === value.assignee?.toLowerCase())
     : null;
   const currentCreator = members.find((member) => member.email.toLowerCase() === value.createdBy.toLowerCase());
   const historicalCreator = currentCreator ?? findUserByEmail(database, value.createdBy);
-  if (value.assignee && !assignee) throw new Error(`Card ${value.id} references a non-member assignee`);
-  if (!historicalCreator) throw new Error(`Card ${value.id} references an unknown creator`);
+  if (value.assignee && !assignee) throw new Error(`Page ${value.id} references a non-member assignee`);
+  if (!historicalCreator) throw new Error(`Page ${value.id} references an unknown creator`);
   return {
     id: value.id,
     title: value.title,
@@ -751,7 +751,7 @@ function publicCard(database: DatabaseSync, value: StoredCard, members: Member[]
   };
 }
 
-export class CardDependencyError extends Error {
+export class PageDependencyError extends Error {
   constructor(message: string, readonly status: 400 | 409 = 400) {
     super(message);
   }
@@ -784,7 +784,7 @@ export function requireUnchangedContent(
   stored: { title: string; description: string },
   input: { expectedTitle?: string; expectedDescription?: string },
   current: unknown,
-  noun: "card" | "idea" | "chapter",
+  noun: "page" | "idea" | "chapter",
 ): void {
   if (input.expectedTitle !== undefined && stored.title !== input.expectedTitle) {
     throw new EditConflictError(`This ${noun}'s title changed while you were editing it`, "title", current);
@@ -796,7 +796,7 @@ export function requireUnchangedContent(
 
 function requireProjectCategory(database: DatabaseSync, projectId: string, slug: string): void {
   if (!row(database, "SELECT 1 AS ok FROM categories WHERE project_id = ? AND slug = ?", projectId, slug)) {
-    throw new CardDependencyError("This category is not part of the project", 400);
+    throw new PageDependencyError("This category is not part of the project", 400);
   }
 }
 
@@ -808,14 +808,14 @@ function requireProjectChapter(
 ): void {
   const project = projectById(database, projectId);
   if (!project || !chapterStore.get(String(project.slug), slug)) {
-    throw new CardDependencyError("This chapter is not part of the project", 400);
+    throw new PageDependencyError("This chapter is not part of the project", 400);
   }
 }
 
 /** A chapter may have neither date, either one, or both - but never an end before its start. */
 function requireCoherentDates(startsOn: string | null, endsOn: string | null): void {
   if (startsOn && endsOn && endsOn < startsOn) {
-    throw new CardDependencyError("A chapter cannot end before it starts", 400);
+    throw new PageDependencyError("A chapter cannot end before it starts", 400);
   }
 }
 
@@ -838,27 +838,27 @@ function publicChapter(database: DatabaseSync, value: StoredChapter, members: Me
   };
 }
 
-function validateDependencyGraph(cards: StoredCard[]): void {
-  const cardsById = new Map(cards.map((card) => [card.id, card]));
-  for (const card of cards) {
-    if (new Set(card.blockedBy).size !== card.blockedBy.length) {
-      throw new CardDependencyError("A blocking card can only be linked once");
+function validateDependencyGraph(pages: StoredPage[]): void {
+  const pagesById = new Map(pages.map((page) => [page.id, page]));
+  for (const page of pages) {
+    if (new Set(page.blockedBy).size !== page.blockedBy.length) {
+      throw new PageDependencyError("A blocking page can only be linked once");
     }
-    for (const dependencyId of card.blockedBy) {
-      if (dependencyId === card.id) throw new CardDependencyError("A card cannot block itself");
-      if (!cardsById.has(dependencyId)) throw new CardDependencyError("A blocking card could not be found");
+    for (const dependencyId of page.blockedBy) {
+      if (dependencyId === page.id) throw new PageDependencyError("A page cannot block itself");
+      if (!pagesById.has(dependencyId)) throw new PageDependencyError("A blocking page could not be found");
     }
   }
 
   const visiting = new Set<string>();
   const visited = new Set<string>();
-  const visit = (cardId: string) => {
-    if (visiting.has(cardId)) throw new CardDependencyError("Card dependencies cannot form a cycle");
-    if (visited.has(cardId)) return;
-    visiting.add(cardId);
-    for (const dependencyId of cardsById.get(cardId)?.blockedBy ?? []) visit(dependencyId);
-    visiting.delete(cardId);
-    visited.add(cardId);
+  const visit = (pageId: string) => {
+    if (visiting.has(pageId)) throw new PageDependencyError("Page dependencies cannot form a cycle");
+    if (visited.has(pageId)) return;
+    visiting.add(pageId);
+    for (const dependencyId of pagesById.get(pageId)?.blockedBy ?? []) visit(dependencyId);
+    visiting.delete(pageId);
+    visited.add(pageId);
   };
-  for (const card of cards) visit(card.id);
+  for (const page of pages) visit(page.id);
 }

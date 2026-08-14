@@ -347,7 +347,7 @@ textarea:focus-visible {
 .away-digest-foot { display: flex; margin-top: 10px; color: var(--faint); font-size: 9.5px; }
 .away-digest-foot .text-button { font-size: 9.5px; }
 
-.board-card.unseen::after,
+.board-page.unseen::after,
 .idea-card.unseen::after {
   position: absolute;
   z-index: 1;
@@ -679,8 +679,8 @@ textarea:hover { border-color: var(--border-bright); }
   background: var(--accent);
   transform: translateX(-30px);
 }
-.card-search { width: min(260px, 100%); }
-.card-search input { height: 30px; font-size: 9px; }
+.page-search { width: min(260px, 100%); }
+.page-search input { height: 30px; font-size: 9px; }
 
 .library-trigger {
   display: inline-flex;
@@ -886,7 +886,7 @@ textarea:hover { border-color: var(--border-bright); }
   white-space: nowrap;
 }
 
-.card-list {
+.page-list {
   display: grid;
   min-height: 0;
   padding: 10px 3px 10px 0;
@@ -898,7 +898,7 @@ textarea:hover { border-color: var(--border-bright); }
   scrollbar-gutter: stable;
 }
 
-.board-card {
+.board-page {
   --category-color: var(--border-bright);
   position: relative;
   overflow: hidden;
@@ -909,7 +909,7 @@ textarea:hover { border-color: var(--border-bright); }
   transition: border-color 120ms ease, opacity 120ms ease, transform 120ms ease;
 }
 
-.board-card::before {
+.board-page::before {
   position: absolute;
   z-index: 1;
   top: 0;
@@ -922,10 +922,10 @@ textarea:hover { border-color: var(--border-bright); }
 
 .category-none { --category-color: var(--faint); }
 
-.board-card:hover { border-color: var(--border-bright); transform: translateY(-1px); }
-.board-card:active { cursor: grabbing; }
+.board-page:hover { border-color: var(--border-bright); transform: translateY(-1px); }
+.board-page:active { cursor: grabbing; }
 
-.board-card.drag-hidden,
+.board-page.drag-hidden,
 .idea-card.drag-hidden { display: none; }
 
 .capture-flight {
@@ -968,7 +968,7 @@ textarea:hover { border-color: var(--border-bright); }
   border-radius: 7px;
 }
 
-.card-open {
+.page-open {
   display: grid;
   width: 100%;
   padding: 13px 13px 12px;
@@ -980,8 +980,8 @@ textarea:hover { border-color: var(--border-bright); }
   text-align: left;
 }
 
-.card-open strong { padding-right: 16px; font-size: 11px; line-height: 1.55; overflow-wrap: anywhere; }
-.card-open p {
+.page-open strong { padding-right: 16px; font-size: 11px; line-height: 1.55; overflow-wrap: anywhere; }
+.page-open p {
   display: -webkit-box;
   overflow: hidden;
   margin: -3px 0 0;
@@ -994,9 +994,9 @@ textarea:hover { border-color: var(--border-bright); }
   -webkit-box-orient: vertical;
 }
 
-.card-signals { display: flex; min-height: 17px; align-items: center; gap: 6px; flex-wrap: wrap; }
+.page-signals { display: flex; min-height: 17px; align-items: center; gap: 6px; flex-wrap: wrap; }
 .category-pill,
-.card-blocked {
+.page-blocked {
   display: inline-flex;
   width: fit-content;
   min-height: 17px;
@@ -1019,12 +1019,12 @@ textarea:hover { border-color: var(--border-bright); }
   border-radius: 999px;
   content: "";
 }
-.card-blocked {
+.page-blocked {
   color: #e19b86;
   background: rgb(216 117 120 / 9%);
   border: 1px solid rgb(216 117 120 / 25%);
 }
-.card-blocked::before { margin-right: 4px; content: "!"; }
+.page-blocked::before { margin-right: 4px; content: "!"; }
 
 .drag-grip {
   position: absolute;
@@ -1060,7 +1060,7 @@ textarea:hover { border-color: var(--border-bright); }
 
 .add-to-column:hover { color: var(--accent); }
 
-/* Sits in the slot the other columns give to "+ add card", so every column ends the same height. */
+/* Sits in the slot the other columns give to "+ add page", so every column ends the same height. */
 .completed-trigger {
   display: flex;
   width: 100%;
@@ -1092,7 +1092,7 @@ textarea:hover { border-color: var(--border-bright); }
   backdrop-filter: blur(5px);
 }
 
-.card-dialog,
+.dialog-panel,
 .team-dialog,
 .account-dialog {
   width: min(620px, 100%);
@@ -1323,7 +1323,7 @@ textarea:hover { border-color: var(--border-bright); }
  * carrying notes overflowed and its assignee line was sliced through the middle.
  * Putting the floor on the content lets a taller row simply be taller.
  */
-.library-card {
+.library-page {
   --category-color: var(--border-bright);
   position: relative;
   display: grid;
@@ -1332,8 +1332,8 @@ textarea:hover { border-color: var(--border-bright); }
   border: 1px solid var(--border);
   border-radius: 7px;
 }
-.library-card::before,
-.history-card::before {
+.library-page::before,
+.history-page::before {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -1343,9 +1343,9 @@ textarea:hover { border-color: var(--border-bright); }
   border-radius: 7px 0 0 7px;
   content: "";
 }
-.library-card:hover,
-.history-card:hover { border-color: var(--border-bright); }
-.library-card-main {
+.library-page:hover,
+.history-page:hover { border-color: var(--border-bright); }
+.library-page-main {
   display: grid;
   min-width: 0;
   min-height: 76px;
@@ -1357,10 +1357,10 @@ textarea:hover { border-color: var(--border-bright); }
   text-align: left;
   cursor: pointer;
 }
-.library-card-main strong { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-.library-card-main p { margin: 0; overflow: hidden; color: var(--muted); font-size: 8px; line-height: 1.5; text-overflow: ellipsis; white-space: nowrap; }
-.library-card-main > span:last-child { color: var(--faint); font-size: 7px; }
-.library-card-signals { display: flex; min-height: 16px; align-items: center; gap: 6px; }
+.library-page-main strong { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.library-page-main p { margin: 0; overflow: hidden; color: var(--muted); font-size: 8px; line-height: 1.5; text-overflow: ellipsis; white-space: nowrap; }
+.library-page-main > span:last-child { color: var(--faint); font-size: 7px; }
+.library-page-signals { display: flex; min-height: 16px; align-items: center; gap: 6px; }
 .library-promote {
   min-width: 98px;
   padding: 0 14px;
@@ -1384,8 +1384,8 @@ textarea:hover { border-color: var(--border-bright); }
 .history-group h3 { margin: 0; color: var(--muted); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; }
 .history-group > header > span { color: var(--faint); font-size: 8px; }
 .history-group > div { display: grid; gap: 5px; }
-/* Same reason as .library-card: the floor belongs on the content, not on the track. */
-.history-card {
+/* Same reason as .library-page: the floor belongs on the content, not on the track. */
+.history-page {
   --category-color: var(--border-bright);
   position: relative;
   display: grid;
@@ -1394,7 +1394,7 @@ textarea:hover { border-color: var(--border-bright); }
   border: 1px solid var(--border);
   border-radius: 7px;
 }
-.history-card-main {
+.history-page-main {
   display: grid;
   min-width: 0;
   min-height: 52px;
@@ -1408,10 +1408,10 @@ textarea:hover { border-color: var(--border-bright); }
   text-align: left;
   cursor: pointer;
 }
-.history-card-main > span:nth-child(2) { display: grid; min-width: 0; gap: 4px; }
-.history-card-main strong { overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
-.history-card-main small,
-.history-card-main time { color: var(--faint); font-size: 7px; }
+.history-page-main > span:nth-child(2) { display: grid; min-width: 0; gap: 4px; }
+.history-page-main strong { overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.history-page-main small,
+.history-page-main time { color: var(--faint); font-size: 7px; }
 
 .activity-results .history-group > div { gap: 4px; }
 .activity-row {
@@ -1451,16 +1451,16 @@ textarea:hover { border-color: var(--border-bright); }
 }
 .load-more { justify-self: center; margin-top: 4px; }
 
-.card-history ol { display: grid; margin: 0; padding: 0; gap: 7px; list-style: none; }
-.card-history li {
+.page-history ol { display: grid; margin: 0; padding: 0; gap: 7px; list-style: none; }
+.page-history li {
   display: grid;
   align-items: start;
   grid-template-columns: 20px minmax(0, 1fr) auto;
   gap: 9px;
 }
-.card-history li > span { display: grid; gap: 5px; color: var(--muted); font-size: 9px; line-height: 1.5; }
-.card-history strong { color: var(--text); font-weight: 700; }
-.card-history time { padding-top: 2px; color: var(--faint); font-size: 7px; white-space: nowrap; }
+.page-history li > span { display: grid; gap: 5px; color: var(--muted); font-size: 9px; line-height: 1.5; }
+.page-history strong { color: var(--text); font-weight: 700; }
+.page-history time { padding-top: 2px; color: var(--faint); font-size: 7px; white-space: nowrap; }
 .history-reopen {
   min-width: 72px;
   color: var(--faint);
@@ -1484,9 +1484,9 @@ textarea:hover { border-color: var(--border-bright); }
 
 .icon-button:hover { color: var(--text); background: var(--surface-soft); }
 
-.card-form { display: grid; gap: 14px; }
-.card-form label { display: grid; gap: 7px; }
-.card-form label > span { color: var(--muted); font-size: 9px; }
+.record-form { display: grid; gap: 14px; }
+.record-form label { display: grid; gap: 7px; }
+.record-form label > span { color: var(--muted); font-size: 9px; }
 
 .notes-field { display: grid; gap: 7px; }
 .notes-head { display: flex; min-height: 14px; align-items: baseline; justify-content: space-between; gap: 10px; }
@@ -2024,7 +2024,7 @@ textarea:hover { border-color: var(--border-bright); }
     overflow: visible;
   }
   .kanban-column { height: auto; }
-  .card-list { padding-right: 0; overflow-y: visible; scrollbar-gutter: auto; }
+  .page-list { padding-right: 0; overflow-y: visible; scrollbar-gutter: auto; }
   /* The page scrolls now, so nothing above the columns may be squeezed to fit. */
   .board-intro,
   .work-filters { flex: none; }
@@ -2073,20 +2073,20 @@ textarea:hover { border-color: var(--border-bright); }
   .reuse-settings { max-width: 118px; }
   .reuse-settings small { display: none; }
   .work-filters { margin-top: 0; }
-  .card-search { width: 100%; order: -1; }
+  .page-search { width: 100%; order: -1; }
   .kanban { gap: 9px; }
   .kanban-column { min-height: 0; height: auto; }
   .modal-backdrop { padding: 0; align-items: end; }
-  .card-dialog,
+  .dialog-panel,
   .team-dialog,
   .account-dialog,
   .library-dialog { width: 100%; max-height: 94vh; padding: 20px; border-radius: 12px 12px 0 0; }
   .library-dialog { height: 94vh; }
   .search-dialog { width: 100%; max-height: 84vh; margin-top: 0; border-radius: 12px 12px 0 0; }
-  .library-card { grid-template-columns: minmax(0, 1fr); }
+  .library-page { grid-template-columns: minmax(0, 1fr); }
   .library-promote { min-height: 34px; border-top: 1px solid var(--border); border-left: 0; }
-  .history-card-main { grid-template-columns: 8px minmax(0, 1fr); }
-  .history-card-main time { display: none; }
+  .history-page-main { grid-template-columns: 8px minmax(0, 1fr); }
+  .history-page-main time { display: none; }
   .history-reopen { min-width: 62px; }
   .dialog-footer { align-items: flex-start; flex-direction: column; }
   .invite-box { grid-template-columns: 1fr; }
@@ -2463,7 +2463,7 @@ textarea:hover { border-color: var(--border-bright); }
 .project-menu-entry.settings { color: var(--text); }
 .project-menu-glyph { width: 12px; flex: none; color: var(--faint); font-size: 10px; text-align: center; }
 
-/* Backlog and card-dialog chapter controls ------------------------------ */
+/* Backlog and dialog-panel chapter controls ------------------------------ */
 
 .library-filter-label {
   color: var(--faint);
@@ -2472,7 +2472,7 @@ textarea:hover { border-color: var(--border-bright); }
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
-.library-card-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: end; }
+.library-page-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: end; }
 .library-chapter {
   min-height: 26px;
   padding: 0 10px;
@@ -2486,7 +2486,7 @@ textarea:hover { border-color: var(--border-bright); }
   cursor: pointer;
 }
 .library-chapter:hover:not(:disabled) { background: #2b3d28; }
-/* A card already in the chapter reads as a state, and clicking it takes it back out. */
+/* A page already in the chapter reads as a state, and clicking it takes it back out. */
 .library-chapter.in {
   color: var(--faint);
   background: transparent;

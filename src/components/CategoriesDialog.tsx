@@ -57,9 +57,9 @@ export function CategoriesDialog({ categories, busy, actions, onClose }: Props) 
 
   return (
     <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section aria-labelledby="categories-dialog-title" aria-modal="true" className="card-dialog categories-dialog" role="dialog">
+      <section aria-labelledby="categories-dialog-title" aria-modal="true" className="dialog-panel categories-dialog" role="dialog">
         <header className="dialog-header">
-          <div><p className="eyebrow">project setup</p><h2 id="categories-dialog-title">Card categories</h2></div>
+          <div><p className="eyebrow">project setup</p><h2 id="categories-dialog-title">Page categories</h2></div>
           <button aria-label="Close categories" className="icon-button" onClick={onClose} type="button">×</button>
         </header>
 

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { openDatabase } from "../../server/database";
-import { MarkdownCardStore, type StoredCard } from "../../server/markdown-cards";
+import { MarkdownPageStore, type StoredPage } from "../../server/markdown-pages";
 
 const directories: string[] = [];
 
@@ -12,12 +12,12 @@ afterEach(() => {
 });
 
 function createStore() {
-  const directory = mkdtempSync(join(tmpdir(), "grimoire-markdown-cards-"));
+  const directory = mkdtempSync(join(tmpdir(), "grimoire-markdown-pages-"));
   directories.push(directory);
-  return { directory, store: new MarkdownCardStore(directory) };
+  return { directory, store: new MarkdownPageStore(directory) };
 }
 
-function card(overrides: Partial<StoredCard> = {}): StoredCard {
+function page(overrides: Partial<StoredPage> = {}): StoredPage {
   return {
     id: "9c46098a-7e85-48de-8a58-213236a8cf0d",
     title: "Research potion reactions",
@@ -25,7 +25,7 @@ function card(overrides: Partial<StoredCard> = {}): StoredCard {
     category: "code",
     chapter: null,
     blockedBy: ["8d3e49fa-2ce5-4cc1-80e7-b3f6d49435f9"],
-    unblockedCards: [],
+    unblockedPages: [],
     status: "backlog",
     position: 0,
     assignee: "owner@example.com",
@@ -38,12 +38,12 @@ function card(overrides: Partial<StoredCard> = {}): StoredCard {
   };
 }
 
-describe("MarkdownCardStore", () => {
+describe("MarkdownPageStore", () => {
   it("round-trips strict YAML frontmatter and a Markdown body", () => {
     const { directory, store } = createStore();
-    store.save("wizard-simulator", card({ title: "Research: potion reactions" }));
+    store.save("wizard-simulator", page({ title: "Research: potion reactions" }));
 
-    const path = join(directory, "wizard-simulator", "cards", "9c46098a-7e85-48de-8a58-213236a8cf0d.md");
+    const path = join(directory, "wizard-simulator", "pages", "9c46098a-7e85-48de-8a58-213236a8cf0d.md");
     const markdown = readFileSync(path, "utf8");
     expect(markdown).toContain('title: "Research: potion reactions"');
     expect(markdown).toContain("category: code");
@@ -51,31 +51,31 @@ describe("MarkdownCardStore", () => {
     expect(markdown).toContain("assignee: owner@example.com");
     expect(markdown).toContain("completed_at: null");
     expect(markdown).toContain("\n---\n\n- [ ] Test moonwort\n- [ ] Record the result\n");
-    expect(store.list("wizard-simulator")).toEqual([card({ title: "Research: potion reactions" })]);
-    expect(readdirSync(join(directory, "wizard-simulator", "cards"))).toEqual([
+    expect(store.list("wizard-simulator")).toEqual([page({ title: "Research: potion reactions" })]);
+    expect(readdirSync(join(directory, "wizard-simulator", "pages"))).toEqual([
       "9c46098a-7e85-48de-8a58-213236a8cf0d.md",
     ]);
   });
 
-  it("loads older completed cards without completed_at using their last update time", () => {
+  it("loads older completed pages without completed_at using their last update time", () => {
     const { directory, store } = createStore();
-    const completed = card({
+    const completed = page({
       status: "done",
       updatedAt: "2026-08-03T13:00:00.000Z",
       completedAt: "2026-08-03T13:00:00.000Z",
     });
     store.save("wizard-simulator", completed);
-    const path = join(directory, "wizard-simulator", "cards", `${completed.id}.md`);
+    const path = join(directory, "wizard-simulator", "pages", `${completed.id}.md`);
     writeFileSync(path, readFileSync(path, "utf8").replace("completed_at: 2026-08-03T13:00:00.000Z\n", ""));
 
     expect(store.list("wizard-simulator")[0].completedAt).toBe("2026-08-03T13:00:00.000Z");
   });
 
-  it("reloads external edits and moves archived cards out of the active directory", () => {
+  it("reloads external edits and moves archived pages out of the active directory", () => {
     const { directory, store } = createStore();
-    const original = card();
+    const original = page();
     store.save("wizard-simulator", original);
-    const activePath = join(directory, "wizard-simulator", "cards", `${original.id}.md`);
+    const activePath = join(directory, "wizard-simulator", "pages", `${original.id}.md`);
     writeFileSync(
       activePath,
       readFileSync(activePath, "utf8").replace("Research potion reactions", "Document potion reactions"),
@@ -97,11 +97,11 @@ describe("MarkdownCardStore", () => {
 
   it("reports the exact file when frontmatter is invalid", () => {
     const { directory, store } = createStore();
-    const path = join(directory, "wizard-simulator", "cards", "broken.md");
-    store.save("wizard-simulator", card());
+    const path = join(directory, "wizard-simulator", "pages", "broken.md");
+    store.save("wizard-simulator", page());
     writeFileSync(path, "---\ntitle: Missing required fields\n---\n");
 
-    expect(() => store.list("wizard-simulator")).toThrow(`Invalid card file ${path}`);
+    expect(() => store.list("wizard-simulator")).toThrow(`Invalid page file ${path}`);
   });
 
   it("migrates legacy SQLite rows only after writing their Markdown files", () => {
@@ -126,12 +126,12 @@ describe("MarkdownCardStore", () => {
           id, project_id, title, description, status, position, assignee_id, created_by, archived_at, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
       )
-      .run(card().id, projectId, card().title, card().description, "backlog", 0, userId, userId, timestamp, timestamp);
+      .run(page().id, projectId, page().title, page().description, "backlog", 0, userId, userId, timestamp, timestamp);
 
-    expect(store.migrateLegacyCards(database)).toBe(1);
-    expect(store.list("wizard-simulator")).toEqual([card({ category: null, blockedBy: [] })]);
+    expect(store.migrateLegacyPages(database)).toBe(1);
+    expect(store.list("wizard-simulator")).toEqual([page({ category: null, blockedBy: [] })]);
     expect(database.prepare("SELECT COUNT(*) AS count FROM cards").get()).toEqual({ count: 0 });
-    expect(store.migrateLegacyCards(database)).toBe(0);
+    expect(store.migrateLegacyPages(database)).toBe(0);
     database.close();
   });
 });

@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from "react";
-import type { Card, Chapter, ProjectCategory } from "../../shared/types";
+import type { Page, Chapter, ProjectCategory } from "../../shared/types";
 import { ApiError } from "../api/client";
 import { dayLabel } from "./chapter-dates";
 import { useDialogEscape } from "./use-dialog-escape";
@@ -14,7 +14,7 @@ type Props = {
   actions: ProjectSettingsActions;
   busy: boolean;
   canArchive: boolean;
-  cards: Card[];
+  pages: Page[];
   categories: ProjectCategory[];
   chapters: Chapter[];
   chaptersEnabled: boolean;
@@ -37,7 +37,7 @@ export function ProjectSettingsDialog({
   actions,
   busy,
   canArchive,
-  cards,
+  pages,
   categories,
   chapters,
   chaptersEnabled,
@@ -50,7 +50,7 @@ export function ProjectSettingsDialog({
   const [confirmingArchive, setConfirmingArchive] = useState(false);
   const [error, setError] = useState("");
   const current = chapters.find((chapter) => chapter.state === "open");
-  const placed = cards.filter((card) => card.chapter !== null).length;
+  const placed = pages.filter((page) => page.chapter !== null).length;
 
   const run = async (change: () => Promise<void>, failure: string) => {
     setError("");
@@ -72,7 +72,7 @@ export function ProjectSettingsDialog({
 
   return (
     <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section aria-labelledby="project-settings-title" aria-modal="true" className="card-dialog settings-dialog" role="dialog">
+      <section aria-labelledby="project-settings-title" aria-modal="true" className="dialog-panel settings-dialog" role="dialog">
         <header className="dialog-header">
           <div>
             <p className="eyebrow">project settings</p>
@@ -132,7 +132,7 @@ export function ProjectSettingsDialog({
           </div>
           <p className="settings-summary">
             {!chaptersEnabled
-              ? "Group cards into named stretches of work. No points, no rollover."
+              ? "Group pages into named stretches of work. No points, no rollover."
               : current
                 ? `Open: ${current.name}${current.startsOn && current.endsOn ? ` · ${dayLabel(current.startsOn)} → ${dayLabel(current.endsOn)}` : current.endsOn ? ` · ends ${dayLabel(current.endsOn)}` : ""}`
                 : "No chapter open right now."}
@@ -140,7 +140,7 @@ export function ProjectSettingsDialog({
           {chaptersEnabled && (
             <div className="settings-row-top">
               <p className="settings-summary">
-                {chapters.length} chapter{chapters.length === 1 ? "" : "s"} · {placed} card{placed === 1 ? "" : "s"} placed
+                {chapters.length} chapter{chapters.length === 1 ? "" : "s"} · {placed} page{placed === 1 ? "" : "s"} placed
               </p>
               <button className="settings-link" onClick={onManageChapters} type="button">manage →</button>
             </div>

@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { type Card, type CardCategory, type Chapter, type Member, type ProjectCategory } from "../../shared/types";
+import { type Page, type PageCategory, type Chapter, type Member, type ProjectCategory } from "../../shared/types";
 import { categoryDisplay, categoryStyle } from "./category-style";
 import { plainTextFromMarkdown } from "./markdown-text";
 
 type Props = {
-  allCards: Card[];
+  allPages: Page[];
   busy: boolean;
-  cards: Card[];
+  pages: Page[];
   categories: ProjectCategory[];
   chapters: Chapter[];
   members: Member[];
@@ -14,37 +14,37 @@ type Props = {
   targetChapter: string | null;
   onClose: () => void;
   onMoveToNext: (id: string) => Promise<void>;
-  onOpenCard: (id: string) => void;
+  onOpenPage: (id: string) => void;
   onSetChapter: (id: string, chapter: string | null) => Promise<void>;
 };
 
 /** Which chapter a library row must belong to: any, a named one, or none yet. */
 type ChapterChoice = string | null | "unplaced";
 
-export function BacklogDialog({ allCards, busy, cards, categories, chapters, members, targetChapter, onClose, onMoveToNext, onOpenCard, onSetChapter }: Props) {
+export function BacklogDialog({ allPages, busy, pages, categories, chapters, members, targetChapter, onClose, onMoveToNext, onOpenPage, onSetChapter }: Props) {
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<CardCategory | null>(null);
+  const [category, setCategory] = useState<PageCategory | null>(null);
   const [person, setPerson] = useState<string | null>(null);
   const [blockedOnly, setBlockedOnly] = useState(false);
   const [chapterFilter, setChapterFilter] = useState<ChapterChoice>(null);
   const normalizedQuery = query.trim().toLowerCase();
   const target = chapters.find((chapter) => chapter.slug === targetChapter);
   const usedCategories = useMemo(
-    () => [...new Set(cards.map((card) => card.category).filter((value): value is CardCategory => Boolean(value)))],
-    [cards],
+    () => [...new Set(pages.map((page) => page.category).filter((value): value is PageCategory => Boolean(value)))],
+    [pages],
   );
-  const visibleCards = useMemo(
-    () => cards
-      .filter((card) => {
-        if (category && card.category !== category) return false;
-        if (person && (card.assigneeId ?? "unassigned") !== person) return false;
-        if (blockedOnly && !isBlocked(card, allCards)) return false;
-        if (chapterFilter === "unplaced" && card.chapter !== null) return false;
-        if (chapterFilter !== null && chapterFilter !== "unplaced" && card.chapter !== chapterFilter) return false;
-        return !normalizedQuery || cardText(card).includes(normalizedQuery);
+  const visiblePages = useMemo(
+    () => pages
+      .filter((page) => {
+        if (category && page.category !== category) return false;
+        if (person && (page.assigneeId ?? "unassigned") !== person) return false;
+        if (blockedOnly && !isBlocked(page, allPages)) return false;
+        if (chapterFilter === "unplaced" && page.chapter !== null) return false;
+        if (chapterFilter !== null && chapterFilter !== "unplaced" && page.chapter !== chapterFilter) return false;
+        return !normalizedQuery || pageText(page).includes(normalizedQuery);
       })
       .sort((left, right) => left.position - right.position),
-    [allCards, blockedOnly, cards, category, chapterFilter, normalizedQuery, person],
+    [allPages, blockedOnly, pages, category, chapterFilter, normalizedQuery, person],
   );
 
   useEffect(() => {
@@ -65,8 +65,8 @@ export function BacklogDialog({ allCards, busy, cards, categories, chapters, mem
             <p className="eyebrow">work library</p>
             <h2 id="backlog-dialog-title">Backlog</h2>
             <p>
-              {cards.length} accepted card{cards.length === 1 ? "" : "s"} outside the active deck
-              {target && ` · ${cards.filter((card) => card.chapter === target.slug).length} already in ${target.name}`}
+              {pages.length} accepted page{pages.length === 1 ? "" : "s"} outside the active deck
+              {target && ` · ${pages.filter((page) => page.chapter === target.slug).length} already in ${target.name}`}
             </p>
           </div>
           <button aria-label="Close backlog" className="icon-button" onClick={onClose} type="button">×</button>
@@ -131,54 +131,54 @@ export function BacklogDialog({ allCards, busy, cards, categories, chapters, mem
         </div>
 
         <div className="library-results" aria-live="polite">
-          {visibleCards.map((card) => (
-            <article className={`library-card ${card.category ? "" : "category-none"}`} key={card.id} style={categoryStyle(categories, card.category)}>
-              <button className="library-card-main" onClick={() => onOpenCard(card.id)} type="button">
-                <span className="library-card-signals">
-                  {card.category && <span className="category-pill">{categoryDisplay(categories, card.category)}</span>}
-                  {isBlocked(card, allCards) && <span className="card-blocked">blocked</span>}
+          {visiblePages.map((page) => (
+            <article className={`library-page ${page.category ? "" : "category-none"}`} key={page.id} style={categoryStyle(categories, page.category)}>
+              <button className="library-page-main" onClick={() => onOpenPage(page.id)} type="button">
+                <span className="library-page-signals">
+                  {page.category && <span className="category-pill">{categoryDisplay(categories, page.category)}</span>}
+                  {isBlocked(page, allPages) && <span className="page-blocked">blocked</span>}
                 </span>
-                <strong>{card.title}</strong>
-                {card.description && <p>{plainTextFromMarkdown(card.description)}</p>}
-                <span>{card.assigneeName ?? "unassigned"}</span>
+                <strong>{page.title}</strong>
+                {page.description && <p>{plainTextFromMarkdown(page.description)}</p>}
+                <span>{page.assigneeName ?? "unassigned"}</span>
               </button>
-              <div className="library-card-actions">
-                {/* Placing a card in a chapter leaves it in the Backlog. Committing to a
+              <div className="library-page-actions">
+                {/* Placing a page in a chapter leaves it in the Backlog. Committing to a
                     stretch and being ready to start are separate decisions, which is what
                     keeps Up Next the small set someone can pick up now. */}
                 {target && (
-                  card.chapter === target.slug ? (
+                  page.chapter === target.slug ? (
                     <button
-                      aria-label={`Remove ${card.title} from ${target.name}`}
+                      aria-label={`Remove ${page.title} from ${target.name}`}
                       className="library-chapter in"
                       disabled={busy}
-                      onClick={() => void onSetChapter(card.id, null)}
+                      onClick={() => void onSetChapter(page.id, null)}
                       type="button"
                     >in {target.name}</button>
                   ) : (
                     <button
-                      aria-label={`Add ${card.title} to ${target.name}`}
+                      aria-label={`Add ${page.title} to ${target.name}`}
                       className="library-chapter"
                       disabled={busy}
-                      onClick={() => void onSetChapter(card.id, target.slug)}
+                      onClick={() => void onSetChapter(page.id, target.slug)}
                       type="button"
                     >+ {target.name}</button>
                   )
                 )}
                 <button
-                  aria-label={`Move ${card.title} to Up Next`}
+                  aria-label={`Move ${page.title} to Up Next`}
                   className="library-promote"
                   disabled={busy}
-                  onClick={() => void onMoveToNext(card.id)}
+                  onClick={() => void onMoveToNext(page.id)}
                   type="button"
                 >up next <span aria-hidden="true">→</span></button>
               </div>
             </article>
           ))}
-          {visibleCards.length === 0 && (
+          {visiblePages.length === 0 && (
             <div className="library-empty">
-              <strong>{cards.length === 0 ? "The backlog is clear." : "No cards match these filters."}</strong>
-              <span>{cards.length === 0 ? "Capture work above whenever something earns a place here." : "Try a broader search or remove a filter."}</span>
+              <strong>{pages.length === 0 ? "The backlog is clear." : "No pages match these filters."}</strong>
+              <span>{pages.length === 0 ? "Capture work above whenever something earns a place here." : "Try a broader search or remove a filter."}</span>
             </div>
           )}
         </div>
@@ -187,10 +187,10 @@ export function BacklogDialog({ allCards, busy, cards, categories, chapters, mem
   );
 }
 
-function cardText(card: Card): string {
-  return `${card.title}\n${card.description}\n${card.category ?? "uncategorized"}\n${card.assigneeName ?? "unassigned"}`.toLowerCase();
+function pageText(page: Page): string {
+  return `${page.title}\n${page.description}\n${page.category ?? "uncategorized"}\n${page.assigneeName ?? "unassigned"}`.toLowerCase();
 }
 
-function isBlocked(card: Card, allCards: Card[]): boolean {
-  return card.blockedBy.some((id) => allCards.some((candidate) => candidate.id === id && candidate.status !== "done"));
+function isBlocked(page: Page, allPages: Page[]): boolean {
+  return page.blockedBy.some((id) => allPages.some((candidate) => candidate.id === id && candidate.status !== "done"));
 }

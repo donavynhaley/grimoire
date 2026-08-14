@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import type { AwayState, BoardWorkspace, CardStatus, IdeaState, IdeaWorkspace, SessionState, User } from "../shared/types";
+import type { AwayState, BoardWorkspace, PageStatus, IdeaState, IdeaWorkspace, SessionState, User } from "../shared/types";
 import { activity as loadActivity, ApiError, away as loadAway, board as loadBoard, editConflict, ideas as loadIdeas, liveEventsUrl, markSeen, mutate, request, session, setActiveProjectId, uploadAvatar } from "./api/client";
 import { AuthScreen } from "./components/AuthScreen";
 import { Board } from "./components/Board";
-import type { CaptureCardInput } from "./components/QuickCapture";
+import type { CapturePageInput } from "./components/QuickCapture";
 import { type UndoNotice, UndoToast } from "./components/UndoToast";
 
 type PendingUndo = UndoNotice & {
@@ -175,8 +175,8 @@ export function App() {
     }
   };
 
-  const createCard = (input: CaptureCardInput) =>
-    perform(() => mutate("/api/cards", "POST", input));
+  const createPage = (input: CapturePageInput) =>
+    perform(() => mutate("/api/pages", "POST", input));
 
   /**
    * A refused save is the editor's business, not the banner's.
@@ -201,12 +201,12 @@ export function App() {
     }
   };
 
-  const updateCard = async (id: string, input: Record<string, unknown>) => {
+  const updatePage = async (id: string, input: Record<string, unknown>) => {
     const previous = board;
-    if (previous) setBoard(applyOptimisticCardUpdate(previous, id, input));
+    if (previous) setBoard(applyOptimisticPageUpdate(previous, id, input));
     try {
       await performEdit(
-        () => mutate(`/api/cards/${id}`, "PATCH", input),
+        () => mutate(`/api/pages/${id}`, "PATCH", input),
         refreshBoard,
         "The change could not be saved",
       );
@@ -216,31 +216,31 @@ export function App() {
     }
   };
 
-  const archiveCard = async (id: string) => {
-    const title = board?.cards.find((card) => card.id === id)?.title ?? "card";
-    await perform(() => mutate(`/api/cards/${id}`, "DELETE"));
+  const archivePage = async (id: string) => {
+    const title = board?.pages.find((page) => page.id === id)?.title ?? "page";
+    await perform(() => mutate(`/api/pages/${id}`, "DELETE"));
     setUndoNotice({
       actionLabel: "Undo archive",
       id: Date.now(),
       message: `Archived ${title}`,
-      run: () => perform(() => mutate(`/api/cards/${id}/restore`, "POST")),
+      run: () => perform(() => mutate(`/api/pages/${id}/restore`, "POST")),
     });
   };
 
-  /** Brings an archived card back to its former column and place, long after the undo toast. */
-  const restoreCard = (id: string) => perform(() => mutate(`/api/cards/${id}/restore`, "POST"));
+  /** Brings an archived page back to its former column and place, long after the undo toast. */
+  const restorePage = (id: string) => perform(() => mutate(`/api/pages/${id}/restore`, "POST"));
 
   const moveBacklogToNext = async (id: string) => {
-    const card = board?.cards.find((candidate) => candidate.id === id);
-    if (!card || !board) return;
-    const previousPosition = card.position;
-    const readyPosition = board.cards.filter((candidate) => candidate.status === "ready").length;
-    await updateCard(id, { status: "ready", position: readyPosition });
+    const page = board?.pages.find((candidate) => candidate.id === id);
+    if (!page || !board) return;
+    const previousPosition = page.position;
+    const readyPosition = board.pages.filter((candidate) => candidate.status === "ready").length;
+    await updatePage(id, { status: "ready", position: readyPosition });
     setUndoNotice({
       actionLabel: "Undo move to Up Next",
       id: Date.now(),
-      message: `Moved ${card.title} to Up Next`,
-      run: () => updateCard(id, { status: "backlog", position: previousPosition }),
+      message: `Moved ${page.title} to Up Next`,
+      run: () => updatePage(id, { status: "backlog", position: previousPosition }),
     });
   };
 
@@ -419,8 +419,8 @@ export function App() {
         onChangeAvatar={changeAvatar}
         onChangePassword={changePassword}
         onRemoveAvatar={removeAvatar}
-        onArchive={archiveCard}
-        onCreate={createCard}
+        onArchive={archivePage}
+        onCreate={createPage}
         onCreateInvite={createInvite}
         onCreateIdea={createIdea}
         online={online}
@@ -430,8 +430,8 @@ export function App() {
         revision={revision}
         onPromoteIdea={promoteIdea}
         onRemoveMember={removeMember}
-        onRestoreCard={restoreCard}
-        onUpdate={updateCard}
+        onRestorePage={restorePage}
+        onUpdate={updatePage}
         onUpdateIdea={updateIdea}
         onViewChange={changeView}
         projectActions={{ select: selectProject, create: createProject, rename: renameProject, archive: archiveProject }}
@@ -446,26 +446,26 @@ export function App() {
   );
 }
 
-function applyOptimisticCardUpdate(
+function applyOptimisticPageUpdate(
   board: BoardWorkspace,
   id: string,
   input: Record<string, unknown>,
 ): BoardWorkspace {
-  const current = board.cards.find((card) => card.id === id);
+  const current = board.pages.find((page) => page.id === id);
   if (!current) return board;
-  const targetStatus = (input.status as CardStatus | undefined) ?? current.status;
+  const targetStatus = (input.status as PageStatus | undefined) ?? current.status;
   const targetPosition = typeof input.position === "number" ? input.position : current.position;
   const completedAt = targetStatus === "done"
     ? current.status === "done" ? current.completedAt : new Date().toISOString()
     : null;
   const assigneeId = input.assigneeId === undefined ? current.assigneeId : (input.assigneeId as string | null);
   const assignee = board.members.find((member) => member.id === assigneeId);
-  const remaining = board.cards.filter((card) => card.id !== id);
-  const targetCards = remaining
-    .filter((card) => card.status === targetStatus)
+  const remaining = board.pages.filter((page) => page.id !== id);
+  const targetPages = remaining
+    .filter((page) => page.status === targetStatus)
     .sort((a, b) => a.position - b.position);
-  const insertAt = Math.max(0, Math.min(targetPosition, targetCards.length));
-  targetCards.splice(insertAt, 0, {
+  const insertAt = Math.max(0, Math.min(targetPosition, targetPages.length));
+  targetPages.splice(insertAt, 0, {
     ...current,
     ...input,
     status: targetStatus,
@@ -473,11 +473,11 @@ function applyOptimisticCardUpdate(
     assigneeId,
     assigneeName: assignee?.name ?? null,
   });
-  const reordered = targetCards.map((card, position) => ({ ...card, position }));
+  const reordered = targetPages.map((page, position) => ({ ...page, position }));
   return {
     ...board,
-    cards: [
-      ...remaining.filter((card) => card.status !== targetStatus),
+    pages: [
+      ...remaining.filter((page) => page.status !== targetStatus),
       ...reordered,
     ],
   };

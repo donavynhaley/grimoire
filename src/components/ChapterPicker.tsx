@@ -1,18 +1,18 @@
 import { useEffect, useRef, useState } from "react";
-import type { Card, Chapter } from "../../shared/types";
+import type { Page, Chapter } from "../../shared/types";
 import { chapterWhen } from "./chapter-dates";
 
 /**
- * What the board is narrowed to: every card, one chapter, or the cards nobody has placed.
+ * What the board is narrowed to: every page, one chapter, or the pages nobody has placed.
  * `null` means all work, which is always reachable so the picker can never hide the project.
  */
 export type ChapterFilter = string | null;
 
-/** The value the URL uses for "cards belonging to no chapter". */
+/** The value the URL uses for "pages belonging to no chapter". */
 export const NO_CHAPTER = "none";
 
 type Props = {
-  cards: Card[];
+  pages: Page[];
   chapters: Chapter[];
   isOwner: boolean;
   onChange: (value: ChapterFilter) => void;
@@ -21,7 +21,7 @@ type Props = {
 };
 
 
-export function ChapterPicker({ cards, chapters, isOwner, onChange, onManage, value }: Props) {
+export function ChapterPicker({ pages, chapters, isOwner, onChange, onManage, value }: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const selected = value === null || value === NO_CHAPTER
@@ -37,14 +37,14 @@ export function ChapterPicker({ cards, chapters, isOwner, onChange, onManage, va
     return () => document.removeEventListener("mousedown", closeOnOutside);
   }, [open]);
 
-  const countIn = (slug: string) => cards.filter((card) => card.chapter === slug).length;
-  const unplaced = cards.filter((card) => card.chapter === null).length;
+  const countIn = (slug: string) => pages.filter((page) => page.chapter === slug).length;
+  const unplaced = pages.filter((page) => page.chapter === null).length;
   const planned = chapters.filter((chapter) => chapter.state === "planned");
   const closed = chapters.filter((chapter) => chapter.state === "closed");
   const current = chapters.find((chapter) => chapter.state === "open");
 
   const label = value === NO_CHAPTER ? "No chapter" : selected?.name ?? "All work";
-  const when = value === NO_CHAPTER ? `${unplaced} unplaced` : selected ? chapterWhen(selected) : `${cards.length} cards`;
+  const when = value === NO_CHAPTER ? `${unplaced} unplaced` : selected ? chapterWhen(selected) : `${pages.length} pages`;
 
   const choose = (next: ChapterFilter) => {
     onChange(next);
@@ -82,7 +82,7 @@ export function ChapterPicker({ cards, chapters, isOwner, onChange, onManage, va
       </button>
       {open && (
         <div aria-label="Chapters" className="chapter-panel" role="menu">
-          {option("all", "All work", `${chapters.length} chapter${chapters.length === 1 ? "" : "s"}`, cards.length, null, false)}
+          {option("all", "All work", `${chapters.length} chapter${chapters.length === 1 ? "" : "s"}`, pages.length, null, false)}
           {current && (
             <>
               <p className="chapter-group-label">current</p>

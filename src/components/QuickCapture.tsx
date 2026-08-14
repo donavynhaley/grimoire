@@ -1,15 +1,15 @@
 import { type ChangeEvent, type FormEvent, type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
-import { type CardCategory, type CardStatus, type Chapter, type Member, type ProjectCategory } from "../../shared/types";
+import { type PageCategory, type PageStatus, type Chapter, type Member, type ProjectCategory } from "../../shared/types";
 
-export type CaptureCardInput = {
+export type CapturePageInput = {
   title: string;
-  category: CardCategory | null;
+  category: PageCategory | null;
   chapter: string | null;
   assigneeId: string | null;
-  status: CardStatus;
+  status: PageStatus;
 };
 
-type CaptureSettings = Omit<CaptureCardInput, "title">;
+type CaptureSettings = Omit<CapturePageInput, "title">;
 type PickerKind = "category" | "chapter" | "assignee" | "status";
 type PickerState = {
   kind: PickerKind;
@@ -30,7 +30,7 @@ type Props = {
   /** Empty when the project has not enabled chapters, which hides the control entirely. */
   chapters: Chapter[];
   members: Member[];
-  onCreate: (input: CaptureCardInput) => Promise<void>;
+  onCreate: (input: CapturePageInput) => Promise<void>;
 };
 
 const DEFAULT_SETTINGS: CaptureSettings = {
@@ -40,7 +40,7 @@ const DEFAULT_SETTINGS: CaptureSettings = {
   status: "backlog",
 };
 
-const statusLabels: Partial<Record<CardStatus, string>> = {
+const statusLabels: Partial<Record<PageStatus, string>> = {
   backlog: "Backlog",
   ready: "Up Next",
   in_progress: "In progress",
@@ -94,10 +94,10 @@ export function QuickCapture({ busy, categories, chapters, members, onCreate }: 
   const choose = (option: PickerOption) => {
     if (!picker) return;
     setSettings((current) => {
-      if (picker.kind === "category") return { ...current, category: option.value as CardCategory | null };
+      if (picker.kind === "category") return { ...current, category: option.value as PageCategory | null };
       if (picker.kind === "chapter") return { ...current, chapter: option.value };
       if (picker.kind === "assignee") return { ...current, assigneeId: option.value };
-      return { ...current, status: (option.value ?? "backlog") as CardStatus };
+      return { ...current, status: (option.value ?? "backlog") as PageStatus };
     });
     if (picker.commandStart !== null) {
       setTitle((current) => current.slice(0, picker.commandStart!).trimEnd());
@@ -158,7 +158,7 @@ export function QuickCapture({ busy, categories, chapters, members, onCreate }: 
       }}
       onSubmit={(event) => void submit(event)}
     >
-      <label className="sr-only" htmlFor="quick-card">Capture work card</label>
+      <label className="sr-only" htmlFor="quick-page">Capture work page</label>
       <input
         aria-activedescendant={picker && visibleOptions.length ? `capture-option-${visibleOptions[Math.min(highlighted, visibleOptions.length - 1)].id}` : undefined}
         aria-controls={picker ? "capture-options" : undefined}
@@ -166,15 +166,15 @@ export function QuickCapture({ busy, categories, chapters, members, onCreate }: 
         aria-haspopup="listbox"
         autoComplete="off"
         autoFocus
-        id="quick-card"
-        name="quickCard"
+        id="quick-page"
+        name="quickPage"
         onChange={changeTitle}
         onKeyDown={handleInputKeyDown}
         placeholder="Capture work..."
         ref={inputRef}
         value={title}
       />
-      <button className="primary-button" disabled={busy || !title.trim() || Boolean(picker)} type="submit">add card</button>
+      <button className="primary-button" disabled={busy || !title.trim() || Boolean(picker)} type="submit">add page</button>
 
       {(showTools || recent) && (
         <div className="capture-toolbar">

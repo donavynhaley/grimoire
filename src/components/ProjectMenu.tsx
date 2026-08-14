@@ -104,7 +104,7 @@ export function ProjectMenu({ project, projects, isOwner, busy, actions, onOpenS
           </div>
           {isOwner && (
             <div className="project-menu-owner">
-              {/* Collapsed behind a reveal, the way every column's "+ add card" already works. */}
+              {/* Collapsed behind a reveal, the way every column's "+ add page" already works. */}
               {creating ? (
                 <form className="project-menu-create" onSubmit={submitNewProject}>
                   <label className="sr-only" htmlFor="new-project-name">New project name</label>

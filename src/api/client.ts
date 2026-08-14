@@ -71,7 +71,7 @@ export function activity(options: { entityId?: string; before?: number; limit?: 
   return request<AuditPage>(`/api/activity${params.size ? `?${params}` : ""}`);
 }
 
-/** Searches the whole project - every column, the idea garden, and archived cards. */
+/** Searches the whole project - every column, the idea garden, and archived pages. */
 export function search(query: string, signal?: AbortSignal): Promise<SearchResults> {
   return request<SearchResults>(`/api/search?q=${encodeURIComponent(query)}`, { signal });
 }
