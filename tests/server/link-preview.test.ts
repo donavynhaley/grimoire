@@ -51,6 +51,34 @@ describe("link previews", () => {
     expect(html).not.toContain("focused collaborative kanban board");
   });
 
+  it("names the chapter a card belongs to", async () => {
+    const server = await startShellServer();
+    await bootstrap(server);
+    const board = (await server.request<{ project: { id: string } }>("/api/board")).body;
+    await server.request(`/api/projects/${board.project.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ chaptersEnabled: true }),
+    });
+    await server.request("/api/chapters", {
+      method: "POST",
+      body: JSON.stringify({ name: "First Brew", state: "open" }),
+    });
+    const card = await server.request<{ card: Card }>("/api/cards", {
+      method: "POST",
+      body: JSON.stringify({
+        title: "Model the potion workbench",
+        category: "modeling",
+        chapter: "first-brew",
+        status: "in_progress",
+      }),
+    });
+
+    const html = await unfurl(server, `/?card=${card.body.card.id}`);
+
+    // Enough to recognise the card, which is the same boundary the rest of the preview holds.
+    expect(html).toContain('<meta property="og:description" content="In progress · Modeling · First Brew" />');
+  });
+
   it("names the assignee and flags blocked and archived cards", async () => {
     const server = await startShellServer();
     await bootstrap(server);

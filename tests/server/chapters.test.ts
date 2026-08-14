@@ -416,6 +416,38 @@ describe("chapters", () => {
   });
 });
 
+describe("where a chaptered card turns up", () => {
+  it("names the chapter beside the column in a search result", async () => {
+    const server = await startTestServer();
+    await bootstrap(server);
+    await enableChapters(server);
+    await createChapter(server, { name: "First Brew", state: "open" });
+    await createCard(server, { title: "Brew a potion", chapter: "first-brew", status: "in_progress" });
+    await createCard(server, { title: "Brew nothing", status: "in_progress" });
+
+    const found = await server.request<{ hits: Array<{ title: string; where: string }> }>(
+      "/api/search?q=brew",
+    );
+    const wheres = Object.fromEntries(found.body.hits.map((hit) => [hit.title, hit.where]));
+
+    expect(wheres["Brew a potion"]).toBe("In progress · First Brew");
+    // A card in no chapter still reads exactly as it did before.
+    expect(wheres["Brew nothing"]).toBe("In progress");
+  });
+
+  it("leaves search alone for a project with the gate off", async () => {
+    const server = await startTestServer();
+    await bootstrap(server);
+    await enableChapters(server);
+    await createChapter(server, { name: "First Brew", state: "open" });
+    await createCard(server, { title: "Brew a potion", chapter: "first-brew", status: "in_progress" });
+    await enableChapters(server, false);
+
+    const found = await server.request<{ hits: Array<{ where: string }> }>("/api/search?q=brew");
+    expect(found.body.hits[0].where).toBe("In progress");
+  });
+});
+
 describe("the rollback script", () => {
   it("makes every card readable again by a build that predates chapters", async () => {
     const server = await startTestServer();
