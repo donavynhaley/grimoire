@@ -840,6 +840,35 @@ describe("Grimoire board", () => {
     );
   });
 
+  it("changes the display name from account settings and shows it everywhere", async () => {
+    const initial = boardFixture();
+    const renamed = { ...initial.currentUser, name: "Dono" };
+    const updated = {
+      ...initial,
+      currentUser: renamed,
+      members: initial.members.map((member) => (member.id === renamed.id ? { ...member, name: "Dono" } : member)),
+    };
+    const fetchMock = authenticatedFetch(initial)
+      .mockImplementationOnce(() => response({ user: renamed }))
+      .mockImplementationOnce(() => response(updated));
+    stubFetch(fetchMock);
+
+    render(<App />);
+    await userEvent.click(await screen.findByRole("button", { name: /open account settings/i }));
+
+    const field = screen.getByLabelText("Display name");
+    await userEvent.clear(field);
+    await userEvent.type(field, "Dono");
+    await userEvent.click(screen.getByRole("button", { name: "save name" }));
+
+    await waitFor(() => expect(screen.getByText("name updated")).toBeInTheDocument());
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/account/name",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ name: "Dono" }) }),
+    );
+    expect(await screen.findByRole("button", { name: /open account settings for Dono/i })).toBeInTheDocument();
+  });
+
   it("lets the owner remove a member from the team dialog", async () => {
     const initial = boardFixture();
     const removedMember = initial.members[1];
@@ -1055,6 +1084,11 @@ describe("Grimoire board", () => {
     render(<App />);
     const maren = await screen.findByRole("button", { name: "Filter by Maren" });
     expect(maren.querySelector(".avatar")).not.toHaveClass("online");
+
+    // The stream is opened by an effect, which can flush after the board has painted. Firing
+    // presence before the listener exists throws, so wait for the subscription itself rather
+    // than treating the drawn board as proof of it.
+    await waitFor(() => expect(presenceListener).not.toBeNull());
 
     act(() => {
       presenceListener!(new MessageEvent("presence", {

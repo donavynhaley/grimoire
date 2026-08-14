@@ -122,6 +122,8 @@ const passwordChangeSchema = z
     path: ["newPassword"],
   });
 
+const displayNameSchema = accountSchema.pick({ name: true });
+
 const pageStatus = z.enum(["backlog", "ready", "in_progress", "review", "done"]);
 const categorySlug = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(40);
 const chapterSlug = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(60);
@@ -359,6 +361,17 @@ export function createGrimoireServer(options: Options) {
         throw error;
       }
       json(response, 200, { ok: true });
+      return;
+    }
+
+    if (method === "POST" && url.pathname === "/api/account/name") {
+      const user = requireUser(context);
+      const input = displayNameSchema.parse(await readJson(request));
+      database.prepare("UPDATE users SET name = ? WHERE id = ?").run(input.name, user.id);
+      const updated = withAvatar(publicUser(findUserById(database, user.id)!));
+      json(response, 200, { user: updated });
+      // Names are joined in at read time, so every card byline, idea, and member face is stale.
+      broadcast(requireProject(context, user), "both", requestClientId(request));
       return;
     }
 
