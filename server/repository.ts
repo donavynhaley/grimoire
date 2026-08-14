@@ -786,10 +786,14 @@ export function requireUnchangedContent(
   current: unknown,
   noun: "page" | "idea" | "chapter",
 ): void {
-  if (input.expectedTitle !== undefined && stored.title !== input.expectedTitle) {
+  // Expectations arrive trimmed by the request schema, while a body hand-edited on disk may
+  // carry margins the schema never saw. Comparing trimmed to trimmed keeps the check about
+  // what the words are rather than their whitespace - otherwise a page with a padded body
+  // would refuse every rewrite forever, because no trimmed expectation could ever match it.
+  if (input.expectedTitle !== undefined && stored.title.trim() !== input.expectedTitle.trim()) {
     throw new EditConflictError(`This ${noun}'s title changed while you were editing it`, "title", current);
   }
-  if (input.expectedDescription !== undefined && stored.description !== input.expectedDescription) {
+  if (input.expectedDescription !== undefined && stored.description.trim() !== input.expectedDescription.trim()) {
     throw new EditConflictError("These notes changed while you were writing", "description", current);
   }
 }

@@ -21,12 +21,57 @@ function auditEventsTable(name: string): string {
   entity_title TEXT NOT NULL,
   action TEXT NOT NULL,
   changes TEXT NOT NULL DEFAULT '[]',
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  agent_token_id TEXT REFERENCES agent_tokens(id)
 );`;
 }
 
+/**
+ * Every column the rebuild carries across, named explicitly.
+ *
+ * A rebuild that listed fewer columns than the table has would silently drop the rest, so
+ * anything added to `auditEventsTable` has to be added here in the same change.
+ */
+const AUDIT_EVENT_COLUMNS = [
+  "sequence",
+  "id",
+  "project_id",
+  "actor_id",
+  "actor_name",
+  "entity_type",
+  "entity_id",
+  "entity_title",
+  "action",
+  "changes",
+  "created_at",
+  "agent_token_id",
+] as const;
+
 const auditEventsIndexes = `CREATE INDEX IF NOT EXISTS idx_audit_project ON audit_events(project_id, sequence DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_events(project_id, entity_id, sequence DESC);`;
+
+/**
+ * A credential that lets something without a browser act inside one project.
+ *
+ * It belongs to a person as well as a project, and every write it makes is attributed to
+ * that person: a token is a delegation, not a second kind of account. Only the hash is
+ * stored, exactly as sessions and invitations do it.
+ *
+ * Revoking sets `revoked_at` rather than deleting the row, so `audit_events.agent_token_id`
+ * keeps resolving and a retired agent's history still says which agent wrote it.
+ */
+const agentTokensTable = `CREATE TABLE IF NOT EXISTS agent_tokens (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  scope TEXT NOT NULL CHECK (scope IN ('read', 'write')),
+  created_at TEXT NOT NULL,
+  last_used_at TEXT,
+  expires_at TEXT,
+  revoked_at TEXT
+);`;
 
 export const DEFAULT_PROJECT_CATEGORIES: Array<{ slug: string; name: string; color: string }> = [
   { slug: "design", name: "Design", color: "#d6bc78" },
@@ -121,6 +166,20 @@ function migrate(database: DatabaseSync): void {
     database.exec("ALTER TABLE projects ADD COLUMN chapters_enabled INTEGER NOT NULL DEFAULT 0");
   }
 
+  // Agent access is additive in both directions: an older build simply never reads these,
+  // and a database that predates them gains an empty table and a null column.
+  //
+  // Both run before the rebuild below, because the rebuilt `audit_events` references
+  // `agent_tokens` and ends with a foreign key check that a missing table would fail.
+  database.exec(agentTokensTable);
+
+  // Nullable, so this is a plain ADD COLUMN and needs none of the rebuild machinery below.
+  // It carries which agent wrote an event, because the actor name cannot: reads prefer the
+  // live account name, so a label folded into that snapshot would never be displayed.
+  if (!tableColumns(database, "audit_events").includes("agent_token_id")) {
+    database.exec("ALTER TABLE audit_events ADD COLUMN agent_token_id TEXT REFERENCES agent_tokens(id)");
+  }
+
   widenAuditEntityTypes(database);
 
   const inviteColumns = tableColumns(database, "invites");
@@ -189,12 +248,16 @@ function widenAuditEntityTypes(database: DatabaseSync): void {
   database.exec("BEGIN IMMEDIATE");
   try {
     database.exec(auditEventsTable("audit_events_rebuild"));
+    // The source may predate a column the rebuilt table has, so anything missing is selected
+    // as NULL rather than named blindly, which would fail the copy on an older database.
+    const present = new Set(tableColumns(database, "audit_events"));
+    const selected = AUDIT_EVENT_COLUMNS.map((column) => {
+      if (column === "entity_type") return "CASE entity_type WHEN 'card' THEN 'page' ELSE entity_type END";
+      return present.has(column) ? column : "NULL";
+    });
     database.exec(
-      `INSERT INTO audit_events_rebuild
-         (sequence, id, project_id, actor_id, actor_name, entity_type, entity_id, entity_title, action, changes, created_at)
-       SELECT sequence, id, project_id, actor_id, actor_name,
-              CASE entity_type WHEN 'card' THEN 'page' ELSE entity_type END,
-              entity_id, entity_title, action, changes, created_at
+      `INSERT INTO audit_events_rebuild (${AUDIT_EVENT_COLUMNS.join(", ")})
+       SELECT ${selected.join(", ")}
        FROM audit_events`,
     );
     database.exec("DROP TABLE audit_events");
@@ -321,6 +384,8 @@ CREATE TABLE IF NOT EXISTS seen_cursors (
   updated_at TEXT NOT NULL,
   PRIMARY KEY (project_id, user_id)
 );
+
+${agentTokensTable}
 
 CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token_hash);
 CREATE INDEX IF NOT EXISTS idx_cards_board ON cards(project_id, status, position) WHERE archived_at IS NULL;

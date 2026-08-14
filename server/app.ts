@@ -44,6 +44,15 @@ import {
   userCount,
 } from "./repository";
 import { createOpaqueToken, hashPassword, hashToken, verifyPassword } from "./security";
+import {
+  AgentRateLimiter,
+  agentForToken,
+  issueAgentToken,
+  listAgentTokens,
+  revokeAgentToken,
+  touchAgentToken,
+  type AgentIdentity,
+} from "./agent-tokens";
 import { AVATAR_SIZE_LIMIT, AvatarStore, sniffAvatarType } from "./avatars";
 import { IMAGE_SIZE_LIMIT, ProjectImageStore, sniffImageType } from "./project-images";
 import { MarkdownPageStore } from "./markdown-pages";
@@ -85,6 +94,8 @@ type RequestContext = {
   url: URL;
   user: User | null;
   sessionToken: string | null;
+  /** Set when a bearer token answered instead of a browser session. */
+  agent: AgentIdentity | null;
 };
 
 type WorkspaceScope = "work" | "ideas" | "both";
@@ -203,6 +214,46 @@ const ALREADY_OPEN_MESSAGE = "Another chapter is already open. Close it before o
 /** Omitting the sequence means "advance to whatever is newest right now". */
 const seenSchema = z.object({ sequence: z.number().int().min(0).optional() }).strict();
 
+const AGENT_PAGE_PATH = /^\/api\/pages\/[^/]+$/;
+const AGENT_IDEA_PATH = /^\/api\/ideas\/[^/]+$/;
+
+/**
+ * Whether an agent token may use a route at all, and whether doing so is a write.
+ *
+ * The rule the list encodes: an agent may add and refine, and only a person may destroy or
+ * restructure. So creating and editing pages and ideas is open, while archiving, restoring,
+ * promoting an idea, and anything that reshapes the project - chapters, categories, members,
+ * invitations, the project itself - is closed no matter how the token is scoped. Archiving
+ * is the sharpest of those: its undo is eight seconds long and built for a person who just
+ * clicked, so an agent that archived thirty pages would leave no path anyone would find.
+ *
+ * Account routes are closed because a delegated credential must not be able to escalate into
+ * the identity it borrows. The event stream is closed because presence is derived from open
+ * streams, and an agent holding one would appear to be a teammate sitting in the project.
+ *
+ * `null` means refuse. Reads are unmetered; writes are charged against the rate limit.
+ */
+function agentMayReach(method: string, pathname: string): "read" | "write" | null {
+  if (method === "GET") {
+    if (pathname === "/api/health" || pathname === "/api/session") return "read";
+    if (pathname === "/api/board" || pathname === "/api/search" || pathname === "/api/ideas") return "read";
+    // The activity log is owner-only, and the route enforces that against the person the
+    // token acts as. A token therefore never reads more than its issuer already could.
+    if (pathname === "/api/activity") return "read";
+    return null;
+  }
+  if (method === "POST" && (pathname === "/api/pages" || pathname === "/api/ideas")) return "write";
+  if (method === "PATCH" && (AGENT_PAGE_PATH.test(pathname) || AGENT_IDEA_PATH.test(pathname))) return "write";
+  return null;
+}
+
+const agentTokenCreateSchema = z.object({
+  name: z.string().trim().min(1).max(60),
+  scope: z.enum(["read", "write"]),
+  /** Optional, because an agent that runs indefinitely is a legitimate thing to want. */
+  expiresAt: z.string().datetime().nullable().optional(),
+});
+
 export function createGrimoireServer(options: Options) {
   const database = openDatabase(options.databasePath);
   const pageStore = new MarkdownPageStore(options.pagesDirectory ?? join(dirname(options.databasePath), "pages"));
@@ -220,6 +271,9 @@ export function createGrimoireServer(options: Options) {
   pageStore.migrateLegacyPages(database);
   let databaseClosed = false;
   const eventClients = new Set<EventClient>();
+  // Per-token write allowance. In memory on purpose: it guards this process against a
+  // runaway loop, and persisting it would mean a write on every request to limit writes.
+  const writeLimiter = new AgentRateLimiter();
 
   const server = createServer((request, response) => {
     void handle(request, response).catch((error) => {
@@ -250,8 +304,19 @@ export function createGrimoireServer(options: Options) {
     applySecurityHeaders(response);
     const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
     const sessionToken = readCookie(request, SESSION_COOKIE);
-    const user = sessionToken ? userForSession(sessionToken) : null;
-    const context: RequestContext = { request, response, url, user, sessionToken };
+    const session = sessionToken ? userForSession(sessionToken) : null;
+    // A bearer token is only consulted when no browser session answered, so a signed-in tab
+    // can never be silently re-attributed to an agent, and a person who happens to hold a
+    // token stays a person for as long as they are logged in.
+    const agent = session ? null : agentForBearer(request);
+    const context: RequestContext = {
+      request,
+      response,
+      url,
+      user: session ?? agent?.user ?? null,
+      sessionToken,
+      agent,
+    };
 
     if (url.pathname.startsWith("/api/")) {
       await handleApi(context);
@@ -281,6 +346,20 @@ export function createGrimoireServer(options: Options) {
       url.pathname = `/api/pages${url.pathname.slice("/api/cards".length)}`;
     }
 
+    // What an agent may reach is an allow list rather than a set of refusals scattered
+    // through the routes below, so a route added later is closed to agents until someone
+    // decides otherwise. Forgetting to open a route is a bug report; forgetting to close
+    // one would be a hole.
+    if (context.agent) {
+      const permitted = agentMayReach(method, url.pathname);
+      if (!permitted) throw new HttpError(403, "An agent token cannot use this route");
+      if (permitted === "write") requireAgentWrite(context);
+      // Any permitted request counts as use, reads included. "Last used" is the signal an
+      // owner reads to decide a credential is safe to revoke, and a read-only agent that
+      // works all day but lists as never used would invite exactly the wrong revocation.
+      touchAgentToken(database, context.agent.tokenId);
+    }
+
     if (method === "GET" && url.pathname === "/api/health") {
       json(response, 200, { ok: true });
       return;
@@ -289,7 +368,15 @@ export function createGrimoireServer(options: Options) {
     if (method === "GET" && url.pathname === "/api/session") {
       if (userCount(database) === 0) json(response, 200, { status: "setup_required" });
       else if (!context.user) json(response, 200, { status: "anonymous" });
-      else json(response, 200, { status: "authenticated", user: withAvatar(context.user) });
+      else {
+        json(response, 200, {
+          status: "authenticated",
+          user: withAvatar(context.user),
+          // Tells a credential what it is, so an agent client can shape its own surface -
+          // a read-only agent that knows its scope never offers itself a write tool.
+          ...(context.agent ? { agent: { name: context.agent.name, scope: context.agent.scope } } : {}),
+        });
+      }
       return;
     }
 
@@ -311,8 +398,8 @@ export function createGrimoireServer(options: Options) {
         throw error;
       }
       const user = withAvatar(publicUser(findUserById(database, userId)!));
-      audit(user, { projectId, entityType: "project", entityId: projectId, entityTitle: "Wizard Simulator", action: "created" });
-      audit(user, { projectId, entityType: "member", entityId: userId, entityTitle: user.name, action: "joined" });
+      auditAs(user, { projectId, entityType: "project", entityId: projectId, entityTitle: "Wizard Simulator", action: "created" });
+      auditAs(user, { projectId, entityType: "member", entityId: userId, entityTitle: user.name, action: "joined" });
       setSession(response, userId);
       json(response, 201, { user });
       return;
@@ -475,7 +562,7 @@ export function createGrimoireServer(options: Options) {
         throw error;
       }
       const user = withAvatar(publicUser(findUserById(database, userId)!));
-      audit(user, { projectId, entityType: "member", entityId: userId, entityTitle: user.name, action: "joined" });
+      auditAs(user, { projectId, entityType: "member", entityId: userId, entityTitle: user.name, action: "joined" });
       setSession(response, userId);
       json(response, 201, { user });
       broadcast(projectId, "work", null);
@@ -505,7 +592,7 @@ export function createGrimoireServer(options: Options) {
         database.exec("ROLLBACK");
         throw error;
       }
-      audit(user, { projectId, entityType: "member", entityId: null, entityTitle: "invitation link", action: "invited" });
+      audit(context, { projectId, entityType: "member", entityId: null, entityTitle: "invitation link", action: "invited" });
       json(response, 201, { code, expiresAt: expires.toISOString() });
       return;
     }
@@ -521,7 +608,7 @@ export function createGrimoireServer(options: Options) {
       if (user.role !== "owner") throw new HttpError(403, "Only the owner can create projects");
       const input = projectSchema.parse(await readJson(request));
       const projectId = createProject(database, user.id, input.name);
-      audit(user, { projectId, entityType: "project", entityId: projectId, entityTitle: input.name, action: "created" });
+      audit(context, { projectId, entityType: "project", entityId: projectId, entityTitle: input.name, action: "created" });
       json(response, 201, { project: { id: projectId, name: input.name } });
       return;
     }
@@ -557,7 +644,7 @@ export function createGrimoireServer(options: Options) {
 
       const name = input.name ?? previousName;
       if (changes.length > 0) {
-        audit(user, {
+        audit(context, {
           projectId,
           entityType: "project",
           entityId: projectId,
@@ -581,7 +668,7 @@ export function createGrimoireServer(options: Options) {
       const result = archiveProject(database, projectMatch[1]);
       if (result === "not_found") throw new HttpError(404, "Project not found");
       if (result === "last_project") throw new HttpError(409, "The last project cannot be archived");
-      audit(user, {
+      audit(context, {
         projectId: projectMatch[1],
         entityType: "project",
         entityId: projectMatch[1],
@@ -593,6 +680,66 @@ export function createGrimoireServer(options: Options) {
       return;
     }
 
+    // Agent access. Issuing a credential is the owner deciding something may write on their
+    // behalf, so an agent can never reach these at all: a token that could mint another
+    // token would make revocation meaningless.
+    if (method === "GET" && url.pathname === "/api/agent-tokens") {
+      const user = requireUser(context);
+      if (user.role !== "owner") throw new HttpError(403, "Only the owner can manage agent access");
+      json(response, 200, { tokens: listAgentTokens(database, requireProject(context, user)) });
+      return;
+    }
+
+    if (method === "POST" && url.pathname === "/api/agent-tokens") {
+      const user = requireUser(context);
+      if (user.role !== "owner") throw new HttpError(403, "Only the owner can manage agent access");
+      const projectId = requireProject(context, user);
+      const input = agentTokenCreateSchema.parse(await readJson(request));
+      const issued = issueAgentToken(database, {
+        projectId,
+        userId: user.id,
+        name: input.name,
+        scope: input.scope,
+        expiresAt: input.expiresAt ?? null,
+      });
+      if (!issued) throw new HttpError(404, "Project not found");
+      // Recorded as its own entity type: borrowing "project" here would make the digest
+      // tell every member the owner created or removed a project, which is exactly the
+      // alarming-and-untrue phrasing the digest copy was written to avoid.
+      audit(context, {
+        projectId,
+        entityType: "agent",
+        entityId: issued.token.id,
+        entityTitle: input.name,
+        action: "created",
+        changes: [{ field: "scope", from: null, to: input.scope === "write" ? "read and write" : "read only" }],
+      });
+      // The only time the secret leaves the server. Nothing stores it but the holder.
+      json(response, 201, { token: issued.token, secret: issued.secret });
+      return;
+    }
+
+    const agentTokenMatch = url.pathname.match(/^\/api\/agent-tokens\/([^/]+)$/);
+    if (method === "DELETE" && agentTokenMatch) {
+      const user = requireUser(context);
+      if (user.role !== "owner") throw new HttpError(403, "Only the owner can manage agent access");
+      const projectId = requireProject(context, user);
+      const revoked = listAgentTokens(database, projectId).find((token) => token.id === agentTokenMatch[1]);
+      if (!revokeAgentToken(database, projectId, agentTokenMatch[1])) {
+        throw new HttpError(404, "Agent token not found");
+      }
+      writeLimiter.forget(agentTokenMatch[1]);
+      audit(context, {
+        projectId,
+        entityType: "agent",
+        entityId: agentTokenMatch[1],
+        entityTitle: revoked?.name ?? "an agent",
+        action: "removed",
+      });
+      json(response, 200, { ok: true });
+      return;
+    }
+
     if (method === "POST" && url.pathname === "/api/categories") {
       const user = requireUser(context);
       if (user.role !== "owner") throw new HttpError(403, "Only the owner can manage categories");
@@ -601,7 +748,7 @@ export function createGrimoireServer(options: Options) {
       const result = createCategory(database, projectId, input);
       if (result === "invalid_name") throw new HttpError(400, "The category needs a name with letters or numbers");
       if (result === "exists") throw new HttpError(409, "A category with this name already exists");
-      audit(user, {
+      audit(context, {
         projectId,
         entityType: "category",
         entityId: result.category.slug,
@@ -629,7 +776,7 @@ export function createGrimoireServer(options: Options) {
         ]
         : [];
       if (categoryEdits.length > 0) {
-        audit(user, {
+        audit(context, {
           projectId,
           entityType: "category",
           entityId: category.slug,
@@ -651,7 +798,7 @@ export function createGrimoireServer(options: Options) {
       if (!deleteCategory(database, pageStore, projectId, categoryMatch[1])) {
         throw new HttpError(404, "Category not found");
       }
-      audit(user, {
+      audit(context, {
         projectId,
         entityType: "category",
         entityId: categoryMatch[1],
@@ -674,7 +821,7 @@ export function createGrimoireServer(options: Options) {
       if (result === "invalid_name") throw new HttpError(400, "The chapter needs a name with letters or numbers");
       if (result === "exists") throw new HttpError(409, "A chapter with this name already exists");
       if (result === "already_open") throw new HttpError(409, ALREADY_OPEN_MESSAGE);
-      audit(user, {
+      audit(context, {
         projectId,
         entityType: "chapter",
         entityId: result.chapter.slug,
@@ -702,7 +849,7 @@ export function createGrimoireServer(options: Options) {
       if (result === "already_open") throw new HttpError(409, ALREADY_OPEN_MESSAGE);
       const changes = before ? chapterChanges(before, result.chapter) : [];
       if (changes.length > 0) {
-        audit(user, {
+        audit(context, {
           projectId,
           entityType: "chapter",
           entityId: result.chapter.slug,
@@ -727,7 +874,7 @@ export function createGrimoireServer(options: Options) {
       if (!deleteChapter(database, pageStore, chapterStore, projectId, chapterMatch[1])) {
         throw new HttpError(404, "Chapter not found");
       }
-      audit(user, {
+      audit(context, {
         projectId,
         entityType: "chapter",
         entityId: chapterMatch[1],
@@ -750,7 +897,7 @@ export function createGrimoireServer(options: Options) {
       const result = removeProjectMember(database, pageStore, projectId, memberMatch[1]);
       if (result === "owner") throw new HttpError(409, "The project owner cannot be removed");
       if (result === "not_found") throw new HttpError(404, "Member not found");
-      audit(user, {
+      audit(context, {
         projectId,
         entityType: "member",
         entityId: memberMatch[1],
@@ -841,6 +988,12 @@ export function createGrimoireServer(options: Options) {
       if (!board) throw new HttpError(404, "Board not found");
       json(response, 200, {
         ...board,
+        // The project list exists for the switcher, and a token cannot switch. Sending the
+        // issuer's other projects to a credential pinned to one of them would name things
+        // the credential has no business knowing exist.
+        projects: context.agent
+          ? board.projects.filter((candidate) => candidate.id === board.project.id)
+          : board.projects,
         currentUser: withAvatar(board.currentUser),
         members: board.members.map(withAvatar),
       });
@@ -862,7 +1015,7 @@ export function createGrimoireServer(options: Options) {
       if (input.chapter) requireChaptersEnabled(projectId);
       const page = createPage(database, pageStore, chapterStore, projectId, user.id, input);
       if (!page) throw new HttpError(400, "Assignee is not a member of this board");
-      audit(user, {
+      audit(context, {
         projectId,
         entityType: "page",
         entityId: page.id,
@@ -894,7 +1047,7 @@ export function createGrimoireServer(options: Options) {
         ideaSchema.parse(await readJson(request)),
       );
       if (!idea) throw new HttpError(404, "Idea garden not found");
-      audit(user, { projectId, entityType: "idea", entityId: idea.id, entityTitle: idea.title, action: "created" });
+      audit(context, { projectId, entityType: "idea", entityId: idea.id, entityTitle: idea.title, action: "created" });
       json(response, 201, { idea });
       broadcast(projectId, "ideas", requestClientId(request));
       return;
@@ -916,7 +1069,7 @@ export function createGrimoireServer(options: Options) {
         promotionMatch[1],
       );
       if (!page) throw new HttpError(404, "Idea not found");
-      audit(user, {
+      audit(context, {
         projectId,
         entityType: "idea",
         entityId: promotionMatch[1],
@@ -924,7 +1077,7 @@ export function createGrimoireServer(options: Options) {
         action: "promoted",
         changes: [{ field: "became a page", from: null, to: page.title }],
       });
-      audit(user, {
+      audit(context, {
         projectId,
         entityType: "page",
         entityId: page.id,
@@ -943,7 +1096,7 @@ export function createGrimoireServer(options: Options) {
       const projectId = requireProject(context, user);
       const idea = undoPromotion(database, pageStore, ideaStore, projectId, promotionUndoMatch[1]);
       if (!idea) throw new HttpError(404, "Promoted idea not found");
-      audit(user, { projectId, entityType: "idea", entityId: idea.id, entityTitle: idea.title, action: "restored" });
+      audit(context, { projectId, entityType: "idea", entityId: idea.id, entityTitle: idea.title, action: "restored" });
       json(response, 200, { idea });
       broadcast(projectId, "both", requestClientId(request));
       return;
@@ -967,7 +1120,7 @@ export function createGrimoireServer(options: Options) {
         const action = changeAction(changes);
         // Reranking the shortlist changes nothing a reader would look for.
         if (action) {
-          audit(user, { projectId, entityType: "idea", entityId: idea.id, entityTitle: idea.title, action, changes });
+          audit(context, { projectId, entityType: "idea", entityId: idea.id, entityTitle: idea.title, action, changes });
         }
       }
       json(response, 200, { idea });
@@ -982,7 +1135,7 @@ export function createGrimoireServer(options: Options) {
       await readJson(request);
       const page = restorePage(database, pageStore, projectId, pageRestoreMatch[1]);
       if (!page) throw new HttpError(404, "Archived page not found");
-      audit(user, { projectId, entityType: "page", entityId: page.id, entityTitle: page.title, action: "restored" });
+      audit(context, { projectId, entityType: "page", entityId: page.id, entityTitle: page.title, action: "restored" });
       json(response, 200, { page });
       broadcast(projectId, "work", requestClientId(request));
       return;
@@ -1003,7 +1156,7 @@ export function createGrimoireServer(options: Options) {
         const action = changeAction(changes);
         // Reordering inside one column changes nothing a reader would look for.
         if (action) {
-          audit(user, { projectId, entityType: "page", entityId: page.id, entityTitle: page.title, action, changes });
+          audit(context, { projectId, entityType: "page", entityId: page.id, entityTitle: page.title, action, changes });
         }
       }
       json(response, 200, { page });
@@ -1018,7 +1171,7 @@ export function createGrimoireServer(options: Options) {
       if (!archivePage(database, pageStore, projectId, pageMatch[1])) {
         throw new HttpError(404, "Page not found");
       }
-      audit(user, {
+      audit(context, {
         projectId,
         entityType: "page",
         entityId: pageMatch[1],
@@ -1037,8 +1190,24 @@ export function createGrimoireServer(options: Options) {
     return { ...user, avatarUrl: avatarStore.urlFor(user.id) };
   }
 
-  function audit(user: User, input: Omit<RecordAuditInput, "actor">): void {
-    recordAuditEvent(database, { ...input, actor: { id: user.id, name: user.name } });
+  /**
+   * Records an event for the person a request is acting as, and the agent that acted.
+   *
+   * Taking the whole context rather than a user is deliberate: the agent travels with the
+   * request, so a call site cannot forget to attribute a machine write and quietly make it
+   * look like a person did it.
+   */
+  function audit(context: RequestContext, input: Omit<RecordAuditInput, "actor">): void {
+    auditAs(requireUser(context), input, agentTokenId(context));
+  }
+
+  /** For the few writes that happen before the acting user has a request context at all. */
+  function auditAs(user: User, input: Omit<RecordAuditInput, "actor">, tokenId: string | null = null): void {
+    recordAuditEvent(database, {
+      ...input,
+      actor: { id: user.id, name: user.name },
+      agentTokenId: tokenId,
+    });
   }
 
   /**
@@ -1138,6 +1307,18 @@ export function createGrimoireServer(options: Options) {
     const header = context.request.headers["x-grimoire-project"];
     const fromHeader = typeof header === "string" ? header : header?.[0];
     const requested = (fromHeader ?? context.url.searchParams.get("project") ?? "").slice(0, 100);
+
+    // A token names its own project and can never leave it. The default-project fallback
+    // below is a convenience for a browser and a cross-project leak for an agent: a caller
+    // that simply forgot the header would otherwise write somewhere else entirely. A
+    // mismatch is refused rather than redirected, so the mistake is loud.
+    if (context.agent) {
+      if (requested && requested !== context.agent.projectId) {
+        throw new HttpError(403, "This token cannot act on that project");
+      }
+      return context.agent.projectId;
+    }
+
     if (requested) {
       if (!userCanAccessProject(database, user, requested)) throw new HttpError(404, "Board not found");
       return requested;
@@ -1145,6 +1326,42 @@ export function createGrimoireServer(options: Options) {
     const fallback = defaultProjectIdForUser(database, user);
     if (!fallback) throw new HttpError(404, "Board not found");
     return fallback;
+  }
+
+  /**
+   * Reads an `Authorization: Bearer` credential, if the request carries a usable one.
+   *
+   * Anything malformed, revoked, expired, or belonging to someone who has since left the
+   * project resolves to null, which leaves the request simply unauthenticated.
+   */
+  function agentForBearer(request: IncomingMessage): AgentIdentity | null {
+    const header = request.headers.authorization;
+    const value = typeof header === "string" ? header : header?.[0];
+    if (!value) return null;
+    const match = /^Bearer\s+(.+)$/i.exec(value.trim());
+    if (!match) return null;
+    return agentForToken(database, match[1].trim());
+  }
+
+  /**
+   * Gates a write, charging it against the token's rate limit.
+   *
+   * The limiter runs before the scope check so a refused write still spends allowance: a
+   * read-only credential hammering a write route is exactly the loop the limiter exists
+   * to keep bounded. Reads are deliberately not metered - one query cannot run the disk
+   * away, and metering them would punish the orientation read every good agent starts with.
+   */
+  function requireAgentWrite(context: RequestContext): void {
+    if (!context.agent) return;
+    if (!writeLimiter.take(context.agent.tokenId)) {
+      throw new HttpError(429, "This token is writing too quickly");
+    }
+    if (context.agent.scope !== "write") throw new HttpError(403, "This token is read-only");
+  }
+
+  /** The agent behind a write, so the log can say which one it was. */
+  function agentTokenId(context: RequestContext): string | null {
+    return context.agent?.tokenId ?? null;
   }
 
   function setSession(response: ServerResponse, userId: string): void {

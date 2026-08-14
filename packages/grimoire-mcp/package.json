@@ -1,0 +1,27 @@
+{
+  "name": "grimoire-mcp",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "An MCP server that lets an agent read and write one Grimoire project over its HTTP API.",
+  "bin": {
+    "grimoire-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/index.js",
+    "verify": "npm run build && node --import tsx scripts/verify-e2e.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "typescript": "~5.9.0"
+  }
+}

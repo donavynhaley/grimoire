@@ -31,6 +31,14 @@ jobs:
       - name: Build production application
         run: npm run build
 
+      - name: Install MCP package dependencies
+        run: npm ci
+        working-directory: packages/grimoire-mcp
+
+      - name: Verify the MCP package end to end
+        run: npm run verify
+        working-directory: packages/grimoire-mcp
+
       - name: Validate production Compose configuration
         env:
           TUNNEL_TOKEN: validation-only

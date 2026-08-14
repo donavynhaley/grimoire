@@ -42,6 +42,8 @@ export type RecordAuditInput = {
   entityTitle: string;
   action: AuditAction;
   changes?: AuditChange[];
+  /** Set when an agent token made the write, so the log can say which agent it was. */
+  agentTokenId?: string | null;
 };
 
 /**
@@ -51,13 +53,19 @@ export type RecordAuditInput = {
  * still reads correctly after a page is renamed or archived. Reads prefer the live
  * account name when it is still available, which keeps a renamed person consistent
  * across their whole history.
+ *
+ * An agent writes as the person who issued its token, so `actor_id` stays a real
+ * account and accountability is never diluted. Which agent it was travels in its own
+ * column instead of being folded into the actor name, because that name is replaced by
+ * the live one on every read and any label inside it would simply never be seen.
  */
 export function recordAuditEvent(database: DatabaseSync, input: RecordAuditInput): void {
   database
     .prepare(
       `INSERT INTO audit_events (
-        id, project_id, actor_id, actor_name, entity_type, entity_id, entity_title, action, changes, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, project_id, actor_id, actor_name, entity_type, entity_id, entity_title, action, changes,
+        created_at, agent_token_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       randomUUID(),
@@ -70,6 +78,7 @@ export function recordAuditEvent(database: DatabaseSync, input: RecordAuditInput
       input.action,
       JSON.stringify(input.changes ?? []),
       new Date().toISOString(),
+      input.agentTokenId ?? null,
     );
 }
 
@@ -92,8 +101,10 @@ export function listAuditEvents(
   // One extra row answers "is there more" without a second count query.
   const values = database
     .prepare(
-      `SELECT audit_events.*, users.name AS current_actor_name
-       FROM audit_events LEFT JOIN users ON users.id = audit_events.actor_id
+      `SELECT audit_events.*, users.name AS current_actor_name, agent_tokens.name AS agent_name
+       FROM audit_events
+       LEFT JOIN users ON users.id = audit_events.actor_id
+       LEFT JOIN agent_tokens ON agent_tokens.id = audit_events.agent_token_id
        WHERE ${filters.join(" AND ")}
        ORDER BY audit_events.sequence DESC
        LIMIT ?`,
@@ -134,8 +145,10 @@ export function listUnseenEvents(
     .get(...params) as { total: number };
   const values = database
     .prepare(
-      `SELECT audit_events.*, users.name AS current_actor_name
-       FROM audit_events LEFT JOIN users ON users.id = audit_events.actor_id
+      `SELECT audit_events.*, users.name AS current_actor_name, agent_tokens.name AS agent_name
+       FROM audit_events
+       LEFT JOIN users ON users.id = audit_events.actor_id
+       LEFT JOIN agent_tokens ON agent_tokens.id = audit_events.agent_token_id
        WHERE ${predicate}
        ORDER BY audit_events.sequence ASC
        LIMIT ?`,
@@ -150,6 +163,7 @@ function publicAuditEvent(value: Record<string, string | number | null>): AuditE
     id: String(value.id),
     actorId: value.actor_id === null ? null : String(value.actor_id),
     actorName: String(value.current_actor_name ?? value.actor_name),
+    agentName: value.agent_name === null || value.agent_name === undefined ? null : String(value.agent_name),
     entityType: value.entity_type as AuditEntityType,
     entityId: value.entity_id === null ? null : String(value.entity_id),
     entityTitle: String(value.entity_title),

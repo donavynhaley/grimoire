@@ -9,10 +9,12 @@ import { PageDialog } from "./PageDialog";
 import { type CategoryActions, CategoriesDialog } from "./CategoriesDialog";
 import { type ChapterActions, ChaptersDialog } from "./ChaptersDialog";
 import { type ChapterFilter, ChapterPicker, NO_CHAPTER } from "./ChapterPicker";
+import { agentTokenIsLive, agentTokens } from "../api/client";
 import { chapterWhen } from "./chapter-dates";
 import { DoneHistoryDialog } from "./DoneHistoryDialog";
 import { type ProjectActions, ProjectMenu } from "./ProjectMenu";
 import { type ProjectSettingsActions, ProjectSettingsDialog } from "./ProjectSettingsDialog";
+import { AgentAccessDialog } from "./AgentAccessDialog";
 import { type CapturePageInput, QuickCapture } from "./QuickCapture";
 import { SearchDialog } from "./SearchDialog";
 import { TeamDialog } from "./TeamDialog";
@@ -98,6 +100,8 @@ export function Board({ away, board, busy, categoryActions, chapterActions, idea
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [chaptersOpen, setChaptersOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [agentsOpen, setAgentsOpen] = useState(false);
+  const [agentCount, setAgentCount] = useState(0);
   const [activityOpen, setActivityOpen] = useState(false);
   // Once the history has been opened, its badge has done its job for this visit.
   const [activityVisited, setActivityVisited] = useState(false);
@@ -105,6 +109,23 @@ export function Board({ away, board, busy, categoryActions, chapterActions, idea
   // Pages the reader has opened this visit; their dots have been answered.
   const [openedUnseen, setOpenedUnseen] = useState<ReadonlySet<string>>(() => new Set());
   const isOwner = board.currentUser.role === "owner";
+
+  // The settings summary states how many agents have access, so the count has to be true
+  // the first time settings opens - not only after the agent dialog has refreshed it.
+  useEffect(() => {
+    if (!settingsOpen || !isOwner) return;
+    let cancelled = false;
+    void agentTokens()
+      .then(({ tokens }) => {
+        if (!cancelled) setAgentCount(tokens.filter((token) => agentTokenIsLive(token)).length);
+      })
+      .catch(() => {
+        // The section then shows its default copy; opening the dialog surfaces the error.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [settingsOpen, isOwner]);
   const unseenCount = away && !awayDismissed && !activityVisited ? away.total : 0;
   const unseenPageIds = useMemo(() => {
     const ids = new Set<string>();
@@ -812,16 +833,26 @@ export function Board({ away, board, busy, categoryActions, chapterActions, idea
           onSetPageChapter={(id, value) => onUpdate(id, { chapter: value })}
         />
       )}
+      {agentsOpen && (
+        <AgentAccessDialog
+          // Opened from settings, closing returns there, the same trip the other sections make.
+          onClose={() => { setAgentsOpen(false); setSettingsOpen(true); }}
+          onCountChange={setAgentCount}
+        />
+      )}
       {settingsOpen && (
         <ProjectSettingsDialog
           actions={projectSettingsActions}
+          agentCount={agentCount}
           busy={busy}
           canArchive={board.projects.length > 1}
+          canManageAgents={isOwner}
           pages={board.pages}
           categories={board.categories}
           chapters={board.chapters}
           chaptersEnabled={chaptersOn}
           onClose={() => setSettingsOpen(false)}
+          onManageAgents={() => { setSettingsOpen(false); setAgentsOpen(true); }}
           onManageCategories={() => { setSettingsOpen(false); setCategoriesOpen(true); }}
           onManageChapters={() => { setSettingsOpen(false); setChaptersOpen(true); }}
           project={board.project}

@@ -10,6 +10,7 @@ SQLite stores operational collaboration data:
 - User accounts and password hashes.
 - Browser sessions.
 - Invitation records.
+- Agent credentials, as hashes, with the project and person each one acts for.
 - Project identity and membership.
 - The append-only project activity log.
 - Each member's private last-seen cursor into that log.
@@ -253,6 +254,12 @@ Recording drags would bury real edits under a log shaped by pointer movement.
 The actor name and entity title are snapshots taken at write time, so an archived or renamed page still reads correctly in the timeline.
 Reads prefer the live account name when it is still available, so renaming an account stays consistent across that person's whole history.
 
+That preference is why an agent's identity is a column of its own rather than a decoration on the actor name.
+A write made with an agent credential keeps the issuing person as the actor, and records the credential in `agent_token_id`, which reads resolve to the agent's current name through the same join.
+A label folded into the actor name snapshot would be replaced by the live account name on every read, and machine writes would become indistinguishable from that person's own.
+Revoking a credential sets a timestamp rather than deleting the row, so history written by a retired agent still says which agent wrote it.
+The rebuild above names every column it carries across, including this one, because a rebuild that listed fewer would drop the rest in silence.
+
 Because the log is written by the API, edits made directly to the Markdown files do not appear in it.
 The log is append-only, is never pruned, and is scoped to one project on both read and write.
 Reads page backwards through a monotonic sequence number rather than a timestamp, which keeps paging stable when several events share a millisecond.
@@ -328,6 +335,34 @@ While a refusal is unresolved the editor writes nothing at all and will not clos
 
 This is also what protects edits made outside Grimoire.
 A body rewritten directly in the Markdown file survives a rename made in the browser, because the rename never carries a description, and a browser rewriting the same body is refused against the external text.
+
+## Agent access
+
+Grimoire already had the API an agent needs, and lacked only a way for something without a browser to say who it is.
+`agent_tokens` is that credential, and it mirrors `sessions`: an opaque secret, stored only as a sha256 hash, with the same primitives generating and comparing it.
+
+A credential is a delegation rather than a second kind of account.
+It names a project and a person, and requests made with it act as that person, which is why nothing about members, assignment, presence, or authorship needed a second code path.
+Membership is rechecked on every request rather than trusted from issue time, so removing someone also stops the agents acting on their behalf.
+Archiving a project suspends its credentials the same way, because archiving refuses every browser and takes the owner-facing revoke routes with it - a credential that stayed alive there would be one no human could ever stop again.
+An expired or revoked credential resolves to nothing at all rather than to a lesser identity, so it can never quietly degrade into read access.
+
+A browser session is consulted before any bearer header, so a signed-in person holding a token stays a person and their own work is never recorded as an agent's.
+
+Requests made with a credential are pinned to its project.
+`requireProject` otherwise falls back to the caller's default project, which is a convenience for a browser and a cross-project leak for an agent, so a credential never reaches that fallback and a mismatched `X-Grimoire-Project` is refused rather than redirected.
+
+What a credential may reach is an allow list rather than a set of refusals spread through the routes.
+Creating and editing pages and ideas is open, and everything that destroys or restructures is closed: archiving, restoring, promoting an idea, the chapter and category definitions, invitations, membership, the project itself, and every account route.
+Chapter and category *membership* is a property of a page, so an agent editing a page may place it into an existing chapter or category and take it out again - what it cannot do is create, rename, recolor, open, close, or delete either.
+Stated as a rule, an agent adds and refines and only a person destroys or restructures.
+Archiving is the sharpest of those, because its undo lasts eight seconds and is built for a person who has just clicked, and search-restore recovers one page at a time.
+Account routes are closed so a delegated credential cannot escalate into the identity it borrows, and the event stream is closed because presence is derived from open streams and an agent holding one would appear to be a teammate sitting in the project.
+A route added later is closed to agents until someone decides otherwise, which is the point of writing it as an allow list: forgetting to open a route is a bug report, and forgetting to close one would be a hole.
+
+Writes are metered per credential with a token bucket, held in memory.
+The bucket guards the running process against a loop rather than a determined attacker, and persisting it would mean a write on every request in order to limit writes.
+Reads are not metered, because they cost one query and cannot run the disk away.
 
 ## Legacy migration
 

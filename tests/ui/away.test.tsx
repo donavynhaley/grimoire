@@ -63,6 +63,7 @@ function awayEvent(overrides: Partial<AuditEvent>): AuditEvent {
     id: `event-${overrides.sequence ?? 1}`,
     actorId: "00000000-0000-4000-8000-000000000011",
     actorName: "Maren",
+    agentName: null,
     entityType: "page",
     entityId: "00000000-0000-4000-8000-000000000020",
     entityTitle: "Make the tower door remember Maren",
