@@ -587,6 +587,13 @@ describe("widening the audit entity types", () => {
     const next = migrated.prepare("SELECT MAX(sequence) AS value FROM audit_events").get() as { value: number };
     expect(Number(next.value)).toBe(6);
 
+    // Exactly one sqlite_sequence row. Two would let AUTOINCREMENT reissue a sequence that a
+    // reader has already been marked as having seen - the corruption the rebuild guards against.
+    const tracked = migrated
+      .prepare("SELECT seq FROM sqlite_sequence WHERE name = 'audit_events'")
+      .all();
+    expect(tracked).toHaveLength(1);
+
     // The indexes the log pages through are rebuilt with the table.
     const indexes = migrated
       .prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'audit_events'")

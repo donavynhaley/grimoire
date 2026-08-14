@@ -200,15 +200,26 @@ function widenAuditEntityTypes(database: DatabaseSync): void {
     database.exec("DROP TABLE audit_events");
     database.exec("ALTER TABLE audit_events_rebuild RENAME TO audit_events");
     database.exec(auditEventsIndexes);
-    if (highWater > 0) {
-      const carried = database
+    // Copying the rows with explicit sequences already leaves sqlite_sequence at their
+    // maximum, so this only has to raise it in the rare case that the old high-water mark ran
+    // ahead of the surviving rows. Whether a row exists has to be asked directly: an UPDATE
+    // that changes nothing is ambiguous between "no such row" and "already high enough", and
+    // sqlite_sequence has no unique constraint to make INSERT OR IGNORE safe. Two rows for one
+    // table would let AUTOINCREMENT hand out a sequence a reader has already been marked as
+    // having seen, which is the exact corruption this whole routine exists to prevent.
+    const tracked = Number(
+      (database
+        .prepare("SELECT COUNT(*) AS rows FROM sqlite_sequence WHERE name = 'audit_events'")
+        .get() as { rows: number }).rows,
+    );
+    if (tracked > 0) {
+      database
         .prepare("UPDATE sqlite_sequence SET seq = ? WHERE name = 'audit_events' AND seq < ?")
         .run(highWater, highWater);
-      if (Number(carried.changes) === 0) {
-        database
-          .prepare("INSERT OR IGNORE INTO sqlite_sequence (name, seq) VALUES ('audit_events', ?)")
-          .run(highWater);
-      }
+    } else if (highWater > 0) {
+      database
+        .prepare("INSERT INTO sqlite_sequence (name, seq) VALUES ('audit_events', ?)")
+        .run(highWater);
     }
     const violations = database.prepare("PRAGMA foreign_key_check").all();
     if (violations.length > 0) throw new Error("Rebuilding audit_events would break a foreign key");
