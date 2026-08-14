@@ -1077,7 +1077,9 @@ export function createGrimoireServer(options: Options) {
    * only carries the id and the lookup walks the live projects to place it.
    */
   function linkPreviewFor(url: URL): LinkPreview | null {
-    const pageId = previewEntityId(url.searchParams.get("page"));
+    // `card` is what every link shared before the rename carries, and those links live in
+    // other people's chat history forever. They keep working.
+    const pageId = previewEntityId(url.searchParams.get("page") ?? url.searchParams.get("card"));
     const ideaId = previewEntityId(url.searchParams.get("idea"));
     if (!pageId && !ideaId) return null;
     try {

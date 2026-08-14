@@ -71,7 +71,12 @@ export function Board({ away, board, busy, categoryActions, chapterActions, idea
   const [addingTo, setAddingTo] = useState<PageStatus | null>(null);
   const [columnTitle, setColumnTitle] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(
-    () => new URLSearchParams(location.search).get("page"),
+    // A link shared before the rename says `card`; it still opens the right page, and the
+    // effect below rewrites the address bar to the current spelling.
+    () => {
+      const params = new URLSearchParams(location.search);
+      return params.get("page") ?? params.get("card");
+    },
   );
   const [drag, setDrag] = useState<{ id: string; height: number } | null>(null);
   const [dropHint, setDropHint] = useState<{ status: PageStatus; index: number } | null>(null);
@@ -162,6 +167,7 @@ export function Board({ away, board, busy, categoryActions, chapterActions, idea
   // has simply falls away.
   useEffect(() => {
     const params = new URLSearchParams(location.search);
+    params.delete("card");
     if (selectedPage) params.set("page", selectedPage.id);
     else params.delete("page");
     history.replaceState({}, "", `${location.pathname}${params.size ? `?${params}` : ""}`);

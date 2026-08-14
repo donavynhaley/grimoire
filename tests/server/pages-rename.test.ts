@@ -6,6 +6,16 @@ import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
 import type { BoardWorkspace, Page } from "../../shared/types";
 import { bootstrap, startTestServer } from "./test-server";
+import { copyFileSync, mkdirSync as makeDir } from "node:fs";
+import { resolve } from "node:path";
+
+/** Serves the built shell so link previews render, the way production does. */
+async function startShellServer(): Promise<Server> {
+  const shell = join(mkdtempSync(join(tmpdir(), "grimoire-shell-")), "dist");
+  makeDir(shell, { recursive: true });
+  copyFileSync(resolve("index.html"), join(shell, "index.html"));
+  return startTestServer(undefined, { staticDirectory: shell });
+}
 
 const directories: string[] = [];
 
@@ -89,6 +99,20 @@ describe("renaming cards to pages on disk", () => {
     });
     expect(edited.response.status).toBe(200);
     expect(edited.body.page.title).toBe("Edited from an old bundle");
+  });
+
+  it("still unfurls links shared as ?card= before the rename", async () => {
+    const server = await startShellServer();
+    await bootstrap(server);
+    const created = await server.request<{ page: Page }>("/api/pages", {
+      method: "POST",
+      body: JSON.stringify({ title: "Shared long ago", category: "narrative", status: "in_progress" }),
+    });
+
+    // Those links live in other people's chat history forever, so they keep working.
+    const legacy = await fetch(`${server.baseUrl}/?card=${created.body.page.id}`);
+    const html = await legacy.text();
+    expect(html).toContain('<meta property="og:title" content="Shared long ago" />');
   });
 });
 
