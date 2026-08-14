@@ -373,7 +373,10 @@ export function Board({ away, board, busy, categoryActions, chapterActions, idea
     if (!title) return;
     setColumnTitle("");
     setAddingTo(null);
-    await onCreate({ title, category: null, assigneeId: null, status });
+    // Adding straight into a column while looking at a chapter lands the card in that
+    // chapter, because that is plainly where the reader meant to put it.
+    const intoChapter = chaptersOn && chapter !== null && chapter !== NO_CHAPTER ? chapter : null;
+    await onCreate({ title, category: null, chapter: intoChapter, assigneeId: null, status });
   };
 
   const finishDrag = () => {
@@ -502,7 +505,7 @@ export function Board({ away, board, busy, categoryActions, chapterActions, idea
               <p className="chapter-intent">{plainTextFromMarkdown(selectedChapter.description)}</p>
             )}
           </div>
-          <QuickCapture busy={busy} categories={board.categories} members={board.members} onCreate={captureCard} />
+          <QuickCapture busy={busy} categories={board.categories} chapters={chaptersOn ? board.chapters : []} members={board.members} onCreate={captureCard} />
         </div>
 
         <div className="work-filters" aria-label="Work filters">

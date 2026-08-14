@@ -279,6 +279,7 @@ describe("Grimoire board", () => {
         body: JSON.stringify({
           title: created.title,
           category: "code",
+          chapter: null,
           assigneeId: initial.members[1].id,
           status: "ready",
         }),
@@ -328,6 +329,7 @@ describe("Grimoire board", () => {
         body: JSON.stringify({
           title: created.title,
           category: "ui",
+          chapter: null,
           assigneeId: initial.currentUser.id,
           status: "in_progress",
         }),

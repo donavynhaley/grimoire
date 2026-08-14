@@ -824,7 +824,7 @@ export function createGrimoireServer(options: Options) {
       const user = requireUser(context);
       const projectId = requireProject(context, user);
       const input = searchSchema.parse(Object.fromEntries(url.searchParams));
-      json(response, 200, searchProject(database, cardStore, ideaStore, projectId, input.q, input.limit));
+      json(response, 200, searchProject(database, cardStore, chapterStore, ideaStore, projectId, input.q, input.limit));
       return;
     }
 
@@ -1077,6 +1077,9 @@ export function createGrimoireServer(options: Options) {
             assigneeName: memberName(card.assignee),
             card,
             categories: categoriesForProject(database, String(project.id)),
+            chapterName: card.chapter && chaptersEnabled(database, String(project.id))
+              ? chapterStore.get(slug, card.chapter)?.name ?? null
+              : null,
             projectName,
           });
         }

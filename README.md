@@ -7,7 +7,8 @@ It separates possible ideas from committed work while keeping both fast to captu
 The website is a visual editing layer over portable Markdown files.
 
 The game project is represented entirely by work cards and ideas.
-There are no built-in design pillars, milestones, outcomes, asset pipelines, sprints, or story-point systems.
+There are no built-in design pillars, milestones, outcomes, asset pipelines, or story-point systems.
+A project can opt into Chapters, which group cards into named stretches of work, but nothing in them counts, estimates, or rolls over.
 
 ## Work
 
@@ -74,6 +75,36 @@ Dragging remains available while filters are active, and visible drop targets ma
 Press `1` for Work or `2` for Ideas globally or from an empty capture field.
 An open dialog keeps the keyboard to itself, and `Escape` closes whichever one is in front.
 
+## Chapters
+
+Chapters are off until a project turns them on, and a project that never does sees no trace of them.
+
+A chapter is a named stretch of the project's work, with optional dates, that a card can belong to.
+It answers what the team was working on and roughly when, never how much was committed to.
+There are no points, no estimates, no capacity, no velocity, no burndown, and no progress figure.
+Dates are descriptive rather than binding: a chapter with neither a start nor an end is still a chapter, and one whose end date has passed keeps running until somebody closes it.
+
+At most one chapter is open at a time.
+Opening another closes the current one, as one deliberate action, which keeps chapters meaning "what are we working on now" rather than becoming a grid of parallel workstreams.
+Any number of chapters can be planned ahead or kept after closing.
+
+Belonging to a chapter is independent of a card's column.
+A card can sit in the Backlog while already belonging to a chapter, so a chapter can be filled without flooding Up Next, and Up Next stays the small set of cards someone can pick up now.
+The Backlog library gains a chapter filter and a one-click way to add any card to the chapter currently being viewed.
+
+Closing a chapter never moves a card by itself.
+It asks what should happen to the work that did not land, and every answer is a named choice: leave it here, move it to a planned chapter, or release it.
+Dismissing the question does nothing, and no card is ever carried forward automatically.
+Because nothing is moved out, a closed chapter stays an honest record of what was finished and what was not.
+
+With chapters enabled, the work filter bar grows a chapter picker.
+It lists the open chapter first, then planned ones, then closed ones newest first, alongside "All work" and the cards nobody has placed.
+The board opens on the open chapter, so arriving lands on the current work, and "All work" is always one click away so the picker can never hide the project.
+The selection is stored in the URL beside the search and people filters, so a chapter view can be bookmarked or shared.
+Selecting a chapter replaces the card count above the board with the chapter's name, its dates, and what it is for.
+
+Typing `~` in the capture field sets a chapter without leaving the keyboard.
+
 ## Ideas
 
 The Idea garden keeps possibilities away from the work backlog until the team deliberately commits to one.
@@ -91,6 +122,8 @@ Ideas do not have assignees or work statuses because they are not work yet.
 
 The first person to open a new Grimoire installation creates the owner account.
 The first-run form prefills `owner@example.com` as the owner email, while still allowing it to be edited before setup.
+The project menu is a switcher: the projects, a collapsed "New project" field, and "Project settings".
+Project settings holds the project name, its categories, the chapters gate, and archiving, each with a summary of what it currently holds.
 The owner can create single-use invitation links from the Team dialog.
 Only the newest unused invitation remains valid, and invitation links expire after seven days.
 The owner can also remove members from the Team dialog, which revokes their sessions and live connections and clears their card assignments without erasing their authorship history.
@@ -163,7 +196,7 @@ npm test
 npm run build
 ```
 
-The test suite covers authentication, secure password changes, single-use invitations, member removal, Markdown persistence, legacy migration, external edits, live project events, presence, the activity log, the active deck, Backlog search, project-wide search, completion history, reversible archives and promotions, categories, card dependencies, assignments, filtering, idea ranking, ordering, drag-and-drop interaction, Markdown note rendering, pasted note images, concurrent editing and refused overwrites, and the while-you-were-away digest, markers, and seen cursor.
+The test suite covers authentication, secure password changes, single-use invitations, member removal, Markdown persistence, legacy migration, external edits, live project events, presence, the activity log, the active deck, Backlog search, project-wide search, completion history, reversible archives and promotions, categories, card dependencies, assignments, filtering, idea ranking, ordering, drag-and-drop interaction, Markdown note rendering, pasted note images, concurrent editing and refused overwrites, the while-you-were-away digest, markers, and seen cursor, and chapters including the per-project gate, the single open chapter, closing without rollover, and the compatibility of card files with a build that predates chapters.
 
 ## Self-hosting
 

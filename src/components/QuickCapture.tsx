@@ -1,15 +1,16 @@
 import { type ChangeEvent, type FormEvent, type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
-import { type CardCategory, type CardStatus, type Member, type ProjectCategory } from "../../shared/types";
+import { type CardCategory, type CardStatus, type Chapter, type Member, type ProjectCategory } from "../../shared/types";
 
 export type CaptureCardInput = {
   title: string;
   category: CardCategory | null;
+  chapter: string | null;
   assigneeId: string | null;
   status: CardStatus;
 };
 
 type CaptureSettings = Omit<CaptureCardInput, "title">;
-type PickerKind = "category" | "assignee" | "status";
+type PickerKind = "category" | "chapter" | "assignee" | "status";
 type PickerState = {
   kind: PickerKind;
   query: string;
@@ -26,12 +27,15 @@ type PickerOption = {
 type Props = {
   busy: boolean;
   categories: ProjectCategory[];
+  /** Empty when the project has not enabled chapters, which hides the control entirely. */
+  chapters: Chapter[];
   members: Member[];
   onCreate: (input: CaptureCardInput) => Promise<void>;
 };
 
 const DEFAULT_SETTINGS: CaptureSettings = {
   category: null,
+  chapter: null,
   assigneeId: null,
   status: "backlog",
 };
@@ -43,7 +47,7 @@ const statusLabels: Partial<Record<CardStatus, string>> = {
   review: "Review",
 };
 
-export function QuickCapture({ busy, categories, members, onCreate }: Props) {
+export function QuickCapture({ busy, categories, chapters, members, onCreate }: Props) {
   const [title, setTitle] = useState("");
   const [settings, setSettings] = useState<CaptureSettings>(DEFAULT_SETTINGS);
   const [picker, setPicker] = useState<PickerState | null>(null);
@@ -51,8 +55,8 @@ export function QuickCapture({ busy, categories, members, onCreate }: Props) {
   const [recent, setRecent] = useState<CaptureSettings | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const options = useMemo(
-    () => pickerOptions(picker?.kind ?? null, categories, members),
-    [categories, members, picker?.kind],
+    () => pickerOptions(picker?.kind ?? null, categories, chapters, members),
+    [categories, chapters, members, picker?.kind],
   );
   const visibleOptions = useMemo(() => filterOptions(options, picker?.query ?? ""), [options, picker?.query]);
   const selectedCategory = settings.category
@@ -60,6 +64,9 @@ export function QuickCapture({ busy, categories, members, onCreate }: Props) {
     : null;
   const categoryLabel = selectedCategory?.name ?? settings.category;
   const assigneeLabel = members.find((member) => member.id === settings.assigneeId)?.name ?? null;
+  const chapterLabel = settings.chapter
+    ? chapters.find((chapter) => chapter.slug === settings.chapter)?.name ?? settings.chapter
+    : null;
   const statusLabel = statusLabels[settings.status] ?? "Backlog";
 
   useEffect(() => {
@@ -88,6 +95,7 @@ export function QuickCapture({ busy, categories, members, onCreate }: Props) {
     if (!picker) return;
     setSettings((current) => {
       if (picker.kind === "category") return { ...current, category: option.value as CardCategory | null };
+      if (picker.kind === "chapter") return { ...current, chapter: option.value };
       if (picker.kind === "assignee") return { ...current, assigneeId: option.value };
       return { ...current, status: (option.value ?? "backlog") as CardStatus };
     });
@@ -140,7 +148,7 @@ export function QuickCapture({ busy, categories, members, onCreate }: Props) {
   };
 
   const showTools = Boolean(title.trim()) || hasCustomSettings(settings);
-  const recentSummary = recent ? settingsSummary(recent, categories, members) : "";
+  const recentSummary = recent ? settingsSummary(recent, categories, chapters, members) : "";
 
   return (
     <form
@@ -179,6 +187,15 @@ export function QuickCapture({ busy, categories, members, onCreate }: Props) {
               style={selectedCategory ? ({ "--category-color": selectedCategory.color } as React.CSSProperties) : undefined}
               type="button"
             ><span aria-hidden="true">#</span>{categoryLabel ?? "category"}</button>
+            {chapters.length > 0 && (
+              <button
+                aria-expanded={picker?.kind === "chapter"}
+                aria-label={chapterLabel ? `Chapter: ${chapterLabel}` : "Choose chapter"}
+                className={chapterLabel ? "capture-field active" : "capture-field"}
+                onClick={() => openPicker("chapter")}
+                type="button"
+              ><span aria-hidden="true">~</span>{chapterLabel ?? "chapter"}</button>
+            )}
             <button
               aria-expanded={picker?.kind === "assignee"}
               aria-label={assigneeLabel ? `Assignee: ${assigneeLabel}` : "Choose assignee"}
@@ -242,9 +259,13 @@ export function QuickCapture({ busy, categories, members, onCreate }: Props) {
 
 function commandAtEnd(value: string, caret: number): PickerState | null {
   if (caret !== value.length) return null;
-  const match = value.match(/(^|\s)([#@/])([^\s]*)$/);
+  const match = value.match(/(^|\s)([#@/~])([^\s]*)$/);
   if (!match) return null;
-  const kind = match[2] === "#" ? "category" : match[2] === "@" ? "assignee" : "status";
+  const kind = match[2] === "#"
+    ? "category"
+    : match[2] === "~"
+      ? "chapter"
+      : match[2] === "@" ? "assignee" : "status";
   return {
     kind,
     query: match[3].toLowerCase(),
@@ -252,7 +273,12 @@ function commandAtEnd(value: string, caret: number): PickerState | null {
   };
 }
 
-function pickerOptions(kind: PickerKind | null, categories: ProjectCategory[], members: Member[]): PickerOption[] {
+function pickerOptions(
+  kind: PickerKind | null,
+  categories: ProjectCategory[],
+  chapters: Chapter[],
+  members: Member[],
+): PickerOption[] {
   if (kind === "category") {
     return [
       { id: "category-none", label: "No category", search: "none uncategorized", value: null },
@@ -262,6 +288,17 @@ function pickerOptions(kind: PickerKind | null, categories: ProjectCategory[], m
         search: `${category.name} ${category.slug}`.toLowerCase(),
         value: category.slug,
         color: category.color,
+      })),
+    ];
+  }
+  if (kind === "chapter") {
+    return [
+      { id: "chapter-none", label: "No chapter", search: "none no chapter", value: null },
+      ...chapters.map((chapter) => ({
+        id: `chapter-${chapter.slug}`,
+        label: chapter.state === "open" ? `${chapter.name} (open)` : chapter.name,
+        search: `${chapter.name} ${chapter.slug}`.toLowerCase(),
+        value: chapter.slug,
       })),
     ];
   }
@@ -296,18 +333,32 @@ function filterOptions(options: PickerOption[], query: string): PickerOption[] {
 
 function selectedValue(settings: CaptureSettings, kind: PickerKind): string | null {
   if (kind === "category") return settings.category;
+  if (kind === "chapter") return settings.chapter;
   if (kind === "assignee") return settings.assigneeId;
   return settings.status;
 }
 
 function hasCustomSettings(settings: CaptureSettings): boolean {
-  return settings.category !== null || settings.assigneeId !== null || settings.status !== "backlog";
+  return (
+    settings.category !== null ||
+    settings.chapter !== null ||
+    settings.assigneeId !== null ||
+    settings.status !== "backlog"
+  );
 }
 
-function settingsSummary(settings: CaptureSettings, categories: ProjectCategory[], members: Member[]): string {
+function settingsSummary(
+  settings: CaptureSettings,
+  categories: ProjectCategory[],
+  chapters: Chapter[],
+  members: Member[],
+): string {
   const values = [
     settings.category
       ? categories.find((category) => category.slug === settings.category)?.name ?? settings.category
+      : null,
+    settings.chapter
+      ? chapters.find((chapter) => chapter.slug === settings.chapter)?.name ?? settings.chapter
       : null,
     members.find((member) => member.id === settings.assigneeId)?.name ?? null,
     settings.status !== "backlog" ? statusLabels[settings.status] : null,
@@ -317,12 +368,14 @@ function settingsSummary(settings: CaptureSettings, categories: ProjectCategory[
 
 function pickerHeading(kind: PickerKind): string {
   if (kind === "category") return "Category";
+  if (kind === "chapter") return "Chapter";
   if (kind === "assignee") return "Assign to";
   return "Column";
 }
 
 function pickerTrigger(kind: PickerKind): string {
   if (kind === "category") return "#";
+  if (kind === "chapter") return "~";
   if (kind === "assignee") return "@";
   return "/";
 }

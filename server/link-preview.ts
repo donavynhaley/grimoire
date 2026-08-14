@@ -28,9 +28,11 @@ export function cardPreview(input: {
   assigneeName: string | null;
   card: StoredCard;
   categories: ProjectCategory[];
+  /** The chapter's readable name, when the project uses chapters and the card is in one. */
+  chapterName?: string | null;
   projectName: string;
 }): LinkPreview {
-  const { assigneeName, card, categories, projectName } = input;
+  const { assigneeName, card, categories, chapterName, projectName } = input;
   const category = categories.find((value) => value.slug === card.category);
   return {
     accent: category?.color ?? DEFAULT_ACCENT,
@@ -38,6 +40,7 @@ export function cardPreview(input: {
       card.archivedAt === null ? CARD_COLUMN_LABELS[card.status] : "Archived",
       card.blockedBy.length > 0 ? "Blocked" : null,
       category?.name ?? null,
+      chapterName ?? null,
       assigneeName,
     ].filter((value): value is string => value !== null),
     projectName,

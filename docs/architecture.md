@@ -23,6 +23,7 @@ The configured project directory stores all work card and idea domain data:
 - Assignment and authorship.
 - Creation, update, completion, and archival timestamps.
 - The Markdown notes body.
+- Chapter membership, and the chapters themselves: name, state, time frame, and intent.
 - Idea state and manual rank.
 - The link from an archived idea to its promoted work card.
 - Temporary dependency restoration metadata for reversible card archives.
@@ -54,6 +55,8 @@ cards/
       8b09c17f-8a5e-49f7-99a7-6f0dc7028b47.md
     archive/
       1a42ed21-1f61-4317-b987-d0487515c25a.md
+    chapters/
+      first-brew.md
     ideas/
       30981e89-3615-45bb-b25b-e544266502fa.md
       archive/
@@ -63,6 +66,7 @@ cards/
 ```
 
 Filenames use record UUIDs so changing a title does not create Git rename noise or break references.
+Chapters are the exception: their slug is fixed at creation and survives renames, there are few of them, and a readable directory listing is worth more than uniformity.
 
 Images pasted into notes are stored once per project in `images/` and embedded with Obsidian's `![[name]]` syntax.
 Embeds resolve by file name rather than by relative path, so a card keeps its images through archive and restore, and an idea keeps them through promotion.
@@ -103,6 +107,9 @@ Done displays the eight newest completions while the history view reads every `d
 The supported category values are `design`, `code`, `modeling`, `texturing`, `animation`, `narrative`, `audio`, `ui`, `vfx`, and `production`.
 The `category` value can be `null`, and older files without the field are treated as uncategorized.
 The `blocked_by` value is an inline array of card UUIDs, and older files without the field are treated as having no dependencies.
+The `chapter` value is a chapter slug and is written **only when the card belongs to one**, which is a compatibility decision rather than a stylistic one - see below.
+Older files without the field are treated as belonging to no chapter.
+Chapter membership is deliberately independent of `status`, so a card can be in the Backlog and in a chapter at the same time.
 A card is blocked while at least one referenced card is not `done`.
 Self-links, missing cards, duplicate links, and dependency cycles are rejected.
 An unfinished card cannot be archived while unfinished work depends on it.
@@ -113,6 +120,37 @@ The `completed_at` value is set when a card enters `done`, remains stable while 
 Older `done` cards without `completed_at` use their last update time as a backward-compatible completion time.
 Archived files also contain an `archived_at` timestamp.
 When archiving removes dependency links from other cards, the archived file contains their UUIDs in `unblocked_cards` until restoration.
+
+## Chapter format
+
+A chapter is domain data about the work rather than operational data, so it lives in the project directory with the cards it describes.
+It has a name, a time frame, and a body saying what the stretch is for, which is why it is a record rather than a row.
+
+```md
+---
+slug: first-brew
+name: First Brew
+state: open
+position: 0
+starts_on: 2026-08-18
+ends_on: 2026-09-15
+created_by: owner@example.com
+created_at: "2026-08-13T09:12:00.000Z"
+updated_at: "2026-08-18T08:00:00.000Z"
+closed_at: null
+---
+
+Get one full potion loop playable end to end.
+```
+
+The supported chapter states are `planned`, `open`, and `closed`, and at most one chapter per project is `open`.
+The `starts_on` and `ends_on` values are plain `YYYY-MM-DD` days, either may be `null`, and an end before its start is rejected.
+They are a day the team named rather than an instant, which is why they are not timestamps.
+The `closed_at` value is set when a chapter enters `closed` and returns to `null` when it is reopened, mirroring a card's `completed_at`.
+Closing a chapter writes nothing to any card.
+
+Chapters are served only for a project whose `chapters_enabled` column is set.
+Turning the gate off hides the interface without deleting a chapter file or clearing a card's `chapter` field, so turning it back on restores the prior state exactly.
 
 ## Idea format
 
@@ -141,6 +179,26 @@ Strings containing YAML punctuation are emitted as double-quoted JSON strings.
 Frontmatter arrays use JSON-compatible inline YAML syntax and contain only strings.
 Unknown, duplicate, missing, or invalid frontmatter fields are rejected and logged with the exact file path rather than being silently discarded.
 
+## Compatibility with earlier builds
+
+The card schema is strict: an unknown frontmatter key is rejected rather than ignored, and `MarkdownCardStore.list()` reads every file before returning any of them.
+Those two facts together mean one unreadable card fails the whole board rather than degrading a single card.
+
+A build that predates chapters therefore cannot read a card carrying `chapter:`.
+This is why `chapter` is written only when a card actually belongs to a chapter: a project that never enables them keeps byte-identical files, and a deployment rolled back to an earlier build has to answer only for the cards someone deliberately placed.
+
+Rolling back a deployment that has written chapters requires stripping the key first:
+
+```sh
+node ops/strip-chapter-frontmatter.mjs /path/to/cards --apply
+```
+
+The script leaves `chapters/` alone, so rolling forward again restores every chapter and only card membership is lost.
+Deploying the reader ahead of the writer avoids the problem entirely: the first commit of the chapters work accepts and preserves the field without ever writing it, so releasing that alone gives a rollback target that tolerates chaptered files.
+
+The SQLite side needs no undo.
+`projects.chapters_enabled` is additive and defaults to off, so an earlier build ignores it.
+
 ## Read and write behavior
 
 Grimoire reads the relevant Markdown directory whenever it loads Work or Ideas.
@@ -160,7 +218,13 @@ Every change made through Grimoire appends one row to `audit_events`.
 Each row records the actor, the entity type and identifier, a title snapshot, an action, and a list of readable field changes.
 
 The recorded actions are `created`, `updated`, `moved`, `archived`, `restored`, `promoted`, `renamed`, `deleted`, `invited`, `joined`, and `removed`.
-Cards, ideas, projects, categories, and team membership are all covered.
+Cards, ideas, projects, categories, chapters, and team membership are all covered.
+Opening or closing a chapter is recorded as `moved`, because that is what a reader scanning the log is looking for.
+
+Adding `chapter` to the `entity_type` CHECK constraint required rebuilding the table, since SQLite cannot alter a CHECK in place.
+The rebuild copies `sequence` explicitly and carries the AUTOINCREMENT high-water mark across.
+Those numbers are the paging cursor, and every row in `seen_cursors` stores one, so renumbering would rewind or overshoot every member's while-you-were-away boundary.
+The rebuild is guarded by inspecting the stored table definition, so it runs once and is a no-op afterwards.
 A column change is recorded as `moved` and any other edit as `updated`.
 
 Reordering a card inside one column, or reranking the shortlist, produces no readable change and is deliberately not recorded.

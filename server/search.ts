@@ -1,8 +1,9 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { CardStatus, IdeaState, SearchGroup, SearchHit, SearchResults } from "../shared/types";
 import type { MarkdownCardStore, StoredCard } from "./markdown-cards";
+import type { MarkdownChapterStore } from "./markdown-chapters";
 import type { MarkdownIdeaStore } from "./markdown-ideas";
-import { categoriesForProject, membersForProject, projectById } from "./repository";
+import { categoriesForProject, chaptersEnabled, membersForProject, projectById } from "./repository";
 
 export const SEARCH_RESULT_LIMIT = 40;
 
@@ -46,6 +47,7 @@ type Ranked = { hit: SearchHit; rank: number; recency: string };
 export function searchProject(
   database: DatabaseSync,
   cardStore: MarkdownCardStore,
+  chapterStore: MarkdownChapterStore,
   ideaStore: MarkdownIdeaStore,
   projectId: string,
   rawQuery: string,
@@ -65,6 +67,15 @@ export function searchProject(
   );
   const assigneeName = (email: string | null) =>
     members.find((member) => member.email.toLowerCase() === email?.toLowerCase())?.name ?? null;
+  // A chapter is part of where a card lives, so a result names it beside its column - but
+  // only for a project that actually uses chapters.
+  const chapterNames = chaptersEnabled(database, projectId)
+    ? new Map(chapterStore.list(projectSlug).map((chapter) => [chapter.slug, chapter.name]))
+    : new Map<string, string>();
+  const placeOf = (card: StoredCard, column: string) => {
+    const chapter = card.chapter ? chapterNames.get(card.chapter) : undefined;
+    return chapter ? `${column} · ${chapter}` : column;
+  };
 
   const ranked: Ranked[] = [];
 
@@ -90,9 +101,9 @@ export function searchProject(
   };
 
   for (const card of cardStore.list(projectSlug)) {
-    if (card.status === "backlog") addCard(card, "backlog", columnNames.backlog);
-    else if (card.status === "done") addCard(card, "done", completionLabel(card));
-    else addCard(card, "active", columnNames[card.status]);
+    if (card.status === "backlog") addCard(card, "backlog", placeOf(card, columnNames.backlog));
+    else if (card.status === "done") addCard(card, "done", placeOf(card, completionLabel(card)));
+    else addCard(card, "active", placeOf(card, columnNames[card.status]));
   }
 
   for (const card of cardStore.listArchived(projectSlug)) {

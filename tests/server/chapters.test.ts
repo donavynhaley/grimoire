@@ -1,9 +1,12 @@
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
+import { z } from "zod";
 import type { BoardWorkspace, Card, Chapter } from "../../shared/types";
+import { parseMarkdown } from "../../server/markdown-files";
 import { bootstrap, startTestServer } from "./test-server";
 
 const directories: string[] = [];
@@ -410,6 +413,73 @@ describe("chapters", () => {
       expect(chapterEvents.map((event) => event.action)).toEqual(["moved", "created"]);
       expect(chapterEvents[0].entityTitle).toBe("First Brew");
     });
+  });
+});
+
+describe("the rollback script", () => {
+  it("makes every card readable again by a build that predates chapters", async () => {
+    const server = await startTestServer();
+    await bootstrap(server);
+    await enableChapters(server);
+    await createChapter(server, { name: "First Brew", state: "open" });
+    await createCard(server, { title: "Placed", chapter: "first-brew" });
+    await createCard(server, { title: "Unplaced" });
+
+    // The schema as it stands on the branch this would roll back to: strict, and with no
+    // idea what a chapter is.
+    const legacySchema = z
+      .object({
+        id: z.string().uuid(),
+        title: z.string(),
+        category: z.string().nullable().optional(),
+        blocked_by: z.array(z.string()).optional(),
+        unblocked_cards: z.array(z.string()).optional(),
+        status: z.string(),
+        position: z.number(),
+        assignee: z.string().nullable(),
+        created_by: z.string(),
+        created_at: z.string(),
+        updated_at: z.string(),
+        completed_at: z.string().nullable().optional(),
+        archived_at: z.string().nullable().optional(),
+      })
+      .strict();
+    const readAll = () => cardFiles(server).map((contents) => parseMarkdown(contents).metadata);
+
+    // Before: the placed card is unreadable, which is what would take the board down.
+    expect(readAll().filter((metadata) => !legacySchema.safeParse(metadata).success)).toHaveLength(1);
+
+    execFileSync(process.execPath, [
+      join(process.cwd(), "ops", "strip-chapter-frontmatter.mjs"),
+      server.cardsDirectory,
+      "--apply",
+    ]);
+
+    // After: every file parses under the older schema.
+    for (const metadata of readAll()) {
+      expect(legacySchema.safeParse(metadata).success).toBe(true);
+    }
+
+    // The chapter file itself is untouched, so rolling forward again restores the chapter -
+    // only which cards were in it is lost.
+    expect(readFileSync(chapterFile(server, "first-brew"), "utf8")).toContain("name: First Brew");
+  });
+
+  it("writes nothing without --apply", async () => {
+    const server = await startTestServer();
+    await bootstrap(server);
+    await enableChapters(server);
+    await createChapter(server, { name: "First Brew", state: "open" });
+    await createCard(server, { title: "Placed", chapter: "first-brew" });
+    const before = cardFiles(server);
+
+    const output = execFileSync(process.execPath, [
+      join(process.cwd(), "ops", "strip-chapter-frontmatter.mjs"),
+      server.cardsDirectory,
+    ]).toString();
+
+    expect(output).toContain("would strip");
+    expect(cardFiles(server)).toEqual(before);
   });
 });
 
