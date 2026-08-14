@@ -2122,3 +2122,343 @@ textarea:hover { border-color: var(--border-bright); }
   .self-filter-label,
   .self-filter .avatar { transition: none; }
 }
+
+/* Chapters -------------------------------------------------------------- */
+
+/* The board's chapter filter, sitting with the Backlog pill and the people chips. */
+.chapter-picker { position: relative; }
+
+.chapter-trigger {
+  display: inline-flex;
+  min-height: 30px;
+  padding: 0 9px 0 10px;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 9px;
+  cursor: pointer;
+  transition: color 120ms ease, background 120ms ease, border-color 120ms ease;
+}
+.chapter-trigger:hover { color: var(--text); border-color: var(--border-bright); }
+.chapter-trigger .chapter-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  background: var(--faint);
+  border-radius: 999px;
+}
+/* Only a chapter that is actually open gets the live accent. */
+.chapter-trigger.live { color: var(--accent); background: var(--accent-soft); border-color: #465f3c; }
+.chapter-trigger.live .chapter-dot {
+  background: var(--accent);
+  box-shadow: 0 0 9px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.chapter-trigger-name { max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chapter-trigger-when { color: var(--faint); font-size: 8px; }
+.chapter-trigger.live .chapter-trigger-when { color: color-mix(in srgb, var(--accent) 62%, var(--faint)); }
+.chapter-trigger-caret { color: var(--faint); font-size: 8px; }
+
+.chapter-panel {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  display: grid;
+  width: min(320px, 78vw);
+  padding: 6px;
+  gap: 1px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-bright);
+  border-radius: 8px;
+  box-shadow: 0 18px 40px rgb(0 0 0 / 55%);
+}
+.chapter-group-label {
+  margin: 6px 0 2px;
+  padding: 0 10px;
+  color: var(--faint);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.chapter-option {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 7px 10px;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+.chapter-option:hover { background: var(--surface-soft); color: var(--text); }
+.chapter-option.selected { color: var(--text); background: var(--surface-soft); }
+.chapter-option.current { color: var(--accent); }
+.chapter-option.current.selected { background: var(--accent-soft); }
+.chapter-option-name { display: grid; min-width: 0; }
+.chapter-option-name > .chapter-option-sub {
+  color: var(--faint);
+  font-size: 8px;
+  letter-spacing: 0.04em;
+}
+.chapter-option.current .chapter-option-sub { color: color-mix(in srgb, var(--accent) 60%, var(--faint)); }
+.chapter-option-count { color: var(--faint); font-size: 8px; }
+.chapter-panel-foot { display: grid; margin-top: 5px; padding-top: 5px; gap: 1px; border-top: 1px solid var(--border); }
+.chapter-manage {
+  padding: 7px 10px;
+  color: var(--faint);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 9px;
+  text-align: left;
+  cursor: pointer;
+}
+.chapter-manage:hover { color: var(--text); background: var(--surface-soft); }
+
+/* The chapter's own line under the board heading: what it is for, and when. */
+.board-intro .chapter-line { margin: 0; color: var(--muted); font-size: 11px; }
+.board-intro .chapter-line em { color: var(--accent); font-style: normal; }
+.board-intro .chapter-intent {
+  margin: 0;
+  max-width: 68ch;
+  color: var(--faint);
+  font-size: 11px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* Chapters dialog ------------------------------------------------------- */
+
+.chapters-note { margin: 0 0 16px; color: var(--faint); font-size: 11px; max-width: 62ch; }
+.chapter-manager { display: grid; margin-bottom: 18px; gap: 8px; }
+
+.chapter-row {
+  display: grid;
+  padding: 11px 12px;
+  gap: 8px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-bright);
+  border-radius: 8px;
+}
+.chapter-row.state-open { border-left-color: var(--accent); }
+.chapter-row.state-closed { border-left-color: var(--border); opacity: 0.78; }
+
+.chapter-row-main { display: flex; align-items: center; gap: 9px; }
+.chapter-row-main input {
+  min-width: 0;
+  flex: 1;
+  padding: 5px 8px;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 11px;
+}
+.chapter-row-main input:hover { border-color: var(--border); }
+.chapter-row-main input:focus { background: var(--surface); border-color: var(--border-bright); outline: none; }
+
+.chapter-state-pill {
+  padding: 2px 8px;
+  flex: none;
+  border-radius: 999px;
+  color: var(--faint);
+  background: var(--surface-soft);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.chapter-state-pill.open { color: var(--accent); background: var(--accent-soft); }
+
+.chapter-row-dates { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--faint); font-size: 9px; }
+.chapter-row-dates input,
+.chapter-add-dates input {
+  padding: 4px 7px;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 9px;
+  color-scheme: dark;
+}
+.chapter-row-dates input:focus,
+.chapter-add-dates input:focus { border-color: var(--border-bright); outline: none; }
+.chapter-count { margin-left: auto; color: var(--faint); font-size: 9px; }
+
+.chapter-row-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.chapter-row-actions > button {
+  padding: 0;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+.chapter-row-actions > button:hover:not(:disabled) { color: var(--text); }
+.chapter-row-actions > button:disabled { opacity: 0.5; cursor: default; }
+.chapter-row-actions .danger-text { color: var(--red); }
+.chapter-row-actions .archive-confirm { gap: 6px; color: var(--muted); font-size: 10px; flex-wrap: wrap; }
+.chapter-row-actions .archive-confirm button {
+  padding: 0 3px;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.chapter-add { display: grid; padding-top: 14px; gap: 8px; border-top: 1px solid var(--border); }
+.chapter-add-row { display: flex; gap: 6px; }
+.chapter-add-row input {
+  min-width: 0;
+  flex: 1;
+  padding: 7px 10px;
+  color: var(--text);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 11px;
+}
+.chapter-add-dates { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--faint); font-size: 9px; }
+.chapter-dates-note { color: var(--faint); font-size: 8px; }
+
+/* Project settings ------------------------------------------------------ */
+
+.settings-dialog { width: min(460px, 100%); }
+.settings-row { display: grid; padding: 14px 0; gap: 8px; border-top: 1px solid var(--border); }
+.settings-row:first-of-type { padding-top: 0; border-top: 0; }
+.settings-row-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.settings-summary { margin: 0; color: var(--faint); font-size: 10px; }
+.settings-summary em { color: var(--accent); font-style: normal; }
+
+.settings-input { display: flex; gap: 6px; }
+.settings-input input {
+  min-width: 0;
+  flex: 1;
+  padding: 7px 10px;
+  color: var(--text);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 11px;
+}
+.settings-input input:focus { border-color: var(--border-bright); outline: none; }
+
+.settings-link {
+  padding: 0;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-size: 10px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.settings-link:hover { color: var(--text); }
+
+/* A real on/off state, rather than a verb pretending to be one. */
+.settings-toggle { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.settings-toggle input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.settings-knob {
+  position: relative;
+  width: 30px;
+  height: 17px;
+  background: var(--surface-soft);
+  border: 1px solid var(--border-bright);
+  border-radius: 999px;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+.settings-knob::after {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 11px;
+  height: 11px;
+  background: var(--faint);
+  border-radius: 999px;
+  content: "";
+  transition: transform 140ms ease, background 140ms ease;
+}
+.settings-toggle input:checked + .settings-knob { background: var(--accent-soft); border-color: #465f3c; }
+.settings-toggle input:checked + .settings-knob::after { background: var(--accent); transform: translateX(13px); }
+.settings-toggle input:focus-visible + .settings-knob { outline: 2px solid var(--accent); outline-offset: 2px; }
+.settings-toggle-label {
+  color: var(--faint);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.settings-toggle input:checked ~ .settings-toggle-label { color: var(--accent); }
+
+.settings-row.danger .danger-label { color: var(--red); }
+.settings-row.danger .danger-text {
+  padding: 0;
+  color: var(--red);
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+.settings-row.danger .danger-text:disabled { opacity: 0.45; cursor: default; }
+.settings-row.danger .archive-confirm { gap: 6px; color: var(--muted); font-size: 10px; flex-wrap: wrap; }
+.settings-row.danger .archive-confirm button {
+  padding: 0 3px;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+/* Project menu, now a switcher ------------------------------------------ */
+
+.project-menu-label {
+  margin: 2px 0 4px;
+  padding: 0 10px;
+  color: var(--faint);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.project-menu-entry {
+  display: flex;
+  min-height: 30px;
+  padding: 0 10px;
+  align-items: center;
+  gap: 9px;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+.project-menu-entry:hover { color: var(--text); background: var(--surface-soft); }
+.project-menu-entry.settings { color: var(--text); }
+.project-menu-glyph { width: 12px; flex: none; color: var(--faint); font-size: 10px; text-align: center; }

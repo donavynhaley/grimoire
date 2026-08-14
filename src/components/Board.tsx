@@ -7,8 +7,11 @@ import { AwayDigest } from "./AwayDigest";
 import { BacklogDialog } from "./BacklogDialog";
 import { CardDialog } from "./CardDialog";
 import { type CategoryActions, CategoriesDialog } from "./CategoriesDialog";
+import { type ChapterActions, ChaptersDialog } from "./ChaptersDialog";
+import { type ChapterFilter, ChapterPicker, chapterWhen, NO_CHAPTER } from "./ChapterPicker";
 import { DoneHistoryDialog } from "./DoneHistoryDialog";
 import { type ProjectActions, ProjectMenu } from "./ProjectMenu";
+import { type ProjectSettingsActions, ProjectSettingsDialog } from "./ProjectSettingsDialog";
 import { type CaptureCardInput, QuickCapture } from "./QuickCapture";
 import { SearchDialog } from "./SearchDialog";
 import { TeamDialog } from "./TeamDialog";
@@ -38,9 +41,11 @@ type Props = {
   board: BoardWorkspace;
   busy: boolean;
   categoryActions: CategoryActions;
+  chapterActions: ChapterActions;
   ideas: IdeaWorkspace | null;
   online: ReadonlySet<string>;
   projectActions: ProjectActions;
+  projectSettingsActions: ProjectSettingsActions;
   revision: number;
   view: "work" | "ideas";
   onCreate: (input: CaptureCardInput) => Promise<void>;
@@ -61,7 +66,7 @@ type Props = {
   onViewChange: (view: "work" | "ideas") => Promise<void>;
 };
 
-export function Board({ away, board, busy, categoryActions, ideas, online, projectActions, revision, view, onCreate, onUpdate, onArchive, onCreateInvite, onCreateIdea, onChangeAvatar, onChangePassword, onLoadActivity, onLogout, onMoveBacklogToNext, onPromoteIdea, onRemoveAvatar, onRemoveMember, onRestoreCard, onUpdateIdea, onViewChange }: Props) {
+export function Board({ away, board, busy, categoryActions, chapterActions, ideas, online, projectActions, projectSettingsActions, revision, view, onCreate, onUpdate, onArchive, onCreateInvite, onCreateIdea, onChangeAvatar, onChangePassword, onLoadActivity, onLogout, onMoveBacklogToNext, onPromoteIdea, onRemoveAvatar, onRemoveMember, onRestoreCard, onUpdateIdea, onViewChange }: Props) {
   const [addingTo, setAddingTo] = useState<CardStatus | null>(null);
   const [columnTitle, setColumnTitle] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -84,6 +89,8 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
   const [openIdea, setOpenIdea] = useState<{ id: string; token: number } | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
+  const [chaptersOpen, setChaptersOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
   // Once the history has been opened, its badge has done its job for this visit.
   const [activityVisited, setActivityVisited] = useState(false);
@@ -113,6 +120,29 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
   const [people, setPeople] = useState<Set<string>>(
     () => new Set((initialParams.get("people") ?? "").split(",").filter(Boolean)),
   );
+  const chaptersOn = board.project.chaptersEnabled;
+  /**
+   * With no chapter named in the URL the board opens on the one that is open, so arriving
+   * lands on what the team is working on now. With nothing open it falls back to all work,
+   * and the picker always offers "All work" so this can never hide the project.
+   */
+  const [chapter, setChapter] = useState<ChapterFilter>(() => {
+    if (!chaptersOn) return null;
+    const requested = initialParams.get("chapter");
+    if (requested === NO_CHAPTER) return NO_CHAPTER;
+    if (requested && board.chapters.some((value) => value.slug === requested)) return requested;
+    if (requested) return null;
+    return board.chapters.find((value) => value.state === "open")?.slug ?? null;
+  });
+  const selectedChapter = chapter === null || chapter === NO_CHAPTER
+    ? undefined
+    : board.chapters.find((value) => value.slug === chapter);
+  // A chapter that was deleted, or a gate switched off, must not leave the board filtered
+  // to something the reader can no longer see or reach.
+  useEffect(() => {
+    if (chapter === null || chapter === NO_CHAPTER) return;
+    if (!chaptersOn || !board.chapters.some((value) => value.slug === chapter)) setChapter(null);
+  }, [board.chapters, chapter, chaptersOn]);
   const selectedCard = board.cards.find((card) => card.id === selectedId) ?? null;
 
   // Opening a card answers its dot, whichever surface the card was opened from.
@@ -142,13 +172,21 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
   const categoryName = (slug: string | null) =>
     slug === null ? "uncategorized" : categoriesBySlug.get(slug)?.name ?? slug;
   const normalizedQuery = query.trim().toLowerCase();
+  const chaptersBySlug = useMemo(
+    () => new Map(board.chapters.map((value) => [value.slug, value])),
+    [board.chapters],
+  );
+  const chapterName = (slug: string | null) =>
+    slug === null ? "no chapter" : chaptersBySlug.get(slug)?.name ?? slug;
   const filteredCards = useMemo(
     () => board.cards.filter((card) => {
+      if (chapter === NO_CHAPTER && card.chapter !== null) return false;
+      if (chapter !== null && chapter !== NO_CHAPTER && card.chapter !== chapter) return false;
       if (people.size > 0 && !people.has(card.assigneeId ?? "unassigned")) return false;
-      if (normalizedQuery && !`${card.title}\n${card.description}\n${categoryName(card.category)}\n${card.assigneeName ?? "unassigned"}`.toLowerCase().includes(normalizedQuery)) return false;
+      if (normalizedQuery && !`${card.title}\n${card.description}\n${categoryName(card.category)}\n${chapterName(card.chapter)}\n${card.assigneeName ?? "unassigned"}`.toLowerCase().includes(normalizedQuery)) return false;
       return true;
     }),
-    [board.cards, categoriesBySlug, normalizedQuery, people],
+    [board.cards, categoriesBySlug, chapter, chaptersBySlug, normalizedQuery, people],
   );
   const activeCount = filteredCards.filter((card) => card.status === "ready" || card.status === "in_progress" || card.status === "review").length;
   const backlogCards = board.cards.filter((card) => card.status === "backlog");
@@ -233,19 +271,21 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
     if (view !== "ideas") void onViewChange("ideas");
   };
 
-  const updateUrl = (nextQuery: string, nextPeople: Set<string>) => {
+  const updateUrl = (nextQuery: string, nextPeople: Set<string>, nextChapter: ChapterFilter) => {
     const params = new URLSearchParams(location.search);
     params.delete("focus");
     if (nextQuery.trim()) params.set("q", nextQuery.trim());
     else params.delete("q");
     if (nextPeople.size) params.set("people", [...nextPeople].join(","));
     else params.delete("people");
+    if (nextChapter) params.set("chapter", nextChapter);
+    else params.delete("chapter");
     history.replaceState({}, "", `${location.pathname}${params.size ? `?${params}` : ""}`);
   };
 
   const changeQuery = (value: string) => {
     setQuery(value);
-    updateUrl(value, people);
+    updateUrl(value, people, chapter);
   };
 
   const togglePerson = (id: string) => {
@@ -253,7 +293,12 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
     if (next.has(id)) next.delete(id);
     else next.add(id);
     setPeople(next);
-    updateUrl(query, next);
+    updateUrl(query, next, chapter);
+  };
+
+  const changeChapter = (value: ChapterFilter) => {
+    setChapter(value);
+    updateUrl(query, people, value);
   };
 
   const spawnFlight = (input: CaptureCardInput) => {
@@ -403,7 +448,7 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
             actions={projectActions}
             busy={busy}
             isOwner={board.currentUser.role === "owner"}
-            onManageCategories={() => setCategoriesOpen(true)}
+            onOpenSettings={() => setSettingsOpen(true)}
             project={board.project}
             projects={board.projects}
           />
@@ -444,7 +489,18 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
       {view === "work" ? <main className="board-main">
         <div className="board-intro">
           <div>
-            <h2>{activeCount} active card{activeCount === 1 ? "" : "s"}</h2>
+            {/* A chapter names itself and says when it runs in one sentence. That is the whole
+                reporting surface: no chart, no percentage, nothing to keep up to date. */}
+            <h2>{selectedChapter ? selectedChapter.name : `${activeCount} active card${activeCount === 1 ? "" : "s"}`}</h2>
+            {selectedChapter && (
+              <p className="chapter-line">
+                {activeCount} active card{activeCount === 1 ? "" : "s"} <span aria-hidden="true">·</span>{" "}
+                <em>{chapterWhen(selectedChapter)}</em>
+              </p>
+            )}
+            {selectedChapter?.description && (
+              <p className="chapter-intent">{plainTextFromMarkdown(selectedChapter.description)}</p>
+            )}
           </div>
           <QuickCapture busy={busy} categories={board.categories} members={board.members} onCreate={captureCard} />
         </div>
@@ -461,6 +517,16 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
           >
             <span>Backlog</span><strong>{backlogCards.length}</strong><kbd aria-hidden="true">B</kbd>
           </button>
+          {chaptersOn && (
+            <ChapterPicker
+              cards={board.cards}
+              chapters={board.chapters}
+              isOwner={isOwner}
+              onChange={changeChapter}
+              onManage={() => setChaptersOpen(true)}
+              value={chapter}
+            />
+          )}
           <label className="card-search">
             <span className="sr-only">Search cards</span>
             <input aria-label="Search cards" name="cardSearch" onChange={(event) => changeQuery(event.target.value)} placeholder="Search cards..." type="search" value={query} />
@@ -495,7 +561,7 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
 
         {/* The board can only draw four columns, so a filter that found nothing here has
             not searched the project. This says where the rest of the matches are. */}
-        {normalizedQuery && (
+        {(normalizedQuery || selectedChapter) && (offBoardMatches.backlog > 0 || offBoardMatches.completed > 0 || normalizedQuery) && (
           <div className="off-board-hint">
             {offBoardMatches.backlog > 0 && (
               <span>{offBoardMatches.backlog} in Backlog</span>
@@ -503,9 +569,11 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
             {offBoardMatches.completed > 0 && (
               <span>{offBoardMatches.completed} more completed</span>
             )}
-            <button className="text-button search-everything" onClick={() => setSearchOpen(true)} type="button">
-              search everything <kbd aria-hidden="true">/</kbd>
-            </button>
+            {normalizedQuery && (
+              <button className="text-button search-everything" onClick={() => setSearchOpen(true)} type="button">
+                search everything <kbd aria-hidden="true">/</kbd>
+              </button>
+            )}
           </div>
         )}
 
@@ -696,7 +764,33 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
           actions={categoryActions}
           busy={busy}
           categories={board.categories}
-          onClose={() => setCategoriesOpen(false)}
+          // Opened from settings, closing returns there rather than dumping the reader on
+          // the board, so the trip out and back reads as one place.
+          onClose={() => { setCategoriesOpen(false); setSettingsOpen(true); }}
+        />
+      )}
+      {chaptersOpen && (
+        <ChaptersDialog
+          actions={chapterActions}
+          busy={busy}
+          cards={board.cards}
+          chapters={board.chapters}
+          onClose={() => setChaptersOpen(false)}
+        />
+      )}
+      {settingsOpen && (
+        <ProjectSettingsDialog
+          actions={projectSettingsActions}
+          busy={busy}
+          canArchive={board.projects.length > 1}
+          cards={board.cards}
+          categories={board.categories}
+          chapters={board.chapters}
+          chaptersEnabled={chaptersOn}
+          onClose={() => setSettingsOpen(false)}
+          onManageCategories={() => { setSettingsOpen(false); setCategoriesOpen(true); }}
+          onManageChapters={() => { setSettingsOpen(false); setChaptersOpen(true); }}
+          project={board.project}
         />
       )}
       {teamOpen && (

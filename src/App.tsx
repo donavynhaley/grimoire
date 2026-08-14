@@ -374,6 +374,14 @@ export function App() {
     perform(() => mutate(`/api/categories/${slug}`, "PATCH", input));
   const deleteCategory = (slug: string) => perform(() => mutate(`/api/categories/${slug}`, "DELETE"));
 
+  const createChapter = (input: { name: string; startsOn?: string | null; endsOn?: string | null }) =>
+    perform(() => mutate("/api/chapters", "POST", input));
+  const updateChapter = (slug: string, input: Record<string, unknown>) =>
+    perform(() => mutate(`/api/chapters/${slug}`, "PATCH", input));
+  const deleteChapter = (slug: string) => perform(() => mutate(`/api/chapters/${slug}`, "DELETE"));
+  const setChaptersEnabled = (enabled: boolean) =>
+    perform(() => mutate(`/api/projects/${board?.project.id}`, "PATCH", { chaptersEnabled: enabled }));
+
   const logout = async () => {
     await request("/api/auth/logout", { method: "POST", body: JSON.stringify({}) });
     setBoard(null);
@@ -405,6 +413,7 @@ export function App() {
         board={board}
         busy={busy}
         categoryActions={{ create: createCategory, update: updateCategory, remove: deleteCategory }}
+        chapterActions={{ create: createChapter, update: updateChapter, remove: deleteChapter }}
         ideas={ideas}
         key={board.project.id}
         onChangeAvatar={changeAvatar}
@@ -426,6 +435,11 @@ export function App() {
         onUpdateIdea={updateIdea}
         onViewChange={changeView}
         projectActions={{ select: selectProject, create: createProject, rename: renameProject, archive: archiveProject }}
+        projectSettingsActions={{
+          rename: (name) => renameProject(board.project.id, name),
+          setChaptersEnabled,
+          archive: () => archiveProject(board.project.id),
+        }}
         view={view}
       />
     </>
