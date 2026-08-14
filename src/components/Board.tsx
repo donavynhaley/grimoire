@@ -50,6 +50,7 @@ type Props = {
   onCreateIdea: (input: { title: string }) => Promise<void>;
   onLoadActivity: (options: { entityId?: string; before?: number; limit?: number }) => Promise<AuditPage>;
   onChangeAvatar: (file: File) => Promise<void>;
+  onChangeName: (name: string) => Promise<void>;
   onChangePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   onRemoveAvatar: () => Promise<void>;
   onLogout: () => Promise<void>;
@@ -61,7 +62,7 @@ type Props = {
   onViewChange: (view: "work" | "ideas") => Promise<void>;
 };
 
-export function Board({ away, board, busy, categoryActions, ideas, online, projectActions, revision, view, onCreate, onUpdate, onArchive, onCreateInvite, onCreateIdea, onChangeAvatar, onChangePassword, onLoadActivity, onLogout, onMoveBacklogToNext, onPromoteIdea, onRemoveAvatar, onRemoveMember, onRestoreCard, onUpdateIdea, onViewChange }: Props) {
+export function Board({ away, board, busy, categoryActions, ideas, online, projectActions, revision, view, onCreate, onUpdate, onArchive, onCreateInvite, onCreateIdea, onChangeAvatar, onChangeName, onChangePassword, onLoadActivity, onLogout, onMoveBacklogToNext, onPromoteIdea, onRemoveAvatar, onRemoveMember, onRestoreCard, onUpdateIdea, onViewChange }: Props) {
   const [addingTo, setAddingTo] = useState<CardStatus | null>(null);
   const [columnTitle, setColumnTitle] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -509,7 +510,7 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
           </div>
         )}
 
-        <div className="kanban" aria-label="Wizard Simulator board" ref={kanbanRef}>
+        <div className="kanban" aria-label={`${board.project.name} board`} ref={kanbanRef}>
           {BOARD_STATUSES.map((status) => {
             const cards = cardsByStatus[status];
             const baseCards = drag ? cards.filter((card) => card.id !== drag.id) : cards;
@@ -712,6 +713,7 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
       {accountOpen && (
         <AccountDialog
           onChangeAvatar={onChangeAvatar}
+          onChangeName={onChangeName}
           onChangePassword={onChangePassword}
           onClose={() => setAccountOpen(false)}
           onLogout={onLogout}

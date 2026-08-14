@@ -44,11 +44,12 @@ export function AuthScreen({ mode: initialMode, inviteCode, onAuthenticated }: P
         <span>grimoire</span>
       </div>
       <main className="auth-card">
-        <p className="eyebrow">{setup ? "first run" : register ? "project invitation" : "wizard simulator"}</p>
+        {/* Signed out there is no project to name yet, so each eyebrow names the step instead. */}
+        <p className="eyebrow">{setup ? "first run" : register ? "project invitation" : "sign in"}</p>
         <h1>{setup ? "Create your Grimoire" : register ? "Join the project" : "Welcome back"}</h1>
         <p className="auth-copy">
           {setup
-            ? "Create the owner account for your private Wizard Simulator workspace."
+            ? "Create the owner account for your private Grimoire workspace."
             : register
               ? "Create your account to join the shared project board."
               : "Sign in to see the board and what everyone is working on."}
