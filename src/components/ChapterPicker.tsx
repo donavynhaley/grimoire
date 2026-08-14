@@ -17,11 +17,13 @@ type Props = {
   isOwner: boolean;
   onChange: (value: ChapterFilter) => void;
   onManage: () => void;
+  /** Closes whichever chapter is open and opens this one, as one act. */
+  onMakeCurrent: (slug: string) => Promise<void>;
   value: ChapterFilter;
 };
 
 
-export function ChapterPicker({ pages, chapters, isOwner, onChange, onManage, value }: Props) {
+export function ChapterPicker({ pages, chapters, isOwner, onChange, onManage, onMakeCurrent, value }: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const selected = value === null || value === NO_CHAPTER
@@ -51,18 +53,41 @@ export function ChapterPicker({ pages, chapters, isOwner, onChange, onManage, va
     setOpen(false);
   };
 
-  const option = (key: string, name: string, sub: string, count: number, next: ChapterFilter, isCurrent: boolean) => (
-    <button
-      aria-current={value === next ? "true" : undefined}
-      className={`chapter-option ${isCurrent ? "current" : ""} ${value === next ? "selected" : ""}`}
-      key={key}
-      onClick={() => choose(next)}
-      role="menuitem"
-      type="button"
-    >
-      <span className="chapter-option-name">{name}<span className="chapter-option-sub">{sub}</span></span>
-      <span className="chapter-option-count">{count}</span>
-    </button>
+  /**
+   * One row of the picker. `makeCurrent` is offered on every chapter that is not the current
+   * one, because a chapter with no dates has nothing to imply it should be - somebody has to
+   * say so, and this is where they are already looking at the list.
+   */
+  const option = (
+    key: string,
+    name: string,
+    sub: string,
+    count: number,
+    next: ChapterFilter,
+    isCurrent: boolean,
+    makeCurrent?: string,
+  ) => (
+    <div className={`chapter-row-option ${isCurrent ? "current" : ""}`} key={key}>
+      <button
+        aria-current={value === next ? "true" : undefined}
+        className={`chapter-option ${isCurrent ? "current" : ""} ${value === next ? "selected" : ""}`}
+        onClick={() => choose(next)}
+        role="menuitem"
+        type="button"
+      >
+        <span className="chapter-option-name">{name}{sub && <span className="chapter-option-sub">{sub}</span>}</span>
+        <span className="chapter-option-count">{count}</span>
+      </button>
+      {makeCurrent && isOwner && (
+        <button
+          aria-label={`Make ${name} the current chapter`}
+          className="chapter-make-current"
+          onClick={() => void onMakeCurrent(makeCurrent)}
+          title={current ? `Closes ${current.name} first` : undefined}
+          type="button"
+        >make current</button>
+      )}
+    </div>
   );
 
   return (
@@ -77,7 +102,7 @@ export function ChapterPicker({ pages, chapters, isOwner, onChange, onManage, va
       >
         <span aria-hidden="true" className="chapter-dot" />
         <span className="chapter-trigger-name">{label}</span>
-        <span className="chapter-trigger-when">{when}</span>
+        {when && <span className="chapter-trigger-when">{when}</span>}
         <span aria-hidden="true" className="chapter-trigger-caret">▾</span>
       </button>
       {open && (
@@ -93,7 +118,7 @@ export function ChapterPicker({ pages, chapters, isOwner, onChange, onManage, va
             <>
               <p className="chapter-group-label">planned</p>
               {planned.map((chapter) =>
-                option(chapter.slug, chapter.name, chapterWhen(chapter), countIn(chapter.slug), chapter.slug, false),
+                option(chapter.slug, chapter.name, chapterWhen(chapter), countIn(chapter.slug), chapter.slug, false, chapter.slug),
               )}
             </>
           )}
@@ -101,7 +126,7 @@ export function ChapterPicker({ pages, chapters, isOwner, onChange, onManage, va
             <>
               <p className="chapter-group-label">earlier</p>
               {closed.map((chapter) =>
-                option(chapter.slug, chapter.name, chapterWhen(chapter), countIn(chapter.slug), chapter.slug, false),
+                option(chapter.slug, chapter.name, chapterWhen(chapter), countIn(chapter.slug), chapter.slug, false, chapter.slug),
               )}
             </>
           )}

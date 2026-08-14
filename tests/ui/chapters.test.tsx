@@ -101,11 +101,14 @@ describe("chapters on the board", () => {
     expect(screen.getByText(/Get one full potion loop playable end to end\./)).toBeInTheDocument();
   });
 
-  it("reports the chapter's backlog reserve without leaving the board", async () => {
+  it("reports the chapter's backlog reserve in the chapter's own line", async () => {
     mountWith(chapteredBoard());
 
-    // One of the chapter's pages is still in the Backlog, which the board cannot draw.
-    expect(await screen.findByText("1 in Backlog")).toBeInTheDocument();
+    // The reserve belongs in the sentence about this chapter. Repeating it under the filters
+    // put a second count beside the Backlog pill that already carries one.
+    const line = await screen.findByText(/active page/);
+    expect(line).toHaveTextContent("1 in backlog");
+    expect(screen.queryByText("1 in Backlog")).toBeNull();
   });
 
   it("widens back to every page through All work, and records it in the URL", async () => {
@@ -165,6 +168,47 @@ describe("chapters on the board", () => {
     await waitFor(() => expect(screen.queryByText("Inside the chapter")).toBeNull());
     expect(new URLSearchParams(location.search).get("chapter")).toBe("first-brew");
     expect(new URLSearchParams(location.search).get("people")).toBe("unassigned");
+  });
+});
+
+describe("choosing which chapter is current", () => {
+  it("promotes a dateless chapter from the picker, closing the open one first", async () => {
+    const user = userEvent.setup();
+    const board = chapteredBoard();
+    const patched: Array<{ slug: string; body: Record<string, unknown> }> = [];
+    vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input);
+      if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
+      if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
+      if (url.startsWith("/api/seen")) return response({ ok: true });
+      if (url.startsWith("/api/session")) return response({ status: "authenticated", user: board.currentUser });
+      if (url.startsWith("/api/chapters/") && init?.method === "PATCH") {
+        patched.push({ slug: url.split("/").pop()!, body: JSON.parse(String(init.body)) });
+        return response({ chapter: board.chapters[1] });
+      }
+      return response(board);
+    });
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /Filter by chapter/ }));
+    // Second Brew has no dates, so nothing about it implies it should be current.
+    await user.click(screen.getByRole("button", { name: "Make Second Brew the current chapter" }));
+
+    // One chapter is open at a time, so this is two writes that read as a single decision.
+    await waitFor(() => expect(patched).toEqual([
+      { slug: "first-brew", body: { state: "closed" } },
+      { slug: "second-brew", body: { state: "open" } },
+    ]));
+  });
+
+  it("offers no promotion for the chapter that is already current", async () => {
+    const user = userEvent.setup();
+    mountWith(chapteredBoard());
+
+    await user.click(await screen.findByRole("button", { name: /Filter by chapter/ }));
+
+    expect(screen.queryByRole("button", { name: "Make First Brew the current chapter" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Make Second Brew the current chapter" })).toBeInTheDocument();
   });
 });
 

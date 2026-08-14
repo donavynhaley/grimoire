@@ -16,7 +16,13 @@ export function dayLabel(day: string): string {
   }).format(new Date(`${day}T00:00:00.000Z`));
 }
 
-/** The one-line "when" a chapter carries, or a plain note when it never took dates. */
+/**
+ * The one-line "when" a chapter carries, or an empty string when it never took dates.
+ *
+ * Dates are optional, so a chapter without them has nothing to say here. Saying "no dates"
+ * announced their absence in two places at once and made the blank case look like a defect
+ * rather than a choice.
+ */
 export function chapterWhen(chapter: Chapter): string {
   if (chapter.state === "closed") {
     return chapter.closedAt ? `closed ${dayLabel(chapter.closedAt.slice(0, 10))}` : "closed";
@@ -24,5 +30,5 @@ export function chapterWhen(chapter: Chapter): string {
   if (chapter.startsOn && chapter.endsOn) return `${dayLabel(chapter.startsOn)} → ${dayLabel(chapter.endsOn)}`;
   if (chapter.endsOn) return `ends ${dayLabel(chapter.endsOn)}`;
   if (chapter.startsOn) return `from ${dayLabel(chapter.startsOn)}`;
-  return "no dates";
+  return "";
 }

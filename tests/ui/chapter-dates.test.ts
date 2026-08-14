@@ -42,8 +42,10 @@ describe("chapter days", () => {
     expect(chapterWhen(chapter({ startsOn: "2026-08-18" }))).toBe("from Aug 18");
   });
 
-  it("treats a chapter with no dates as perfectly ordinary", () => {
-    expect(chapterWhen(chapter())).toBe("no dates");
+  it("says nothing at all when a chapter never took dates", () => {
+    // Dates are optional, so their absence is not news. Announcing it made the blank case
+    // read as a defect and printed the same non-fact in two places at once.
+    expect(chapterWhen(chapter())).toBe("");
   });
 
   it("reports a closed chapter by when it closed, not by its planned end", () => {

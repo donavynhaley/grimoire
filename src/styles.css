@@ -2217,6 +2217,32 @@ textarea:hover { border-color: var(--border-bright); }
   letter-spacing: 0.16em;
   text-transform: uppercase;
 }
+/*
+ * A row is the filter plus, on any chapter that is not the current one, a way to make it so.
+ * The action stays quiet until the row is hovered or focused, so the list still reads as a
+ * list - except on a touch device, where there is no hover to reveal it with.
+ */
+.chapter-row-option { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+.chapter-make-current {
+  padding: 0 8px;
+  flex: none;
+  color: var(--faint);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 8px;
+  white-space: nowrap;
+  opacity: 0;
+  cursor: pointer;
+}
+.chapter-row-option:hover .chapter-make-current,
+.chapter-make-current:focus-visible { opacity: 1; }
+.chapter-make-current:hover { color: var(--accent); }
+@media (pointer: coarse) {
+  .chapter-make-current { min-height: 34px; opacity: 1; }
+}
+
 .chapter-option {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

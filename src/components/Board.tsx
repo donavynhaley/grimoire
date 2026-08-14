@@ -309,6 +309,20 @@ export function Board({ away, board, busy, categoryActions, chapterActions, idea
     updateUrl(query, people, value);
   };
 
+  /**
+   * Promotes a chapter to the current one, closing whichever is open first.
+   *
+   * One chapter is open at a time, so this is two writes that read as a single decision. The
+   * board follows the promotion, because saying "this is what we are working on now" and then
+   * being left looking at something else would be a strange place to land.
+   */
+  const makeChapterCurrent = async (slug: string) => {
+    const open = board.chapters.find((value) => value.state === "open");
+    if (open && open.slug !== slug) await chapterActions.update(open.slug, { state: "closed" });
+    await chapterActions.update(slug, { state: "open" });
+    changeChapter(slug);
+  };
+
   const spawnFlight = (input: CapturePageInput) => {
     const shell = shellRef.current;
     if (!shell) return;
@@ -505,8 +519,11 @@ export function Board({ away, board, busy, categoryActions, chapterActions, idea
             <h2>{selectedChapter ? selectedChapter.name : `${activeCount} active page${activeCount === 1 ? "" : "s"}`}</h2>
             {selectedChapter && (
               <p className="chapter-line">
-                {activeCount} active page{activeCount === 1 ? "" : "s"} <span aria-hidden="true">·</span>{" "}
-                <em>{chapterWhen(selectedChapter)}</em>
+                {activeCount} active page{activeCount === 1 ? "" : "s"}
+                {/* The chapter's own reserve belongs in its sentence. Repeating it beneath the
+                    filters put a second count next to the Backlog pill that already carries one. */}
+                {offBoardMatches.backlog > 0 && <> <span aria-hidden="true">·</span> {offBoardMatches.backlog} in backlog</>}
+                {chapterWhen(selectedChapter) && <> <span aria-hidden="true">·</span> <em>{chapterWhen(selectedChapter)}</em></>}
               </p>
             )}
             {selectedChapter?.description && (
@@ -535,6 +552,7 @@ export function Board({ away, board, busy, categoryActions, chapterActions, idea
               isOwner={isOwner}
               onChange={changeChapter}
               onManage={() => setChaptersOpen(true)}
+              onMakeCurrent={makeChapterCurrent}
               value={chapter}
             />
           )}
@@ -572,7 +590,9 @@ export function Board({ away, board, busy, categoryActions, chapterActions, idea
 
         {/* The board can only draw four columns, so a filter that found nothing here has
             not searched the project. This says where the rest of the matches are. */}
-        {(normalizedQuery || selectedChapter) && (offBoardMatches.backlog > 0 || offBoardMatches.completed > 0 || normalizedQuery) && (
+        {/* Only a search needs this: it reports matches the four columns cannot show and offers
+            the way to reach them. A chapter's own counts live in its line above the filters. */}
+        {normalizedQuery && (
           <div className="off-board-hint">
             {offBoardMatches.backlog > 0 && (
               <span>{offBoardMatches.backlog} in Backlog</span>
@@ -580,11 +600,9 @@ export function Board({ away, board, busy, categoryActions, chapterActions, idea
             {offBoardMatches.completed > 0 && (
               <span>{offBoardMatches.completed} more completed</span>
             )}
-            {normalizedQuery && (
-              <button className="text-button search-everything" onClick={() => setSearchOpen(true)} type="button">
-                search everything <kbd aria-hidden="true">/</kbd>
-              </button>
-            )}
+            <button className="text-button search-everything" onClick={() => setSearchOpen(true)} type="button">
+              search everything <kbd aria-hidden="true">/</kbd>
+            </button>
           </div>
         )}
 
