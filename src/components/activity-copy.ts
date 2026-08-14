@@ -5,7 +5,15 @@ export const ENTITY_LABELS: Record<AuditEntityType, string> = {
   idea: "ideas",
   project: "project",
   category: "categories",
+  chapter: "chapters",
   member: "team",
+};
+
+const PROJECT_VERBS: Partial<Record<AuditEvent["action"], string>> = {
+  created: "created",
+  renamed: "renamed",
+  updated: "changed settings on",
+  archived: "archived",
 };
 
 const CARD_VERBS: Partial<Record<AuditEvent["action"], string>> = {
@@ -32,7 +40,9 @@ export function describeEvent(event: AuditEvent): { lead: string; title: string 
     return { lead: "removed", title: event.entityTitle };
   }
   if (event.entityType === "project") {
-    const verb = event.action === "created" ? "created" : event.action === "renamed" ? "renamed" : "archived";
+    // Defaulting an unrecognised action to "archived" would report something alarming and
+    // untrue, so an unknown verb stays literal instead.
+    const verb = PROJECT_VERBS[event.action] ?? event.action;
     return { lead: `${verb} the project`, title: event.entityTitle };
   }
   const noun = event.entityType === "category" ? "category" : event.entityType;

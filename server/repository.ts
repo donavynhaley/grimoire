@@ -6,12 +6,15 @@ import {
   type Card,
   type CardCategory,
   type CardStatus,
+  type Chapter,
+  type ChapterState,
   type Member,
   type ProjectCategory,
   type ProjectSummary,
   type User,
 } from "../shared/types";
 import { MarkdownCardStore, type StoredCard } from "./markdown-cards";
+import { MarkdownChapterStore, type StoredChapter } from "./markdown-chapters";
 
 type Row = Record<string, string | number | null>;
 
@@ -231,23 +234,218 @@ export function deleteCategory(
   return true;
 }
 
+export function chaptersEnabled(database: DatabaseSync, projectId: string): boolean {
+  const project = row(database, "SELECT chapters_enabled FROM projects WHERE id = ?", projectId);
+  return Number(project?.chapters_enabled ?? 0) === 1;
+}
+
+/**
+ * Flips the per-project gate.
+ *
+ * Turning chapters off is deliberately not destructive: the chapter files stay on disk and
+ * cards keep their `chapter` field, so the only thing that changes is whether the interface
+ * draws any of it. Turning it back on restores exactly the prior state.
+ */
+export function setChaptersEnabled(database: DatabaseSync, projectId: string, enabled: boolean): boolean {
+  const result = database
+    .prepare("UPDATE projects SET chapters_enabled = ?, updated_at = ? WHERE id = ? AND archived_at IS NULL")
+    .run(enabled ? 1 : 0, new Date().toISOString(), projectId);
+  return Number(result.changes) === 1;
+}
+
+export function chaptersForProject(
+  database: DatabaseSync,
+  chapterStore: MarkdownChapterStore,
+  projectId: string,
+): Chapter[] {
+  const project = projectById(database, projectId);
+  if (!project) return [];
+  const members = membersForProject(database, projectId);
+  return chapterStore
+    .list(String(project.slug))
+    .map((chapter) => publicChapter(database, chapter, members));
+}
+
+export function chapterSlugFromName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60)
+    .replace(/-+$/g, "");
+}
+
+export type ChapterInput = {
+  name: string;
+  description?: string;
+  startsOn?: string | null;
+  endsOn?: string | null;
+  state?: ChapterState;
+};
+
+export type CreateChapterResult = { chapter: Chapter } | "exists" | "invalid_name" | "already_open";
+
+export function createChapter(
+  database: DatabaseSync,
+  chapterStore: MarkdownChapterStore,
+  projectId: string,
+  creatorId: string,
+  input: ChapterInput,
+): CreateChapterResult | null {
+  const project = projectById(database, projectId);
+  const members = membersForProject(database, projectId);
+  const creator = members.find((member) => member.id === creatorId);
+  if (!project || !creator) return null;
+  const slug = chapterSlugFromName(input.name);
+  if (!slug) return "invalid_name";
+  const projectSlug = String(project.slug);
+  const existing = chapterStore.list(projectSlug);
+  if (existing.some((chapter) => chapter.slug === slug)) return "exists";
+  const state = input.state ?? "planned";
+  if (state === "open" && existing.some((chapter) => chapter.state === "open")) return "already_open";
+  requireCoherentDates(input.startsOn ?? null, input.endsOn ?? null);
+
+  const now = new Date().toISOString();
+  const chapter: StoredChapter = {
+    slug,
+    name: input.name.trim(),
+    description: input.description ?? "",
+    state,
+    position: existing.length,
+    startsOn: input.startsOn ?? null,
+    endsOn: input.endsOn ?? null,
+    createdBy: creator.email.toLowerCase(),
+    createdAt: now,
+    updatedAt: now,
+    closedAt: state === "closed" ? now : null,
+  };
+  chapterStore.save(projectSlug, chapter);
+  return { chapter: publicChapter(database, chapter, members) };
+}
+
+export type UpdateChapterResult = { chapter: Chapter } | "not_found" | "already_open";
+
+/**
+ * Edits one chapter, including its state.
+ *
+ * Two rules live here rather than in the interface. At most one chapter is open at a time,
+ * which is what keeps the feature meaning "what are we working on now" instead of becoming a
+ * grid of parallel workstreams; the caller is expected to close the current one first, as an
+ * explicit act. And closing stamps `closedAt` while reopening clears it, mirroring how a
+ * card's `completedAt` behaves - crucially, without touching a single card either way.
+ */
+export function updateChapter(
+  database: DatabaseSync,
+  chapterStore: MarkdownChapterStore,
+  projectId: string,
+  slug: string,
+  input: Partial<ChapterInput> & { position?: number; expectedDescription?: string },
+): UpdateChapterResult | null {
+  const project = projectById(database, projectId);
+  if (!project) return null;
+  const projectSlug = String(project.slug);
+  const current = chapterStore.get(projectSlug, slug);
+  if (!current) return "not_found";
+  requireUnchangedContent(
+    { title: current.name, description: current.description },
+    { expectedDescription: input.expectedDescription },
+    publicChapter(database, current, membersForProject(database, projectId)),
+    "chapter",
+  );
+
+  const nextState = input.state ?? current.state;
+  if (nextState === "open" && current.state !== "open") {
+    const conflict = chapterStore
+      .list(projectSlug)
+      .some((chapter) => chapter.slug !== slug && chapter.state === "open");
+    if (conflict) return "already_open";
+  }
+  const startsOn = input.startsOn === undefined ? current.startsOn : input.startsOn;
+  const endsOn = input.endsOn === undefined ? current.endsOn : input.endsOn;
+  requireCoherentDates(startsOn, endsOn);
+
+  const now = new Date().toISOString();
+  const updated: StoredChapter = {
+    ...current,
+    name: input.name === undefined ? current.name : input.name.trim(),
+    description: input.description ?? current.description,
+    state: nextState,
+    startsOn,
+    endsOn,
+    position: input.position ?? current.position,
+    updatedAt: now,
+    closedAt: nextState === "closed" ? current.closedAt ?? now : null,
+  };
+  chapterStore.save(projectSlug, updated);
+  return { chapter: publicChapter(database, updated, membersForProject(database, projectId)) };
+}
+
+/**
+ * Removes a chapter and clears it from every card that referenced it.
+ *
+ * This mirrors category deletion. It is the one genuinely lossy chapter operation, which is
+ * why the interface names the affected count before asking.
+ */
+export function deleteChapter(
+  database: DatabaseSync,
+  cardStore: MarkdownCardStore,
+  chapterStore: MarkdownChapterStore,
+  projectId: string,
+  slug: string,
+): boolean {
+  const project = projectById(database, projectId);
+  if (!project) return false;
+  const projectSlug = String(project.slug);
+  if (!chapterStore.get(projectSlug, slug)) return false;
+  chapterStore.remove(projectSlug, slug);
+  const now = new Date().toISOString();
+  cardStore.list(projectSlug).forEach((card) => {
+    if (card.chapter !== slug) return;
+    cardStore.save(projectSlug, { ...card, chapter: null, updatedAt: now });
+  });
+  return true;
+}
+
+/** How many cards a chapter would release if it were deleted. */
+export function cardsInChapter(
+  database: DatabaseSync,
+  cardStore: MarkdownCardStore,
+  projectId: string,
+  slug: string,
+): number {
+  const project = projectById(database, projectId);
+  if (!project) return 0;
+  return cardStore.list(String(project.slug)).filter((card) => card.chapter === slug).length;
+}
+
 export function getBoard(
   database: DatabaseSync,
   cardStore: MarkdownCardStore,
+  chapterStore: MarkdownChapterStore,
   user: User,
   projectId: string,
 ): BoardWorkspace | null {
-  const project = row(database, "SELECT id, name, slug FROM projects WHERE id = ?", projectId);
+  const project = row(
+    database,
+    "SELECT id, name, slug, chapters_enabled FROM projects WHERE id = ?",
+    projectId,
+  );
   if (!project) return null;
 
   const members = membersForProject(database, projectId);
   const cards = cardStore.list(String(project.slug));
   validateDependencyGraph(cards);
+  const enabled = Number(project.chapters_enabled ?? 0) === 1;
 
   return {
-    project: { id: String(project.id), name: String(project.name) },
+    project: { id: String(project.id), name: String(project.name), chaptersEnabled: enabled },
     projects: listProjectsForUser(database, user),
     categories: categoriesForProject(database, projectId),
+    // A disabled project serves no chapters at all, so the interface has nothing to draw
+    // even if files exist on disk from before the gate was turned off.
+    chapters: enabled
+      ? chapterStore.list(String(project.slug)).map((chapter) => publicChapter(database, chapter, members))
+      : [],
     currentUser: user,
     members,
     cards: cards.map((card) => publicCard(database, card, members)),
@@ -282,6 +480,7 @@ type CardInput = {
   title: string;
   description?: string;
   category?: CardCategory | null;
+  chapter?: string | null;
   blockedBy?: string[];
   status?: CardStatus;
   assigneeId?: string | null;
@@ -290,6 +489,7 @@ type CardInput = {
 export function createCard(
   database: DatabaseSync,
   cardStore: MarkdownCardStore,
+  chapterStore: MarkdownChapterStore,
   projectId: string,
   creatorId: string,
   input: CardInput,
@@ -300,6 +500,7 @@ export function createCard(
   const assignee = input.assigneeId ? members.find((member) => member.id === input.assigneeId) : null;
   if (!project || !creator || (input.assigneeId && !assignee)) return null;
   if (input.category) requireProjectCategory(database, projectId, input.category);
+  if (input.chapter) requireProjectChapter(database, chapterStore, projectId, input.chapter);
   const id = randomUUID();
   const now = new Date().toISOString();
   const status = input.status ?? "backlog";
@@ -310,6 +511,7 @@ export function createCard(
     title: input.title,
     description: input.description ?? "",
     category: input.category ?? null,
+    chapter: input.chapter ?? null,
     blockedBy: input.blockedBy ?? [],
     unblockedCards: [],
     status,
@@ -329,6 +531,7 @@ export function createCard(
 export function updateCard(
   database: DatabaseSync,
   cardStore: MarkdownCardStore,
+  chapterStore: MarkdownChapterStore,
   projectId: string,
   cardId: string,
   input: Partial<CardInput> & { position?: number; expectedTitle?: string; expectedDescription?: string },
@@ -344,6 +547,7 @@ export function updateCard(
   const assignee = input.assigneeId ? members.find((member) => member.id === input.assigneeId) : null;
   if (input.assigneeId && !assignee) return null;
   if (input.category) requireProjectCategory(database, projectId, input.category);
+  if (input.chapter) requireProjectChapter(database, chapterStore, projectId, input.chapter);
 
   const nextStatus = input.status ?? current.status;
   const shouldMove = input.status !== undefined || input.position !== undefined;
@@ -356,6 +560,7 @@ export function updateCard(
     title: input.title ?? current.title,
     description: input.description ?? current.description,
     category: input.category === undefined ? current.category : input.category,
+    chapter: input.chapter === undefined ? current.chapter : input.chapter,
     blockedBy: input.blockedBy ?? current.blockedBy,
     status: nextStatus,
     assignee: input.assigneeId === undefined ? current.assignee : assignee?.email.toLowerCase() ?? null,
@@ -532,6 +737,7 @@ function publicCard(database: DatabaseSync, value: StoredCard, members: Member[]
     title: value.title,
     description: value.description,
     category: value.category,
+    chapter: value.chapter,
     blockedBy: value.blockedBy,
     status: value.status,
     position: value.position,
@@ -578,7 +784,7 @@ export function requireUnchangedContent(
   stored: { title: string; description: string },
   input: { expectedTitle?: string; expectedDescription?: string },
   current: unknown,
-  noun: "card" | "idea",
+  noun: "card" | "idea" | "chapter",
 ): void {
   if (input.expectedTitle !== undefined && stored.title !== input.expectedTitle) {
     throw new EditConflictError(`This ${noun}'s title changed while you were editing it`, "title", current);
@@ -592,6 +798,44 @@ function requireProjectCategory(database: DatabaseSync, projectId: string, slug:
   if (!row(database, "SELECT 1 AS ok FROM categories WHERE project_id = ? AND slug = ?", projectId, slug)) {
     throw new CardDependencyError("This category is not part of the project", 400);
   }
+}
+
+function requireProjectChapter(
+  database: DatabaseSync,
+  chapterStore: MarkdownChapterStore,
+  projectId: string,
+  slug: string,
+): void {
+  const project = projectById(database, projectId);
+  if (!project || !chapterStore.get(String(project.slug), slug)) {
+    throw new CardDependencyError("This chapter is not part of the project", 400);
+  }
+}
+
+/** A chapter may have neither date, either one, or both - but never an end before its start. */
+function requireCoherentDates(startsOn: string | null, endsOn: string | null): void {
+  if (startsOn && endsOn && endsOn < startsOn) {
+    throw new CardDependencyError("A chapter cannot end before it starts", 400);
+  }
+}
+
+function publicChapter(database: DatabaseSync, value: StoredChapter, members: Member[]): Chapter {
+  const currentCreator = members.find((member) => member.email.toLowerCase() === value.createdBy.toLowerCase());
+  const historicalCreator = currentCreator ?? findUserByEmail(database, value.createdBy);
+  return {
+    slug: value.slug,
+    name: value.name,
+    description: value.description,
+    state: value.state,
+    position: value.position,
+    startsOn: value.startsOn,
+    endsOn: value.endsOn,
+    createdById: historicalCreator ? String(historicalCreator.id) : "",
+    createdByName: historicalCreator ? String(historicalCreator.name) : value.createdBy,
+    createdAt: value.createdAt,
+    updatedAt: value.updatedAt,
+    closedAt: value.closedAt,
+  };
 }
 
 function validateDependencyGraph(cards: StoredCard[]): void {

@@ -7,6 +7,7 @@ import type {
   AuditEvent,
   AuditPage,
   Card,
+  Chapter,
   Idea,
 } from "../shared/types";
 
@@ -176,6 +177,7 @@ function parseChanges(value: string | number | null): AuditChange[] {
  */
 export type CardLabels = {
   categoryName: (slug: string | null) => string;
+  chapterName: (slug: string | null) => string;
   cardTitle: (id: string) => string;
 };
 
@@ -191,6 +193,13 @@ export function cardChanges(before: Card, after: Card, labels: CardLabels): Audi
       field: "category",
       from: labels.categoryName(before.category),
       to: labels.categoryName(after.category),
+    });
+  }
+  if (before.chapter !== after.chapter) {
+    changes.push({
+      field: "chapter",
+      from: labels.chapterName(before.chapter),
+      to: labels.chapterName(after.chapter),
     });
   }
   if (before.assigneeId !== after.assigneeId) {
@@ -224,8 +233,51 @@ export function cardChanges(before: Card, after: Card, labels: CardLabels): Audi
 export function cardCreationChanges(card: Card, labels: CardLabels): AuditChange[] {
   const changes: AuditChange[] = [{ field: "column", from: null, to: CARD_COLUMN_LABELS[card.status] }];
   if (card.category) changes.push({ field: "category", from: null, to: labels.categoryName(card.category) });
+  if (card.chapter) changes.push({ field: "chapter", from: null, to: labels.chapterName(card.chapter) });
   if (card.assigneeName) changes.push({ field: "assignee", from: null, to: card.assigneeName });
   return changes;
+}
+
+export const CHAPTER_STATE_LABELS: Record<Chapter["state"], string> = {
+  planned: "planned",
+  open: "open",
+  closed: "closed",
+};
+
+/** What a chapter arrived carrying, so its first log entry is not an empty "created". */
+export function chapterCreationChanges(chapter: Chapter): AuditChange[] {
+  const changes: AuditChange[] = [{ field: "state", from: null, to: CHAPTER_STATE_LABELS[chapter.state] }];
+  if (chapter.startsOn) changes.push({ field: "starts", from: null, to: chapter.startsOn });
+  if (chapter.endsOn) changes.push({ field: "ends", from: null, to: chapter.endsOn });
+  return changes;
+}
+
+export function chapterChanges(before: Chapter, after: Chapter): AuditChange[] {
+  const changes: AuditChange[] = [];
+  if (before.name !== after.name) changes.push({ field: "name", from: before.name, to: after.name });
+  if (before.description !== after.description) {
+    changes.push({ field: "intent", from: summarize(before.description), to: summarize(after.description) });
+  }
+  if (before.state !== after.state) {
+    changes.push({
+      field: "state",
+      from: CHAPTER_STATE_LABELS[before.state],
+      to: CHAPTER_STATE_LABELS[after.state],
+    });
+  }
+  if (before.startsOn !== after.startsOn) {
+    changes.push({ field: "starts", from: before.startsOn, to: after.startsOn });
+  }
+  if (before.endsOn !== after.endsOn) changes.push({ field: "ends", from: before.endsOn, to: after.endsOn });
+  return changes;
+}
+
+/**
+ * Opening and closing a chapter read as moves, because that is what a reader is scanning the
+ * log for. Renaming one or editing its intent is an ordinary edit.
+ */
+export function chapterAction(changes: AuditChange[]): AuditAction {
+  return changes.some((change) => change.field === "state") ? "moved" : "updated";
 }
 
 export function ideaChanges(before: Idea, after: Idea): AuditChange[] {

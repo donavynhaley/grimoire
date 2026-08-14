@@ -26,11 +26,15 @@ describe("card board", () => {
     expect(Object.keys(workspace).sort()).toEqual([
       "cards",
       "categories",
+      "chapters",
       "currentUser",
       "members",
       "project",
       "projects",
     ]);
+    // A project that never asked for chapters carries none, so the board draws no trace of them.
+    expect(workspace.project.chaptersEnabled).toBe(false);
+    expect(workspace.chapters).toEqual([]);
     expect(workspace.project).toEqual(expect.objectContaining({ name: "Wizard Simulator" }));
     expect(workspace.projects).toEqual([expect.objectContaining({ name: "Wizard Simulator" })]);
     expect(workspace.categories[0]).toEqual({ slug: "design", name: "Design", color: "#d6bc78", position: 0 });

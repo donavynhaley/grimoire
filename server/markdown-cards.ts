@@ -10,6 +10,7 @@ export type StoredCard = {
   title: string;
   description: string;
   category: CardCategory | null;
+  chapter: string | null;
   blockedBy: string[];
   unblockedCards: string[];
   status: CardStatus;
@@ -29,6 +30,7 @@ const metadataSchema = z
     id: z.string().uuid(),
     title: z.string().trim().min(1).max(240),
     category: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(40).nullable().optional(),
+    chapter: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(60).nullable().optional(),
     blocked_by: z.array(z.string().uuid()).optional(),
     unblocked_cards: z.array(z.string().uuid()).optional(),
     status: z.enum(CARD_STATUSES),
@@ -195,6 +197,7 @@ function parseCard(markdown: string): StoredCard {
     title: metadata.title,
     description: parsed.body,
     category: metadata.category ?? null,
+    chapter: metadata.chapter ?? null,
     blockedBy: metadata.blocked_by ?? [],
     unblockedCards: metadata.unblocked_cards ?? [],
     status: metadata.status,
@@ -208,12 +211,25 @@ function parseCard(markdown: string): StoredCard {
   };
 }
 
+/**
+ * Field order is written out explicitly rather than patched by index.
+ *
+ * `chapter` is emitted only when the card actually belongs to one. A project that never
+ * turns chapters on keeps byte-identical files, and a deployment rolled back to a build
+ * that predates chapters only has to answer for the cards someone deliberately placed -
+ * every other file still parses under the older strict schema. `docs/architecture.md`
+ * records the rest of that compatibility contract.
+ */
 function serializeCard(card: StoredCard): string {
   const metadata: Array<[string, FrontmatterValue]> = [
     ["id", card.id],
     ["title", card.title],
     ["category", card.category],
-    ["blocked_by", card.blockedBy],
+  ];
+  if (card.chapter !== null) metadata.push(["chapter", card.chapter]);
+  metadata.push(["blocked_by", card.blockedBy]);
+  if (card.unblockedCards.length > 0) metadata.push(["unblocked_cards", card.unblockedCards]);
+  metadata.push(
     ["status", card.status],
     ["position", card.position],
     ["assignee", card.assignee],
@@ -221,8 +237,7 @@ function serializeCard(card: StoredCard): string {
     ["created_at", card.createdAt],
     ["updated_at", card.updatedAt],
     ["completed_at", card.completedAt],
-  ];
-  if (card.unblockedCards.length > 0) metadata.splice(4, 0, ["unblocked_cards", card.unblockedCards]);
+  );
   if (card.archivedAt !== null) metadata.push(["archived_at", card.archivedAt]);
   return serializeMarkdown(metadata, card.description);
 }
@@ -233,6 +248,7 @@ function legacyRowToCard(row: LegacyCardRow): StoredCard {
     title: String(row.title),
     description: String(row.description),
     category: null,
+    chapter: null,
     blockedBy: [],
     unblockedCards: [],
     status: row.status as CardStatus,

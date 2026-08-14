@@ -49,11 +49,47 @@ export type ProjectSummary = {
   name: string;
 };
 
+/**
+ * A named stretch of the project's work, which cards can belong to.
+ *
+ * A chapter answers "what were we working on, and roughly when", never "how much did we
+ * commit to". It carries no estimate, no capacity, and no progress figure, and nothing in
+ * it moves a card on its own. Dates are optional and descriptive: a chapter with neither
+ * is still a chapter, and one whose end date has passed keeps running until someone closes it.
+ */
+export const CHAPTER_STATES = ["planned", "open", "closed"] as const;
+export type ChapterState = (typeof CHAPTER_STATES)[number];
+
+export type Chapter = {
+  /** Stable across renames, and what a card's `chapter` field points at. */
+  slug: string;
+  name: string;
+  /** Markdown notes saying what this stretch is for. The honest replacement for a sprint goal. */
+  description: string;
+  state: ChapterState;
+  position: number;
+  /** Plain `YYYY-MM-DD` days the team named, not instants. Either may be absent. */
+  startsOn: string | null;
+  endsOn: string | null;
+  createdById: string;
+  createdByName: string;
+  createdAt: string;
+  updatedAt: string;
+  closedAt: string | null;
+};
+
 export type Card = {
   id: string;
   title: string;
   description: string;
   category: CardCategory | null;
+  /**
+   * The chapter this card belongs to, or null.
+   *
+   * Deliberately independent of `status`: a card can sit in the Backlog while already
+   * belonging to a chapter, which is what lets a chapter be filled without flooding Up Next.
+   */
+  chapter: string | null;
   blockedBy: string[];
   status: CardStatus;
   position: number;
@@ -70,9 +106,13 @@ export type BoardWorkspace = {
   project: {
     id: string;
     name: string;
+    /** Off unless this project asked for chapters. When false the interface shows none of them. */
+    chaptersEnabled: boolean;
   };
   projects: ProjectSummary[];
   categories: ProjectCategory[];
+  /** Empty when the gate is off, so a disabled project carries no chapter surface at all. */
+  chapters: Chapter[];
   currentUser: User;
   members: Member[];
   cards: Card[];
@@ -145,7 +185,7 @@ export type EditConflict<T> = {
   current: T;
 };
 
-export const AUDIT_ENTITY_TYPES = ["card", "idea", "project", "category", "member"] as const;
+export const AUDIT_ENTITY_TYPES = ["card", "idea", "project", "category", "chapter", "member"] as const;
 export type AuditEntityType = (typeof AUDIT_ENTITY_TYPES)[number];
 
 export const AUDIT_ACTIONS = [

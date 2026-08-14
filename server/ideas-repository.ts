@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import { IDEA_STATES, type Card, type Idea, type IdeaState, type IdeaWorkspace, type User } from "../shared/types";
 import { MarkdownCardStore } from "./markdown-cards";
+import { MarkdownChapterStore } from "./markdown-chapters";
 import { MarkdownIdeaStore, type StoredIdea } from "./markdown-ideas";
 import { CardDependencyError, createCard, membersForProject, projectById, requireUnchangedContent } from "./repository";
 
@@ -117,6 +118,7 @@ export function updateIdea(
 export function promoteIdea(
   database: DatabaseSync,
   cardStore: MarkdownCardStore,
+  chapterStore: MarkdownChapterStore,
   ideaStore: MarkdownIdeaStore,
   projectId: string,
   creatorId: string,
@@ -127,7 +129,9 @@ export function promoteIdea(
   const projectSlug = String(project.slug);
   const idea = ideaStore.get(projectSlug, ideaId);
   if (!idea || idea.promotedTo) return null;
-  const card = createCard(database, cardStore, projectId, creatorId, {
+  // A promoted idea lands unchaptered. Deciding it is work is a separate act from deciding
+  // when the work happens, and the Backlog is where that second decision gets made.
+  const card = createCard(database, cardStore, chapterStore, projectId, creatorId, {
     title: idea.title,
     description: idea.description,
     status: "backlog",

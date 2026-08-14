@@ -9,11 +9,16 @@ import {
   archiveCard,
   archiveProject,
   CardDependencyError,
+  cardsInChapter,
   categoriesForProject,
+  chaptersEnabled,
+  chaptersForProject,
   createCard,
   createCategory,
+  createChapter,
   defaultProjectIdForUser,
   deleteCategory,
+  deleteChapter,
   EditConflictError,
   findCard,
   findUserByEmail,
@@ -31,8 +36,10 @@ import {
   removeProjectMember,
   renameProject,
   restoreCard,
+  setChaptersEnabled,
   updateCard,
   updateCategory,
+  updateChapter,
   userCanAccessProject,
   userCount,
 } from "./repository";
@@ -40,6 +47,7 @@ import { createOpaqueToken, hashPassword, hashToken, verifyPassword } from "./se
 import { AVATAR_SIZE_LIMIT, AvatarStore, sniffAvatarType } from "./avatars";
 import { IMAGE_SIZE_LIMIT, ProjectImageStore, sniffImageType } from "./project-images";
 import { MarkdownCardStore } from "./markdown-cards";
+import { isCalendarDay, MarkdownChapterStore } from "./markdown-chapters";
 import { createIdea, findIdea, getIdeas, promoteIdea, undoPromotion, updateIdea } from "./ideas-repository";
 import { MarkdownIdeaStore } from "./markdown-ideas";
 import { searchProject } from "./search";
@@ -49,6 +57,9 @@ import {
   cardChanges,
   cardCreationChanges,
   changeAction,
+  chapterAction,
+  chapterChanges,
+  chapterCreationChanges,
   ideaChanges,
   latestAuditSequence,
   listAuditEvents,
@@ -113,10 +124,13 @@ const passwordChangeSchema = z
 
 const cardStatus = z.enum(["backlog", "ready", "in_progress", "review", "done"]);
 const categorySlug = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(40);
+const chapterSlug = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(60);
+const calendarDay = z.string().refine(isCalendarDay, "Expected a YYYY-MM-DD day");
 const cardSchema = z.object({
   title: z.string().trim().min(1).max(240),
   description: z.string().trim().max(20_000).optional(),
   category: categorySlug.nullable().optional(),
+  chapter: chapterSlug.nullable().optional(),
   blockedBy: z.array(z.string().uuid()).max(20).optional(),
   status: cardStatus.optional(),
   assigneeId: z.string().uuid().nullable().optional(),
@@ -136,6 +150,26 @@ const cardUpdateSchema = cardSchema.partial().extend({
 });
 const projectSchema = z.object({
   name: z.string().trim().min(2).max(80),
+});
+const projectUpdateSchema = z
+  .object({
+    name: z.string().trim().min(2).max(80).optional(),
+    chaptersEnabled: z.boolean().optional(),
+  })
+  .refine((input) => input.name !== undefined || input.chaptersEnabled !== undefined, {
+    message: "Nothing to update",
+  });
+const chapterState = z.enum(["planned", "open", "closed"]);
+const chapterCreateSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  description: z.string().trim().max(20_000).optional(),
+  startsOn: calendarDay.nullable().optional(),
+  endsOn: calendarDay.nullable().optional(),
+  state: chapterState.optional(),
+});
+const chapterUpdateSchema = chapterCreateSchema.partial().extend({
+  position: z.number().int().min(0).optional(),
+  expectedDescription: z.string().trim().max(20_000).optional(),
 });
 const categoryCreateSchema = z.object({
   name: z.string().trim().min(1).max(32),
@@ -158,6 +192,12 @@ const searchSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
 });
 
+/**
+ * One chapter is open at a time, so the second one has to be an explicit decision.
+ * The interface turns this into a single confirm that closes the current chapter first.
+ */
+const ALREADY_OPEN_MESSAGE = "Another chapter is already open. Close it before opening this one.";
+
 /** Omitting the sequence means "advance to whatever is newest right now". */
 const seenSchema = z.object({ sequence: z.number().int().min(0).optional() }).strict();
 
@@ -165,6 +205,7 @@ export function createGrimoireServer(options: Options) {
   const database = openDatabase(options.databasePath);
   const cardStore = new MarkdownCardStore(options.cardsDirectory ?? join(dirname(options.databasePath), "cards"));
   const ideaStore = new MarkdownIdeaStore(cardStore.rootDirectory);
+  const chapterStore = new MarkdownChapterStore(cardStore.rootDirectory);
   const imageStore = new ProjectImageStore(cardStore.rootDirectory);
   const avatarStore = new AvatarStore(join(dirname(options.databasePath), "avatars"));
   cardStore.migrateLegacyCards(database);
@@ -461,20 +502,47 @@ export function createGrimoireServer(options: Options) {
     const projectMatch = url.pathname.match(/^\/api\/projects\/([^/]+)$/);
     if (method === "PATCH" && projectMatch) {
       const user = requireUser(context);
-      if (user.role !== "owner") throw new HttpError(403, "Only the owner can rename projects");
-      const input = projectSchema.parse(await readJson(request));
-      const previousName = projectById(database, projectMatch[1])?.name;
-      if (!renameProject(database, projectMatch[1], input.name)) throw new HttpError(404, "Project not found");
-      audit(user, {
-        projectId: projectMatch[1],
-        entityType: "project",
-        entityId: projectMatch[1],
-        entityTitle: input.name,
-        action: "renamed",
-        changes: [{ field: "name", from: previousName === undefined ? null : String(previousName), to: input.name }],
+      if (user.role !== "owner") throw new HttpError(403, "Only the owner can change project settings");
+      const input = projectUpdateSchema.parse(await readJson(request));
+      const projectId = projectMatch[1];
+      const before = projectById(database, projectId);
+      if (!before) throw new HttpError(404, "Project not found");
+      const previousName = String(before.name);
+      const changes: Array<{ field: string; from: string | null; to: string | null }> = [];
+
+      if (input.name !== undefined && input.name !== previousName) {
+        if (!renameProject(database, projectId, input.name)) throw new HttpError(404, "Project not found");
+        changes.push({ field: "name", from: previousName, to: input.name });
+      }
+      if (input.chaptersEnabled !== undefined) {
+        const wasEnabled = chaptersEnabled(database, projectId);
+        if (wasEnabled !== input.chaptersEnabled) {
+          if (!setChaptersEnabled(database, projectId, input.chaptersEnabled)) {
+            throw new HttpError(404, "Project not found");
+          }
+          changes.push({
+            field: "chapters",
+            from: wasEnabled ? "on" : "off",
+            to: input.chaptersEnabled ? "on" : "off",
+          });
+        }
+      }
+
+      const name = input.name ?? previousName;
+      if (changes.length > 0) {
+        audit(user, {
+          projectId,
+          entityType: "project",
+          entityId: projectId,
+          entityTitle: name,
+          action: changes.some((change) => change.field === "name") ? "renamed" : "updated",
+          changes,
+        });
+      }
+      json(response, 200, {
+        project: { id: projectId, name, chaptersEnabled: chaptersEnabled(database, projectId) },
       });
-      json(response, 200, { project: { id: projectMatch[1], name: input.name } });
-      broadcast(projectMatch[1], "work", requestClientId(request));
+      broadcast(projectId, "work", requestClientId(request));
       return;
     }
 
@@ -564,6 +632,83 @@ export function createGrimoireServer(options: Options) {
         action: "deleted",
       });
       json(response, 200, { ok: true });
+      broadcast(projectId, "work", requestClientId(request));
+      return;
+    }
+
+    if (method === "POST" && url.pathname === "/api/chapters") {
+      const user = requireUser(context);
+      if (user.role !== "owner") throw new HttpError(403, "Only the owner can manage chapters");
+      const projectId = requireProject(context, user);
+      requireChaptersEnabled(projectId);
+      const input = chapterCreateSchema.parse(await readJson(request));
+      const result = createChapter(database, chapterStore, projectId, user.id, input);
+      if (!result) throw new HttpError(404, "Project not found");
+      if (result === "invalid_name") throw new HttpError(400, "The chapter needs a name with letters or numbers");
+      if (result === "exists") throw new HttpError(409, "A chapter with this name already exists");
+      if (result === "already_open") throw new HttpError(409, ALREADY_OPEN_MESSAGE);
+      audit(user, {
+        projectId,
+        entityType: "chapter",
+        entityId: result.chapter.slug,
+        entityTitle: result.chapter.name,
+        action: "created",
+        changes: chapterCreationChanges(result.chapter),
+      });
+      json(response, 201, { chapter: result.chapter });
+      broadcast(projectId, "work", requestClientId(request));
+      return;
+    }
+
+    const chapterMatch = url.pathname.match(/^\/api\/chapters\/([^/]+)$/);
+    if (method === "PATCH" && chapterMatch) {
+      const user = requireUser(context);
+      if (user.role !== "owner") throw new HttpError(403, "Only the owner can manage chapters");
+      const projectId = requireProject(context, user);
+      requireChaptersEnabled(projectId);
+      const input = chapterUpdateSchema.parse(await readJson(request));
+      const before = chaptersForProject(database, chapterStore, projectId)
+        .find((chapter) => chapter.slug === chapterMatch[1]);
+      const result = updateChapter(database, chapterStore, projectId, chapterMatch[1], input);
+      if (!result) throw new HttpError(404, "Project not found");
+      if (result === "not_found") throw new HttpError(404, "Chapter not found");
+      if (result === "already_open") throw new HttpError(409, ALREADY_OPEN_MESSAGE);
+      const changes = before ? chapterChanges(before, result.chapter) : [];
+      if (changes.length > 0) {
+        audit(user, {
+          projectId,
+          entityType: "chapter",
+          entityId: result.chapter.slug,
+          entityTitle: result.chapter.name,
+          action: chapterAction(changes),
+          changes,
+        });
+      }
+      json(response, 200, { chapter: result.chapter });
+      broadcast(projectId, "work", requestClientId(request));
+      return;
+    }
+
+    if (method === "DELETE" && chapterMatch) {
+      const user = requireUser(context);
+      if (user.role !== "owner") throw new HttpError(403, "Only the owner can manage chapters");
+      const projectId = requireProject(context, user);
+      requireChaptersEnabled(projectId);
+      const removed = chaptersForProject(database, chapterStore, projectId)
+        .find((chapter) => chapter.slug === chapterMatch[1]);
+      const released = cardsInChapter(database, cardStore, projectId, chapterMatch[1]);
+      if (!deleteChapter(database, cardStore, chapterStore, projectId, chapterMatch[1])) {
+        throw new HttpError(404, "Chapter not found");
+      }
+      audit(user, {
+        projectId,
+        entityType: "chapter",
+        entityId: chapterMatch[1],
+        entityTitle: removed?.name ?? chapterMatch[1],
+        action: "deleted",
+        changes: released > 0 ? [{ field: "cards released", from: null, to: String(released) }] : [],
+      });
+      json(response, 200, { ok: true, released });
       broadcast(projectId, "work", requestClientId(request));
       return;
     }
@@ -665,7 +810,7 @@ export function createGrimoireServer(options: Options) {
 
     if (method === "GET" && url.pathname === "/api/board") {
       const user = requireUser(context);
-      const board = getBoard(database, cardStore, user, requireProject(context, user));
+      const board = getBoard(database, cardStore, chapterStore, user, requireProject(context, user));
       if (!board) throw new HttpError(404, "Board not found");
       json(response, 200, {
         ...board,
@@ -686,7 +831,9 @@ export function createGrimoireServer(options: Options) {
     if (method === "POST" && url.pathname === "/api/cards") {
       const user = requireUser(context);
       const projectId = requireProject(context, user);
-      const card = createCard(database, cardStore, projectId, user.id, cardSchema.parse(await readJson(request)));
+      const input = cardSchema.parse(await readJson(request));
+      if (input.chapter) requireChaptersEnabled(projectId);
+      const card = createCard(database, cardStore, chapterStore, projectId, user.id, input);
       if (!card) throw new HttpError(400, "Assignee is not a member of this board");
       audit(user, {
         projectId,
@@ -735,6 +882,7 @@ export function createGrimoireServer(options: Options) {
       const card = promoteIdea(
         database,
         cardStore,
+        chapterStore,
         ideaStore,
         projectId,
         user.id,
@@ -819,13 +967,9 @@ export function createGrimoireServer(options: Options) {
       const projectId = requireProject(context, user);
       const labels = labelsForProject(projectId);
       const before = findCard(database, cardStore, projectId, cardMatch[1]);
-      const card = updateCard(
-        database,
-        cardStore,
-        projectId,
-        cardMatch[1],
-        cardUpdateSchema.parse(await readJson(request)),
-      );
+      const input = cardUpdateSchema.parse(await readJson(request));
+      if (input.chapter) requireChaptersEnabled(projectId);
+      const card = updateCard(database, cardStore, chapterStore, projectId, cardMatch[1], input);
       if (!card) throw new HttpError(404, "Card or assignee not found");
       if (before) {
         const changes = cardChanges(before, card, labels);
@@ -878,6 +1022,7 @@ export function createGrimoireServer(options: Options) {
    */
   function labelsForProject(projectId: string): CardLabels {
     let categories: Map<string, string> | null = null;
+    let chapters: Map<string, string> | null = null;
     let titles: Map<string, string> | null = null;
     return {
       categoryName: (slug) => {
@@ -885,11 +1030,30 @@ export function createGrimoireServer(options: Options) {
         categories ??= new Map(categoriesForProject(database, projectId).map((value) => [value.slug, value.name]));
         return categories.get(slug) ?? slug;
       },
+      chapterName: (slug) => {
+        if (slug === null) return "no chapter";
+        chapters ??= new Map(
+          chaptersForProject(database, chapterStore, projectId).map((value) => [value.slug, value.name]),
+        );
+        return chapters.get(slug) ?? slug;
+      },
       cardTitle: (id) => {
         titles ??= new Map(listCards(database, cardStore, projectId).map((card) => [card.id, card.title]));
         return titles.get(id) ?? "a removed card";
       },
     };
+  }
+
+  /**
+   * Refuses any chapter surface on a project that has not opted in.
+   *
+   * The gate is enforced here as well as in the interface, so turning chapters off is a real
+   * boundary rather than a hidden set of routes.
+   */
+  function requireChaptersEnabled(projectId: string): void {
+    if (!chaptersEnabled(database, projectId)) {
+      throw new HttpError(403, "Chapters are not enabled for this project");
+    }
   }
 
   /**
