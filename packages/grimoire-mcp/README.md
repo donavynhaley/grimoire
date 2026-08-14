@@ -86,6 +86,15 @@ If someone changed that field in the meantime, the write is refused and the stor
 The right response is to re-read, decide what the merged text should be, and send it again with the new expectation.
 Retrying the same write unchanged would only be last-writer-wins with extra steps.
 
+## Verification
+
+```sh
+npm run verify
+```
+
+Starts a real Grimoire, issues a real credential through the real route, and then speaks MCP over stdio to the built server, checking the effects landed.
+It covers the handshake and the tool list, resolving names to identifiers, creating, editing, moving and searching, attribution reaching the activity log, a refusal that lists the real options, a stale rewrite being refused and then landing after a re-read, the routes no credential may reach, and revocation taking effect immediately.
+
 ## Rate limiting
 
 Writes are limited per token, with a burst allowance.
