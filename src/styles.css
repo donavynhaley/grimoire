@@ -2462,3 +2462,61 @@ textarea:hover { border-color: var(--border-bright); }
 .project-menu-entry:hover { color: var(--text); background: var(--surface-soft); }
 .project-menu-entry.settings { color: var(--text); }
 .project-menu-glyph { width: 12px; flex: none; color: var(--faint); font-size: 10px; text-align: center; }
+
+/* Backlog and card-dialog chapter controls ------------------------------ */
+
+.library-filter-label {
+  color: var(--faint);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.library-card-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: end; }
+.library-chapter {
+  min-height: 26px;
+  padding: 0 10px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid #465f3c;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 8px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.library-chapter:hover:not(:disabled) { background: #2b3d28; }
+/* A card already in the chapter reads as a state, and clicking it takes it back out. */
+.library-chapter.in {
+  color: var(--faint);
+  background: transparent;
+  border-color: var(--border);
+  border-style: dashed;
+}
+.library-chapter.in:hover:not(:disabled) { color: var(--red); border-color: var(--red); }
+.library-chapter:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.choice-note {
+  margin-left: 6px;
+  color: var(--accent);
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* Closing a chapter: an explicit choice, never a default. */
+.chapter-close { display: grid; width: 100%; gap: 7px; }
+.chapter-close-question { margin: 0; color: var(--text); font-size: 10px; }
+.chapter-close-choices { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.chapter-close-choices button {
+  padding: 0;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+.chapter-close-choices button:hover:not(:disabled) { color: var(--text); }
+.chapter-close-choices button:first-child { color: var(--accent); }

@@ -18,6 +18,7 @@ type Props = {
   busy: boolean;
   actions: ChapterActions;
   onClose: () => void;
+  onSetCardChapter: (id: string, chapter: string | null) => Promise<void>;
 };
 
 /** The one open chapter, if the project is in one. */
@@ -25,7 +26,7 @@ function openChapter(chapters: Chapter[]): Chapter | undefined {
   return chapters.find((chapter) => chapter.state === "open");
 }
 
-export function ChaptersDialog({ cards, chapters, busy, actions, onClose }: Props) {
+export function ChaptersDialog({ cards, chapters, busy, actions, onClose, onSetCardChapter }: Props) {
   const [newName, setNewName] = useState("");
   const [newStart, setNewStart] = useState("");
   const [newEnd, setNewEnd] = useState("");
@@ -38,6 +39,22 @@ export function ChaptersDialog({ cards, chapters, busy, actions, onClose }: Prop
   const countIn = (slug: string) => cards.filter((card) => card.chapter === slug).length;
   const unfinishedIn = (slug: string) =>
     cards.filter((card) => card.chapter === slug && card.status !== "done").length;
+  const plannedChapters = chapters.filter((chapter) => chapter.state === "planned");
+
+  const close = async (slug: string) => {
+    await actions.update(slug, { state: "closed" });
+    setClosing(null);
+  };
+
+  /**
+   * Moves only the cards that did not land, leaving the finished ones as the record of what
+   * the chapter delivered.
+   */
+  const moveUnfinished = async (from: string, to: string | null) => {
+    for (const card of cards.filter((value) => value.chapter === from && value.status !== "done")) {
+      await onSetCardChapter(card.id, to);
+    }
+  };
 
   const run = async (change: () => Promise<void>, failure: string) => {
     setError("");
@@ -154,20 +171,48 @@ export function ChaptersDialog({ cards, chapters, busy, actions, onClose }: Prop
                   )}
                   {chapter.state === "open" && (
                     closing === chapter.slug ? (
-                      <span className="archive-confirm">
-                        <span>
-                          close it?{unfinished > 0 && ` ${unfinished} unfinished card${unfinished === 1 ? "" : "s"} stay here`}
-                        </span>
-                        <button
-                          disabled={busy}
-                          onClick={() => void run(async () => {
-                            await actions.update(chapter.slug, { state: "closed" });
-                            setClosing(null);
-                          }, "The chapter could not be closed")}
-                          type="button"
-                        >yes</button>
-                        <button onClick={() => setClosing(null)} type="button">no</button>
-                      </span>
+                      <div className="chapter-close">
+                        <p className="chapter-close-question">
+                          Close {chapter.name}?
+                          {unfinished > 0 && ` ${unfinished} card${unfinished === 1 ? " is" : "s are"} unfinished.`}
+                        </p>
+                        {/* Nothing here happens by default. Automatic rollover is the most
+                            sprint-like behaviour there is, so the unfinished cards move only
+                            because someone chose one of these, and dismissing does nothing. */}
+                        <div className="chapter-close-choices">
+                          <button
+                            disabled={busy}
+                            onClick={() => void run(async () => {
+                              await close(chapter.slug);
+                            }, "The chapter could not be closed")}
+                            type="button"
+                          >{unfinished > 0 ? "leave them here" : "close it"}</button>
+                          {unfinished > 0 && plannedChapters
+                            .filter((candidate) => candidate.slug !== chapter.slug)
+                            .map((candidate) => (
+                              <button
+                                disabled={busy}
+                                key={candidate.slug}
+                                onClick={() => void run(async () => {
+                                  await moveUnfinished(chapter.slug, candidate.slug);
+                                  await close(chapter.slug);
+                                }, "The cards could not be moved")}
+                                type="button"
+                              >move them to {candidate.name}</button>
+                            ))}
+                          {unfinished > 0 && (
+                            <button
+                              disabled={busy}
+                              onClick={() => void run(async () => {
+                                await moveUnfinished(chapter.slug, null);
+                                await close(chapter.slug);
+                              }, "The cards could not be released")}
+                              type="button"
+                            >release them</button>
+                          )}
+                          <button onClick={() => setClosing(null)} type="button">cancel</button>
+                        </div>
+                      </div>
                     ) : (
                       <button disabled={busy} onClick={() => setClosing(chapter.slug)} type="button">close</button>
                     )

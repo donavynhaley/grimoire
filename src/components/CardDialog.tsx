@@ -5,6 +5,7 @@ import {
   type AuditPage,
   type Card,
   type CardStatus,
+  type Chapter,
   type Member,
   type ProjectCategory,
 } from "../../shared/types";
@@ -29,6 +30,7 @@ type Props = {
   card: Card;
   cards: Card[];
   categories: ProjectCategory[];
+  chapters: Chapter[];
   currentUserId: string;
   members: Member[];
   revision: number;
@@ -38,7 +40,7 @@ type Props = {
   onLoadActivity: (options: { entityId?: string; limit?: number }) => Promise<AuditPage>;
 };
 
-export function CardDialog({ card, cards, categories, currentUserId, members, revision, onUpdate, onArchive, onClose, onLoadActivity }: Props) {
+export function CardDialog({ card, cards, categories, chapters, currentUserId, members, revision, onUpdate, onArchive, onClose, onLoadActivity }: Props) {
   const categoryColor = (slug: string | null) =>
     slug ? categories.find((category) => category.slug === slug)?.color : undefined;
   const swatchStyle = (slug: string | null) => {
@@ -146,6 +148,35 @@ export function CardDialog({ card, cards, categories, currentUserId, members, re
             ))}
           </div>
         </div>
+
+        {chapters.length > 0 && (
+          <div className="dialog-section">
+            <span className="field-label">Chapter</span>
+            {/* Direct buttons, like every other card control, rather than a menu. */}
+            <div className="choice-grid chapter-choices">
+              <button
+                aria-label="Remove from every chapter"
+                className={!card.chapter ? "choice active" : "choice"}
+                onClick={() => onUpdate({ chapter: null })}
+                type="button"
+              >
+                no chapter
+              </button>
+              {chapters.map((chapter) => (
+                <button
+                  aria-label={`Place in ${chapter.name}`}
+                  className={card.chapter === chapter.slug ? "choice active" : "choice"}
+                  key={chapter.slug}
+                  onClick={() => onUpdate({ chapter: chapter.slug })}
+                  type="button"
+                >
+                  {chapter.name}
+                  {chapter.state === "open" && <span className="choice-note">open</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="dialog-section dependency-section">
           <span className="field-label">Blocked by</span>

@@ -710,6 +710,7 @@ export function Board({ away, board, busy, categoryActions, chapterActions, idea
           cards={board.cards}
           card={selectedCard}
           categories={board.categories}
+          chapters={chaptersOn ? board.chapters : []}
           currentUserId={board.currentUser.id}
           members={board.members}
           revision={revision}
@@ -739,10 +740,13 @@ export function Board({ away, board, busy, categoryActions, chapterActions, idea
           busy={busy}
           cards={backlogCards}
           categories={board.categories}
+          chapters={chaptersOn ? board.chapters : []}
           members={board.members}
           onClose={() => setBacklogOpen(false)}
           onMoveToNext={onMoveBacklogToNext}
           onOpenCard={(id) => { setBacklogOpen(false); setSelectedId(id); }}
+          onSetChapter={(id, value) => onUpdate(id, { chapter: value })}
+          targetChapter={chaptersOn && chapter !== NO_CHAPTER ? chapter : null}
         />
       )}
       {historyOpen && (
@@ -776,6 +780,7 @@ export function Board({ away, board, busy, categoryActions, chapterActions, idea
           cards={board.cards}
           chapters={board.chapters}
           onClose={() => setChaptersOpen(false)}
+          onSetCardChapter={(id, value) => onUpdate(id, { chapter: value })}
         />
       )}
       {settingsOpen && (

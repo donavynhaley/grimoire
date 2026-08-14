@@ -58,6 +58,7 @@ function chapteredBoard(): BoardWorkspace {
       card({ id: "card-in", title: "Inside the chapter", chapter: "first-brew", status: "ready", position: 0 }),
       card({ id: "card-out", title: "Outside the chapter", chapter: null, status: "ready", position: 1 }),
       card({ id: "card-backlog", title: "Reserved for later", chapter: "first-brew", status: "backlog", position: 0 }),
+      card({ id: "card-unplaced", title: "Waiting to be placed", chapter: null, status: "backlog", position: 1 }),
     ],
   };
 }
@@ -164,6 +165,67 @@ describe("chapters on the board", () => {
     await waitFor(() => expect(screen.queryByText("Inside the chapter")).toBeNull());
     expect(new URLSearchParams(location.search).get("chapter")).toBe("first-brew");
     expect(new URLSearchParams(location.search).get("people")).toBe("unassigned");
+  });
+});
+
+describe("pulling from the backlog", () => {
+  it("offers the viewed chapter on every row and leaves the card in the Backlog", async () => {
+    const user = userEvent.setup();
+    const board = chapteredBoard();
+    const patched: Array<Record<string, unknown>> = [];
+    vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input);
+      if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
+      if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
+      if (url.startsWith("/api/seen")) return response({ ok: true });
+      if (url.startsWith("/api/session")) return response({ status: "authenticated", user: board.currentUser });
+      if (init?.method === "PATCH") {
+        patched.push(JSON.parse(String(init.body)));
+        return response({ card: board.cards[0] });
+      }
+      return response(board);
+    });
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /Open backlog/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Backlog" });
+    await user.click(within(dialog).getByRole("button", { name: /Add Waiting to be placed to First Brew/ }));
+
+    // The pull sets only the chapter. It never touches the column, which is what stops a
+    // chapter being filled from flooding Up Next.
+    expect(patched).toEqual([{ chapter: "first-brew" }]);
+  });
+
+  it("shows a card already in the chapter as a state rather than an action", async () => {
+    const user = userEvent.setup();
+    mountWith(chapteredBoard());
+
+    await user.click(await screen.findByRole("button", { name: /Open backlog/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Backlog" });
+
+    expect(within(dialog).getByRole("button", { name: /Remove Reserved for later from First Brew/ })).toBeInTheDocument();
+  });
+});
+
+describe("closing a chapter", () => {
+  it("asks what should happen to unfinished work and does nothing on its own", async () => {
+    const user = userEvent.setup();
+    mountWith(chapteredBoard());
+
+    await user.click(await screen.findByRole("button", { name: /Filter by chapter/ }));
+    await user.click(screen.getByRole("menuitem", { name: /Manage chapters/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Chapters" });
+    await user.click(within(dialog).getByRole("button", { name: "close" }));
+
+    // Two of First Brew's cards are unfinished, and every route out is a named choice.
+    expect(within(dialog).getByText(/2 cards are unfinished/)).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "leave them here" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "move them to Second Brew" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "release them" })).toBeInTheDocument();
+
+    // Backing out changes nothing at all.
+    await user.click(within(dialog).getByRole("button", { name: "cancel" }));
+    expect(within(dialog).queryByText(/unfinished/)).toBeNull();
   });
 });
 
