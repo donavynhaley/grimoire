@@ -87,6 +87,16 @@ export function agentTokens(): Promise<{ tokens: AgentToken[] }> {
 }
 
 /**
+ * Whether a credential can still act. The server refuses expired credentials exactly like
+ * revoked ones, so listing an expired one as live would show a working revoke button on a
+ * thing that already stopped.
+ */
+export function agentTokenIsLive(token: AgentToken, now = Date.now()): boolean {
+  if (token.revokedAt !== null) return false;
+  return token.expiresAt === null || Date.parse(token.expiresAt) > now;
+}
+
+/**
  * Issues a credential. The secret comes back exactly once and is never readable again,
  * so the caller has to show it before it forgets it.
  */

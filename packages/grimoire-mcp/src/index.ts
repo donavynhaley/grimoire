@@ -36,7 +36,16 @@ const client = new GrimoireClient({
   projectId: process.env.GRIMOIRE_PROJECT,
 });
 
-const server = createServer(client);
+// The credential's scope decides which tools exist at all: a read-only agent handed the
+// write tools would only ever discover its limits by being refused. If the lookup itself
+// fails - server down, token already revoked - the full surface is registered and the
+// first call carries the real explanation, which beats dying before the client connects.
+const scope = await client
+  .session()
+  .then((session) => session.agent?.scope)
+  .catch(() => undefined);
+
+const server = createServer(client, { scope });
 const transport = new StdioServerTransport();
 
 await server.connect(transport);

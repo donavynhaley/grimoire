@@ -172,7 +172,6 @@ function migrate(database: DatabaseSync): void {
   // Both run before the rebuild below, because the rebuilt `audit_events` references
   // `agent_tokens` and ends with a foreign key check that a missing table would fail.
   database.exec(agentTokensTable);
-  database.exec("CREATE INDEX IF NOT EXISTS idx_agent_tokens_hash ON agent_tokens(token_hash)");
 
   // Nullable, so this is a plain ADD COLUMN and needs none of the rebuild machinery below.
   // It carries which agent wrote an event, because the actor name cannot: reads prefer the
@@ -389,7 +388,6 @@ CREATE TABLE IF NOT EXISTS seen_cursors (
 ${agentTokensTable}
 
 CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token_hash);
-CREATE INDEX IF NOT EXISTS idx_agent_tokens_hash ON agent_tokens(token_hash);
 CREATE INDEX IF NOT EXISTS idx_cards_board ON cards(project_id, status, position) WHERE archived_at IS NULL;
 ${auditEventsIndexes}
 `;

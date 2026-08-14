@@ -26,7 +26,16 @@ import {
  * restructure.
  */
 
-export function createServer(client: GrimoireClient): McpServer {
+export type ServerOptions = {
+  /**
+   * The credential's scope, read from the server at startup. A read-only credential is
+   * given only the reading tools, so it never has to discover its limits by being refused.
+   */
+  scope?: "read" | "write";
+};
+
+export function createServer(client: GrimoireClient, options: ServerOptions = {}): McpServer {
+  const writable = options.scope !== "read";
   const server = new McpServer(
     { name: "grimoire", version: "0.1.0" },
     {
@@ -34,9 +43,17 @@ export function createServer(client: GrimoireClient): McpServer {
         "Grimoire is a small collaborative work board. A unit of work is a page, and pages sit " +
         "in columns: Backlog, Up Next, In progress, Review, Done. Call grimoire_board first to " +
         "see the project's real categories, chapters and members before writing, and pass those " +
-        "names rather than guessing. You can create and edit pages and ideas. You cannot " +
-        "archive anything, promote an idea, or change chapters, categories or membership - " +
-        "those are deliberately left to a person.",
+        "names rather than guessing. " +
+        (writable
+          ? "You can create and edit pages and ideas, and place a page into an existing chapter " +
+            "or take it out of one. You cannot archive anything, promote an idea, or create, " +
+            "rename, open or close chapters - and categories, membership and the project's " +
+            "settings are closed too. Those are deliberately left to a person. Before rewriting " +
+            "a page's title or notes, read them with grimoire_read_page and pass what you read " +
+            "as expectedTitle or expectedNotes."
+          : "This credential is read-only: you can read the board, search, and list ideas, and " +
+            "nothing here can write. Ask the project owner for a write-scoped credential if " +
+            "this agent should create or edit work."),
     },
   );
 
@@ -97,6 +114,59 @@ export function createServer(client: GrimoireClient): McpServer {
   );
 
   server.registerTool(
+    "grimoire_read_page",
+    {
+      title: "Read one page in full",
+      description:
+        "A page's title and complete Markdown notes, exactly as stored. Read a page with this " +
+        "before rewriting its title or notes: the exact values returned here are what you pass " +
+        "as expectedTitle / expectedNotes, so a person editing at the same time is protected.",
+      inputSchema: {
+        page: z.string().min(1).describe("The page id, or its exact title."),
+      },
+    },
+    async ({ page }) => {
+      try {
+        const board = await client.board();
+        const target = resolvePage(board, page);
+        return text(
+          `# ${target.title}\n${describePage(board, target)}\n\n` +
+            (target.description ? `Notes (verbatim):\n${target.description}` : "No notes yet."),
+        );
+      } catch (error) {
+        return failure(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "grimoire_list_ideas",
+    {
+      title: "Read the idea garden",
+      description:
+        "Ideas are possibilities the team has not committed to. They are kept apart from work " +
+        "on purpose, and only a person turns one into a page.",
+      inputSchema: {},
+    },
+    async () => {
+      try {
+        const { ideas } = await client.ideas();
+        if (ideas.length === 0) return text("The idea garden is empty.");
+        return text(
+          ideas
+            .map((idea) => `- [${idea.state}] ${idea.title}\n  id: ${idea.id}${idea.description ? `\n  ${firstLine(idea.description)}` : ""}`)
+            .join("\n"),
+        );
+      } catch (error) {
+        return failure(error);
+      }
+    },
+  );
+
+
+  if (!writable) return server;
+
+  server.registerTool(
     "grimoire_create_page",
     {
       title: "Create a page",
@@ -145,24 +215,28 @@ export function createServer(client: GrimoireClient): McpServer {
     {
       title: "Edit a page",
       description:
-        "Changes a page that already exists. Only the fields you pass are touched. When you " +
-        "rewrite the title or notes based on something you read earlier, pass what you read as " +
-        "expectedTitle or expectedNotes: the write is then refused if a person changed that " +
-        "field in the meantime, instead of silently replacing their words.",
+        "Changes a page that already exists. Only the fields you pass are touched. Rewriting " +
+        "the title requires expectedTitle, and rewriting the notes requires expectedNotes: " +
+        "the value you read from grimoire_read_page. The write is refused if a person changed " +
+        "that field after you read it, instead of silently replacing their words.",
       inputSchema: {
         page: z.string().min(1).describe("The page id, or its exact title."),
-        title: z.string().min(1).max(240).optional().describe("A new title."),
-        notes: z.string().max(20_000).optional().describe("New Markdown notes, replacing the body."),
+        title: z.string().min(1).max(240).optional().describe("A new title. Requires expectedTitle."),
+        notes: z
+          .string()
+          .max(20_000)
+          .optional()
+          .describe("New Markdown notes, replacing the whole body. Requires expectedNotes."),
         expectedTitle: z
           .string()
           .max(240)
           .optional()
-          .describe("The title you are editing from. The write is refused if it has since changed."),
+          .describe("The title you read before deciding to rewrite it, verbatim from grimoire_read_page."),
         expectedNotes: z
           .string()
           .max(20_000)
           .optional()
-          .describe("The notes you are editing from. The write is refused if they have since changed."),
+          .describe("The notes you read before deciding to rewrite them, verbatim from grimoire_read_page."),
         column: z.string().optional().describe("Move it to another column."),
         category: z.string().optional().describe("A category name, or \"none\" to clear it."),
         chapter: z.string().optional().describe("A chapter name, or \"none\" to clear it."),
@@ -176,17 +250,33 @@ export function createServer(client: GrimoireClient): McpServer {
         const target = resolvePage(board, input.page);
         const body: Record<string, unknown> = {};
 
-        // What the edit is written against. An explicit expectation is the honest one: it
-        // comes from whenever the caller actually read the field, so a person who changed it
-        // since then is protected. Falling back to the value read a moment ago only rules out
-        // a collision inside this call, which is why the tool asks for the real one.
+        // A text rewrite must declare what it was written against. Falling back to a value
+        // read inside this call would compare the field against a copy of itself from
+        // microseconds ago - a check that can never fire, which is last-writer-wins wearing
+        // a safety's clothes. Refusing here is what makes the protection real.
         if (input.title !== undefined) {
+          if (input.expectedTitle === undefined) {
+            return failure(
+              new ResolutionError(
+                "Rewriting the title needs expectedTitle: the title as you last read it. " +
+                  `Call grimoire_read_page on "${target.title}" and pass the title it returns.`,
+              ),
+            );
+          }
           body.title = input.title;
-          body.expectedTitle = input.expectedTitle ?? target.title;
+          body.expectedTitle = input.expectedTitle;
         }
         if (input.notes !== undefined) {
+          if (input.expectedNotes === undefined) {
+            return failure(
+              new ResolutionError(
+                "Rewriting the notes needs expectedNotes: the notes as you last read them. " +
+                  `Call grimoire_read_page on "${target.title}" and pass the notes it returns, verbatim.`,
+              ),
+            );
+          }
           body.description = input.notes;
-          body.expectedDescription = input.expectedNotes ?? target.description;
+          body.expectedDescription = input.expectedNotes;
         }
         if (input.column !== undefined) body.status = resolveStatus(input.column);
         if (input.category !== undefined) {
@@ -229,30 +319,6 @@ export function createServer(client: GrimoireClient): McpServer {
         const status = resolveStatus(column);
         const { page: moved } = await client.updatePage(target.id, { status });
         return text(`Moved "${moved.title}" from ${columnLabel(target.status)} to ${columnLabel(moved.status)}.`);
-      } catch (error) {
-        return failure(error);
-      }
-    },
-  );
-
-  server.registerTool(
-    "grimoire_list_ideas",
-    {
-      title: "Read the idea garden",
-      description:
-        "Ideas are possibilities the team has not committed to. They are kept apart from work " +
-        "on purpose, and only a person turns one into a page.",
-      inputSchema: {},
-    },
-    async () => {
-      try {
-        const { ideas } = await client.ideas();
-        if (ideas.length === 0) return text("The idea garden is empty.");
-        return text(
-          ideas
-            .map((idea) => `- [${idea.state}] ${idea.title}\n  id: ${idea.id}${idea.description ? `\n  ${firstLine(idea.description)}` : ""}`)
-            .join("\n"),
-        );
       } catch (error) {
         return failure(error);
       }
@@ -365,7 +431,15 @@ function describe(error: unknown): string {
       return "Grimoire refused the token. It may have been revoked or expired - ask the project owner to issue a new one.";
     }
     if (error.status === 403) {
-      return `Grimoire refused this: ${error.message}. Agents can create and edit pages and ideas, but archiving, promoting an idea, and changing the project's shape are left to a person.`;
+      // Two different refusals share the status code, and explaining the wrong one would
+      // assert the exact capability that was just refused.
+      if (/read-only/i.test(error.message)) {
+        return (
+          "Grimoire refused the write: this credential is read-only. The reading tools still " +
+          "work. Ask the project owner for a write-scoped credential if this agent should write."
+        );
+      }
+      return `Grimoire refused this: ${error.message}. Archiving, promoting an idea, and managing chapters, categories or membership are left to a person.`;
     }
     if (error.status === 429) {
       return "Writing too quickly for this token's rate limit. Wait a moment and continue.";

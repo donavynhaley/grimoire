@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
 import type { AgentToken, AuditPage, AwayState, BoardWorkspace, Page } from "../../shared/types";
+import { AgentRateLimiter } from "../../server/agent-tokens";
+import { requireUnchangedContent } from "../../server/repository";
 import { bootstrap, ownerAccount, startTestServer } from "./test-server";
 
 type TestServer = Awaited<ReturnType<typeof startTestServer>>;
@@ -505,6 +507,115 @@ describe("agent access", () => {
         const read = await asAgent(server, body.secret, "/api/board");
         expect(read.response.status).toBe(200);
       }
+    });
+  });
+  describe("what the log says about credentials", () => {
+    it("records issue and revoke as agent events, never as project ones", async () => {
+      const server = await startTestServer();
+      await bootstrap(server);
+      const { body } = await issue(server);
+      await server.request(`/api/agent-tokens/${body.token.id}`, { method: "DELETE" });
+
+      const activity = await server.request<AuditPage>("/api/activity");
+      const about = activity.body.events.filter((event) => event.entityTitle === "Planning agent");
+      expect(about.length).toBe(2);
+      // Borrowing the project entity here would make the digest tell every member the
+      // owner created or removed a project, which is alarming and untrue.
+      expect(about.every((event) => event.entityType === "agent")).toBe(true);
+      expect(about.map((event) => event.action).sort()).toEqual(["created", "removed"]);
+    });
+  });
+
+  describe("archived projects", () => {
+    it("suspends a project's credentials the moment it is archived", async () => {
+      const server = await startTestServer();
+      await bootstrap(server);
+      const second = (await server.request<{ project: { id: string } }>("/api/projects", {
+        method: "POST",
+        body: JSON.stringify({ name: "Second project" }),
+      })).body.project;
+      const issued = await server.request<{ token: AgentToken; secret: string }>(
+        `/api/agent-tokens?project=${second.id}`,
+        { method: "POST", body: JSON.stringify({ name: "Doomed", scope: "write" }) },
+      );
+
+      expect((await asAgent(server, issued.body.secret, "/api/board")).response.status).toBe(200);
+      await server.request(`/api/projects/${second.id}`, { method: "DELETE", body: "{}" });
+
+      // Archiving refuses every browser and takes the revoke routes with it, so a
+      // credential that stayed alive here would be one no human could ever stop again.
+      const read = await asAgent(server, issued.body.secret, "/api/board");
+      expect(read.response.status).toBe(401);
+      const write = await asAgent(server, issued.body.secret, "/api/pages", agentPage("Into the archive"));
+      expect(write.response.status).toBe(401);
+    });
+  });
+
+  describe("use tracking", () => {
+    it("stamps last_used_at on reads, not only writes", async () => {
+      const server = await startTestServer();
+      await bootstrap(server);
+      const { body } = await issue(server, { name: "Reader", scope: "read" });
+
+      await asAgent(server, body.secret, "/api/board");
+      const listed = await server.request<{ tokens: AgentToken[] }>("/api/agent-tokens");
+      // "Last used" is the signal an owner reads to decide a credential is safe to revoke,
+      // so a busy read-only agent must not list as never used.
+      expect(listed.body.tokens[0].lastUsedAt).not.toBeNull();
+    });
+  });
+
+  describe("identity for the credential itself", () => {
+    it("tells a credential its own name and scope", async () => {
+      const server = await startTestServer();
+      await bootstrap(server);
+      const { body } = await issue(server, { name: "Reader", scope: "read" });
+
+      const session = await asAgent(server, body.secret, "/api/session");
+      expect(session.body.agent).toEqual({ name: "Reader", scope: "read" });
+    });
+
+    it("shows a pinned credential only its own project", async () => {
+      const server = await startTestServer();
+      await bootstrap(server);
+      await server.request("/api/projects", { method: "POST", body: JSON.stringify({ name: "Second project" }) });
+      const { body } = await issue(server);
+
+      const board = await asAgent(server, body.secret, "/api/board");
+      // The list exists for the project switcher, and a token cannot switch.
+      expect(board.body.projects).toHaveLength(1);
+      expect(board.body.projects[0].id).toBe(board.body.project.id);
+
+      // A person on the same server still sees both.
+      const own = await server.request<BoardWorkspace>("/api/board");
+      expect(own.body.projects.length).toBe(2);
+    });
+  });
+
+  describe("the rate limiter's clock", () => {
+    it("survives a wall clock stepping backwards", () => {
+      const limiter = new AgentRateLimiter(2, 60);
+      expect(limiter.take("t", 1000)).toBe(true);
+      // The clock steps back; the remaining burst must survive rather than going negative
+      // and locking the credential out for the length of the step.
+      expect(limiter.take("t", 500)).toBe(true);
+      expect(limiter.take("t", 500)).toBe(false);
+      // One second forward refills one write at 60 per minute.
+      expect(limiter.take("t", 1500)).toBe(true);
+    });
+  });
+
+  describe("content preconditions", () => {
+    it("compares expectations by their words, not their margins", () => {
+      const stored = { title: "Ward the door", description: "  indented body\n" };
+      // A body hand-edited on disk keeps its whitespace, while expectations arrive trimmed.
+      // The check is about what the words are; margins must not make a page unwritable.
+      expect(() =>
+        requireUnchangedContent(stored, { expectedDescription: "indented body" }, null, "page"),
+      ).not.toThrow();
+      expect(() =>
+        requireUnchangedContent(stored, { expectedDescription: "different body" }, null, "page"),
+      ).toThrow();
     });
   });
 });

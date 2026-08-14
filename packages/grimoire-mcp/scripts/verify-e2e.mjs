@@ -109,6 +109,42 @@ async function callTool(name, args = {}) {
   return { text: content, isError: Boolean(message.result?.isError) };
 }
 
+/** Spawns a fresh server process for one credential and returns its sorted tool names. */
+async function listToolsAs(tokenSecret) {
+  const child = spawn("node", [`${ROOT}/packages/grimoire-mcp/dist/index.js`], {
+    env: { ...process.env, GRIMOIRE_URL: baseUrl, GRIMOIRE_TOKEN: tokenSecret },
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  try {
+    let chunkBuffer = "";
+    const waiting = new Map();
+    child.stdout.on("data", (chunk) => {
+      chunkBuffer += chunk.toString();
+      let index;
+      while ((index = chunkBuffer.indexOf("\n")) >= 0) {
+        const line = chunkBuffer.slice(0, index).trim();
+        chunkBuffer = chunkBuffer.slice(index + 1);
+        if (!line) continue;
+        const message = JSON.parse(line);
+        waiting.get(message.id)?.(message);
+      }
+    });
+    let id = 0;
+    const ask = (method, params) =>
+      new Promise((resolve, reject) => {
+        waiting.set(++id, resolve);
+        child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`);
+        setTimeout(() => reject(new Error(`timed out: ${method}`)), 15000);
+      });
+    await ask("initialize", { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "e2e", version: "1.0.0" } });
+    child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized", params: {} })}\n`);
+    const listed = await ask("tools/list", {});
+    return listed.result.tools.map((tool) => tool.name).sort();
+  } finally {
+    child.kill();
+  }
+}
+
 try {
   // ------------------------------------------------------------ handshake
   console.log("Handshake");
@@ -132,6 +168,7 @@ try {
     "grimoire_create_page",
     "grimoire_list_ideas",
     "grimoire_move_page",
+    "grimoire_read_page",
     "grimoire_search",
     "grimoire_update_page",
   ];
@@ -189,11 +226,32 @@ try {
   check("search finds the page", found.text.includes("Ward the tower door"), found.text);
   check("search returns an id to act on", found.text.includes(page.id), found.text);
 
+  // A rewrite with no declared expectation must be refused, not silently last-writer-wins.
+  const blind = await callTool("grimoire_update_page", {
+    page: "Ward the tower door",
+    notes: "A blind rewrite that must not land.",
+  });
+  check("a notes rewrite without expectedNotes is refused", blind.isError, blind.text);
+  check("the refusal points at grimoire_read_page", blind.text.includes("grimoire_read_page"), blind.text);
+
+  const readBack = await callTool("grimoire_read_page", { page: "Ward the tower door" });
+  check("read_page returns the stored notes verbatim", readBack.text.includes("The door remembers who knocked."), readBack.text);
+
   const updated = await callTool("grimoire_update_page", {
     page: "Ward the tower door",
     notes: "## Acceptance\n- The door remembers who knocked.\n- It forgets after a week.",
+    expectedNotes: "## Acceptance\n- The door remembers who knocked.",
   });
-  check("update_page succeeds", !updated.isError, updated.text);
+  check("update_page succeeds with a true expectation", !updated.isError, updated.text);
+
+  // A half-remembered title must never silently pick a page for a destructive rewrite.
+  const partial = await callTool("grimoire_update_page", {
+    page: "tower",
+    notes: "x",
+    expectedNotes: "x",
+  });
+  check("a partial title is refused, not guessed", partial.isError, partial.text);
+  check("the refusal lists the close match with its id", partial.text.includes(page.id), partial.text);
 
   const moved = await callTool("grimoire_move_page", { page: "Ward the tower door", column: "In progress" });
   check("move_page succeeds", !moved.isError, moved.text);
@@ -274,6 +332,38 @@ try {
     "nothing was written after revocation",
     !finalBoard.body.pages.some((candidate) => candidate.title === "Should never be created"),
   );
+
+  // ------------------------------------------------------------ read scope shapes the surface
+  console.log("\nA read-only credential is offered only the reading tools");
+  const readIssued = await api("/api/agent-tokens", {
+    method: "POST",
+    body: JSON.stringify({ name: "Reader", scope: "read" }),
+  });
+  const readTools = await listToolsAs(readIssued.body.secret);
+  check(
+    "read scope registers exactly the reading tools",
+    JSON.stringify(readTools) ===
+      JSON.stringify(["grimoire_board", "grimoire_list_ideas", "grimoire_read_page", "grimoire_search"]),
+    readTools.join(","),
+  );
+
+  // ------------------------------------------------------------ archiving a project stops its agents
+  console.log("\nArchiving a project suspends its credentials");
+  const second = await api("/api/projects", { method: "POST", body: JSON.stringify({ name: "Second project" }) });
+  const secondToken = await api(`/api/agent-tokens?project=${second.body.project.id}`, {
+    method: "POST",
+    body: JSON.stringify({ name: "Doomed agent", scope: "write" }),
+  });
+  const beforeArchive = await fetch(`${baseUrl}/api/board`, {
+    headers: { authorization: `Bearer ${secondToken.body.secret}` },
+  });
+  check("the second project's token works before archiving", beforeArchive.status === 200, String(beforeArchive.status));
+
+  await api(`/api/projects/${second.body.project.id}`, { method: "DELETE", body: "{}" });
+  const afterArchive = await fetch(`${baseUrl}/api/board`, {
+    headers: { authorization: `Bearer ${secondToken.body.secret}` },
+  });
+  check("and is refused once the project is archived", afterArchive.status === 401, String(afterArchive.status));
 } catch (error) {
   failures.push(`threw: ${error.message}`);
   console.log(`\n  ERROR ${error.stack}`);

@@ -356,7 +356,8 @@ function PageHistory({ events, members }: { events: AuditEvent[] | null; members
               <li key={event.id}>
                 <Avatar avatarUrl={actor?.avatarUrl} className="avatar tiny" name={event.actorName} />
                 <span>
-                  <strong>{event.actorName}</strong> {lead}
+                  <strong>{event.actorName}</strong>
+                  {event.agentName && <span className="via-agent"> via {event.agentName}</span>} {lead}
                   {event.changes.length > 0 && (
                     <span className="activity-changes">
                       {event.changes.map((change) => <span key={change.field}>{describeChange(change)}</span>)}

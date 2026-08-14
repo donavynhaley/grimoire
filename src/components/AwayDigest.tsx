@@ -15,6 +15,8 @@ export type DigestLine = {
   aboutYou: boolean;
   actorId: string | null;
   actorName: string;
+  /** The agent that acted for them, or null for a person at a browser. */
+  agentName: string | null;
   parts: DigestPart[];
 };
 
@@ -39,6 +41,7 @@ export function buildDigestLines(away: AwayState, board: BoardWorkspace): Digest
       aboutYou,
       actorId: event.actorId,
       actorName: event.actorName,
+      agentName: event.agentName,
       parts,
     };
     lines.push(line);
@@ -218,6 +221,17 @@ export function buildDigestLines(away: AwayState, board: BoardWorkspace): Digest
     if (event.entityType === "category") {
       const verb = event.action === "created" ? "added" : event.action === "deleted" ? "removed" : "edited";
       push(event, 5, false, [{ text: `${verb} the category ` }, { text: event.entityTitle, strong: true }]);
+      continue;
+    }
+
+    if (event.entityType === "agent") {
+      // A new credential is worth a teammate's attention - unattributed-looking writes may
+      // follow it - and a revocation closes that loop.
+      if (event.action === "created") {
+        push(event, 5, false, [{ text: "gave agent access to " }, { text: event.entityTitle, strong: true }]);
+      } else if (event.action === "removed") {
+        push(event, 5, false, [{ text: "revoked agent access from " }, { text: event.entityTitle, strong: true }]);
+      }
     }
   }
 
@@ -267,7 +281,8 @@ export function AwayDigest({ away, board, onDismiss }: Props) {
             />
             <span className="away-line-text">
               {line.aboutYou && <span className="away-for-you">for you</span>}
-              <strong>{line.actorName}</strong>{" "}
+              <strong>{line.actorName}</strong>
+              {line.agentName && <span className="via-agent"> via {line.agentName}</span>}{" "}
               {line.parts.map((part, index) =>
                 part.strong ? <strong key={index}>{part.text}</strong> : <span key={index}>{part.text}</span>,
               )}

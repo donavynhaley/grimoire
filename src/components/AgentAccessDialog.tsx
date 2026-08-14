@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useState } from "react";
 import type { AgentToken, AgentTokenScope } from "../../shared/types";
-import { ApiError, agentTokens, issueAgentToken, revokeAgentToken } from "../api/client";
+import { ApiError, agentTokenIsLive, agentTokens, issueAgentToken, revokeAgentToken } from "../api/client";
 import { dayLabel } from "./chapter-dates";
 import { useDialogEscape } from "./use-dialog-escape";
 
@@ -31,7 +31,7 @@ export function AgentAccessDialog({ onClose, onCountChange }: Props) {
     try {
       const loaded = (await agentTokens()).tokens;
       setTokens(loaded);
-      onCountChange?.(loaded.filter((token) => token.revokedAt === null).length);
+      onCountChange?.(loaded.filter((token) => agentTokenIsLive(token)).length);
     } catch (value) {
       setError(value instanceof ApiError ? value.message : "Agent access could not be loaded");
     }
@@ -88,8 +88,10 @@ export function AgentAccessDialog({ onClose, onCountChange }: Props) {
 
   useDialogEscape(onClose);
 
-  const active = (tokens ?? []).filter((token) => token.revokedAt === null);
-  const retired = (tokens ?? []).filter((token) => token.revokedAt !== null);
+  // Expired counts as retired: the server refuses it exactly like a revoked one, so
+  // listing it as live would offer a revoke button on a thing that already stopped.
+  const active = (tokens ?? []).filter((token) => agentTokenIsLive(token));
+  const retired = (tokens ?? []).filter((token) => !agentTokenIsLive(token));
 
   return (
     <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
@@ -182,7 +184,7 @@ export function AgentAccessDialog({ onClose, onCountChange }: Props) {
 
         {retired.length > 0 && (
           <p className="settings-summary agent-retired">
-            {retired.length} revoked · their past work still says which agent wrote it.
+            {retired.length} revoked or expired · their past work still says which agent wrote it.
           </p>
         )}
 

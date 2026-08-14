@@ -187,6 +187,7 @@ An agent may create and edit pages and ideas, place a page into an existing chap
 It may never archive, restore, promote an idea, manage chapters or categories, invite or remove anyone, change the project, or touch an account.
 The rule is that an agent adds and refines, and only a person destroys or restructures, which keeps a mistaken or runaway agent a mess rather than a catastrophe.
 A credential can also be issued read-only, its writes are rate limited so a loop stays interruptible, and revoking it stops the agent immediately while leaving everything it already wrote correctly attributed.
+Archiving a project suspends its credentials the same way, so no agent outlives the board it was given.
 
 [packages/grimoire-mcp](packages/grimoire-mcp) is an MCP server that gives an agent these abilities as tools.
 Its tools take the names a person would use for a category, chapter, member, or column and resolve them, and it is a plain client of the API above rather than a second way into the data.
@@ -218,7 +219,7 @@ npm test
 npm run build
 ```
 
-The test suite covers authentication, secure password changes, single-use invitations, member removal, Markdown persistence, legacy migration, external edits, live project events, presence, the activity log, the active deck, Backlog search, project-wide search, completion history, reversible archives and promotions, categories, page dependencies, assignments, filtering, idea ranking, ordering, drag-and-drop interaction, Markdown note rendering, pasted note images, concurrent editing and refused overwrites, the while-you-were-away digest, markers, and seen cursor, chapters including the per-project gate, the single open chapter, closing without rollover, and the compatibility of page files with a build that predates chapters, and agent access including project pinning, revoked and expired credentials, read-only scopes, the routes no credential may reach, a session outranking a bearer header, rate limited writes, and attribution surviving both revocation and a rebuild of the activity log.
+The test suite covers authentication, secure password changes, single-use invitations, member removal, Markdown persistence, legacy migration, external edits, live project events, presence, the activity log, the active deck, Backlog search, project-wide search, completion history, reversible archives and promotions, categories, page dependencies, assignments, filtering, idea ranking, ordering, drag-and-drop interaction, Markdown note rendering, pasted note images, concurrent editing and refused overwrites, the while-you-were-away digest, markers, and seen cursor, chapters including the per-project gate, the single open chapter, closing without rollover, and the compatibility of page files with a build that predates chapters, and agent access including project pinning, revoked and expired credentials, archived projects suspending their credentials, read-only scopes, the routes no credential may reach, a session outranking a bearer header, rate limited writes that survive a backwards clock step, use tracking on reads, credential events in the log under their own entity type, agent attribution rendered in the activity, page history and away surfaces, and attribution surviving both revocation and a rebuild of the activity log.
 
 ## Self-hosting
 

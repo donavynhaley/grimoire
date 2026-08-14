@@ -9,6 +9,7 @@ import { PageDialog } from "./PageDialog";
 import { type CategoryActions, CategoriesDialog } from "./CategoriesDialog";
 import { type ChapterActions, ChaptersDialog } from "./ChaptersDialog";
 import { type ChapterFilter, ChapterPicker, NO_CHAPTER } from "./ChapterPicker";
+import { agentTokenIsLive, agentTokens } from "../api/client";
 import { chapterWhen } from "./chapter-dates";
 import { DoneHistoryDialog } from "./DoneHistoryDialog";
 import { type ProjectActions, ProjectMenu } from "./ProjectMenu";
@@ -100,7 +101,6 @@ export function Board({ away, board, busy, categoryActions, chapterActions, idea
   const [chaptersOpen, setChaptersOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [agentsOpen, setAgentsOpen] = useState(false);
-  // Only so the settings summary can say how many there are without fetching them itself.
   const [agentCount, setAgentCount] = useState(0);
   const [activityOpen, setActivityOpen] = useState(false);
   // Once the history has been opened, its badge has done its job for this visit.
@@ -109,6 +109,23 @@ export function Board({ away, board, busy, categoryActions, chapterActions, idea
   // Pages the reader has opened this visit; their dots have been answered.
   const [openedUnseen, setOpenedUnseen] = useState<ReadonlySet<string>>(() => new Set());
   const isOwner = board.currentUser.role === "owner";
+
+  // The settings summary states how many agents have access, so the count has to be true
+  // the first time settings opens - not only after the agent dialog has refreshed it.
+  useEffect(() => {
+    if (!settingsOpen || !isOwner) return;
+    let cancelled = false;
+    void agentTokens()
+      .then(({ tokens }) => {
+        if (!cancelled) setAgentCount(tokens.filter((token) => agentTokenIsLive(token)).length);
+      })
+      .catch(() => {
+        // The section then shows its default copy; opening the dialog surfaces the error.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [settingsOpen, isOwner]);
   const unseenCount = away && !awayDismissed && !activityVisited ? away.total : 0;
   const unseenPageIds = useMemo(() => {
     const ids = new Set<string>();
@@ -829,7 +846,7 @@ export function Board({ away, board, busy, categoryActions, chapterActions, idea
           agentCount={agentCount}
           busy={busy}
           canArchive={board.projects.length > 1}
-          canManageAgents={board.currentUser.role === "owner"}
+          canManageAgents={isOwner}
           pages={board.pages}
           categories={board.categories}
           chapters={board.chapters}

@@ -13,7 +13,9 @@
     "check": "tsc --noEmit",
     "build": "npm run check && vite build && npm run build:server",
     "build:server": "esbuild server/index.ts --bundle --format=esm --packages=external --platform=node --sourcemap --outfile=server-dist/index.js",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check:mcp": "npm --prefix packages/grimoire-mcp run check",
+    "verify:mcp": "npm --prefix packages/grimoire-mcp run verify"
   },
   "dependencies": {
     "react": "^19.0.0",

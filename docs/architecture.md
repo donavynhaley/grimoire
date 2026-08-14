@@ -344,6 +344,7 @@ Grimoire already had the API an agent needs, and lacked only a way for something
 A credential is a delegation rather than a second kind of account.
 It names a project and a person, and requests made with it act as that person, which is why nothing about members, assignment, presence, or authorship needed a second code path.
 Membership is rechecked on every request rather than trusted from issue time, so removing someone also stops the agents acting on their behalf.
+Archiving a project suspends its credentials the same way, because archiving refuses every browser and takes the owner-facing revoke routes with it - a credential that stayed alive there would be one no human could ever stop again.
 An expired or revoked credential resolves to nothing at all rather than to a lesser identity, so it can never quietly degrade into read access.
 
 A browser session is consulted before any bearer header, so a signed-in person holding a token stays a person and their own work is never recorded as an agent's.
@@ -352,7 +353,8 @@ Requests made with a credential are pinned to its project.
 `requireProject` otherwise falls back to the caller's default project, which is a convenience for a browser and a cross-project leak for an agent, so a credential never reaches that fallback and a mismatched `X-Grimoire-Project` is refused rather than redirected.
 
 What a credential may reach is an allow list rather than a set of refusals spread through the routes.
-Creating and editing pages and ideas is open, and everything that destroys or restructures is closed: archiving, restoring, promoting an idea, chapters, categories, invitations, membership, the project itself, and every account route.
+Creating and editing pages and ideas is open, and everything that destroys or restructures is closed: archiving, restoring, promoting an idea, the chapter and category definitions, invitations, membership, the project itself, and every account route.
+Chapter and category *membership* is a property of a page, so an agent editing a page may place it into an existing chapter or category and take it out again - what it cannot do is create, rename, recolor, open, close, or delete either.
 Stated as a rule, an agent adds and refines and only a person destroys or restructures.
 Archiving is the sharpest of those, because its undo lasts eight seconds and is built for a person who has just clicked, and search-restore recovers one page at a time.
 Account routes are closed so a delegated credential cannot escalate into the identity it borrows, and the event stream is closed because presence is derived from open streams and an agent holding one would appear to be a teammate sitting in the project.

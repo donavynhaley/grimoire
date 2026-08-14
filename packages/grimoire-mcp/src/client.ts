@@ -115,12 +115,33 @@ export class GrimoireClient {
       throw new ConflictError(body.field, body.current);
     }
     if (!response.ok) {
-      const message = typeof body === "object" && body !== null && "error" in body
+      let message = typeof body === "object" && body !== null && "error" in body
         ? String((body as { error: unknown }).error)
         : `Grimoire returned ${response.status}`;
+      // Validation refusals carry field-level issues; dropping them would leave the agent
+      // with a bare "Invalid request" and nothing to correct.
+      const details = typeof body === "object" && body !== null && "details" in body
+        ? (body as { details: unknown }).details
+        : null;
+      if (Array.isArray(details) && details.length > 0) {
+        const issues = details
+          .map((issue) => {
+            const at = Array.isArray((issue as { path?: unknown }).path)
+              ? ((issue as { path: unknown[] }).path.join(".") || "request")
+              : "request";
+            return `- ${at}: ${String((issue as { message?: unknown }).message ?? "invalid")}`;
+          })
+          .join("\n");
+        message = `${message}\n${issues}`;
+      }
       throw new GrimoireError(response.status, message);
     }
     return body as T;
+  }
+
+  /** Who this credential is, including its scope, so the server can shape its tool surface. */
+  session(): Promise<{ status: string; agent?: { name: string; scope: "read" | "write" } }> {
+    return this.request("/api/session");
   }
 
   board(): Promise<Board> {

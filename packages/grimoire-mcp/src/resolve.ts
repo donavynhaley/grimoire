@@ -105,30 +105,50 @@ export function resolveAssignee(board: Board, value: string): string {
   throw new ResolutionError(`"${value}" is not a member of this project. Members: ${available}.`);
 }
 
+const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
- * Finds one page from an id or a title.
+ * Finds one page from an id or its exact title, and nothing looser.
  *
- * An exact title wins over a partial one, so a page called "Ward the door" is still reachable
- * when "Ward the door again" also exists. Anything still ambiguous is refused with the
- * candidates listed, because picking one would silently edit the wrong page.
+ * A partial title never resolves, even when only one page matches it: these tools rewrite
+ * page bodies, and a half-remembered word silently landing on whichever live page happens
+ * to contain it is precisely the guess this module exists to refuse. The close matches are
+ * listed instead, with ids, so the correction costs one turn.
  */
 export function resolvePage(board: Board, value: string): Page {
   const byId = board.pages.find((page) => page.id === value);
   if (byId) return byId;
 
+  // An id that is not on the board names something real that cannot be edited - most
+  // likely an archived page found through search. Saying "use search" here would send the
+  // caller in a circle, because search is where the id came from.
+  if (UUID_SHAPE.test(value)) {
+    throw new ResolutionError(
+      `No page with id ${value} is on the board. It has probably been archived - archived pages ` +
+        "cannot be edited or moved by an agent. A person can restore it from search in Grimoire.",
+    );
+  }
+
   const wanted = normalise(value);
   const exact = board.pages.filter((page) => normalise(page.title) === wanted);
-  const candidates = exact.length > 0 ? exact : board.pages.filter((page) => normalise(page.title).includes(wanted));
+  if (exact.length === 1) return exact[0]!;
+  if (exact.length > 1) {
+    throw new ResolutionError(
+      `"${value}" is the title of ${exact.length} pages. Pass the id of the one you mean:\n` +
+        exact.map((page) => `- ${page.id} · ${page.title} (${columnLabel(page.status)})`).join("\n"),
+    );
+  }
 
-  if (candidates.length === 1) return candidates[0]!;
-  if (candidates.length === 0) {
+  const close = board.pages.filter((page) => normalise(page.title).includes(wanted));
+  if (close.length === 0) {
     throw new ResolutionError(
       `No page matches "${value}". Use grimoire_search to find it, then pass its id.`,
     );
   }
   throw new ResolutionError(
-    `"${value}" matches ${candidates.length} pages. Pass the id of the one you mean:\n` +
-      candidates.map((page) => `- ${page.id} · ${page.title} (${columnLabel(page.status)})`).join("\n"),
+    `No page is titled exactly "${value}". Close match${close.length === 1 ? "" : "es"}:\n` +
+      close.map((page) => `- ${page.id} · ${page.title} (${columnLabel(page.status)})`).join("\n") +
+      "\nPass the id, or the exact title.",
   );
 }
 

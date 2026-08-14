@@ -181,7 +181,11 @@ function ActivityRow({ event, members, onOpenPage }: {
       <Avatar avatarUrl={actor?.avatarUrl} className="avatar tiny" name={event.actorName} />
       <span className="activity-copy">
         <span className="activity-line">
-          <strong>{event.actorName}</strong> {lead}{title && <> <em>{title}</em></>}
+          <strong>{event.actorName}</strong>
+          {/* Machine writes must be tellable from the person's own, or delegating an
+              agent would quietly launder its work into theirs. */}
+          {event.agentName && <span className="via-agent"> via {event.agentName}</span>} {lead}
+          {title && <> <em>{title}</em></>}
         </span>
         {event.changes.length > 0 && (
           <span className="activity-changes">

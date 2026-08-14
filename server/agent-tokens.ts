@@ -142,9 +142,17 @@ export function agentForToken(database: DatabaseSync, secret: string): AgentIden
   if (row.expires_at !== null && Date.parse(row.expires_at) <= Date.now()) return null;
 
   // The membership is checked on every request rather than trusted from issue time, so
-  // removing someone from a project also stops the agents acting on their behalf.
+  // removing someone from a project also stops the agents acting on their behalf. The
+  // project has to still be live for the same reason: archiving refuses every browser,
+  // and the owner-facing revoke routes go with it, so a credential that stayed alive
+  // here would be one no human could ever stop again.
   const member = database
-    .prepare("SELECT 1 FROM project_members WHERE project_id = ? AND user_id = ?")
+    .prepare(
+      `SELECT 1 FROM project_members
+       JOIN projects ON projects.id = project_members.project_id
+       WHERE project_members.project_id = ? AND project_members.user_id = ?
+         AND projects.archived_at IS NULL`,
+    )
     .get(row.project_id, row.user_id);
   if (!member) return null;
 
@@ -186,7 +194,11 @@ export class AgentRateLimiter {
   take(tokenId: string, now = Date.now()): boolean {
     const refillPerMs = this.perMinute / 60000;
     const bucket = this.buckets.get(tokenId) ?? { tokens: this.burst, updatedAt: now };
-    const refilled = Math.min(this.burst, bucket.tokens + (now - bucket.updatedAt) * refillPerMs);
+    // The clock is wall time, and wall time steps backwards under NTP corrections and
+    // snapshot restores. A negative elapsed term would drive the bucket deeply negative
+    // and lock the credential out for the length of the step, so it is clamped instead.
+    const elapsed = Math.max(0, now - bucket.updatedAt);
+    const refilled = Math.min(this.burst, bucket.tokens + elapsed * refillPerMs);
     if (refilled < 1) {
       this.buckets.set(tokenId, { tokens: refilled, updatedAt: now });
       return false;

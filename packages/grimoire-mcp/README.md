@@ -58,6 +58,7 @@ Build it first with `npm install && npm run build` in this directory.
 | --- | --- |
 | `grimoire_board` | The whole project: every page with its column, category, chapter, assignee and blockers, plus the categories, chapters and members that exist |
 | `grimoire_search` | Searches titles and note bodies across every column, the backlog, the idea garden, completed work, and archived pages |
+| `grimoire_read_page` | One page's title and complete notes, exactly as stored - the values to pass as `expectedTitle` / `expectedNotes` when rewriting |
 | `grimoire_create_page` | Adds a unit of work |
 | `grimoire_update_page` | Edits an existing page |
 | `grimoire_move_page` | Moves a page between columns |
@@ -67,21 +68,24 @@ Build it first with `npm install && npm run build` in this directory.
 Category, chapter, assignee, and blockers all take the names a person would use, and are resolved against the board.
 `"me"` resolves to the person the token acts as.
 An unrecognised name is refused with the real options listed, rather than guessed at.
+A page is named by its id or its exact title - a partial title is refused with the close matches listed, because these tools rewrite bodies and a half-remembered word must never silently land on whichever page happens to contain it.
 
 ## What an agent cannot do
 
 There is no tool for archiving, promoting an idea, or managing chapters, categories, or membership, and the server refuses those routes to a token whatever its scope.
+Managing is the closed half: an agent editing a page may still place it into an existing chapter or category and take it out again, because membership is a property of the page.
 
 The rule is that **an agent may add and refine, and only a person may destroy or restructure**.
 Archiving is the sharpest case: its undo lasts eight seconds and is built for a person who just clicked, so an agent that archived thirty pages would leave no path anyone would find.
 Promotion is the deliberate act of committing to an idea, which is the entire point of keeping the idea garden separate from work.
 
-A token issued with the `read` scope can call the reading tools only.
+A credential issued with the `read` scope is registered only the reading tools - the server asks Grimoire for its scope at startup, so a read-only agent never has to discover its limits by being refused.
 
 ## Editing something a person is also editing
 
-Rewriting a title or notes takes an optional `expectedTitle` / `expectedNotes`: what you were editing from.
-If someone changed that field in the meantime, the write is refused and the stored version is returned, rather than replacing their words.
+Rewriting a title or notes **requires** `expectedTitle` / `expectedNotes`: the value read from `grimoire_read_page` before deciding to rewrite it.
+A rewrite that declares no expectation is refused outright, because a precondition invented from a value read microseconds earlier can never fire and would be last-writer-wins wearing a safety's clothes.
+If someone changed the field after it was read, the write is refused and the stored version is returned, rather than replacing their words.
 
 The right response is to re-read, decide what the merged text should be, and send it again with the new expectation.
 Retrying the same write unchanged would only be last-writer-wins with extra steps.
@@ -93,7 +97,8 @@ npm run verify
 ```
 
 Starts a real Grimoire, issues a real credential through the real route, and then speaks MCP over stdio to the built server, checking the effects landed.
-It covers the handshake and the tool list, resolving names to identifiers, creating, editing, moving and searching, attribution reaching the activity log, a refusal that lists the real options, a stale rewrite being refused and then landing after a re-read, the routes no credential may reach, and revocation taking effect immediately.
+It covers the handshake and the tool list, resolving names to identifiers, creating, editing, moving and searching, attribution reaching the activity log, refusals that list the real options, a rewrite without an expectation being refused, a stale expectation being refused and then landing after a re-read, a partial title being refused rather than guessed, the routes no credential may reach, revocation taking effect immediately, a read-scoped credential being offered only the reading tools, and an archived project suspending its credentials.
+CI runs it on every push, after the main suite.
 
 ## Rate limiting
 

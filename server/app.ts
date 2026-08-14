@@ -354,6 +354,10 @@ export function createGrimoireServer(options: Options) {
       const permitted = agentMayReach(method, url.pathname);
       if (!permitted) throw new HttpError(403, "An agent token cannot use this route");
       if (permitted === "write") requireAgentWrite(context);
+      // Any permitted request counts as use, reads included. "Last used" is the signal an
+      // owner reads to decide a credential is safe to revoke, and a read-only agent that
+      // works all day but lists as never used would invite exactly the wrong revocation.
+      touchAgentToken(database, context.agent.tokenId);
     }
 
     if (method === "GET" && url.pathname === "/api/health") {
@@ -364,7 +368,15 @@ export function createGrimoireServer(options: Options) {
     if (method === "GET" && url.pathname === "/api/session") {
       if (userCount(database) === 0) json(response, 200, { status: "setup_required" });
       else if (!context.user) json(response, 200, { status: "anonymous" });
-      else json(response, 200, { status: "authenticated", user: withAvatar(context.user) });
+      else {
+        json(response, 200, {
+          status: "authenticated",
+          user: withAvatar(context.user),
+          // Tells a credential what it is, so an agent client can shape its own surface -
+          // a read-only agent that knows its scope never offers itself a write tool.
+          ...(context.agent ? { agent: { name: context.agent.name, scope: context.agent.scope } } : {}),
+        });
+      }
       return;
     }
 
@@ -691,13 +703,16 @@ export function createGrimoireServer(options: Options) {
         expiresAt: input.expiresAt ?? null,
       });
       if (!issued) throw new HttpError(404, "Project not found");
+      // Recorded as its own entity type: borrowing "project" here would make the digest
+      // tell every member the owner created or removed a project, which is exactly the
+      // alarming-and-untrue phrasing the digest copy was written to avoid.
       audit(context, {
         projectId,
-        entityType: "project",
-        entityId: projectId,
+        entityType: "agent",
+        entityId: issued.token.id,
         entityTitle: input.name,
         action: "created",
-        changes: [{ field: "agent access", from: null, to: `${input.name} (${input.scope})` }],
+        changes: [{ field: "scope", from: null, to: input.scope === "write" ? "read and write" : "read only" }],
       });
       // The only time the secret leaves the server. Nothing stores it but the holder.
       json(response, 201, { token: issued.token, secret: issued.secret });
@@ -716,11 +731,10 @@ export function createGrimoireServer(options: Options) {
       writeLimiter.forget(agentTokenMatch[1]);
       audit(context, {
         projectId,
-        entityType: "project",
-        entityId: projectId,
+        entityType: "agent",
+        entityId: agentTokenMatch[1],
         entityTitle: revoked?.name ?? "an agent",
         action: "removed",
-        changes: [{ field: "agent access", from: revoked?.name ?? "an agent", to: null }],
       });
       json(response, 200, { ok: true });
       return;
@@ -974,6 +988,12 @@ export function createGrimoireServer(options: Options) {
       if (!board) throw new HttpError(404, "Board not found");
       json(response, 200, {
         ...board,
+        // The project list exists for the switcher, and a token cannot switch. Sending the
+        // issuer's other projects to a credential pinned to one of them would name things
+        // the credential has no business knowing exist.
+        projects: context.agent
+          ? board.projects.filter((candidate) => candidate.id === board.project.id)
+          : board.projects,
         currentUser: withAvatar(board.currentUser),
         members: board.members.map(withAvatar),
       });
@@ -1326,15 +1346,17 @@ export function createGrimoireServer(options: Options) {
   /**
    * Gates a write, charging it against the token's rate limit.
    *
-   * Reads are deliberately not metered: they cost one query and cannot run the disk away.
+   * The limiter runs before the scope check so a refused write still spends allowance: a
+   * read-only credential hammering a write route is exactly the loop the limiter exists
+   * to keep bounded. Reads are deliberately not metered - one query cannot run the disk
+   * away, and metering them would punish the orientation read every good agent starts with.
    */
   function requireAgentWrite(context: RequestContext): void {
     if (!context.agent) return;
-    if (context.agent.scope !== "write") throw new HttpError(403, "This token is read-only");
     if (!writeLimiter.take(context.agent.tokenId)) {
       throw new HttpError(429, "This token is writing too quickly");
     }
-    touchAgentToken(database, context.agent.tokenId);
+    if (context.agent.scope !== "write") throw new HttpError(403, "This token is read-only");
   }
 
   /** The agent behind a write, so the log can say which one it was. */

@@ -7,6 +7,7 @@ export const ENTITY_LABELS: Record<AuditEntityType, string> = {
   category: "categories",
   chapter: "chapters",
   member: "team",
+  agent: "agents",
 };
 
 const PROJECT_VERBS: Partial<Record<AuditEvent["action"], string>> = {
@@ -38,6 +39,13 @@ export function describeEvent(event: AuditEvent): { lead: string; title: string 
     if (event.action === "joined") return { lead: "joined the project", title: "" };
     if (event.action === "invited") return { lead: "created an invitation link", title: "" };
     return { lead: "removed", title: event.entityTitle };
+  }
+  if (event.entityType === "agent") {
+    // Credentials get their own wording: borrowing the project verbs here would announce
+    // "created the project Planning agent" to everyone, which is alarming and untrue.
+    if (event.action === "created") return { lead: "gave agent access to", title: event.entityTitle };
+    if (event.action === "removed") return { lead: "revoked agent access from", title: event.entityTitle };
+    return { lead: `${event.action} agent`, title: event.entityTitle };
   }
   if (event.entityType === "project") {
     // Defaulting an unrecognised action to "archived" would report something alarming and

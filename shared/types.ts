@@ -185,7 +185,7 @@ export type EditConflict<T> = {
   current: T;
 };
 
-export const AUDIT_ENTITY_TYPES = ["page", "idea", "project", "category", "chapter", "member"] as const;
+export const AUDIT_ENTITY_TYPES = ["page", "idea", "project", "category", "chapter", "member", "agent"] as const;
 export type AuditEntityType = (typeof AUDIT_ENTITY_TYPES)[number];
 
 export const AUDIT_ACTIONS = [

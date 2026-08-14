@@ -4,7 +4,7 @@ import { cleanup, render, screen, waitFor, within } from "@testing-library/react
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "../../src/App";
-import type { AgentToken, BoardWorkspace } from "../../shared/types";
+import type { AgentToken, AuditEvent, AwayState, BoardWorkspace } from "../../shared/types";
 import { boardFixture } from "../fixtures/board";
 
 afterEach(() => {
@@ -41,10 +41,12 @@ function token(overrides: Partial<AgentToken> = {}): AgentToken {
 type Options = {
   tokens?: AgentToken[];
   board?: BoardWorkspace;
+  activity?: AuditEvent[];
+  away?: AwayState;
 };
 
 /** Mounts the app and records the agent-token calls the dialog makes. */
-function mountWith({ tokens = [], board = boardFixture() }: Options = {}) {
+function mountWith({ tokens = [], board = boardFixture(), activity = [], away }: Options = {}) {
   const calls: Array<{ url: string; method: string; body: unknown }> = [];
   let stored = [...tokens];
 
@@ -66,8 +68,8 @@ function mountWith({ tokens = [], board = boardFixture() }: Options = {}) {
       }
       return response({ tokens: stored });
     }
-    if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
-    if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
+    if (url.startsWith("/api/activity")) return response({ events: activity, hasMore: false });
+    if (url.startsWith("/api/away")) return response(away ?? { since: 0, latest: 0, total: 0, events: [] });
     if (url.startsWith("/api/seen")) return response({ ok: true });
     if (url.startsWith("/api/session")) return response({ status: "authenticated", user: board.currentUser });
     return response(board);
@@ -174,5 +176,93 @@ describe("agent access", () => {
     // would lead there is owner-only, so there is nothing for a member to reach.
     expect(within(menu).queryByRole("menuitem", { name: /Project settings/ })).toBeNull();
     expect(screen.queryByText("Agent access")).toBeNull();
+  });
+  it("names the agent beside the person in the activity log", async () => {
+    const user = userEvent.setup();
+    mountWith({
+      activity: [
+        {
+          sequence: 1,
+          id: "event-1",
+          actorId: boardFixture().currentUser.id,
+          actorName: "Donavyn",
+          agentName: "Planning agent",
+          entityType: "page",
+          entityId: null,
+          entityTitle: "Ward the tower door",
+          action: "created",
+          changes: [],
+          createdAt: "2026-08-13T10:00:00.000Z",
+        },
+      ],
+    });
+
+    await user.click(await screen.findByRole("button", { name: /activity/ }));
+    const dialog = await screen.findByRole("dialog", { name: /activity/i });
+    // A machine write must be tellable from the person's own, with the person still named.
+    const via = await within(dialog).findByText(/via Planning agent/);
+    expect(via.closest(".activity-line")?.textContent).toContain("Donavyn");
+  });
+
+  it("names the agent in the while-you-were-away digest", async () => {
+    const board = boardFixture();
+    mountWith({
+      board,
+      away: {
+        since: 0,
+        latest: 2,
+        total: 1,
+        events: [
+          {
+            sequence: 2,
+            id: "away-1",
+            // A teammate's agent, so the line is not excluded as the reader's own action.
+            actorId: board.members[1].id,
+            actorName: "Maren",
+            agentName: "Night gardener",
+            entityType: "page",
+            entityId: board.pages[0]?.id ?? null,
+            entityTitle: "Quietly drafted overnight",
+            action: "created",
+            changes: [{ field: "column", from: null, to: "Backlog" }],
+            createdAt: "2026-08-13T02:00:00.000Z",
+          },
+        ],
+      },
+    });
+
+    expect(await screen.findByText(/via Night gardener/)).toBeInTheDocument();
+  });
+
+  it("counts an expired credential as retired, not live", async () => {
+    const user = userEvent.setup();
+    mountWith({
+      tokens: [token({ id: "expired-1", name: "Old agent", expiresAt: "2020-01-01T00:00:00.000Z" })],
+    });
+
+    await user.click(await screen.findByRole("button", { name: /Wizard Simulator/ }));
+    await user.click(screen.getByRole("menuitem", { name: /Project settings/ }));
+    const settings = await screen.findByRole("dialog", { name: "Wizard Simulator" });
+    const [manage] = within(settings).getAllByRole("button", { name: /manage/ });
+    await user.click(manage);
+
+    const dialog = await screen.findByRole("dialog", { name: "Agent access" });
+    // The server refuses it exactly like a revoked one, so listing it live would offer a
+    // revoke button on a thing that already stopped.
+    expect(await within(dialog).findByText(/No agent has access/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/1 revoked or expired/)).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "revoke" })).toBeNull();
+  });
+
+  it("shows a true agent count the first time settings opens", async () => {
+    const user = userEvent.setup();
+    mountWith({ tokens: [token()] });
+
+    await user.click(await screen.findByRole("button", { name: /Wizard Simulator/ }));
+    await user.click(screen.getByRole("menuitem", { name: /Project settings/ }));
+
+    const settings = await screen.findByRole("dialog", { name: "Wizard Simulator" });
+    // Fetched when settings opens, not only after the agent dialog has been visited once.
+    expect(await within(settings).findByText(/1 agent with access/)).toBeInTheDocument();
   });
 });
