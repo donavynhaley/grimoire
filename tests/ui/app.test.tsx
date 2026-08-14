@@ -609,6 +609,12 @@ describe("Grimoire board", () => {
     await openWorkPage(page);
 
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    // Category is the one attribute folded to its current value, so it is read before it is
+    // changed - and opening it still reveals plain buttons rather than a menu.
+    const rail = screen.getByRole("dialog", { name: "Edit page" }).querySelector(".page-rail")!;
+    expect(within(rail as HTMLElement).getByText("Narrative")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Change category" }));
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Categorize as Code" }));
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
