@@ -1113,6 +1113,7 @@ function auditFixture(overrides: Partial<AuditEvent> = {}): AuditEvent {
     id: "audit-1",
     actorId: "00000000-0000-4000-8000-000000000010",
     actorName: "Donavyn",
+    agentName: null,
     entityType: "page",
     entityId: null,
     entityTitle: "a page",

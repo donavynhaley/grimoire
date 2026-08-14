@@ -13,6 +13,7 @@ import { chapterWhen } from "./chapter-dates";
 import { DoneHistoryDialog } from "./DoneHistoryDialog";
 import { type ProjectActions, ProjectMenu } from "./ProjectMenu";
 import { type ProjectSettingsActions, ProjectSettingsDialog } from "./ProjectSettingsDialog";
+import { AgentAccessDialog } from "./AgentAccessDialog";
 import { type CapturePageInput, QuickCapture } from "./QuickCapture";
 import { SearchDialog } from "./SearchDialog";
 import { TeamDialog } from "./TeamDialog";
@@ -98,6 +99,9 @@ export function Board({ away, board, busy, categoryActions, chapterActions, idea
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [chaptersOpen, setChaptersOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [agentsOpen, setAgentsOpen] = useState(false);
+  // Only so the settings summary can say how many there are without fetching them itself.
+  const [agentCount, setAgentCount] = useState(0);
   const [activityOpen, setActivityOpen] = useState(false);
   // Once the history has been opened, its badge has done its job for this visit.
   const [activityVisited, setActivityVisited] = useState(false);
@@ -812,16 +816,26 @@ export function Board({ away, board, busy, categoryActions, chapterActions, idea
           onSetPageChapter={(id, value) => onUpdate(id, { chapter: value })}
         />
       )}
+      {agentsOpen && (
+        <AgentAccessDialog
+          // Opened from settings, closing returns there, the same trip the other sections make.
+          onClose={() => { setAgentsOpen(false); setSettingsOpen(true); }}
+          onCountChange={setAgentCount}
+        />
+      )}
       {settingsOpen && (
         <ProjectSettingsDialog
           actions={projectSettingsActions}
+          agentCount={agentCount}
           busy={busy}
           canArchive={board.projects.length > 1}
+          canManageAgents={board.currentUser.role === "owner"}
           pages={board.pages}
           categories={board.categories}
           chapters={board.chapters}
           chaptersEnabled={chaptersOn}
           onClose={() => setSettingsOpen(false)}
+          onManageAgents={() => { setSettingsOpen(false); setAgentsOpen(true); }}
           onManageCategories={() => { setSettingsOpen(false); setCategoriesOpen(true); }}
           onManageChapters={() => { setSettingsOpen(false); setChaptersOpen(true); }}
           project={board.project}

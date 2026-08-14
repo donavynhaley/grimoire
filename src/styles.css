@@ -2452,6 +2452,78 @@ textarea:hover { border-color: var(--border-bright); }
 .settings-summary { margin: 0; color: var(--faint); font-size: 10px; }
 .settings-summary em { color: var(--accent); font-style: normal; }
 
+/* ---------- agent access ---------- */
+
+.agent-dialog { width: min(520px, 100%); }
+.agent-intro { margin-bottom: 14px; line-height: 1.6; }
+.agent-create { margin-bottom: 14px; }
+.agent-create select {
+  padding: 7px 8px;
+  color: var(--text);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 11px;
+}
+.agent-create select:focus { border-color: var(--border-bright); outline: none; }
+
+/* The one moment the secret exists outside the holder's hands, so it is deliberately loud. */
+.agent-secret {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 12px;
+  background: var(--surface-raised);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+}
+.agent-secret-value {
+  padding: 8px 10px;
+  color: var(--accent);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 11px;
+  /* A credential must be selectable in full and must never be silently truncated. */
+  word-break: break-all;
+  user-select: all;
+}
+.agent-secret-actions { display: flex; gap: 8px; align-items: center; }
+.agent-secret-actions button:not(.primary-button) {
+  padding: 0 4px;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.agent-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.agent-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-top: 1px solid var(--border);
+}
+.agent-row:first-child { border-top: 0; }
+.agent-row-main { display: grid; gap: 2px; min-width: 0; }
+.agent-name { color: var(--text); font-size: 12px; }
+.agent-meta { color: var(--faint); font-size: 10px; }
+.agent-row .archive-confirm { gap: 6px; font-size: 10px; color: var(--muted); }
+.agent-row .archive-confirm button {
+  padding: 0 3px;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-size: 10px;
+}
+.agent-retired { margin-top: 12px; }
+
 .settings-input { display: flex; gap: 6px; }
 .settings-input input {
   min-width: 0;

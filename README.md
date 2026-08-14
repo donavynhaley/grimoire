@@ -173,6 +173,24 @@ Opening a page also shows its own recent history above the archive action.
 Reordering a page inside a column, or reranking the shortlist, is not recorded, because a log shaped by dragging would bury the changes worth reading.
 The history is kept in SQLite rather than the Markdown files and is never pruned.
 
+## Agent access
+
+A project can let something without a browser write in it, which is how an AI agent reaches Grimoire.
+The owner issues a credential in Project settings, and its secret is shown once and stored only as a hash.
+
+A credential is a delegation rather than an account.
+It belongs to one project and one person, every write it makes is attributed to that person, and the agent that made it is named beside them, so the history reads `Donavyn, via Planning agent, added ...`.
+Nothing is ever assigned to an agent, because an assignee is the person responsible and an agent is not responsible for anything.
+An agent never appears in the people filter, the Team dialog, or presence, because presence follows an open connection and an agent holds none.
+
+An agent may create and edit pages and ideas, place a page into an existing chapter, and read the board, search, and its issuer's activity log.
+It may never archive, restore, promote an idea, manage chapters or categories, invite or remove anyone, change the project, or touch an account.
+The rule is that an agent adds and refines, and only a person destroys or restructures, which keeps a mistaken or runaway agent a mess rather than a catastrophe.
+A credential can also be issued read-only, its writes are rate limited so a loop stays interruptible, and revoking it stops the agent immediately while leaving everything it already wrote correctly attributed.
+
+[packages/grimoire-mcp](packages/grimoire-mcp) is an MCP server that gives an agent these abilities as tools.
+Its tools take the names a person would use for a category, chapter, member, or column and resolve them, and it is a plain client of the API above rather than a second way into the data.
+
 ## Local development
 
 Node.js 24 or newer is required.
@@ -200,7 +218,7 @@ npm test
 npm run build
 ```
 
-The test suite covers authentication, secure password changes, single-use invitations, member removal, Markdown persistence, legacy migration, external edits, live project events, presence, the activity log, the active deck, Backlog search, project-wide search, completion history, reversible archives and promotions, categories, page dependencies, assignments, filtering, idea ranking, ordering, drag-and-drop interaction, Markdown note rendering, pasted note images, concurrent editing and refused overwrites, the while-you-were-away digest, markers, and seen cursor, and chapters including the per-project gate, the single open chapter, closing without rollover, and the compatibility of page files with a build that predates chapters.
+The test suite covers authentication, secure password changes, single-use invitations, member removal, Markdown persistence, legacy migration, external edits, live project events, presence, the activity log, the active deck, Backlog search, project-wide search, completion history, reversible archives and promotions, categories, page dependencies, assignments, filtering, idea ranking, ordering, drag-and-drop interaction, Markdown note rendering, pasted note images, concurrent editing and refused overwrites, the while-you-were-away digest, markers, and seen cursor, chapters including the per-project gate, the single open chapter, closing without rollover, and the compatibility of page files with a build that predates chapters, and agent access including project pinning, revoked and expired credentials, read-only scopes, the routes no credential may reach, a session outranking a bearer header, rate limited writes, and attribution surviving both revocation and a rebuild of the activity log.
 
 ## Self-hosting
 

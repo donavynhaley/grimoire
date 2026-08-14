@@ -14,12 +14,16 @@ type Props = {
   actions: ProjectSettingsActions;
   busy: boolean;
   canArchive: boolean;
+  /** Issuing a credential is the owner's decision, so members never see the section. */
+  canManageAgents: boolean;
+  agentCount: number;
   pages: Page[];
   categories: ProjectCategory[];
   chapters: Chapter[];
   chaptersEnabled: boolean;
   project: { id: string; name: string };
   onClose: () => void;
+  onManageAgents: () => void;
   onManageCategories: () => void;
   onManageChapters: () => void;
 };
@@ -37,12 +41,15 @@ export function ProjectSettingsDialog({
   actions,
   busy,
   canArchive,
+  canManageAgents,
+  agentCount,
   pages,
   categories,
   chapters,
   chaptersEnabled,
   project,
   onClose,
+  onManageAgents,
   onManageCategories,
   onManageChapters,
 }: Props) {
@@ -146,6 +153,20 @@ export function ProjectSettingsDialog({
             </div>
           )}
         </div>
+
+        {canManageAgents && (
+          <div className="settings-row">
+            <div className="settings-row-top">
+              <span className="field-label">Agent access</span>
+              <button className="settings-link" onClick={onManageAgents} type="button">manage →</button>
+            </div>
+            <p className="settings-summary">
+              {agentCount === 0
+                ? "Let an agent write pages here. It acts as you, and can never archive or promote."
+                : `${agentCount} agent${agentCount === 1 ? "" : "s"} with access · each acts as the person who issued it`}
+            </p>
+          </div>
+        )}
 
         <div className="settings-row danger">
           <span className="field-label danger-label">Danger zone</span>

@@ -1,4 +1,6 @@
 import type {
+  AgentToken,
+  AgentTokenScope,
   AuditPage,
   AwayState,
   BoardWorkspace,
@@ -78,6 +80,25 @@ export function search(query: string, signal?: AbortSignal): Promise<SearchResul
 
 export function away(): Promise<AwayState> {
   return request<AwayState>("/api/away");
+}
+
+export function agentTokens(): Promise<{ tokens: AgentToken[] }> {
+  return request<{ tokens: AgentToken[] }>("/api/agent-tokens");
+}
+
+/**
+ * Issues a credential. The secret comes back exactly once and is never readable again,
+ * so the caller has to show it before it forgets it.
+ */
+export function issueAgentToken(input: { name: string; scope: AgentTokenScope }): Promise<{
+  token: AgentToken;
+  secret: string;
+}> {
+  return mutate<{ token: AgentToken; secret: string }>("/api/agent-tokens", "POST", input);
+}
+
+export function revokeAgentToken(id: string): Promise<{ ok: boolean }> {
+  return mutate(`/api/agent-tokens/${id}`, "DELETE");
 }
 
 /** Advances the private seen cursor to the newest change; the server clamps and MAX-guards it. */

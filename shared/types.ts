@@ -216,12 +216,40 @@ export type AuditEvent = {
   id: string;
   actorId: string | null;
   actorName: string;
+  /**
+   * The agent that made this write on the actor's behalf, or null for a person at a browser.
+   *
+   * Separate from `actorName` because that name is resolved to the live account on every
+   * read, so a label folded into it would be discarded before anyone saw it.
+   */
+  agentName: string | null;
   entityType: AuditEntityType;
   entityId: string | null;
   entityTitle: string;
   action: AuditAction;
   changes: AuditChange[];
   createdAt: string;
+};
+
+/** What a token may do. An agent adds and refines; only a person destroys or restructures. */
+export const AGENT_TOKEN_SCOPES = ["read", "write"] as const;
+export type AgentTokenScope = (typeof AGENT_TOKEN_SCOPES)[number];
+
+/**
+ * An issued agent credential, as anyone but its holder ever sees it.
+ *
+ * The secret itself is returned exactly once, at creation, and only its hash is stored.
+ */
+export type AgentToken = {
+  id: string;
+  name: string;
+  scope: AgentTokenScope;
+  createdAt: string;
+  lastUsedAt: string | null;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  /** The person the token acts as. Every write it makes is attributed to them. */
+  ownerName: string;
 };
 
 export type AuditPage = {
