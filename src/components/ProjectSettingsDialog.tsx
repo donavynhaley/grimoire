@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from "react";
 import type { Card, Chapter, ProjectCategory } from "../../shared/types";
 import { ApiError } from "../api/client";
+import { dayLabel } from "./chapter-dates";
 import { useDialogEscape } from "./use-dialog-escape";
 
 export type ProjectSettingsActions = {
@@ -22,12 +23,6 @@ type Props = {
   onManageCategories: () => void;
   onManageChapters: () => void;
 };
-
-function dayLabel(day: string): string {
-  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(
-    new Date(`${day}T00:00:00.000Z`),
-  );
-}
 
 /**
  * One place for everything that configures a project.

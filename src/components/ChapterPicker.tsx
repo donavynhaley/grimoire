@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Card, Chapter } from "../../shared/types";
+import { chapterWhen } from "./chapter-dates";
 
 /**
  * What the board is narrowed to: every card, one chapter, or the cards nobody has placed.
@@ -19,20 +20,6 @@ type Props = {
   value: ChapterFilter;
 };
 
-export function dayLabel(day: string): string {
-  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(
-    new Date(`${day}T00:00:00.000Z`),
-  );
-}
-
-/** The one-line "when" a chapter carries, or nothing when it never took dates. */
-export function chapterWhen(chapter: Chapter): string {
-  if (chapter.state === "closed") return chapter.closedAt ? `closed ${dayLabel(chapter.closedAt.slice(0, 10))}` : "closed";
-  if (chapter.startsOn && chapter.endsOn) return `${dayLabel(chapter.startsOn)} → ${dayLabel(chapter.endsOn)}`;
-  if (chapter.endsOn) return `ends ${dayLabel(chapter.endsOn)}`;
-  if (chapter.startsOn) return `from ${dayLabel(chapter.startsOn)}`;
-  return "no dates";
-}
 
 export function ChapterPicker({ cards, chapters, isOwner, onChange, onManage, value }: Props) {
   const [open, setOpen] = useState(false);
