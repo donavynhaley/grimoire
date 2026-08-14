@@ -1,14 +1,22 @@
 import type { AuditChange, AuditEntityType, AuditEvent } from "../../shared/types";
 
 export const ENTITY_LABELS: Record<AuditEntityType, string> = {
-  card: "cards",
+  page: "pages",
   idea: "ideas",
   project: "project",
   category: "categories",
+  chapter: "chapters",
   member: "team",
 };
 
-const CARD_VERBS: Partial<Record<AuditEvent["action"], string>> = {
+const PROJECT_VERBS: Partial<Record<AuditEvent["action"], string>> = {
+  created: "created",
+  renamed: "renamed",
+  updated: "changed settings on",
+  archived: "archived",
+};
+
+const PAGE_VERBS: Partial<Record<AuditEvent["action"], string>> = {
   created: "added",
   updated: "edited",
   moved: "moved",
@@ -23,7 +31,7 @@ const CARD_VERBS: Partial<Record<AuditEvent["action"], string>> = {
  * Turns one stored event into a sentence.
  *
  * The actor's name is prefixed by the caller, so every phrase here continues from it:
- * "Donavyn" + "edited card" + "Fix the workbench".
+ * "Donavyn" + "edited page" + "Fix the workbench".
  */
 export function describeEvent(event: AuditEvent): { lead: string; title: string } {
   if (event.entityType === "member") {
@@ -32,11 +40,13 @@ export function describeEvent(event: AuditEvent): { lead: string; title: string 
     return { lead: "removed", title: event.entityTitle };
   }
   if (event.entityType === "project") {
-    const verb = event.action === "created" ? "created" : event.action === "renamed" ? "renamed" : "archived";
+    // Defaulting an unrecognised action to "archived" would report something alarming and
+    // untrue, so an unknown verb stays literal instead.
+    const verb = PROJECT_VERBS[event.action] ?? event.action;
     return { lead: `${verb} the project`, title: event.entityTitle };
   }
   const noun = event.entityType === "category" ? "category" : event.entityType;
-  return { lead: `${CARD_VERBS[event.action] ?? event.action} ${noun}`, title: event.entityTitle };
+  return { lead: `${PAGE_VERBS[event.action] ?? event.action} ${noun}`, title: event.entityTitle };
 }
 
 export function describeChange(change: AuditChange): string {
@@ -67,7 +77,7 @@ export function timeLabel(timestamp: string): string {
   return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(new Date(timestamp));
 }
 
-/** Relative wording for the compact card history, where a full timestamp is too heavy. */
+/** Relative wording for the compact page history, where a full timestamp is too heavy. */
 export function relativeLabel(timestamp: string, now: Date): string {
   const minutes = Math.floor((now.getTime() - new Date(timestamp).getTime()) / 60_000);
   if (minutes < 1) return "just now";

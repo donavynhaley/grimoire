@@ -246,7 +246,7 @@ describe("NotesField image paste", () => {
 });
 
 describe("plainTextFromMarkdown", () => {
-  it("strips the syntax that would clutter a card tile", () => {
+  it("strips the syntax that would clutter a page tile", () => {
     const markdown = "# Goal\n\n- Use **bold** words\n- See the [docs](https://example.com)\n\n> quoted `code` and *soft* text";
     expect(plainTextFromMarkdown(markdown)).toBe("Goal Use bold words See the docs quoted code and soft text");
   });

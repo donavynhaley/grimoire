@@ -1,5 +1,5 @@
 /**
- * Reduces Markdown to plain text for compact card and idea previews.
+ * Reduces Markdown to plain text for compact page and idea previews.
  *
  * This is deliberately an approximation rather than a parser: it clears the syntax
  * people actually type into notes so tiles read as prose. An unhandled edge case

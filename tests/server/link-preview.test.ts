@@ -2,7 +2,7 @@ import { copyFileSync, mkdirSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { Card, Idea } from "../../shared/types";
+import type { Page, Idea } from "../../shared/types";
 import { bootstrap, startTestServer } from "./test-server";
 
 /** The shipped shell, so a preview that loses its markers fails here first. */
@@ -25,11 +25,11 @@ async function unfurl(server: Awaited<ReturnType<typeof startTestServer>>, path:
 }
 
 describe("link previews", () => {
-  it("describes a shared card without revealing its notes", async () => {
+  it("describes a shared page without revealing its notes", async () => {
     const server = await startShellServer();
     await bootstrap(server);
     const owner = (await server.request<{ projects: Array<{ id: string }> }>("/api/projects")).body;
-    const card = await server.request<{ card: Card }>("/api/cards", {
+    const page = await server.request<{ page: Page }>("/api/pages", {
       method: "POST",
       body: JSON.stringify({
         title: "Make the tower door remember Maren",
@@ -40,7 +40,7 @@ describe("link previews", () => {
     });
     expect(owner.projects).toHaveLength(1);
 
-    const html = await unfurl(server, `/?card=${card.body.card.id}`);
+    const html = await unfurl(server, `/?page=${page.body.page.id}`);
 
     expect(html).toContain('<meta property="og:title" content="Make the tower door remember Maren" />');
     expect(html).toContain('<meta property="og:site_name" content="Grimoire · Wizard Simulator" />');
@@ -51,28 +51,56 @@ describe("link previews", () => {
     expect(html).not.toContain("focused collaborative kanban board");
   });
 
-  it("names the assignee and flags blocked and archived cards", async () => {
+  it("names the chapter a page belongs to", async () => {
+    const server = await startShellServer();
+    await bootstrap(server);
+    const board = (await server.request<{ project: { id: string } }>("/api/board")).body;
+    await server.request(`/api/projects/${board.project.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ chaptersEnabled: true }),
+    });
+    await server.request("/api/chapters", {
+      method: "POST",
+      body: JSON.stringify({ name: "First Brew", state: "open" }),
+    });
+    const page = await server.request<{ page: Page }>("/api/pages", {
+      method: "POST",
+      body: JSON.stringify({
+        title: "Model the potion workbench",
+        category: "modeling",
+        chapter: "first-brew",
+        status: "in_progress",
+      }),
+    });
+
+    const html = await unfurl(server, `/?page=${page.body.page.id}`);
+
+    // Enough to recognise the page, which is the same boundary the rest of the preview holds.
+    expect(html).toContain('<meta property="og:description" content="In progress · Modeling · First Brew" />');
+  });
+
+  it("names the assignee and flags blocked and archived pages", async () => {
     const server = await startShellServer();
     await bootstrap(server);
     const me = (await server.request<{ status: string; user: { id: string } }>("/api/session")).body;
-    const blocker = await server.request<{ card: Card }>("/api/cards", {
+    const blocker = await server.request<{ page: Page }>("/api/pages", {
       method: "POST",
       body: JSON.stringify({ title: "Sculpt the door" }),
     });
-    const card = await server.request<{ card: Card }>("/api/cards", {
+    const page = await server.request<{ page: Page }>("/api/pages", {
       method: "POST",
       body: JSON.stringify({
         title: "Rig the door",
         assigneeId: me.user.id,
-        blockedBy: [blocker.body.card.id],
+        blockedBy: [blocker.body.page.id],
       }),
     });
 
-    const html = await unfurl(server, `/?card=${card.body.card.id}`);
+    const html = await unfurl(server, `/?page=${page.body.page.id}`);
     expect(html).toContain('<meta property="og:description" content="Backlog · Blocked · Donavyn" />');
 
-    await server.request(`/api/cards/${card.body.card.id}`, { method: "DELETE" });
-    const archived = await unfurl(server, `/?card=${card.body.card.id}`);
+    await server.request(`/api/pages/${page.body.page.id}`, { method: "DELETE" });
+    const archived = await unfurl(server, `/?page=${page.body.page.id}`);
     expect(archived).toContain('<meta property="og:description" content="Archived · Blocked · Donavyn" />');
   });
 
@@ -91,19 +119,19 @@ describe("link previews", () => {
     await server.request(`/api/ideas/${idea.body.idea.id}/promote`, { method: "POST" });
     const promoted = await unfurl(server, `/?view=ideas&idea=${idea.body.idea.id}`);
     expect(promoted).toContain(
-      '<meta property="og:description" content="Idea garden · Promoted to a card · Donavyn" />',
+      '<meta property="og:description" content="Idea garden · Promoted to a page · Donavyn" />',
     );
   });
 
-  it("escapes titles so a card cannot inject markup into the shell", async () => {
+  it("escapes titles so a page cannot inject markup into the shell", async () => {
     const server = await startShellServer();
     await bootstrap(server);
-    const card = await server.request<{ card: Card }>("/api/cards", {
+    const page = await server.request<{ page: Page }>("/api/pages", {
       method: "POST",
       body: JSON.stringify({ title: '<script>alert("hi")</script> & more' }),
     });
 
-    const html = await unfurl(server, `/?card=${card.body.card.id}`);
+    const html = await unfurl(server, `/?page=${page.body.page.id}`);
 
     expect(html).not.toContain("<script>alert");
     expect(html).toContain(
@@ -115,7 +143,7 @@ describe("link previews", () => {
     const server = await startShellServer();
     await bootstrap(server);
 
-    for (const path of ["/", "/?card=00000000-0000-4000-8000-000000000099", "/?card=../../etc/passwd"]) {
+    for (const path of ["/", "/?page=00000000-0000-4000-8000-000000000099", "/?page=../../etc/passwd"]) {
       const html = await unfurl(server, path);
       expect(html).toContain("<title>Grimoire</title>");
       expect(html).toContain("focused collaborative kanban board");

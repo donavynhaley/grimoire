@@ -5,6 +5,7 @@ export function boardFixture(): BoardWorkspace {
     project: {
       id: "00000000-0000-4000-8000-000000000001",
       name: "Wizard Simulator",
+      chaptersEnabled: false,
     },
     projects: [
       {
@@ -24,6 +25,7 @@ export function boardFixture(): BoardWorkspace {
       { slug: "vfx", name: "VFX", color: "#d284d3", position: 8 },
       { slug: "production", name: "Production", color: "#a7adaf", position: 9 },
     ],
+    chapters: [],
     currentUser: {
       id: "00000000-0000-4000-8000-000000000010",
       name: "Donavyn",
@@ -46,12 +48,13 @@ export function boardFixture(): BoardWorkspace {
         projectRole: "member",
       },
     ],
-    cards: [
+    pages: [
       {
         id: "00000000-0000-4000-8000-000000000020",
         title: "Make the tower door remember Maren",
         description: "A small story interaction for the first room.",
         category: "narrative",
+        chapter: null,
         blockedBy: [],
         status: "backlog",
         position: 0,
@@ -68,6 +71,7 @@ export function boardFixture(): BoardWorkspace {
         title: "Model the potion workbench",
         description: "",
         category: "modeling",
+        chapter: null,
         blockedBy: [],
         status: "in_progress",
         position: 0,

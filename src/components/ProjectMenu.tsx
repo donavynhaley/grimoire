@@ -14,22 +14,28 @@ type Props = {
   isOwner: boolean;
   busy: boolean;
   actions: ProjectActions;
-  onManageCategories: () => void;
+  onOpenSettings: () => void;
 };
 
-export function ProjectMenu({ project, projects, isOwner, busy, actions, onManageCategories }: Props) {
+/**
+ * A project switcher, and nothing else.
+ *
+ * Configuration used to live here as a wrapping row of bare text links that grew with every
+ * project-level feature the product gained. It moved into the settings dialog, which leaves
+ * this menu doing the one thing its name promises and the one thing it is used for almost
+ * every time it opens.
+ */
+export function ProjectMenu({ project, projects, isOwner, busy, actions, onOpenSettings }: Props) {
   const [open, setOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
-  const [renaming, setRenaming] = useState(false);
-  const [renameValue, setRenameValue] = useState(project.name);
-  const [confirmingArchive, setConfirmingArchive] = useState(false);
   const [error, setError] = useState("");
   const hasMenu = isOwner || projects.length > 1;
 
   const close = () => {
     setOpen(false);
-    setRenaming(false);
-    setConfirmingArchive(false);
+    setCreating(false);
+    setNewName("");
     setError("");
   };
 
@@ -51,17 +57,6 @@ export function ProjectMenu({ project, projects, isOwner, busy, actions, onManag
       await actions.create(name);
       setNewName("");
     }, "The project could not be created");
-  };
-
-  const submitRename = (event: FormEvent) => {
-    event.preventDefault();
-    const name = renameValue.trim();
-    if (!name) return;
-    if (name === project.name) {
-      setRenaming(false);
-      return;
-    }
-    void run(() => actions.rename(project.id, name), "The project could not be renamed");
   };
 
   if (!hasMenu) return <h1>{project.name}</h1>;
@@ -88,6 +83,7 @@ export function ProjectMenu({ project, projects, isOwner, busy, actions, onManag
       </h1>
       {open && (
         <div aria-label="Projects" className="project-menu-panel" role="menu">
+          <p className="project-menu-label">projects</p>
           <div className="project-menu-list">
             {projects.map((candidate) => (
               <button
@@ -108,56 +104,34 @@ export function ProjectMenu({ project, projects, isOwner, busy, actions, onManag
           </div>
           {isOwner && (
             <div className="project-menu-owner">
-              <form className="project-menu-create" onSubmit={submitNewProject}>
-                <label className="sr-only" htmlFor="new-project-name">New project name</label>
-                <input
-                  id="new-project-name"
-                  name="newProjectName"
-                  onChange={(event) => setNewName(event.target.value)}
-                  placeholder="New project name..."
-                  value={newName}
-                />
-                <button className="primary-button compact" disabled={busy || !newName.trim()} type="submit">create</button>
-              </form>
-              <div className="project-menu-actions">
-                <button onClick={onManageCategories} type="button">edit categories</button>
-                {renaming ? (
-                  <form className="project-menu-rename" onSubmit={submitRename}>
-                    <label className="sr-only" htmlFor="rename-project">Rename project</label>
-                    <input
-                      autoFocus
-                      id="rename-project"
-                      name="renameProject"
-                      onChange={(event) => setRenameValue(event.target.value)}
-                      onKeyDown={(event) => { if (event.key === "Escape") setRenaming(false); }}
-                      value={renameValue}
-                    />
-                    <button className="primary-button compact" disabled={busy || !renameValue.trim()} type="submit">save</button>
-                  </form>
-                ) : (
-                  <button onClick={() => { setRenaming(true); setRenameValue(project.name); }} type="button">rename project</button>
-                )}
-                {confirmingArchive ? (
-                  <span className="archive-confirm">
-                    archive {project.name}?
-                    <button
-                      className="danger-text"
-                      disabled={busy}
-                      onClick={() => void run(() => actions.archive(project.id), "The project could not be archived")}
-                      type="button"
-                    >yes</button>
-                    <button onClick={() => setConfirmingArchive(false)} type="button">no</button>
-                  </span>
-                ) : (
-                  <button
-                    className="danger-text"
-                    disabled={projects.length < 2}
-                    onClick={() => setConfirmingArchive(true)}
-                    title={projects.length < 2 ? "The last project cannot be archived" : undefined}
-                    type="button"
-                  >archive project</button>
-                )}
-              </div>
+              {/* Collapsed behind a reveal, the way every column's "+ add page" already works. */}
+              {creating ? (
+                <form className="project-menu-create" onSubmit={submitNewProject}>
+                  <label className="sr-only" htmlFor="new-project-name">New project name</label>
+                  <input
+                    autoFocus
+                    id="new-project-name"
+                    name="newProjectName"
+                    onChange={(event) => setNewName(event.target.value)}
+                    onKeyDown={(event) => { if (event.key === "Escape") setCreating(false); }}
+                    placeholder="New project name..."
+                    value={newName}
+                  />
+                  <button className="primary-button compact" disabled={busy || !newName.trim()} type="submit">create</button>
+                </form>
+              ) : (
+                <button className="project-menu-entry" onClick={() => setCreating(true)} role="menuitem" type="button">
+                  <span aria-hidden="true" className="project-menu-glyph">+</span>New project
+                </button>
+              )}
+              <button
+                className="project-menu-entry settings"
+                onClick={() => { close(); onOpenSettings(); }}
+                role="menuitem"
+                type="button"
+              >
+                <span aria-hidden="true" className="project-menu-glyph">⚙</span>Project settings
+              </button>
             </div>
           )}
           {error && <p className="project-menu-error" role="alert">{error}</p>}

@@ -1,21 +1,21 @@
 import { describe, expect, it } from "vitest";
-import type { Card, Idea, SearchResults } from "../../shared/types";
+import type { Page, Idea, SearchResults } from "../../shared/types";
 import { bootstrap, startTestServer } from "./test-server";
 
 type Server = Awaited<ReturnType<typeof startTestServer>>;
 
-async function addCard(server: Server, input: Record<string, unknown>, description?: string) {
-  const created = await server.request<{ card: Card }>("/api/cards", {
+async function addPage(server: Server, input: Record<string, unknown>, description?: string) {
+  const created = await server.request<{ page: Page }>("/api/pages", {
     method: "POST",
     body: JSON.stringify(input),
   });
   if (description) {
-    await server.request(`/api/cards/${created.body.card.id}`, {
+    await server.request(`/api/pages/${created.body.page.id}`, {
       method: "PATCH",
       body: JSON.stringify({ description }),
     });
   }
-  return created.body.card;
+  return created.body.page;
 }
 
 async function addIdea(server: Server, title: string, state?: string) {
@@ -37,16 +37,16 @@ function search(server: Server, query: string) {
 }
 
 describe("project search", () => {
-  it("finds matches the board cannot draw: backlog, ideas, and archived cards", async () => {
+  it("finds matches the board cannot draw: backlog, ideas, and archived pages", async () => {
     const server = await startTestServer();
     await bootstrap(server);
 
-    await addCard(server, { title: "Reagent rarity colours", status: "ready" });
-    await addCard(server, { title: "Weather system affects reagent potency", status: "backlog" });
-    await addCard(server, { title: "First playable brewing loop", status: "done" }, "Three reagents in, one potion out.");
+    await addPage(server, { title: "Reagent rarity colours", status: "ready" });
+    await addPage(server, { title: "Weather system affects reagent potency", status: "backlog" });
+    await addPage(server, { title: "First playable brewing loop", status: "done" }, "Three reagents in, one potion out.");
     await addIdea(server, "Seasonal reagents that appear one week a year", "shortlist");
-    const archived = await addCard(server, { title: "Reagent shelf prototype", status: "backlog" });
-    await server.request(`/api/cards/${archived.id}`, { method: "DELETE" });
+    const archived = await addPage(server, { title: "Reagent shelf prototype", status: "backlog" });
+    await server.request(`/api/pages/${archived.id}`, { method: "DELETE" });
 
     const { body } = await search(server, "reagent");
 
@@ -64,8 +64,8 @@ describe("project search", () => {
   it("says where each result lives, as a reader would name it", async () => {
     const server = await startTestServer();
     await bootstrap(server);
-    await addCard(server, { title: "Moonlight shader", status: "in_progress", category: "vfx" });
-    await addCard(server, { title: "Moonlight ambience", status: "backlog" });
+    await addPage(server, { title: "Moonlight shader", status: "in_progress", category: "vfx" });
+    await addPage(server, { title: "Moonlight ambience", status: "backlog" });
     await addIdea(server, "Moonlight changes reagent potency", "parked");
 
     const { body } = await search(server, "moonlight");
@@ -78,7 +78,7 @@ describe("project search", () => {
   it("matches note bodies and returns a plain-text window around the match", async () => {
     const server = await startTestServer();
     await bootstrap(server);
-    await addCard(
+    await addPage(
       server,
       { title: "Potion workbench", status: "ready" },
       "## Acceptance\n\n- Failed combinations produce **sludge**\n- Results can be collected",
@@ -95,15 +95,15 @@ describe("project search", () => {
   it("ranks a title match above a mention buried in notes", async () => {
     const server = await startTestServer();
     await bootstrap(server);
-    await addCard(server, { title: "Cellar storage", status: "backlog" }, "Holds the cauldron overflow.");
-    await addCard(server, { title: "Cauldron wear states", status: "backlog" });
+    await addPage(server, { title: "Cellar storage", status: "backlog" }, "Holds the cauldron overflow.");
+    await addPage(server, { title: "Cauldron wear states", status: "backlog" });
 
     const { body } = await search(server, "cauldron");
 
     expect(body.hits.map((hit) => hit.title)).toEqual(["Cauldron wear states", "Cellar storage"]);
   });
 
-  it("leaves promoted ideas to their generated card instead of returning both", async () => {
+  it("leaves promoted ideas to their generated page instead of returning both", async () => {
     const server = await startTestServer();
     await bootstrap(server);
     const idea = await addIdea(server, "Rival shop across the square");
@@ -112,21 +112,21 @@ describe("project search", () => {
     const { body } = await search(server, "rival shop");
 
     expect(body.total).toBe(1);
-    expect(body.hits[0].kind).toBe("card");
+    expect(body.hits[0].kind).toBe("page");
     expect(body.hits[0].group).toBe("backlog");
   });
 
-  it("stops listing a card as archived once it has been restored", async () => {
+  it("stops listing a page as archived once it has been restored", async () => {
     const server = await startTestServer();
     await bootstrap(server);
-    const card = await addCard(server, { title: "Herb drying rack", status: "backlog" });
-    await server.request(`/api/cards/${card.id}`, { method: "DELETE" });
+    const page = await addPage(server, { title: "Herb drying rack", status: "backlog" });
+    await server.request(`/api/pages/${page.id}`, { method: "DELETE" });
 
     const archived = await search(server, "drying rack");
     expect(archived.body.hits.map((hit) => hit.group)).toEqual(["archived"]);
 
-    // Search is the only route back to an archived card, so the round trip has to close.
-    const restored = await server.request(`/api/cards/${card.id}/restore`, { method: "POST" });
+    // Search is the only route back to an archived page, so the round trip has to close.
+    const restored = await server.request(`/api/pages/${page.id}/restore`, { method: "POST" });
     expect(restored.response.status).toBe(200);
 
     const after = await search(server, "drying rack");
@@ -138,7 +138,7 @@ describe("project search", () => {
   it("answers an unmatched query with nothing rather than everything", async () => {
     const server = await startTestServer();
     await bootstrap(server);
-    await addCard(server, { title: "Herb drying rack", status: "backlog" });
+    await addPage(server, { title: "Herb drying rack", status: "backlog" });
 
     const { body } = await search(server, "submarine");
 

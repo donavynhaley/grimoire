@@ -7,7 +7,7 @@ import { createGrimoireServer } from "../../server/app";
 
 type TestServer = {
   baseUrl: string;
-  cardsDirectory: string;
+  pagesDirectory: string;
   close: () => Promise<void>;
   /** The session cookie of the most recently authenticated request. */
   cookie: () => string;
@@ -60,7 +60,7 @@ export async function startTestServer(
 
   return {
     baseUrl,
-    cardsDirectory: join(directory, "cards"),
+    pagesDirectory: join(directory, "pages"),
     close,
     cookie: () => cookie,
     databasePath,

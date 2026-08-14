@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { BoardWorkspace, Card, IdeaWorkspace, User } from "../../shared/types";
+import type { BoardWorkspace, Page, IdeaWorkspace, User } from "../../shared/types";
 import { bootstrap, startTestServer } from "./test-server";
 
 describe("display name", () => {
@@ -7,11 +7,11 @@ describe("display name", () => {
     const server = await startTestServer();
     await bootstrap(server);
 
-    const carded = await server.request<{ card: Card }>("/api/cards", {
+    const created = await server.request<{ page: Page }>("/api/pages", {
       method: "POST",
       body: JSON.stringify({ title: "Sketch the shop counter" }),
     });
-    expect(carded.response.status).toBe(201);
+    expect(created.response.status).toBe(201);
 
     await server.request("/api/ideas", {
       method: "POST",
@@ -29,7 +29,7 @@ describe("display name", () => {
     const board = (await server.request<BoardWorkspace>("/api/board")).body;
     expect(board.currentUser.name).toBe("Dono");
     expect(board.members.map((member) => member.name)).toEqual(["Dono"]);
-    expect(board.cards[0].createdByName).toBe("Dono");
+    expect(board.pages[0].createdByName).toBe("Dono");
 
     const ideas = (await server.request<IdeaWorkspace>("/api/ideas")).body;
     expect(ideas.ideas[0].createdByName).toBe("Dono");

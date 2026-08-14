@@ -17,10 +17,10 @@ export type Member = User & {
   projectRole: UserRole;
 };
 
-export const CARD_STATUSES = ["backlog", "ready", "in_progress", "review", "done"] as const;
-export type CardStatus = (typeof CARD_STATUSES)[number];
+export const PAGE_STATUSES = ["backlog", "ready", "in_progress", "review", "done"] as const;
+export type PageStatus = (typeof PAGE_STATUSES)[number];
 
-export type CardCategory = string;
+export type PageCategory = string;
 
 export type ProjectCategory = {
   slug: string;
@@ -49,13 +49,49 @@ export type ProjectSummary = {
   name: string;
 };
 
-export type Card = {
+/**
+ * A named stretch of the project's work, which pages can belong to.
+ *
+ * A chapter answers "what were we working on, and roughly when", never "how much did we
+ * commit to". It carries no estimate, no capacity, and no progress figure, and nothing in
+ * it moves a page on its own. Dates are optional and descriptive: a chapter with neither
+ * is still a chapter, and one whose end date has passed keeps running until someone closes it.
+ */
+export const CHAPTER_STATES = ["planned", "open", "closed"] as const;
+export type ChapterState = (typeof CHAPTER_STATES)[number];
+
+export type Chapter = {
+  /** Stable across renames, and what a page's `chapter` field points at. */
+  slug: string;
+  name: string;
+  /** Markdown notes saying what this stretch is for. The honest replacement for a sprint goal. */
+  description: string;
+  state: ChapterState;
+  position: number;
+  /** Plain `YYYY-MM-DD` days the team named, not instants. Either may be absent. */
+  startsOn: string | null;
+  endsOn: string | null;
+  createdById: string;
+  createdByName: string;
+  createdAt: string;
+  updatedAt: string;
+  closedAt: string | null;
+};
+
+export type Page = {
   id: string;
   title: string;
   description: string;
-  category: CardCategory | null;
+  category: PageCategory | null;
+  /**
+   * The chapter this page belongs to, or null.
+   *
+   * Deliberately independent of `status`: a page can sit in the Backlog while already
+   * belonging to a chapter, which is what lets a chapter be filled without flooding Up Next.
+   */
+  chapter: string | null;
   blockedBy: string[];
-  status: CardStatus;
+  status: PageStatus;
   position: number;
   assigneeId: string | null;
   assigneeName: string | null;
@@ -70,12 +106,16 @@ export type BoardWorkspace = {
   project: {
     id: string;
     name: string;
+    /** Off unless this project asked for chapters. When false the interface shows none of them. */
+    chaptersEnabled: boolean;
   };
   projects: ProjectSummary[];
   categories: ProjectCategory[];
+  /** Empty when the gate is off, so a disabled project carries no chapter surface at all. */
+  chapters: Chapter[];
   currentUser: User;
   members: Member[];
-  cards: Card[];
+  pages: Page[];
 };
 
 export const IDEA_STATES = ["inbox", "shortlist", "parked"] as const;
@@ -112,7 +152,7 @@ export const SEARCH_GROUPS = ["active", "backlog", "ideas", "done", "archived"] 
 export type SearchGroup = (typeof SEARCH_GROUPS)[number];
 
 export type SearchHit = {
-  kind: "card" | "idea";
+  kind: "page" | "idea";
   group: SearchGroup;
   id: string;
   title: string;
@@ -145,7 +185,7 @@ export type EditConflict<T> = {
   current: T;
 };
 
-export const AUDIT_ENTITY_TYPES = ["card", "idea", "project", "category", "member"] as const;
+export const AUDIT_ENTITY_TYPES = ["page", "idea", "project", "category", "chapter", "member"] as const;
 export type AuditEntityType = (typeof AUDIT_ENTITY_TYPES)[number];
 
 export const AUDIT_ACTIONS = [

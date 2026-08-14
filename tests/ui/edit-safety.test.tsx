@@ -4,7 +4,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "../../src/App";
-import type { Card } from "../../shared/types";
+import type { Page } from "../../shared/types";
 import { boardFixture } from "../fixtures/board";
 
 afterEach(() => {
@@ -37,7 +37,7 @@ function stubFetch(mock: typeof fetch) {
             id: "event-1",
             actorId: "00000000-0000-4000-8000-000000000011",
             actorName: "Maren",
-            entityType: "card",
+            entityType: "page",
             entityId: "00000000-0000-4000-8000-000000000020",
             entityTitle: "Make the tower door remember Maren",
             action: "updated",
@@ -54,10 +54,10 @@ function stubFetch(mock: typeof fetch) {
   });
 }
 
-async function openCard(card: Card) {
+async function openPage(page: Page) {
   await userEvent.click(await screen.findByRole("button", { name: /open backlog/i }));
-  await userEvent.click(await screen.findByText(card.title, { exact: true }));
-  await screen.findByRole("dialog", { name: "Edit card" });
+  await userEvent.click(await screen.findByText(page.title, { exact: true }));
+  await screen.findByRole("dialog", { name: "Edit page" });
 }
 
 /** A live workspace event, so a teammate's change reaches an open dialog the way it really does. */
@@ -75,19 +75,19 @@ function installEventSource(): { push: () => void } {
   return { push: () => listener?.(new MessageEvent("workspace", { data: JSON.stringify({ scope: "work" }) })) };
 }
 
-describe("editing a card someone else is also changing", () => {
+describe("editing a page someone else is also changing", () => {
   it("adopts a teammate's notes into a field the reader has not touched", async () => {
     const initial = boardFixture();
-    const card = initial.cards[0];
+    const page = initial.pages[0];
     const theirs = "Maren: the door should remember both wizards, not just one.";
-    const updated = { ...initial, cards: [{ ...card, description: theirs }, initial.cards[1]] };
+    const updated = { ...initial, pages: [{ ...page, description: theirs }, initial.pages[1]] };
     const live = installEventSource();
     const fetchMock = authenticatedFetch(initial).mockImplementationOnce(() => response(updated));
     stubFetch(fetchMock);
 
     render(<App />);
-    await openCard(card);
-    expect(screen.getByText(card.description)).toBeInTheDocument();
+    await openPage(page);
+    expect(screen.getByText(page.description)).toBeInTheDocument();
 
     live.push();
 
@@ -98,20 +98,20 @@ describe("editing a card someone else is also changing", () => {
 
   it("refuses to overwrite notes that changed underneath, and offers the choice", async () => {
     const initial = boardFixture();
-    const card = initial.cards[0];
+    const page = initial.pages[0];
     const theirs = "Maren: three slots, not four.";
     const fetchMock = authenticatedFetch(initial)
       .mockImplementationOnce(() =>
         response(
-          { error: "These notes changed while you were writing", conflict: true, field: "description", current: { ...card, description: theirs } },
+          { error: "These notes changed while you were writing", conflict: true, field: "description", current: { ...page, description: theirs } },
           409,
         ),
       )
-      .mockImplementationOnce(() => response({ ...initial, cards: [{ ...card, description: theirs }, initial.cards[1]] }));
+      .mockImplementationOnce(() => response({ ...initial, pages: [{ ...page, description: theirs }, initial.pages[1]] }));
     stubFetch(fetchMock);
 
     render(<App />);
-    await openCard(card);
+    await openPage(page);
 
     await userEvent.click(screen.getByRole("button", { name: "Edit notes" }));
     await userEvent.clear(screen.getByLabelText("Notes"));
@@ -127,20 +127,20 @@ describe("editing a card someone else is also changing", () => {
 
   it("takes the teammate's version when the reader chooses it", async () => {
     const initial = boardFixture();
-    const card = initial.cards[0];
+    const page = initial.pages[0];
     const theirs = "Maren: three slots, not four.";
     const fetchMock = authenticatedFetch(initial)
       .mockImplementationOnce(() =>
         response(
-          { error: "These notes changed while you were writing", conflict: true, field: "description", current: { ...card, description: theirs } },
+          { error: "These notes changed while you were writing", conflict: true, field: "description", current: { ...page, description: theirs } },
           409,
         ),
       )
-      .mockImplementationOnce(() => response({ ...initial, cards: [{ ...card, description: theirs }, initial.cards[1]] }));
+      .mockImplementationOnce(() => response({ ...initial, pages: [{ ...page, description: theirs }, initial.pages[1]] }));
     stubFetch(fetchMock);
 
     render(<App />);
-    await openCard(card);
+    await openPage(page);
     await userEvent.click(screen.getByRole("button", { name: "Edit notes" }));
     await userEvent.clear(screen.getByLabelText("Notes"));
     await userEvent.type(screen.getByLabelText("Notes"), "Four slots feels better.");
@@ -157,23 +157,23 @@ describe("editing a card someone else is also changing", () => {
 
   it("writes the reader's version only when they say to keep it", async () => {
     const initial = boardFixture();
-    const card = initial.cards[0];
+    const page = initial.pages[0];
     const theirs = "Maren: three slots, not four.";
     const mine = "Four slots feels better.";
     const fetchMock = authenticatedFetch(initial)
       .mockImplementationOnce(() =>
         response(
-          { error: "These notes changed while you were writing", conflict: true, field: "description", current: { ...card, description: theirs } },
+          { error: "These notes changed while you were writing", conflict: true, field: "description", current: { ...page, description: theirs } },
           409,
         ),
       )
-      .mockImplementationOnce(() => response({ ...initial, cards: [{ ...card, description: theirs }, initial.cards[1]] }))
-      .mockImplementationOnce(() => response({ card: { ...card, description: mine } }))
-      .mockImplementationOnce(() => response({ ...initial, cards: [{ ...card, description: mine }, initial.cards[1]] }));
+      .mockImplementationOnce(() => response({ ...initial, pages: [{ ...page, description: theirs }, initial.pages[1]] }))
+      .mockImplementationOnce(() => response({ page: { ...page, description: mine } }))
+      .mockImplementationOnce(() => response({ ...initial, pages: [{ ...page, description: mine }, initial.pages[1]] }));
     stubFetch(fetchMock);
 
     render(<App />);
-    await openCard(card);
+    await openPage(page);
     await userEvent.click(screen.getByRole("button", { name: "Edit notes" }));
     await userEvent.clear(screen.getByLabelText("Notes"));
     await userEvent.type(screen.getByLabelText("Notes"), mine);
@@ -184,7 +184,7 @@ describe("editing a card someone else is also changing", () => {
     // The retry expects their value, which is now what storage holds, so it lands.
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
-        `/api/cards/${card.id}`,
+        `/api/pages/${page.id}`,
         expect.objectContaining({
           method: "PATCH",
           body: JSON.stringify({ description: mine, expectedDescription: theirs }),
@@ -193,9 +193,9 @@ describe("editing a card someone else is also changing", () => {
     );
   });
 
-  it("does not collide with its own in-flight save when the card is closed", async () => {
+  it("does not collide with its own in-flight save when the page is closed", async () => {
     const initial = boardFixture();
-    const card = initial.cards[0];
+    const page = initial.pages[0];
     const note = "One pass over the door text.";
     let releaseSave: (() => void) | null = null;
     const fetchMock = authenticatedFetch(initial)
@@ -203,41 +203,41 @@ describe("editing a card someone else is also changing", () => {
       .mockImplementationOnce(
         () =>
           new Promise((resolve) => {
-            releaseSave = () => resolve(new Response(JSON.stringify({ card: { ...card, description: note } }), {
+            releaseSave = () => resolve(new Response(JSON.stringify({ page: { ...page, description: note } }), {
               status: 200,
               headers: { "content-type": "application/json" },
             }));
           }),
       )
-      .mockImplementationOnce(() => response({ ...initial, cards: [{ ...card, description: note }, initial.cards[1]] }));
+      .mockImplementationOnce(() => response({ ...initial, pages: [{ ...page, description: note }, initial.pages[1]] }));
     stubFetch(fetchMock);
 
     render(<App />);
-    await openCard(card);
+    await openPage(page);
     await userEvent.click(screen.getByRole("button", { name: "Edit notes" }));
     await userEvent.clear(screen.getByLabelText("Notes"));
     await userEvent.type(screen.getByLabelText("Notes"), note);
     await waitFor(() => expect(releaseSave).not.toBeNull(), { timeout: 2_000 });
 
-    await userEvent.click(screen.getByRole("button", { name: "Close card" }));
+    await userEvent.click(screen.getByRole("button", { name: "Close page" }));
     releaseSave!();
 
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Edit card" })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Edit page" })).not.toBeInTheDocument());
     const writes = fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === "PATCH");
     expect(writes).toHaveLength(1);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("closes the card dialog on Escape", async () => {
+  it("closes the page dialog on Escape", async () => {
     const initial = boardFixture();
     const fetchMock = authenticatedFetch(initial);
     stubFetch(fetchMock);
 
     render(<App />);
-    await openCard(initial.cards[0]);
+    await openPage(initial.pages[0]);
 
     await userEvent.keyboard("{Escape}");
 
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Edit card" })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Edit page" })).not.toBeInTheDocument());
   });
 });

@@ -22,7 +22,7 @@ export type DigestLine = {
  * Rewrites raw activity events into the sentences a returning teammate reads.
  *
  * Lines about the reader always come first, own actions never arrive here (the
- * server excludes them), and repeat edits or same-column card runs collapse into
+ * server excludes them), and repeat edits or same-column page runs collapse into
  * one line so five lines can honestly summarize a busy week.
  */
 export function buildDigestLines(away: AwayState, board: BoardWorkspace): DigestLine[] {
@@ -48,12 +48,12 @@ export function buildDigestLines(away: AwayState, board: BoardWorkspace): Digest
     event.changes.find((candidate) => candidate.field === field);
 
   for (const event of away.events) {
-    if (event.entityType === "card" && event.entityId) {
-      const card = board.cards.find((candidate) => candidate.id === event.entityId);
-      const mine = card?.assigneeId === me.id;
+    if (event.entityType === "page" && event.entityId) {
+      const page = board.pages.find((candidate) => candidate.id === event.entityId);
+      const mine = page?.assigneeId === me.id;
 
       if (event.action === "created") {
-        // The promotion line covers the card its idea became.
+        // The promotion line covers the page its idea became.
         if (change(event, "promoted from an idea")) continue;
         const column = change(event, "column")?.to ?? "the board";
         const runKey = `${event.actorId}:${column}`;
@@ -63,7 +63,7 @@ export function buildDigestLines(away: AwayState, board: BoardWorkspace): Digest
           run.line.parts = [
             { text: "added " },
             { text: run.firstTitle, strong: true },
-            { text: ` and ${run.count - 1} more card${run.count > 2 ? "s" : ""} to ${run.column}` },
+            { text: ` and ${run.count - 1} more page${run.count > 2 ? "s" : ""} to ${run.column}` },
           ];
           continue;
         }
@@ -79,7 +79,7 @@ export function buildDigestLines(away: AwayState, board: BoardWorkspace): Digest
       if (event.action === "moved") {
         const column = change(event, "column");
         if (column?.to === "Done") {
-          const unblocked = board.cards.filter(
+          const unblocked = board.pages.filter(
             (candidate) => candidate.assigneeId === me.id && candidate.blockedBy.includes(event.entityId!),
           );
           if (unblocked.length > 0) {
@@ -147,7 +147,7 @@ export function buildDigestLines(away: AwayState, board: BoardWorkspace): Digest
             : [{ text: "cleared the blockers on " }, { text: event.entityTitle, strong: true }]);
           continue;
         }
-        const dedupeKey = `card:${event.actorId}:${event.entityId}`;
+        const dedupeKey = `page:${event.actorId}:${event.entityId}`;
         if (editDeduper.has(dedupeKey)) continue;
         editDeduper.add(dedupeKey);
         push(event, mine ? 1 : 3, mine, [

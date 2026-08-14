@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { BoardWorkspace, Card, ProjectCategory, ProjectSummary } from "../../shared/types";
+import type { BoardWorkspace, Page, ProjectCategory, ProjectSummary } from "../../shared/types";
 import { bootstrap, startTestServer } from "./test-server";
 
 type TestServer = Awaited<ReturnType<typeof startTestServer>>;
@@ -27,21 +27,21 @@ describe("multiple projects", () => {
 
     const second = await board(server, created.body.project.id);
     expect(second.project.name).toBe("Familiar Tycoon");
-    expect(second.cards).toEqual([]);
+    expect(second.pages).toEqual([]);
     expect(second.categories.map((category) => category.slug)).toContain("design");
     expect(second.projects).toHaveLength(2);
 
-    const carded = await server.request<{ card: Card }>("/api/cards", {
+    const sketched = await server.request<{ page: Page }>("/api/pages", {
       method: "POST",
       body: JSON.stringify({ title: "Sketch the shop counter" }),
       headers: { "x-grimoire-project": created.body.project.id },
     });
-    expect(carded.response.status).toBe(201);
-    expect((await board(server, created.body.project.id)).cards).toHaveLength(1);
-    expect((await board(server)).cards).toHaveLength(0);
+    expect(sketched.response.status).toBe(201);
+    expect((await board(server, created.body.project.id)).pages).toHaveLength(1);
+    expect((await board(server)).pages).toHaveLength(0);
     expect(
       readFileSync(
-        join(server.cardsDirectory, "familiar-tycoon", "cards", `${carded.body.card.id}.md`),
+        join(server.pagesDirectory, "familiar-tycoon", "pages", `${sketched.body.page.id}.md`),
         "utf8",
       ),
     ).toContain("title: Sketch the shop counter");
@@ -127,11 +127,11 @@ describe("project categories", () => {
     });
     expect(duplicate.response.status).toBe(409);
 
-    const card = await server.request<{ card: Card }>("/api/cards", {
+    const page = await server.request<{ page: Page }>("/api/pages", {
       method: "POST",
       body: JSON.stringify({ title: "Run the first playtest", category: "playtesting" }),
     });
-    expect(card.response.status).toBe(201);
+    expect(page.response.status).toBe(201);
 
     const updated = await server.request<{ category: ProjectCategory }>("/api/categories/playtesting", {
       method: "PATCH",
@@ -143,14 +143,14 @@ describe("project categories", () => {
     expect(removed.response.status).toBe(200);
     const workspace = (await server.request<BoardWorkspace>("/api/board")).body;
     expect(workspace.categories.map((category) => category.slug)).not.toContain("playtesting");
-    expect(workspace.cards[0].category).toBeNull();
+    expect(workspace.pages[0].category).toBeNull();
   });
 
-  it("rejects cards with categories the project does not have", async () => {
+  it("rejects pages with categories the project does not have", async () => {
     const server = await startTestServer();
     await bootstrap(server);
 
-    const rejected = await server.request<{ error: string }>("/api/cards", {
+    const rejected = await server.request<{ error: string }>("/api/pages", {
       method: "POST",
       body: JSON.stringify({ title: "Mystery work", category: "mystery" }),
     });

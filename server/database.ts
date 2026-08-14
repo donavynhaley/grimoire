@@ -2,6 +2,31 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { AUDIT_ENTITY_TYPES } from "../shared/types";
+
+/**
+ * The table definition is shared between first-run creation and the CHECK-widening
+ * rebuild, so the two can never drift into disagreeing about the constraint.
+ */
+function auditEventsTable(name: string): string {
+  const entityTypes = AUDIT_ENTITY_TYPES.map((value) => `'${value}'`).join(", ");
+  return `CREATE TABLE IF NOT EXISTS ${name} (
+  sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+  id TEXT NOT NULL UNIQUE,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  actor_id TEXT REFERENCES users(id),
+  actor_name TEXT NOT NULL,
+  entity_type TEXT NOT NULL CHECK (entity_type IN (${entityTypes})),
+  entity_id TEXT,
+  entity_title TEXT NOT NULL,
+  action TEXT NOT NULL,
+  changes TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT NOT NULL
+);`;
+}
+
+const auditEventsIndexes = `CREATE INDEX IF NOT EXISTS idx_audit_project ON audit_events(project_id, sequence DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_events(project_id, entity_id, sequence DESC);`;
 
 export const DEFAULT_PROJECT_CATEGORIES: Array<{ slug: string; name: string; color: string }> = [
   { slug: "design", name: "Design", color: "#d6bc78" },
@@ -90,6 +115,13 @@ function migrate(database: DatabaseSync): void {
   if (!projectColumns.includes("archived_at")) {
     database.exec("ALTER TABLE projects ADD COLUMN archived_at TEXT");
   }
+  // Additive and defaulted off, so a build that predates chapters simply ignores the column
+  // and a rollback needs no undo step.
+  if (!projectColumns.includes("chapters_enabled")) {
+    database.exec("ALTER TABLE projects ADD COLUMN chapters_enabled INTEGER NOT NULL DEFAULT 0");
+  }
+
+  widenAuditEntityTypes(database);
 
   const inviteColumns = tableColumns(database, "invites");
   if (!inviteColumns.includes("project_id")) {
@@ -115,6 +147,88 @@ function migrate(database: DatabaseSync): void {
   } catch (error) {
     database.exec("ROLLBACK");
     throw error;
+  }
+}
+
+/**
+ * Brings `audit_events.entity_type` in line with the entity kinds the product now has.
+ *
+ * That means accepting `chapter`, and renaming historical `card` rows to `page`. The rows are
+ * rewritten rather than left alone because the log records what happened, and what happened
+ * was that a page was created - only the word for it changed. Leaving them would also break
+ * the copy outright, since the new constraint no longer allows `card`.
+ *
+ * SQLite cannot alter a CHECK constraint in place, so this rebuilds the table. Two things
+ * make that more delicate than a normal rebuild, and both are why the copy names `sequence`
+ * explicitly instead of letting it regenerate:
+ *
+ * - `sequence` is the activity log's paging cursor, and every row in `seen_cursors` stores a
+ *   number pointing into it. Renumbering would silently rewind or overshoot every member's
+ *   while-you-were-away boundary.
+ * - AUTOINCREMENT keeps a high-water mark in `sqlite_sequence`. It is carried across so a
+ *   later insert can never reuse a sequence a reader has already been marked as having seen.
+ *
+ * Nothing references `audit_events`, so dropping it cannot cascade. Its indexes go with it
+ * and are recreated here, because the startup schema has already run by this point.
+ */
+function widenAuditEntityTypes(database: DatabaseSync): void {
+  const existing = database
+    .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'audit_events'")
+    .get() as { sql?: string } | undefined;
+  if (!existing?.sql) return;
+  if (AUDIT_ENTITY_TYPES.every((value) => existing.sql!.includes(`'${value}'`))) return;
+
+  const highWater = Number(
+    (database.prepare("SELECT seq FROM sqlite_sequence WHERE name = 'audit_events'").get() as
+      | { seq?: number }
+      | undefined)?.seq ?? 0,
+  );
+
+  // A pragma is a no-op inside a transaction, so the guard is lifted around the whole swap.
+  database.exec("PRAGMA foreign_keys = OFF");
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    database.exec(auditEventsTable("audit_events_rebuild"));
+    database.exec(
+      `INSERT INTO audit_events_rebuild
+         (sequence, id, project_id, actor_id, actor_name, entity_type, entity_id, entity_title, action, changes, created_at)
+       SELECT sequence, id, project_id, actor_id, actor_name,
+              CASE entity_type WHEN 'card' THEN 'page' ELSE entity_type END,
+              entity_id, entity_title, action, changes, created_at
+       FROM audit_events`,
+    );
+    database.exec("DROP TABLE audit_events");
+    database.exec("ALTER TABLE audit_events_rebuild RENAME TO audit_events");
+    database.exec(auditEventsIndexes);
+    // Copying the rows with explicit sequences already leaves sqlite_sequence at their
+    // maximum, so this only has to raise it in the rare case that the old high-water mark ran
+    // ahead of the surviving rows. Whether a row exists has to be asked directly: an UPDATE
+    // that changes nothing is ambiguous between "no such row" and "already high enough", and
+    // sqlite_sequence has no unique constraint to make INSERT OR IGNORE safe. Two rows for one
+    // table would let AUTOINCREMENT hand out a sequence a reader has already been marked as
+    // having seen, which is the exact corruption this whole routine exists to prevent.
+    const tracked = Number(
+      (database
+        .prepare("SELECT COUNT(*) AS rows FROM sqlite_sequence WHERE name = 'audit_events'")
+        .get() as { rows: number }).rows,
+    );
+    if (tracked > 0) {
+      database
+        .prepare("UPDATE sqlite_sequence SET seq = ? WHERE name = 'audit_events' AND seq < ?")
+        .run(highWater, highWater);
+    } else if (highWater > 0) {
+      database
+        .prepare("INSERT INTO sqlite_sequence (name, seq) VALUES ('audit_events', ?)")
+        .run(highWater);
+    }
+    const violations = database.prepare("PRAGMA foreign_key_check").all();
+    if (violations.length > 0) throw new Error("Rebuilding audit_events would break a foreign key");
+    database.exec("COMMIT");
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  } finally {
+    database.exec("PRAGMA foreign_keys = ON");
   }
 }
 
@@ -198,19 +312,7 @@ CREATE TABLE IF NOT EXISTS cards (
   updated_at TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS audit_events (
-  sequence INTEGER PRIMARY KEY AUTOINCREMENT,
-  id TEXT NOT NULL UNIQUE,
-  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-  actor_id TEXT REFERENCES users(id),
-  actor_name TEXT NOT NULL,
-  entity_type TEXT NOT NULL CHECK (entity_type IN ('card', 'idea', 'project', 'category', 'member')),
-  entity_id TEXT,
-  entity_title TEXT NOT NULL,
-  action TEXT NOT NULL,
-  changes TEXT NOT NULL DEFAULT '[]',
-  created_at TEXT NOT NULL
-);
+${auditEventsTable("audit_events")}
 
 CREATE TABLE IF NOT EXISTS seen_cursors (
   project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -222,6 +324,5 @@ CREATE TABLE IF NOT EXISTS seen_cursors (
 
 CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token_hash);
 CREATE INDEX IF NOT EXISTS idx_cards_board ON cards(project_id, status, position) WHERE archived_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_audit_project ON audit_events(project_id, sequence DESC);
-CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_events(project_id, entity_id, sequence DESC);
+${auditEventsIndexes}
 `;

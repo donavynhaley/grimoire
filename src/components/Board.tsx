@@ -1,31 +1,35 @@
 import { type DragEvent, type FormEvent, Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { type AuditPage, type AwayState, type BoardWorkspace, type Card, type CardStatus, type IdeaState, type IdeaWorkspace } from "../../shared/types";
+import { type AuditPage, type AwayState, type BoardWorkspace, type Page, type PageStatus, type IdeaState, type IdeaWorkspace } from "../../shared/types";
 import { AccountDialog } from "./AccountDialog";
 import { ActivityDialog } from "./ActivityDialog";
 import { Avatar } from "./Avatar";
 import { AwayDigest } from "./AwayDigest";
 import { BacklogDialog } from "./BacklogDialog";
-import { CardDialog } from "./CardDialog";
+import { PageDialog } from "./PageDialog";
 import { type CategoryActions, CategoriesDialog } from "./CategoriesDialog";
+import { type ChapterActions, ChaptersDialog } from "./ChaptersDialog";
+import { type ChapterFilter, ChapterPicker, NO_CHAPTER } from "./ChapterPicker";
+import { chapterWhen } from "./chapter-dates";
 import { DoneHistoryDialog } from "./DoneHistoryDialog";
 import { type ProjectActions, ProjectMenu } from "./ProjectMenu";
-import { type CaptureCardInput, QuickCapture } from "./QuickCapture";
+import { type ProjectSettingsActions, ProjectSettingsDialog } from "./ProjectSettingsDialog";
+import { type CapturePageInput, QuickCapture } from "./QuickCapture";
 import { SearchDialog } from "./SearchDialog";
 import { TeamDialog } from "./TeamDialog";
 import { plainTextFromMarkdown } from "./markdown-text";
 import { IdeasBoard } from "./IdeasBoard";
 import { useFlip } from "./use-flip";
 
-const BOARD_STATUSES = ["ready", "in_progress", "review", "done"] as const satisfies readonly CardStatus[];
+const BOARD_STATUSES = ["ready", "in_progress", "review", "done"] as const satisfies readonly PageStatus[];
 
 /**
  * Done is a hybrid column: it reads like the other three until it outgrows them, then it
  * grows a backlog-style escape hatch instead of scrolling forever. Board filters run over
- * every card before this slice, so a match buried deep in the history still surfaces here.
+ * every page before this slice, so a match buried deep in the history still surfaces here.
  */
 const DONE_COLUMN_LIMIT = 10;
 
-const columnNames: Record<CardStatus, string> = {
+const columnNames: Record<PageStatus, string> = {
   backlog: "Backlog",
   ready: "Up Next",
   in_progress: "In progress",
@@ -38,12 +42,14 @@ type Props = {
   board: BoardWorkspace;
   busy: boolean;
   categoryActions: CategoryActions;
+  chapterActions: ChapterActions;
   ideas: IdeaWorkspace | null;
   online: ReadonlySet<string>;
   projectActions: ProjectActions;
+  projectSettingsActions: ProjectSettingsActions;
   revision: number;
   view: "work" | "ideas";
-  onCreate: (input: CaptureCardInput) => Promise<void>;
+  onCreate: (input: CapturePageInput) => Promise<void>;
   onUpdate: (id: string, input: Record<string, unknown>) => Promise<void>;
   onArchive: (id: string) => Promise<void>;
   onCreateInvite: () => Promise<string>;
@@ -57,22 +63,27 @@ type Props = {
   onMoveBacklogToNext: (id: string) => Promise<void>;
   onPromoteIdea: (id: string) => Promise<void>;
   onRemoveMember: (id: string) => Promise<void>;
-  onRestoreCard: (id: string) => Promise<void>;
+  onRestorePage: (id: string) => Promise<void>;
   onUpdateIdea: (id: string, input: Record<string, unknown>) => Promise<void>;
   onViewChange: (view: "work" | "ideas") => Promise<void>;
 };
 
-export function Board({ away, board, busy, categoryActions, ideas, online, projectActions, revision, view, onCreate, onUpdate, onArchive, onCreateInvite, onCreateIdea, onChangeAvatar, onChangeName, onChangePassword, onLoadActivity, onLogout, onMoveBacklogToNext, onPromoteIdea, onRemoveAvatar, onRemoveMember, onRestoreCard, onUpdateIdea, onViewChange }: Props) {
-  const [addingTo, setAddingTo] = useState<CardStatus | null>(null);
+export function Board({ away, board, busy, categoryActions, chapterActions, ideas, online, projectActions, projectSettingsActions, revision, view, onCreate, onUpdate, onArchive, onCreateInvite, onCreateIdea, onChangeAvatar, onChangeName, onChangePassword, onLoadActivity, onLogout, onMoveBacklogToNext, onPromoteIdea, onRemoveAvatar, onRemoveMember, onRestorePage, onUpdateIdea, onViewChange }: Props) {
+  const [addingTo, setAddingTo] = useState<PageStatus | null>(null);
   const [columnTitle, setColumnTitle] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(
-    () => new URLSearchParams(location.search).get("card"),
+    // A link shared before the rename says `card`; it still opens the right page, and the
+    // effect below rewrites the address bar to the current spelling.
+    () => {
+      const params = new URLSearchParams(location.search);
+      return params.get("page") ?? params.get("card");
+    },
   );
   const [drag, setDrag] = useState<{ id: string; height: number } | null>(null);
-  const [dropHint, setDropHint] = useState<{ status: CardStatus; index: number } | null>(null);
+  const [dropHint, setDropHint] = useState<{ status: PageStatus; index: number } | null>(null);
   const dragSession = useRef(0);
   const [flight, setFlight] = useState<CaptureFlight | null>(null);
-  const [landed, setLanded] = useState<CardStatus | null>(null);
+  const [landed, setLanded] = useState<PageStatus | null>(null);
   const shellRef = useRef<HTMLDivElement>(null);
   const flightRef = useRef<HTMLDivElement>(null);
   const kanbanRef = useRef<HTMLDivElement>(null);
@@ -85,19 +96,21 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
   const [openIdea, setOpenIdea] = useState<{ id: string; token: number } | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
+  const [chaptersOpen, setChaptersOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
   // Once the history has been opened, its badge has done its job for this visit.
   const [activityVisited, setActivityVisited] = useState(false);
   const [awayDismissed, setAwayDismissed] = useState(false);
-  // Cards the reader has opened this visit; their dots have been answered.
+  // Pages the reader has opened this visit; their dots have been answered.
   const [openedUnseen, setOpenedUnseen] = useState<ReadonlySet<string>>(() => new Set());
   const isOwner = board.currentUser.role === "owner";
   const unseenCount = away && !awayDismissed && !activityVisited ? away.total : 0;
-  const unseenCardIds = useMemo(() => {
+  const unseenPageIds = useMemo(() => {
     const ids = new Set<string>();
     if (!away || awayDismissed) return ids;
     for (const event of away.events) {
-      if (event.entityType === "card" && event.entityId && !openedUnseen.has(event.entityId)) ids.add(event.entityId);
+      if (event.entityType === "page" && event.entityId && !openedUnseen.has(event.entityId)) ids.add(event.entityId);
     }
     return ids;
   }, [away, awayDismissed, openedUnseen]);
@@ -114,9 +127,32 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
   const [people, setPeople] = useState<Set<string>>(
     () => new Set((initialParams.get("people") ?? "").split(",").filter(Boolean)),
   );
-  const selectedCard = board.cards.find((card) => card.id === selectedId) ?? null;
+  const chaptersOn = board.project.chaptersEnabled;
+  /**
+   * With no chapter named in the URL the board opens on the one that is open, so arriving
+   * lands on what the team is working on now. With nothing open it falls back to all work,
+   * and the picker always offers "All work" so this can never hide the project.
+   */
+  const [chapter, setChapter] = useState<ChapterFilter>(() => {
+    if (!chaptersOn) return null;
+    const requested = initialParams.get("chapter");
+    if (requested === NO_CHAPTER) return NO_CHAPTER;
+    if (requested && board.chapters.some((value) => value.slug === requested)) return requested;
+    if (requested) return null;
+    return board.chapters.find((value) => value.state === "open")?.slug ?? null;
+  });
+  const selectedChapter = chapter === null || chapter === NO_CHAPTER
+    ? undefined
+    : board.chapters.find((value) => value.slug === chapter);
+  // A chapter that was deleted, or a gate switched off, must not leave the board filtered
+  // to something the reader can no longer see or reach.
+  useEffect(() => {
+    if (chapter === null || chapter === NO_CHAPTER) return;
+    if (!chaptersOn || !board.chapters.some((value) => value.slug === chapter)) setChapter(null);
+  }, [board.chapters, chapter, chaptersOn]);
+  const selectedPage = board.pages.find((page) => page.id === selectedId) ?? null;
 
-  // Opening a card answers its dot, whichever surface the card was opened from.
+  // Opening a page answers its dot, whichever surface the page was opened from.
   useEffect(() => {
     if (!selectedId) return;
     setOpenedUnseen((current) => {
@@ -127,15 +163,16 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
     });
   }, [selectedId]);
 
-  // The open card lives in the URL, so the address bar is always a shareable
-  // link to exactly what is on screen. A link to a card this board no longer
+  // The open page lives in the URL, so the address bar is always a shareable
+  // link to exactly what is on screen. A link to a page this board no longer
   // has simply falls away.
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    if (selectedCard) params.set("card", selectedCard.id);
-    else params.delete("card");
+    params.delete("card");
+    if (selectedPage) params.set("page", selectedPage.id);
+    else params.delete("page");
     history.replaceState({}, "", `${location.pathname}${params.size ? `?${params}` : ""}`);
-  }, [selectedCard?.id]);
+  }, [selectedPage?.id]);
   const categoriesBySlug = useMemo(
     () => new Map(board.categories.map((category) => [category.slug, category])),
     [board.categories],
@@ -143,37 +180,45 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
   const categoryName = (slug: string | null) =>
     slug === null ? "uncategorized" : categoriesBySlug.get(slug)?.name ?? slug;
   const normalizedQuery = query.trim().toLowerCase();
-  const filteredCards = useMemo(
-    () => board.cards.filter((card) => {
-      if (people.size > 0 && !people.has(card.assigneeId ?? "unassigned")) return false;
-      if (normalizedQuery && !`${card.title}\n${card.description}\n${categoryName(card.category)}\n${card.assigneeName ?? "unassigned"}`.toLowerCase().includes(normalizedQuery)) return false;
+  const chaptersBySlug = useMemo(
+    () => new Map(board.chapters.map((value) => [value.slug, value])),
+    [board.chapters],
+  );
+  const chapterName = (slug: string | null) =>
+    slug === null ? "no chapter" : chaptersBySlug.get(slug)?.name ?? slug;
+  const filteredPages = useMemo(
+    () => board.pages.filter((page) => {
+      if (chapter === NO_CHAPTER && page.chapter !== null) return false;
+      if (chapter !== null && chapter !== NO_CHAPTER && page.chapter !== chapter) return false;
+      if (people.size > 0 && !people.has(page.assigneeId ?? "unassigned")) return false;
+      if (normalizedQuery && !`${page.title}\n${page.description}\n${categoryName(page.category)}\n${chapterName(page.chapter)}\n${page.assigneeName ?? "unassigned"}`.toLowerCase().includes(normalizedQuery)) return false;
       return true;
     }),
-    [board.cards, categoriesBySlug, normalizedQuery, people],
+    [board.pages, categoriesBySlug, chapter, chaptersBySlug, normalizedQuery, people],
   );
-  const activeCount = filteredCards.filter((card) => card.status === "ready" || card.status === "in_progress" || card.status === "review").length;
-  const backlogCards = board.cards.filter((card) => card.status === "backlog");
-  const completedCards = board.cards.filter((card) => card.status === "done");
+  const activeCount = filteredPages.filter((page) => page.status === "ready" || page.status === "in_progress" || page.status === "review").length;
+  const backlogPages = board.pages.filter((page) => page.status === "backlog");
+  const completedPages = board.pages.filter((page) => page.status === "done");
   const offBoardMatches = useMemo(
     () => ({
-      backlog: filteredCards.filter((card) => card.status === "backlog").length,
-      completed: Math.max(0, filteredCards.filter((card) => card.status === "done").length - DONE_COLUMN_LIMIT),
+      backlog: filteredPages.filter((page) => page.status === "backlog").length,
+      completed: Math.max(0, filteredPages.filter((page) => page.status === "done").length - DONE_COLUMN_LIMIT),
     }),
-    [filteredCards],
+    [filteredPages],
   );
 
-  const cardsByStatus = useMemo(
+  const pagesByStatus = useMemo(
     () =>
       Object.fromEntries(
         BOARD_STATUSES.map((status) => [
           status,
-          filteredCards
-            .filter((card) => card.status === status)
+          filteredPages
+            .filter((page) => page.status === status)
             .sort(status === "done" ? compareCompletion : comparePosition)
             .slice(0, status === "done" ? DONE_COLUMN_LIMIT : undefined),
         ]),
-      ) as Record<(typeof BOARD_STATUSES)[number], Card[]>,
-    [filteredCards],
+      ) as Record<(typeof BOARD_STATUSES)[number], Page[]>,
+    [filteredPages],
   );
 
   useEffect(() => {
@@ -196,7 +241,7 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
       if (typing) {
         const isEmptyCapture =
           target instanceof HTMLInputElement &&
-          (target.id === "quick-card" || target.id === "capture-idea") &&
+          (target.id === "quick-page" || target.id === "capture-idea") &&
           target.value.length === 0;
         if (event.key.toLowerCase() === "b" || !isEmptyCapture) return;
       }
@@ -220,7 +265,7 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
     return () => window.removeEventListener("keydown", useKeyboardShortcut);
   }, [onViewChange, view]);
 
-  const openCardFromSearch = (id: string) => {
+  const openPageFromSearch = (id: string) => {
     setSearchOpen(false);
     setBacklogOpen(false);
     setHistoryOpen(false);
@@ -234,19 +279,21 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
     if (view !== "ideas") void onViewChange("ideas");
   };
 
-  const updateUrl = (nextQuery: string, nextPeople: Set<string>) => {
+  const updateUrl = (nextQuery: string, nextPeople: Set<string>, nextChapter: ChapterFilter) => {
     const params = new URLSearchParams(location.search);
     params.delete("focus");
     if (nextQuery.trim()) params.set("q", nextQuery.trim());
     else params.delete("q");
     if (nextPeople.size) params.set("people", [...nextPeople].join(","));
     else params.delete("people");
+    if (nextChapter) params.set("chapter", nextChapter);
+    else params.delete("chapter");
     history.replaceState({}, "", `${location.pathname}${params.size ? `?${params}` : ""}`);
   };
 
   const changeQuery = (value: string) => {
     setQuery(value);
-    updateUrl(value, people);
+    updateUrl(value, people, chapter);
   };
 
   const togglePerson = (id: string) => {
@@ -254,10 +301,29 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
     if (next.has(id)) next.delete(id);
     else next.add(id);
     setPeople(next);
-    updateUrl(query, next);
+    updateUrl(query, next, chapter);
   };
 
-  const spawnFlight = (input: CaptureCardInput) => {
+  const changeChapter = (value: ChapterFilter) => {
+    setChapter(value);
+    updateUrl(query, people, value);
+  };
+
+  /**
+   * Promotes a chapter to the current one, closing whichever is open first.
+   *
+   * One chapter is open at a time, so this is two writes that read as a single decision. The
+   * board follows the promotion, because saying "this is what we are working on now" and then
+   * being left looking at something else would be a strange place to land.
+   */
+  const makeChapterCurrent = async (slug: string) => {
+    const open = board.chapters.find((value) => value.state === "open");
+    if (open && open.slug !== slug) await chapterActions.update(open.slug, { state: "closed" });
+    await chapterActions.update(slug, { state: "open" });
+    changeChapter(slug);
+  };
+
+  const spawnFlight = (input: CapturePageInput) => {
     const shell = shellRef.current;
     if (!shell) return;
     if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
@@ -318,18 +384,21 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
     return () => window.clearTimeout(timeout);
   }, [landed]);
 
-  const captureCard = async (input: CaptureCardInput) => {
+  const capturePage = async (input: CapturePageInput) => {
     spawnFlight(input);
     await onCreate(input);
   };
 
-  const createColumnCard = async (event: FormEvent, status: CardStatus) => {
+  const createColumnPage = async (event: FormEvent, status: PageStatus) => {
     event.preventDefault();
     const title = columnTitle.trim();
     if (!title) return;
     setColumnTitle("");
     setAddingTo(null);
-    await onCreate({ title, category: null, assigneeId: null, status });
+    // Adding straight into a column while looking at a chapter lands the page in that
+    // chapter, because that is plainly where the reader meant to put it.
+    const intoChapter = chaptersOn && chapter !== null && chapter !== NO_CHAPTER ? chapter : null;
+    await onCreate({ title, category: null, chapter: intoChapter, assigneeId: null, status });
   };
 
   const finishDrag = () => {
@@ -338,26 +407,26 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
     setDropHint(null);
   };
 
-  const startCardDrag = (event: DragEvent<HTMLElement>, card: Card, slot: number) => {
+  const startPageDrag = (event: DragEvent<HTMLElement>, page: Page, slot: number) => {
     event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("text/plain", card.id);
+    event.dataTransfer.setData("text/plain", page.id);
     const height = event.currentTarget.offsetHeight;
     const session = ++dragSession.current;
-    // Hide the card one frame later so the browser captures a visible drag image first.
+    // Hide the page one frame later so the browser captures a visible drag image first.
     requestAnimationFrame(() => {
       if (dragSession.current !== session) return;
-      setDrag({ id: card.id, height });
-      setDropHint({ status: card.status, index: slot });
+      setDrag({ id: page.id, height });
+      setDropHint({ status: page.status, index: slot });
     });
   };
 
-  const trackColumnDrag = (event: DragEvent<HTMLElement>, status: CardStatus) => {
+  const trackColumnDrag = (event: DragEvent<HTMLElement>, status: PageStatus) => {
     event.preventDefault();
     if (!drag) return;
-    const cardNodes = event.currentTarget.querySelectorAll<HTMLElement>("article.board-card:not(.drag-hidden)");
-    let index = cardNodes.length;
-    for (let position = 0; position < cardNodes.length; position += 1) {
-      const rect = cardNodes[position].getBoundingClientRect();
+    const pageNodes = event.currentTarget.querySelectorAll<HTMLElement>("article.board-page:not(.drag-hidden)");
+    let index = pageNodes.length;
+    for (let position = 0; position < pageNodes.length; position += 1) {
+      const rect = pageNodes[position].getBoundingClientRect();
       if (event.clientY < rect.top + rect.height / 2) {
         index = position;
         break;
@@ -366,25 +435,25 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
     setDropHint((current) => (current?.status === status && current.index === index ? current : { status, index }));
   };
 
-  const dropCard = async (event: DragEvent, status: CardStatus) => {
+  const dropPage = async (event: DragEvent, status: PageStatus) => {
     event.preventDefault();
     const id = drag?.id ?? event.dataTransfer.getData("text/plain");
     const hint = dropHint;
     finishDrag();
     if (!id) return;
-    const current = board.cards.find((card) => card.id === id);
+    const current = board.pages.find((page) => page.id === id);
     if (!current) return;
-    const column = board.cards.filter((card) => card.status === status).sort(comparePosition);
-    const without = column.filter((card) => card.id !== id);
+    const column = board.pages.filter((page) => page.status === status).sort(comparePosition);
+    const without = column.filter((page) => page.id !== id);
     let position = without.length;
     if (hint && hint.status === status && status !== "backlog") {
-      const visibleBase = cardsByStatus[status as (typeof BOARD_STATUSES)[number]]
-        .filter((card) => card.id !== id);
+      const visibleBase = pagesByStatus[status as (typeof BOARD_STATUSES)[number]]
+        .filter((page) => page.id !== id);
       const anchor = visibleBase[Math.min(hint.index, visibleBase.length)];
-      const anchored = anchor ? without.findIndex((card) => card.id === anchor.id) : -1;
+      const anchored = anchor ? without.findIndex((page) => page.id === anchor.id) : -1;
       position = anchored >= 0 ? anchored : without.length;
     }
-    if (current.status === status && column.findIndex((card) => card.id === id) === position) return;
+    if (current.status === status && column.findIndex((page) => page.id === id) === position) return;
     await onUpdate(id, { status, position });
   };
 
@@ -404,7 +473,7 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
             actions={projectActions}
             busy={busy}
             isOwner={board.currentUser.role === "owner"}
-            onManageCategories={() => setCategoriesOpen(true)}
+            onOpenSettings={() => setSettingsOpen(true)}
             project={board.project}
             projects={board.projects}
           />
@@ -445,26 +514,51 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
       {view === "work" ? <main className="board-main">
         <div className="board-intro">
           <div>
-            <h2>{activeCount} active card{activeCount === 1 ? "" : "s"}</h2>
+            {/* A chapter names itself and says when it runs in one sentence. That is the whole
+                reporting surface: no chart, no percentage, nothing to keep up to date. */}
+            <h2>{selectedChapter ? selectedChapter.name : `${activeCount} active page${activeCount === 1 ? "" : "s"}`}</h2>
+            {selectedChapter && (
+              <p className="chapter-line">
+                {activeCount} active page{activeCount === 1 ? "" : "s"}
+                {/* The chapter's own reserve belongs in its sentence. Repeating it beneath the
+                    filters put a second count next to the Backlog pill that already carries one. */}
+                {offBoardMatches.backlog > 0 && <> <span aria-hidden="true">·</span> {offBoardMatches.backlog} in backlog</>}
+                {chapterWhen(selectedChapter) && <> <span aria-hidden="true">·</span> <em>{chapterWhen(selectedChapter)}</em></>}
+              </p>
+            )}
+            {selectedChapter?.description && (
+              <p className="chapter-intent">{plainTextFromMarkdown(selectedChapter.description)}</p>
+            )}
           </div>
-          <QuickCapture busy={busy} categories={board.categories} members={board.members} onCreate={captureCard} />
+          <QuickCapture busy={busy} categories={board.categories} chapters={chaptersOn ? board.chapters : []} members={board.members} onCreate={capturePage} />
         </div>
 
         <div className="work-filters" aria-label="Work filters">
           <button
-            aria-label={`Open backlog, ${backlogCards.length} card${backlogCards.length === 1 ? "" : "s"}`}
+            aria-label={`Open backlog, ${backlogPages.length} page${backlogPages.length === 1 ? "" : "s"}`}
             className={`library-trigger ${drag ? "drop-ready" : ""} ${landed === "backlog" ? "landed" : ""}`}
             onClick={() => setBacklogOpen(true)}
             onDragOver={(event) => { if (drag) { event.preventDefault(); setDropHint(null); } }}
-            onDrop={(event) => void dropCard(event, "backlog")}
+            onDrop={(event) => void dropPage(event, "backlog")}
             title="Backlog (B)"
             type="button"
           >
-            <span>Backlog</span><strong>{backlogCards.length}</strong><kbd aria-hidden="true">B</kbd>
+            <span>Backlog</span><strong>{backlogPages.length}</strong><kbd aria-hidden="true">B</kbd>
           </button>
-          <label className="card-search">
-            <span className="sr-only">Search cards</span>
-            <input aria-label="Search cards" name="cardSearch" onChange={(event) => changeQuery(event.target.value)} placeholder="Search cards..." type="search" value={query} />
+          {chaptersOn && (
+            <ChapterPicker
+              pages={board.pages}
+              chapters={board.chapters}
+              isOwner={isOwner}
+              onChange={changeChapter}
+              onManage={() => setChaptersOpen(true)}
+              onMakeCurrent={makeChapterCurrent}
+              value={chapter}
+            />
+          )}
+          <label className="page-search">
+            <span className="sr-only">Search pages</span>
+            <input aria-label="Search pages" name="pageSearch" onChange={(event) => changeQuery(event.target.value)} placeholder="Search pages..." type="search" value={query} />
           </label>
           <div className="people-filters">
             <button aria-pressed={people.has("unassigned")} className={people.has("unassigned") ? "active" : ""} onClick={() => togglePerson("unassigned")} type="button">unassigned</button>
@@ -496,6 +590,8 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
 
         {/* The board can only draw four columns, so a filter that found nothing here has
             not searched the project. This says where the rest of the matches are. */}
+        {/* Only a search needs this: it reports matches the four columns cannot show and offers
+            the way to reach them. A chapter's own counts live in its line above the filters. */}
         {normalizedQuery && (
           <div className="off-board-hint">
             {offBoardMatches.backlog > 0 && (
@@ -512,68 +608,68 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
 
         <div className="kanban" aria-label={`${board.project.name} board`} ref={kanbanRef}>
           {BOARD_STATUSES.map((status) => {
-            const cards = cardsByStatus[status];
-            const baseCards = drag ? cards.filter((card) => card.id !== drag.id) : cards;
-            const hintIndex = drag && dropHint?.status === status ? Math.min(dropHint.index, baseCards.length) : null;
+            const pages = pagesByStatus[status];
+            const basePages = drag ? pages.filter((page) => page.id !== drag.id) : pages;
+            const hintIndex = drag && dropHint?.status === status ? Math.min(dropHint.index, basePages.length) : null;
             const placeholder = drag
               ? <div aria-hidden="true" className="drop-placeholder" data-flip-id="drop-placeholder" style={{ height: drag.height }} />
               : null;
-            const visibleStatusCount = filteredCards.filter((card) => card.status === status).length;
+            const visibleStatusCount = filteredPages.filter((page) => page.status === status).length;
             return (
               <section
                 aria-label={columnNames[status]}
                 className={`kanban-column column-${status} ${landed === status ? "landed" : ""}`}
                 key={status}
                 onDragOver={(event) => trackColumnDrag(event, status)}
-                onDrop={(event) => void dropCard(event, status)}
+                onDrop={(event) => void dropPage(event, status)}
               >
                 <header className="column-header">
                   <div><span className="column-dot" /><h3>{columnNames[status]}</h3></div>
-                  <span className="column-count">{status === "done" && visibleStatusCount > DONE_COLUMN_LIMIT ? `${cards.length} of ${visibleStatusCount}` : visibleStatusCount}</span>
+                  <span className="column-count">{status === "done" && visibleStatusCount > DONE_COLUMN_LIMIT ? `${pages.length} of ${visibleStatusCount}` : visibleStatusCount}</span>
                 </header>
-                <div className="card-list">
-                  {cards.map((card) => {
-                    const hidden = drag?.id === card.id;
-                    const slot = hidden ? -1 : baseCards.findIndex((candidate) => candidate.id === card.id);
-                    const blockers = card.blockedBy
-                      .map((id) => board.cards.find((candidate) => candidate.id === id))
-                      .filter((candidate): candidate is Card => Boolean(candidate && candidate.status !== "done"));
-                    const category = card.category ? categoriesBySlug.get(card.category) : undefined;
-                    const preview = card.description ? plainTextFromMarkdown(card.description) : "";
-                    const unseen = unseenCardIds.has(card.id);
+                <div className="page-list">
+                  {pages.map((page) => {
+                    const hidden = drag?.id === page.id;
+                    const slot = hidden ? -1 : basePages.findIndex((candidate) => candidate.id === page.id);
+                    const blockers = page.blockedBy
+                      .map((id) => board.pages.find((candidate) => candidate.id === id))
+                      .filter((candidate): candidate is Page => Boolean(candidate && candidate.status !== "done"));
+                    const category = page.category ? categoriesBySlug.get(page.category) : undefined;
+                    const preview = page.description ? plainTextFromMarkdown(page.description) : "";
+                    const unseen = unseenPageIds.has(page.id);
                     return (
-                      <Fragment key={card.id}>
+                      <Fragment key={page.id}>
                       {!hidden && slot === hintIndex && placeholder}
                       <article
-                        className={`board-card ${card.category ? "" : "category-none"} ${hidden ? "drag-hidden" : ""} ${unseen ? "unseen" : ""}`}
-                        data-flip-id={card.id}
+                        className={`board-page ${page.category ? "" : "category-none"} ${hidden ? "drag-hidden" : ""} ${unseen ? "unseen" : ""}`}
+                        data-flip-id={page.id}
                         draggable
                         onDragEnd={finishDrag}
-                        onDragStart={(event) => startCardDrag(event, card, slot)}
+                        onDragStart={(event) => startPageDrag(event, page, slot)}
                         style={category ? ({ "--category-color": category.color } as React.CSSProperties) : undefined}
                       >
                         <button
-                          aria-label={`Open ${card.title}${preview ? `. ${preview}` : ""}. ${categoryName(card.category)}. ${blockers.length ? `Blocked by ${blockers.map((blocker) => blocker.title).join(", ")}. ` : ""}${card.assigneeName ?? "unassigned"}${unseen ? ". Changed while you were away" : ""}`}
-                          className="card-open"
+                          aria-label={`Open ${page.title}${preview ? `. ${preview}` : ""}. ${categoryName(page.category)}. ${blockers.length ? `Blocked by ${blockers.map((blocker) => blocker.title).join(", ")}. ` : ""}${page.assigneeName ?? "unassigned"}${unseen ? ". Changed while you were away" : ""}`}
+                          className="page-open"
                           draggable
-                          onClick={() => setSelectedId(card.id)}
+                          onClick={() => setSelectedId(page.id)}
                           type="button"
                         >
                           <span className="drag-grip" aria-hidden="true">⠿</span>
-                          {(card.category || blockers.length > 0) && <span className="card-signals">
-                            {card.category && <span className="category-pill">{categoryName(card.category)}</span>}
-                            {blockers.length > 0 && <span className="card-blocked">blocked by {blockers.length}</span>}
+                          {(page.category || blockers.length > 0) && <span className="page-signals">
+                            {page.category && <span className="category-pill">{categoryName(page.category)}</span>}
+                            {blockers.length > 0 && <span className="page-blocked">blocked by {blockers.length}</span>}
                           </span>}
-                          <strong>{card.title}</strong>
+                          <strong>{page.title}</strong>
                           {preview && <p>{preview}</p>}
-                          <span className={`assignee ${card.assigneeId ? "assigned" : ""}`}>
-                            {card.assigneeName ? <>
+                          <span className={`assignee ${page.assigneeId ? "assigned" : ""}`}>
+                            {page.assigneeName ? <>
                               <Avatar
-                                avatarUrl={board.members.find((member) => member.id === card.assigneeId)?.avatarUrl}
+                                avatarUrl={board.members.find((member) => member.id === page.assigneeId)?.avatarUrl}
                                 className="avatar tiny"
-                                name={card.assigneeName}
+                                name={page.assigneeName}
                               />
-                              {card.assigneeName}
+                              {page.assigneeName}
                             </> : "unassigned"}
                           </span>
                         </button>
@@ -581,35 +677,35 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
                       </Fragment>
                     );
                   })}
-                  {hintIndex !== null && hintIndex === baseCards.length && placeholder}
-                  {cards.length === 0 && hintIndex === null && <div className="empty-column">{status === "done" ? "completed work appears here" : "drop a card here"}</div>}
+                  {hintIndex !== null && hintIndex === basePages.length && placeholder}
+                  {pages.length === 0 && hintIndex === null && <div className="empty-column">{status === "done" ? "completed work appears here" : "drop a page here"}</div>}
                 </div>
-                {status === "done" && completedCards.length > DONE_COLUMN_LIMIT && (
+                {status === "done" && completedPages.length > DONE_COLUMN_LIMIT && (
                   <button
-                    aria-label={`Search all completed work, ${completedCards.length} cards`}
+                    aria-label={`Search all completed work, ${completedPages.length} pages`}
                     className="library-trigger completed-trigger"
                     onClick={() => setHistoryOpen(true)}
                     type="button"
                   >
-                    <span>all completed</span><strong>{completedCards.length}</strong>
+                    <span>all completed</span><strong>{completedPages.length}</strong>
                   </button>
                 )}
                 {status !== "done" && (addingTo === status ? (
-                  <form className="column-add-form" onSubmit={(event) => void createColumnCard(event, status)}>
-                    <label className="sr-only" htmlFor={`new-${status}`}>New {columnNames[status]} card</label>
+                  <form className="column-add-form" onSubmit={(event) => void createColumnPage(event, status)}>
+                    <label className="sr-only" htmlFor={`new-${status}`}>New {columnNames[status]} page</label>
                     <input
                       autoFocus
                       id={`new-${status}`}
                       name={`new-${status}`}
                       onChange={(event) => setColumnTitle(event.target.value)}
                       onKeyDown={(event) => { if (event.key === "Escape") setAddingTo(null); }}
-                      placeholder="Card title"
+                      placeholder="Page title"
                       value={columnTitle}
                     />
                     <div><button className="primary-button compact" disabled={!columnTitle.trim()} type="submit">add</button><button className="text-button" onClick={() => setAddingTo(null)} type="button">cancel</button></div>
                   </form>
                 ) : (
-                  <button className="add-to-column" onClick={() => { setAddingTo(status); setColumnTitle(""); }} type="button">+ add card</button>
+                  <button className="add-to-column" onClick={() => { setAddingTo(status); setColumnTitle(""); }} type="button">+ add page</button>
                 ))}
               </section>
             );
@@ -633,23 +729,24 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
         <SearchDialog
           initialQuery={query}
           onClose={() => setSearchOpen(false)}
-          onOpenCard={openCardFromSearch}
+          onOpenPage={openPageFromSearch}
           onOpenIdea={openIdeaFromSearch}
-          onRestoreCard={onRestoreCard}
+          onRestorePage={onRestorePage}
         />
       )}
-      {selectedCard && (
-        <CardDialog
-          cards={board.cards}
-          card={selectedCard}
+      {selectedPage && (
+        <PageDialog
+          pages={board.pages}
+          page={selectedPage}
           categories={board.categories}
+          chapters={chaptersOn ? board.chapters : []}
           currentUserId={board.currentUser.id}
           members={board.members}
           revision={revision}
-          onArchive={async () => { await onArchive(selectedCard.id); setSelectedId(null); }}
+          onArchive={async () => { await onArchive(selectedPage.id); setSelectedId(null); }}
           onClose={() => setSelectedId(null)}
           onLoadActivity={onLoadActivity}
-          onUpdate={(input) => onUpdate(selectedCard.id, input)}
+          onUpdate={(input) => onUpdate(selectedPage.id, input)}
         />
       )}
       {activityOpen && (
@@ -659,8 +756,8 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
           revision={revision}
           onClose={() => setActivityOpen(false)}
           onLoad={onLoadActivity}
-          onOpenCard={(id) => {
-            if (!board.cards.some((card) => card.id === id)) return;
+          onOpenPage={(id) => {
+            if (!board.pages.some((page) => page.id === id)) return;
             setActivityOpen(false);
             setSelectedId(id);
           }}
@@ -668,27 +765,30 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
       )}
       {backlogOpen && (
         <BacklogDialog
-          allCards={board.cards}
+          allPages={board.pages}
           busy={busy}
-          cards={backlogCards}
+          pages={backlogPages}
           categories={board.categories}
+          chapters={chaptersOn ? board.chapters : []}
           members={board.members}
           onClose={() => setBacklogOpen(false)}
           onMoveToNext={onMoveBacklogToNext}
-          onOpenCard={(id) => { setBacklogOpen(false); setSelectedId(id); }}
+          onOpenPage={(id) => { setBacklogOpen(false); setSelectedId(id); }}
+          onSetChapter={(id, value) => onUpdate(id, { chapter: value })}
+          targetChapter={chaptersOn && chapter !== NO_CHAPTER ? chapter : null}
         />
       )}
       {historyOpen && (
         <DoneHistoryDialog
           busy={busy}
-          cards={completedCards}
+          pages={completedPages}
           categories={board.categories}
           members={board.members}
           onClose={() => setHistoryOpen(false)}
-          onOpenCard={(id) => { setHistoryOpen(false); setSelectedId(id); }}
+          onOpenPage={(id) => { setHistoryOpen(false); setSelectedId(id); }}
           onReopen={async (id) => {
             setHistoryOpen(false);
-            await onUpdate(id, { status: "ready", position: board.cards.filter((card) => card.status === "ready").length });
+            await onUpdate(id, { status: "ready", position: board.pages.filter((page) => page.status === "ready").length });
           }}
         />
       )}
@@ -697,7 +797,34 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
           actions={categoryActions}
           busy={busy}
           categories={board.categories}
-          onClose={() => setCategoriesOpen(false)}
+          // Opened from settings, closing returns there rather than dumping the reader on
+          // the board, so the trip out and back reads as one place.
+          onClose={() => { setCategoriesOpen(false); setSettingsOpen(true); }}
+        />
+      )}
+      {chaptersOpen && (
+        <ChaptersDialog
+          actions={chapterActions}
+          busy={busy}
+          pages={board.pages}
+          chapters={board.chapters}
+          onClose={() => setChaptersOpen(false)}
+          onSetPageChapter={(id, value) => onUpdate(id, { chapter: value })}
+        />
+      )}
+      {settingsOpen && (
+        <ProjectSettingsDialog
+          actions={projectSettingsActions}
+          busy={busy}
+          canArchive={board.projects.length > 1}
+          pages={board.pages}
+          categories={board.categories}
+          chapters={board.chapters}
+          chaptersEnabled={chaptersOn}
+          onClose={() => setSettingsOpen(false)}
+          onManageCategories={() => { setSettingsOpen(false); setCategoriesOpen(true); }}
+          onManageChapters={() => { setSettingsOpen(false); setChaptersOpen(true); }}
+          project={board.project}
         />
       )}
       {teamOpen && (
@@ -740,16 +867,16 @@ export function Board({ away, board, busy, categoryActions, ideas, online, proje
 type CaptureFlight = {
   id: number;
   title: string;
-  status: CardStatus;
+  status: PageStatus;
   from: { x: number; y: number; width: number };
   to: { x: number; y: number };
 };
 
-function comparePosition(left: Card, right: Card): number {
+function comparePosition(left: Page, right: Page): number {
   return left.position - right.position;
 }
 
-function compareCompletion(left: Card, right: Card): number {
+function compareCompletion(left: Page, right: Page): number {
   const timestamp = (right.completedAt ?? right.updatedAt).localeCompare(left.completedAt ?? left.updatedAt);
   return timestamp || right.position - left.position;
 }

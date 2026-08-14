@@ -45,7 +45,7 @@ function payloadOf(message: string): Record<string, unknown> {
 }
 
 describe("live project events", () => {
-  it("streams card changes to other authenticated clients and excludes the writer", async () => {
+  it("streams page changes to other authenticated clients and excludes the writer", async () => {
     const server = await startTestServer();
     await bootstrap(server);
     const listenerResponse = await server.events("listener");
@@ -60,7 +60,7 @@ describe("live project events", () => {
     // Both streams belong to the owner, so presence reports one person rather than two.
     expect(payloadOf(await writer.nextNamed("presence")).online).toHaveLength(1);
 
-    await server.request("/api/cards", {
+    await server.request("/api/pages", {
       method: "POST",
       headers: { "x-grimoire-client-id": "writer" },
       body: JSON.stringify({ title: "Synchronize the ritual table" }),
