@@ -11,6 +11,7 @@ import {
 } from "../../shared/types";
 import { Avatar } from "./Avatar";
 import { EditorState, otherEditorName } from "./EditorState";
+import { Growing } from "./Growing";
 import { NotesField } from "./NotesField";
 import { describeChange, describeEvent, relativeLabel } from "./activity-copy";
 import { useContentEditor } from "./use-content-editor";
@@ -222,7 +223,7 @@ export function PageDialog({ page, pages, categories, chapters, currentUserId, m
               </div>
             )}
 
-            <div className="rail-row">
+            <Growing className="rail-row">
               <span className="field-label">Category</span>
               {changingCategory ? (
                 <div className="choice-grid category-choices">
@@ -260,9 +261,9 @@ export function PageDialog({ page, pages, categories, chapters, currentUserId, m
                   >change</button>
                 </div>
               )}
-            </div>
+            </Growing>
 
-            <div className="rail-row dependency-section">
+            <Growing className="rail-row dependency-section">
               <span className="field-label">Blocked by</span>
               {blockers.length > 0 ? (
                 <div className="dependency-list">
@@ -315,7 +316,7 @@ export function PageDialog({ page, pages, categories, chapters, currentUserId, m
               ) : (
                 <button aria-label="Add blocking page" className="add-dependency" onClick={() => setFindingBlocker(true)} type="button">+ add blocking page</button>
               )}
-            </div>
+            </Growing>
           </div>
         </div>
       </section>
@@ -365,13 +366,13 @@ function PageHistory({ events, members, onToggle, open }: {
   open: boolean;
 }) {
   return (
-    <div className="dialog-section page-history">
+    <Growing className="dialog-section page-history">
       <button aria-expanded={open} className="history-toggle" onClick={onToggle} type="button">
         <span aria-hidden="true" className="history-caret">{open ? "▾" : "▸"}</span>
         <span className="field-label">History</span>
       </button>
       {open && <HistoryEvents events={events} members={members} />}
-    </div>
+    </Growing>
   );
 }
 

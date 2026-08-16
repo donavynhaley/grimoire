@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { AuditChange, AuditEvent, AwayState, BoardWorkspace } from "../../shared/types";
 import { Avatar } from "./Avatar";
+import { Growing } from "./Growing";
 import { dayLabel } from "./activity-copy";
 
 const VISIBLE_LINES = 5;
@@ -271,7 +272,7 @@ export function AwayDigest({ away, board, onDismiss }: Props) {
           dismiss
         </button>
       </header>
-      <div className="away-digest-lines">
+      <Growing className="away-digest-lines">
         {visible.map((line) => (
           <p className={line.aboutYou ? "away-line about-you" : "away-line"} key={line.key}>
             <Avatar
@@ -289,7 +290,7 @@ export function AwayDigest({ away, board, onDismiss }: Props) {
             </span>
           </p>
         ))}
-      </div>
+      </Growing>
       {(hiddenCount > 0 || (expanded && beyondFetch > 0)) && (
         <footer className="away-digest-foot">
           {hiddenCount > 0 ? (

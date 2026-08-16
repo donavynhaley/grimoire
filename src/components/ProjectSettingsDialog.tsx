@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from "react";
 import type { Page, Chapter, ProjectCategory } from "../../shared/types";
 import { ApiError } from "../api/client";
+import { Growing } from "./Growing";
 import { dayLabel } from "./chapter-dates";
 import { useDialogEscape } from "./use-dialog-escape";
 
@@ -118,7 +119,7 @@ export function ProjectSettingsDialog({
           </p>
         </div>
 
-        <div className="settings-row">
+        <Growing className="settings-row">
           <div className="settings-row-top">
             <span className="field-label">Chapters</span>
             <label className="settings-toggle">
@@ -152,7 +153,7 @@ export function ProjectSettingsDialog({
               <button className="settings-link" onClick={onManageChapters} type="button">manage →</button>
             </div>
           )}
-        </div>
+        </Growing>
 
         {canManageAgents && (
           <div className="settings-row">
@@ -168,7 +169,7 @@ export function ProjectSettingsDialog({
           </div>
         )}
 
-        <div className="settings-row danger">
+        <Growing className="settings-row danger">
           <span className="field-label danger-label">Danger zone</span>
           <div className="settings-row-top">
             <p className="settings-summary">
@@ -196,7 +197,7 @@ export function ProjectSettingsDialog({
               >archive project</button>
             )}
           </div>
-        </div>
+        </Growing>
 
         {error && <div className="error-banner" role="alert">{error}</div>}
       </section>

@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import Markdown, { type Components, type ExtraProps } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { imageUrl, uploadImage } from "../api/client";
+import { Growing } from "./Growing";
 import { remarkObsidianEmbeds } from "./obsidian-embeds";
-import { useHeightSwap } from "./use-height-swap";
 
 const REMARK_PLUGINS = [remarkGfm, remarkObsidianEmbeds];
 
@@ -80,11 +80,8 @@ export function NotesField({ label, editLabel, name, textareaLabel, placeholder,
   const [dropActive, setDropActive] = useState(false);
   const dragDepth = useRef(0);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const bodyRef = useRef<HTMLDivElement | null>(null);
   const valueRef = useRef(value);
   valueRef.current = value;
-
-  useHeightSwap(bodyRef);
 
   useEffect(() => {
     if (!editing) return;
@@ -180,7 +177,7 @@ export function NotesField({ label, editLabel, name, textareaLabel, placeholder,
           )}
         </span>
       </div>
-      <div className="notes-body" ref={bodyRef}>
+      <Growing className="notes-body">
         {editing ? (
           <textarea
             aria-label={textareaLabel}
@@ -210,7 +207,7 @@ export function NotesField({ label, editLabel, name, textareaLabel, placeholder,
             {value.trim() ? <MarkdownView markdown={value} /> : <p className="notes-placeholder">{placeholder}</p>}
           </div>
         )}
-      </div>
+      </Growing>
     </div>
   );
 }
