@@ -1451,6 +1451,20 @@ textarea:hover { border-color: var(--border-bright); }
 }
 .load-more { justify-self: center; margin-top: 4px; }
 
+.history-toggle {
+  display: flex;
+  padding: 0;
+  align-items: center;
+  justify-self: start;
+  gap: 7px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.history-caret { width: 8px; color: var(--faint); font-size: 8px; }
+.history-toggle:hover .field-label,
+.history-toggle:hover .history-caret { color: var(--text); }
+
 .page-history ol { display: grid; margin: 0; padding: 0; gap: 7px; list-style: none; }
 .page-history li {
   display: grid;
@@ -2434,6 +2448,7 @@ textarea:hover { border-color: var(--border-bright); }
   .settings-row.danger .danger-text,
   .rail-change,
   .add-dependency,
+  .history-toggle,
   .text-button {
     min-height: 34px;
   }
