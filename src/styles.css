@@ -1451,6 +1451,20 @@ textarea:hover { border-color: var(--border-bright); }
 }
 .load-more { justify-self: center; margin-top: 4px; }
 
+.history-toggle {
+  display: flex;
+  padding: 0;
+  align-items: center;
+  justify-self: start;
+  gap: 7px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.history-caret { width: 9px; color: var(--faint); font-size: 10px; line-height: 1; }
+.history-toggle:hover .field-label,
+.history-toggle:hover .history-caret { color: var(--text); }
+
 .page-history ol { display: grid; margin: 0; padding: 0; gap: 7px; list-style: none; }
 .page-history li {
   display: grid;
@@ -1489,6 +1503,8 @@ textarea:hover { border-color: var(--border-bright); }
 .record-form label > span { color: var(--muted); font-size: 9px; }
 
 .notes-field { display: grid; gap: 7px; }
+/* Its own grid so the textarea still fills the field once it is not a grid item itself. */
+.notes-body { display: grid; }
 .notes-head { display: flex; min-height: 14px; align-items: baseline; justify-content: space-between; gap: 10px; }
 .notes-head > span:first-child { color: var(--muted); font-size: 9px; }
 .notes-tools { display: flex; align-items: baseline; gap: 10px; }
@@ -2434,6 +2450,7 @@ textarea:hover { border-color: var(--border-bright); }
   .settings-row.danger .danger-text,
   .rail-change,
   .add-dependency,
+  .history-toggle,
   .text-button {
     min-height: 34px;
   }

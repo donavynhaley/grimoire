@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import Markdown, { type Components, type ExtraProps } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { imageUrl, uploadImage } from "../api/client";
+import { Growing } from "./Growing";
 import { remarkObsidianEmbeds } from "./obsidian-embeds";
 
 const REMARK_PLUGINS = [remarkGfm, remarkObsidianEmbeds];
@@ -176,35 +177,37 @@ export function NotesField({ label, editLabel, name, textareaLabel, placeholder,
           )}
         </span>
       </div>
-      {editing ? (
-        <textarea
-          aria-label={textareaLabel}
-          name={name}
-          onBlur={() => {
-            if (document.hasFocus()) setEditing(false);
-          }}
-          onChange={(event) => onChange(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key !== "Escape") return;
-            event.stopPropagation();
-            setEditing(false);
-          }}
-          onPaste={(event) => {
-            const files = collectFiles(event.clipboardData?.files);
-            if (!hasImage(files)) return;
-            event.preventDefault();
-            void importImages(files);
-          }}
-          placeholder={placeholder}
-          ref={textareaRef}
-          rows={rows}
-          value={value}
-        />
-      ) : (
-        <div className="notes-view" onClick={startEditing}>
-          {value.trim() ? <MarkdownView markdown={value} /> : <p className="notes-placeholder">{placeholder}</p>}
-        </div>
-      )}
+      <Growing className="notes-body">
+        {editing ? (
+          <textarea
+            aria-label={textareaLabel}
+            name={name}
+            onBlur={() => {
+              if (document.hasFocus()) setEditing(false);
+            }}
+            onChange={(event) => onChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== "Escape") return;
+              event.stopPropagation();
+              setEditing(false);
+            }}
+            onPaste={(event) => {
+              const files = collectFiles(event.clipboardData?.files);
+              if (!hasImage(files)) return;
+              event.preventDefault();
+              void importImages(files);
+            }}
+            placeholder={placeholder}
+            ref={textareaRef}
+            rows={rows}
+            value={value}
+          />
+        ) : (
+          <div className="notes-view" onClick={startEditing}>
+            {value.trim() ? <MarkdownView markdown={value} /> : <p className="notes-placeholder">{placeholder}</p>}
+          </div>
+        )}
+      </Growing>
     </div>
   );
 }

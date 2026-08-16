@@ -11,6 +11,7 @@ import {
 } from "../../shared/types";
 import { Avatar } from "./Avatar";
 import { EditorState, otherEditorName } from "./EditorState";
+import { Growing } from "./Growing";
 import { NotesField } from "./NotesField";
 import { describeChange, describeEvent, relativeLabel } from "./activity-copy";
 import { useContentEditor } from "./use-content-editor";
@@ -55,6 +56,12 @@ export function PageDialog({ page, pages, categories, chapters, currentUserId, m
    * someone opens a page to change.
    */
   const [changingCategory, setChangingCategory] = useState(false);
+  /**
+   * History starts folded. Editing a page refetches it, so an open list would redraw
+   * itself under the notes on every save — motion next to the field someone is typing
+   * in, for a section most visits never read.
+   */
+  const [showingHistory, setShowingHistory] = useState(false);
   const [findingBlocker, setFindingBlocker] = useState(false);
   const [blockerQuery, setBlockerQuery] = useState("");
   const updateRef = useRef(onUpdate);
@@ -74,6 +81,7 @@ export function PageDialog({ page, pages, categories, chapters, currentUserId, m
     setFindingBlocker(false);
     setBlockerQuery("");
     setChangingCategory(false);
+    setShowingHistory(false);
   }, [page.id]);
 
   const blockers = page.blockedBy
@@ -134,7 +142,12 @@ export function PageDialog({ page, pages, categories, chapters, currentUserId, m
               <EditorState editor={editor} who={otherEditor} />
             </div>
 
-            <PageHistory events={history} members={members} />
+            <PageHistory
+              events={history}
+              members={members}
+              onToggle={() => setShowingHistory((showing) => !showing)}
+              open={showingHistory}
+            />
 
             <footer className="dialog-footer">
               <span>created by {page.createdByName}</span>
@@ -210,7 +223,7 @@ export function PageDialog({ page, pages, categories, chapters, currentUserId, m
               </div>
             )}
 
-            <div className="rail-row">
+            <Growing className="rail-row">
               <span className="field-label">Category</span>
               {changingCategory ? (
                 <div className="choice-grid category-choices">
@@ -248,9 +261,9 @@ export function PageDialog({ page, pages, categories, chapters, currentUserId, m
                   >change</button>
                 </div>
               )}
-            </div>
+            </Growing>
 
-            <div className="rail-row dependency-section">
+            <Growing className="rail-row dependency-section">
               <span className="field-label">Blocked by</span>
               {blockers.length > 0 ? (
                 <div className="dependency-list">
@@ -303,7 +316,7 @@ export function PageDialog({ page, pages, categories, chapters, currentUserId, m
               ) : (
                 <button aria-label="Add blocking page" className="add-dependency" onClick={() => setFindingBlocker(true)} type="button">+ add blocking page</button>
               )}
-            </div>
+            </Growing>
           </div>
         </div>
       </section>
@@ -320,6 +333,9 @@ export function PageDialog({ page, pages, categories, chapters, currentUserId, m
  *
  * A failed lookup stays silent: the history is context, and an error banner over it
  * would sit above editing controls that still work perfectly well.
+ *
+ * The load runs even while the section is folded, because the same events name whoever
+ * else touched this page in the conflict bar.
  */
 function usePageHistory(
   pageId: string,
@@ -339,37 +355,52 @@ function usePageHistory(
   return loaded?.pageId === pageId ? loaded.events : null;
 }
 
-function PageHistory({ events, members }: { events: AuditEvent[] | null; members: Member[] }) {
-  const now = useMemo(() => new Date(), [events]);
-  if (events === null) return null;
+/**
+ * The header is always present so the section never appears or resizes on its own;
+ * only what someone asked to see is drawn.
+ */
+function PageHistory({ events, members, onToggle, open }: {
+  events: AuditEvent[] | null;
+  members: Member[];
+  onToggle: () => void;
+  open: boolean;
+}) {
   return (
-    <div className="dialog-section page-history">
-      <span className="field-label">History</span>
-      {events.length === 0 ? (
-        <p className="empty-dependencies">No recorded changes yet.</p>
-      ) : (
-        <ol>
-          {events.map((event) => {
-            const { lead } = describeEvent(event);
-            const actor = members.find((member) => member.id === event.actorId);
-            return (
-              <li key={event.id}>
-                <Avatar avatarUrl={actor?.avatarUrl} className="avatar tiny" name={event.actorName} />
-                <span>
-                  <strong>{event.actorName}</strong>
-                  {event.agentName && <span className="via-agent"> via {event.agentName}</span>} {lead}
-                  {event.changes.length > 0 && (
-                    <span className="activity-changes">
-                      {event.changes.map((change) => <span key={change.field}>{describeChange(change)}</span>)}
-                    </span>
-                  )}
+    <Growing className="dialog-section page-history">
+      <button aria-expanded={open} className="history-toggle" onClick={onToggle} type="button">
+        <span aria-hidden="true" className="history-caret">{open ? "▾" : "▸"}</span>
+        <span className="field-label">History</span>
+      </button>
+      {open && <HistoryEvents events={events} members={members} />}
+    </Growing>
+  );
+}
+
+function HistoryEvents({ events, members }: { events: AuditEvent[] | null; members: Member[] }) {
+  const now = useMemo(() => new Date(), [events]);
+  if (events === null) return <p className="empty-dependencies">Reading the record...</p>;
+  if (events.length === 0) return <p className="empty-dependencies">No recorded changes yet.</p>;
+  return (
+    <ol>
+      {events.map((event) => {
+        const { lead } = describeEvent(event);
+        const actor = members.find((member) => member.id === event.actorId);
+        return (
+          <li key={event.id}>
+            <Avatar avatarUrl={actor?.avatarUrl} className="avatar tiny" name={event.actorName} />
+            <span>
+              <strong>{event.actorName}</strong>
+              {event.agentName && <span className="via-agent"> via {event.agentName}</span>} {lead}
+              {event.changes.length > 0 && (
+                <span className="activity-changes">
+                  {event.changes.map((change) => <span key={change.field}>{describeChange(change)}</span>)}
                 </span>
-                <time dateTime={event.createdAt}>{relativeLabel(event.createdAt, now)}</time>
-              </li>
-            );
-          })}
-        </ol>
-      )}
-    </div>
+              )}
+            </span>
+            <time dateTime={event.createdAt}>{relativeLabel(event.createdAt, now)}</time>
+          </li>
+        );
+      })}
+    </ol>
   );
 }

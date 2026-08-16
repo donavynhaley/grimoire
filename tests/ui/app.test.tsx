@@ -1052,7 +1052,7 @@ describe("Grimoire board", () => {
     expect(await screen.findByRole("dialog", { name: "Edit page" })).toBeInTheDocument();
   });
 
-  it("shows recent changes inside the page it opens", async () => {
+  it("keeps recent changes folded until the page asks for them", async () => {
     const initial = boardFixture();
     const page = initial.pages.find((candidate) => candidate.status === "in_progress")!;
     stubFetch(authenticatedFetch(initial), {
@@ -1069,8 +1069,14 @@ describe("Grimoire board", () => {
     await openWorkPage(page);
 
     const dialog = screen.getByRole("dialog", { name: "Edit page" });
-    expect(within(dialog).getByText("History")).toBeInTheDocument();
-    expect(within(dialog).getByText("assignee: unassigned → Maren")).toBeInTheDocument();
+    const toggle = within(dialog).getByRole("button", { name: "History" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(within(dialog).queryByText("assignee: unassigned → Maren")).not.toBeInTheDocument();
+
+    await userEvent.click(toggle);
+
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(await within(dialog).findByText("assignee: unassigned → Maren")).toBeInTheDocument();
   });
 
   it("marks connected teammates as online", async () => {

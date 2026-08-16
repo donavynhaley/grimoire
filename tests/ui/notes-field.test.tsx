@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { uploadImage } from "../../src/api/client";
 import { NotesField } from "../../src/components/NotesField";
 import { plainTextFromMarkdown } from "../../src/components/markdown-text";
@@ -19,8 +19,8 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function renderNotes(value: string, onChange: (value: string) => void = () => undefined) {
-  return render(
+function notesElement(value: string, onChange: (value: string) => void = () => undefined) {
+  return (
     <NotesField
       editLabel="Edit notes"
       label="Notes"
@@ -30,8 +30,12 @@ function renderNotes(value: string, onChange: (value: string) => void = () => un
       rows={6}
       textareaLabel="Notes"
       value={value}
-    />,
+    />
   );
+}
+
+function renderNotes(value: string, onChange: (value: string) => void = () => undefined) {
+  return render(notesElement(value, onChange));
 }
 
 describe("NotesField", () => {
@@ -242,6 +246,112 @@ describe("NotesField image paste", () => {
     fireEvent.blur(textarea);
     expect(screen.queryByRole("textbox", { name: "Notes" })).not.toBeInTheDocument();
     hasFocus.mockRestore();
+  });
+});
+
+/**
+ * jsdom has no layout and no Web Animations, so the heights and the animation are
+ * supplied here. What is being checked is the arithmetic and the cleanup around
+ * them, which is where a growing box goes wrong: the wrong pair of heights, or a
+ * clip left behind over a field someone then focuses.
+ */
+describe("NotesField growth", () => {
+  const RESTING = 70;
+  const EDITING = 240;
+
+  /**
+   * A box part way through an animation measures where it has travelled to, and only
+   * reports the size it is aiming at once the animation lets go of the height. The
+   * stub mirrors that, because taking over mid-flight is the whole behaviour under
+   * test and a fixed height cannot express it.
+   */
+  function stubLayout() {
+    let travelled: number | null = null;
+    Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
+      configurable: true,
+      get(this: HTMLElement) {
+        if (!this.classList.contains("notes-body")) return 0;
+        if (travelled !== null) return travelled;
+        return this.querySelector("textarea") ? EDITING : RESTING;
+      },
+    });
+    onTestFinished(() => { Reflect.deleteProperty(HTMLElement.prototype, "offsetHeight"); });
+    return {
+      travelTo: (height: number) => { travelled = height; },
+      release: () => { travelled = null; },
+    };
+  }
+
+  function stubAnimate(onCancel: () => void = () => undefined) {
+    const animation = { addEventListener: vi.fn(), cancel: vi.fn(onCancel) };
+    const animate = vi.fn((_frames: Keyframe[], _options: KeyframeAnimationOptions) => animation);
+    Object.defineProperty(HTMLElement.prototype, "animate", { configurable: true, value: animate, writable: true });
+    onTestFinished(() => { Reflect.deleteProperty(HTMLElement.prototype, "animate"); });
+    return { animate, animation };
+  }
+
+  it("grows the notes from their resting height into the editor", async () => {
+    stubLayout();
+    const { animate } = stubAnimate();
+    renderNotes("Charging past 80% should cost something.");
+
+    await userEvent.click(screen.getByText("Charging past 80% should cost something."));
+
+    expect(screen.getByRole("textbox", { name: "Notes" })).toBeInTheDocument();
+    expect(animate).toHaveBeenCalledTimes(1);
+    const [frames, options] = animate.mock.calls[0];
+    expect(frames).toEqual([{ height: `${RESTING}px` }, { height: `${EDITING}px` }]);
+    expect(options.duration).toBe(190);
+  });
+
+  it("hands the box back to the stylesheet once the growth settles", async () => {
+    stubLayout();
+    const { animation } = stubAnimate();
+    renderNotes("Charging past 80% should cost something.");
+
+    await userEvent.click(screen.getByText("Charging past 80% should cost something."));
+
+    const body = document.querySelector<HTMLElement>(".notes-body")!;
+    expect(body.style.overflow).toBe("hidden");
+
+    const finish = animation.addEventListener.mock.calls.find(([type]) => type === "finish")?.[1] as () => void;
+    finish();
+    expect(body.style.overflow).toBe("");
+  });
+
+  it("takes over from where the box has travelled to when a render lands mid-flight", async () => {
+    const layout = stubLayout();
+    const { animate, animation } = stubAnimate(() => layout.release());
+    const view = renderNotes("Charging past 80% should cost something.");
+
+    await userEvent.click(screen.getByText("Charging past 80% should cost something."));
+    expect(animate.mock.calls[0][0]).toEqual([{ height: `${RESTING}px` }, { height: `${EDITING}px` }]);
+
+    // An autosave settles while the box is still opening.
+    layout.travelTo(150);
+    view.rerender(notesElement("Charging past 80% should cost something. Ramping drain."));
+
+    expect(animation.cancel).toHaveBeenCalled();
+    expect(animate).toHaveBeenCalledTimes(2);
+    expect(animate.mock.calls[1][0]).toEqual([{ height: "150px" }, { height: `${EDITING}px` }]);
+  });
+
+  it("swaps without motion when the system asks for less of it", async () => {
+    stubLayout();
+    const { animate } = stubAnimate();
+    // jsdom ships no matchMedia at all, which is why the hook reaches for it optionally.
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({ matches: true }) as MediaQueryList,
+      writable: true,
+    });
+    onTestFinished(() => { Reflect.deleteProperty(window, "matchMedia"); });
+    renderNotes("Charging past 80% should cost something.");
+
+    await userEvent.click(screen.getByText("Charging past 80% should cost something."));
+
+    expect(screen.getByRole("textbox", { name: "Notes" })).toBeInTheDocument();
+    expect(animate).not.toHaveBeenCalled();
   });
 });
 
