@@ -1503,6 +1503,8 @@ textarea:hover { border-color: var(--border-bright); }
 .record-form label > span { color: var(--muted); font-size: 9px; }
 
 .notes-field { display: grid; gap: 7px; }
+/* Its own grid so the textarea still fills the field once it is not a grid item itself. */
+.notes-body { display: grid; }
 .notes-head { display: flex; min-height: 14px; align-items: baseline; justify-content: space-between; gap: 10px; }
 .notes-head > span:first-child { color: var(--muted); font-size: 9px; }
 .notes-tools { display: flex; align-items: baseline; gap: 10px; }
