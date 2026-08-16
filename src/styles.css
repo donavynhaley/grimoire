@@ -1461,7 +1461,7 @@ textarea:hover { border-color: var(--border-bright); }
   border: 0;
   cursor: pointer;
 }
-.history-caret { width: 8px; color: var(--faint); font-size: 8px; }
+.history-caret { width: 9px; color: var(--faint); font-size: 10px; line-height: 1; }
 .history-toggle:hover .field-label,
 .history-toggle:hover .history-caret { color: var(--text); }
 
