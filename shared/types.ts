@@ -14,6 +14,11 @@ export type SessionState =
   | { status: "authenticated"; user: User };
 
 export type Member = User & {
+  /**
+   * Mirrors the account-wide `role` on purpose. Owner powers are not per-project - promoting
+   * someone here grants them everywhere - and the two are kept in lockstep so the board never
+   * shows a member who can in fact restructure it. See `setMemberRole` in the repository.
+   */
   projectRole: UserRole;
 };
 
@@ -47,6 +52,15 @@ export const CATEGORY_COLOR_PALETTE = [
 export type ProjectSummary = {
   id: string;
   name: string;
+  /** One optional sentence saying what the project is, shown in the switcher. */
+  description: string;
+};
+
+/** An archived project as the owner's restore list shows it. */
+export type ArchivedProject = {
+  id: string;
+  name: string;
+  archivedAt: string;
 };
 
 /**
@@ -146,6 +160,8 @@ export type BoardWorkspace = {
   project: {
     id: string;
     name: string;
+    /** One optional sentence saying what the project is. Empty until someone writes it. */
+    description: string;
     /** Off unless this project asked for chapters. When false the interface shows none of them. */
     chaptersEnabled: boolean;
   };

@@ -72,6 +72,65 @@ describe("multiple projects", () => {
     expect(refused.body.error).toContain("last project");
   });
 
+  it("gives a project a description that the board and switcher both carry", async () => {
+    const server = await startTestServer();
+    await bootstrap(server);
+    const projectId = (await board(server)).project.id;
+
+    const updated = await server.request<{ project: { description: string } }>(`/api/projects/${projectId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ description: "A cozy wizard-life sim" }),
+    });
+    expect(updated.response.status).toBe(200);
+    expect(updated.body.project.description).toBe("A cozy wizard-life sim");
+
+    const workspace = await board(server);
+    expect(workspace.project.description).toBe("A cozy wizard-life sim");
+    expect(workspace.projects[0].description).toBe("A cozy wizard-life sim");
+  });
+
+  it("lists an archived project and restores it", async () => {
+    const server = await startTestServer();
+    await bootstrap(server);
+    const created = await server.request<{ project: ProjectSummary }>("/api/projects", {
+      method: "POST",
+      body: JSON.stringify({ name: "Familiar Tycoon" }),
+    });
+    await server.request(`/api/projects/${created.body.project.id}`, { method: "DELETE" });
+
+    const archived = await server.request<{ projects: Array<{ id: string; name: string; archivedAt: string }> }>(
+      "/api/projects/archived",
+    );
+    expect(archived.response.status).toBe(200);
+    expect(archived.body.projects).toEqual([
+      expect.objectContaining({ id: created.body.project.id, name: "Familiar Tycoon" }),
+    ]);
+
+    const restored = await server.request(`/api/projects/${created.body.project.id}/restore`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    expect(restored.response.status).toBe(200);
+
+    // The board answers again, and the archived list is empty: nothing was lost in between.
+    expect((await board(server, created.body.project.id)).project.name).toBe("Familiar Tycoon");
+    expect(
+      (await server.request<{ projects: unknown[] }>("/api/projects/archived")).body.projects,
+    ).toEqual([]);
+  });
+
+  it("refuses to restore a project that is not archived", async () => {
+    const server = await startTestServer();
+    await bootstrap(server);
+    const projectId = (await board(server)).project.id;
+
+    const refused = await server.request(`/api/projects/${projectId}/restore`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    expect(refused.response.status).toBe(404);
+  });
+
   it("scopes invitations to the project they were created in", async () => {
     const server = await startTestServer();
     await bootstrap(server);
@@ -144,6 +203,27 @@ describe("project categories", () => {
     const workspace = (await server.request<BoardWorkspace>("/api/board")).body;
     expect(workspace.categories.map((category) => category.slug)).not.toContain("playtesting");
     expect(workspace.pages[0].category).toBeNull();
+  });
+
+  it("reorders categories through the position the schema now accepts", async () => {
+    const server = await startTestServer();
+    await bootstrap(server);
+    const before = (await server.request<BoardWorkspace>("/api/board")).body.categories;
+    const [first, second] = before;
+
+    // The two neighbours trade indexes, which is exactly what the reorder buttons send.
+    await server.request(`/api/categories/${second.slug}`, {
+      method: "PATCH",
+      body: JSON.stringify({ position: 0 }),
+    });
+    await server.request(`/api/categories/${first.slug}`, {
+      method: "PATCH",
+      body: JSON.stringify({ position: 1 }),
+    });
+
+    const after = (await server.request<BoardWorkspace>("/api/board")).body.categories;
+    expect(after[0].slug).toBe(second.slug);
+    expect(after[1].slug).toBe(first.slug);
   });
 
   it("rejects pages with categories the project does not have", async () => {

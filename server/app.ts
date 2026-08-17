@@ -31,6 +31,7 @@ import {
   listProjectsForUser,
   advanceSeenCursor,
   initializeSeenCursor,
+  listArchivedProjects,
   membersForProject,
   projectById,
   projectSlug,
@@ -39,7 +40,9 @@ import {
   removeProjectMember,
   renameProject,
   restorePage,
+  restoreProject,
   setChaptersEnabled,
+  setProjectDescription,
   setMemberRole,
   updatePage,
   updateCategory,
@@ -182,11 +185,13 @@ const projectSchema = z.object({
 const projectUpdateSchema = z
   .object({
     name: z.string().trim().min(2).max(80).optional(),
+    description: z.string().trim().max(2000).optional(),
     chaptersEnabled: z.boolean().optional(),
   })
-  .refine((input) => input.name !== undefined || input.chaptersEnabled !== undefined, {
-    message: "Nothing to update",
-  });
+  .refine(
+    (input) => input.name !== undefined || input.description !== undefined || input.chaptersEnabled !== undefined,
+    { message: "Nothing to update" },
+  );
 const chapterState = z.enum(["planned", "open", "closed"]);
 const chapterCreateSchema = z.object({
   name: z.string().trim().min(1).max(80),
@@ -203,7 +208,9 @@ const categoryCreateSchema = z.object({
   name: z.string().trim().min(1).max(32),
   color: z.string().regex(/^#[0-9a-f]{6}$/i),
 });
-const categoryUpdateSchema = categoryCreateSchema.partial();
+const categoryUpdateSchema = categoryCreateSchema.partial().extend({
+  position: z.number().int().min(0).optional(),
+});
 const fieldCreateSchema = z.object({
   label: z.string().trim().min(1).max(40),
   type: z.enum(FIELD_TYPES),
@@ -660,6 +667,19 @@ export function createGrimoireServer(options: Options) {
         if (!renameProject(database, projectId, input.name)) throw new HttpError(404, "Project not found");
         changes.push({ field: "name", from: previousName, to: input.name });
       }
+      if (input.description !== undefined) {
+        const previousDescription = String(before.description ?? "");
+        if (input.description !== previousDescription) {
+          if (!setProjectDescription(database, projectId, input.description)) {
+            throw new HttpError(404, "Project not found");
+          }
+          changes.push({
+            field: "description",
+            from: previousDescription || null,
+            to: input.description || null,
+          });
+        }
+      }
       if (input.chaptersEnabled !== undefined) {
         const wasEnabled = chaptersEnabled(database, projectId);
         if (wasEnabled !== input.chaptersEnabled) {
@@ -686,9 +706,44 @@ export function createGrimoireServer(options: Options) {
         });
       }
       json(response, 200, {
-        project: { id: projectId, name, chaptersEnabled: chaptersEnabled(database, projectId) },
+        project: {
+          id: projectId,
+          name,
+          description: String(projectById(database, projectId)?.description ?? ""),
+          chaptersEnabled: chaptersEnabled(database, projectId),
+        },
       });
       broadcast(projectId, "work", requestClientId(request));
+      return;
+    }
+
+    // The restore list and the restore itself are owner surfaces, like archiving is. Restoring
+    // only clears `archived_at`: the pages never left the disk, so nothing else moves.
+    if (method === "GET" && url.pathname === "/api/projects/archived") {
+      const user = requireUser(context);
+      if (user.role !== "owner") throw new HttpError(403, "Only the owner can see archived projects");
+      json(response, 200, { projects: listArchivedProjects(database) });
+      return;
+    }
+
+    const projectRestoreMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/restore$/);
+    if (method === "POST" && projectRestoreMatch) {
+      const user = requireUser(context);
+      if (user.role !== "owner") throw new HttpError(403, "Only the owner can restore projects");
+      await readJson(request);
+      const restoredName = projectById(database, projectRestoreMatch[1])?.name;
+      if (!restoreProject(database, projectRestoreMatch[1])) {
+        throw new HttpError(404, "Archived project not found");
+      }
+      audit(context, {
+        projectId: projectRestoreMatch[1],
+        entityType: "project",
+        entityId: projectRestoreMatch[1],
+        entityTitle: String(restoredName ?? "project"),
+        action: "restored",
+      });
+      json(response, 200, { ok: true });
+      broadcast(projectRestoreMatch[1], "work", requestClientId(request));
       return;
     }
 
@@ -1022,7 +1077,9 @@ export function createGrimoireServer(options: Options) {
           entityId: memberMatch[1],
           entityTitle: member.name,
           action: "updated",
-          changes: [{ field: "role", from: member.role, to: input.role }],
+          // The membership row is what this project's log speaks for, so the `from` is the
+          // project role - even though the two are kept in lockstep by the write itself.
+          changes: [{ field: "role", from: member.projectRole, to: input.role }],
         });
       }
       json(response, 200, { members: membersForProject(database, projectId).map(withAvatar) });
