@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from "react";
-import type { Page, Chapter, ProjectCategory } from "../../shared/types";
+import type { Page, Chapter, ProjectCategory, ProjectField } from "../../shared/types";
 import { ApiError } from "../api/client";
 import { Growing } from "./Growing";
 import { dayLabel } from "./chapter-dates";
@@ -27,6 +27,10 @@ type Props = {
   onManageAgents: () => void;
   onManageCategories: () => void;
   onManageChapters: () => void;
+  /** Defining what the project records is restructuring it, so members never see the section. */
+  canManageFields: boolean;
+  fields: ProjectField[];
+  onManageFields: () => void;
 };
 
 /**
@@ -53,6 +57,9 @@ export function ProjectSettingsDialog({
   onManageAgents,
   onManageCategories,
   onManageChapters,
+  canManageFields,
+  fields,
+  onManageFields,
 }: Props) {
   const [name, setName] = useState(project.name);
   const [confirmingArchive, setConfirmingArchive] = useState(false);
@@ -118,6 +125,21 @@ export function ProjectSettingsDialog({
               : `${categories.length} in use · ${categories.slice(0, 4).map((category) => category.name).join(", ")}${categories.length > 4 ? ` +${categories.length - 4}` : ""}`}
           </p>
         </div>
+
+        {canManageFields && (
+          <div className="settings-row">
+            <div className="settings-row-top">
+              <span className="field-label">Page fields</span>
+              {/* Named, because "edit →" alone is what the categories row also says. */}
+              <button aria-label="Edit page fields" className="settings-link" onClick={onManageFields} type="button">edit →</button>
+            </div>
+            <p className="settings-summary">
+              {fields.length === 0
+                ? "Extra properties every page can carry — a priority, an estimate, whatever this project tracks."
+                : `${fields.length} field${fields.length === 1 ? "" : "s"} · ${fields.map((field) => field.label).join(", ")}`}
+            </p>
+          </div>
+        )}
 
         <Growing className="settings-row">
           <div className="settings-row-top">
