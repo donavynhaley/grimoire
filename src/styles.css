@@ -463,7 +463,7 @@ textarea:focus-visible {
 .capture-fields::-webkit-scrollbar { display: none; }
 
 .capture-field,
-.reuse-settings {
+.reset-settings {
   display: inline-flex;
   min-height: 27px;
   padding: 0 9px;
@@ -480,19 +480,17 @@ textarea:focus-visible {
 
 .capture-field > span:first-child { color: var(--muted); font-weight: 900; }
 .capture-field:hover,
-.reuse-settings:hover { color: var(--text); border-color: var(--border-bright); }
+.reset-settings:hover { color: var(--text); border-color: var(--border-bright); }
 .capture-field.active { color: var(--accent); background: var(--accent-soft); border-color: #465f3c; }
 .capture-field[aria-expanded="true"] { color: var(--background); background: var(--accent); border-color: var(--accent); }
 
-.reuse-settings {
-  max-width: 260px;
+.reset-settings {
   padding-right: 10px;
   background: transparent;
   border-style: dashed;
 }
 
-.reuse-settings > span { color: var(--accent); font-weight: 800; white-space: nowrap; }
-.reuse-settings small { overflow: hidden; color: var(--faint); font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
+.reset-settings > span { color: var(--accent); font-weight: 800; white-space: nowrap; }
 
 .capture-picker {
   position: absolute;
@@ -2162,8 +2160,6 @@ textarea:hover { border-color: var(--border-bright); }
   .board-intro > div { display: none; }
   .workspace-capture { width: 100%; }
   .capture-picker { right: 0; width: 100%; }
-  .reuse-settings { max-width: 118px; }
-  .reuse-settings small { display: none; }
   .work-filters { margin-top: 0; }
   .page-search { width: 100%; order: -1; }
   .kanban { gap: 9px; }

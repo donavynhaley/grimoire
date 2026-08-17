@@ -52,7 +52,6 @@ export function QuickCapture({ busy, categories, chapters, members, onCreate }: 
   const [settings, setSettings] = useState<CaptureSettings>(DEFAULT_SETTINGS);
   const [picker, setPicker] = useState<PickerState | null>(null);
   const [highlighted, setHighlighted] = useState(0);
-  const [recent, setRecent] = useState<CaptureSettings | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const options = useMemo(
     () => pickerOptions(picker?.kind ?? null, categories, chapters, members),
@@ -72,12 +71,6 @@ export function QuickCapture({ busy, categories, chapters, members, onCreate }: 
   useEffect(() => {
     setHighlighted(0);
   }, [picker?.kind, picker?.query]);
-
-  useEffect(() => {
-    if (!recent) return;
-    const timeout = window.setTimeout(() => setRecent(null), 12_000);
-    return () => window.clearTimeout(timeout);
-  }, [recent]);
 
   const changeTitle = (event: ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
@@ -138,27 +131,24 @@ export function QuickCapture({ busy, categories, chapters, members, onCreate }: 
     if (!cleanTitle || picker) return;
     const submitted = settings;
     setTitle("");
-    setSettings(DEFAULT_SETTINGS);
-    if (hasCustomSettings(submitted)) setRecent(submitted);
+    // Settings carry over to the next page on purpose: runs of similar pages
+    // shouldn't need re-picking. "start fresh" below returns to the defaults.
     setPicker(null);
     inputRef.current?.focus();
     await onCreate({ title: cleanTitle, ...submitted });
   };
 
-  const reuseRecent = () => {
-    if (!recent) return;
-    setSettings(recent);
-    setRecent(null);
+  const resetSettings = () => {
+    setSettings(DEFAULT_SETTINGS);
     setPicker(null);
     inputRef.current?.focus();
   };
 
   const showTools = Boolean(title.trim()) || hasCustomSettings(settings);
-  const recentSummary = recent ? settingsSummary(recent, categories, chapters, members) : "";
 
   return (
     <form
-      className={`quick-capture workspace-capture ${showTools || recent ? "expanded" : ""}`}
+      className={`quick-capture workspace-capture ${showTools ? "expanded" : ""}`}
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget)) setPicker(null);
       }}
@@ -182,9 +172,9 @@ export function QuickCapture({ busy, categories, chapters, members, onCreate }: 
       />
       <button className="primary-button" disabled={busy || !title.trim() || Boolean(picker)} type="submit">add page</button>
 
-      {(showTools || recent) && (
+      {showTools && (
         <div className="capture-toolbar">
-          {showTools && <div className="capture-fields">
+          <div className="capture-fields">
             <button
               aria-expanded={picker?.kind === "category"}
               aria-label={categoryLabel ? `Category: ${categoryLabel}` : "Choose category"}
@@ -216,14 +206,14 @@ export function QuickCapture({ busy, categories, chapters, members, onCreate }: 
               onClick={() => openPicker("status")}
               type="button"
             ><span aria-hidden="true">→</span>{statusLabel}</button>
-          </div>}
-          {recent && (
+          </div>
+          {hasCustomSettings(settings) && (
             <button
-              aria-label={`Reuse ${recentSummary} settings`}
-              className="reuse-settings"
-              onClick={reuseRecent}
+              aria-label="Start fresh with default settings"
+              className="reset-settings"
+              onClick={resetSettings}
               type="button"
-            ><span>same settings</span><small>{recentSummary}</small></button>
+            ><span>start fresh</span></button>
           )}
         </div>
       )}
@@ -351,25 +341,6 @@ function hasCustomSettings(settings: CaptureSettings): boolean {
     settings.assigneeId !== null ||
     settings.status !== "backlog"
   );
-}
-
-function settingsSummary(
-  settings: CaptureSettings,
-  categories: ProjectCategory[],
-  chapters: Chapter[],
-  members: Member[],
-): string {
-  const values = [
-    settings.category
-      ? categories.find((category) => category.slug === settings.category)?.name ?? settings.category
-      : null,
-    settings.chapter
-      ? chapters.find((chapter) => chapter.slug === settings.chapter)?.name ?? settings.chapter
-      : null,
-    members.find((member) => member.id === settings.assigneeId)?.name ?? null,
-    settings.status !== "backlog" ? statusLabels[settings.status] : null,
-  ];
-  return values.filter(Boolean).join(", ");
 }
 
 function pickerHeading(kind: PickerKind): string {

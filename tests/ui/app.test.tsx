@@ -238,9 +238,9 @@ describe("Grimoire board", () => {
     );
   });
 
-  it("configures a capture with compact buttons and restores the last settings", async () => {
+  it("keeps the last capture settings for the next page until the user starts fresh", async () => {
     const initial = boardFixture();
-    const created = {
+    const first = {
       ...initial.pages[0],
       id: "00000000-0000-4000-8000-000000000029",
       title: "Build the spell loadout",
@@ -250,16 +250,27 @@ describe("Grimoire board", () => {
       status: "ready" as const,
       position: 0,
     };
-    const updated = { ...initial, pages: [...initial.pages, created] };
+    const second = {
+      ...first,
+      id: "00000000-0000-4000-8000-000000000031",
+      title: "Wire the spellbook tabs",
+      assigneeId: initial.members[0].id,
+      assigneeName: initial.members[0].name,
+      position: 1,
+    };
+    const afterFirst = { ...initial, pages: [...initial.pages, first] };
+    const afterSecond = { ...initial, pages: [...initial.pages, first, second] };
     const fetchMock = authenticatedFetch(initial)
-      .mockImplementationOnce(() => response({ page: created }, 201))
-      .mockImplementationOnce(() => response(updated));
+      .mockImplementationOnce(() => response({ page: first }, 201))
+      .mockImplementationOnce(() => response(afterFirst))
+      .mockImplementationOnce(() => response({ page: second }, 201))
+      .mockImplementationOnce(() => response(afterSecond));
     stubFetch(fetchMock);
 
     render(<App />);
     const input = await screen.findByLabelText("Capture work page");
     expect(screen.queryByRole("button", { name: "Choose category" })).not.toBeInTheDocument();
-    await userEvent.type(input, created.title);
+    await userEvent.type(input, first.title);
 
     await userEvent.click(screen.getByRole("button", { name: "Choose category" }));
     await userEvent.click(screen.getByRole("option", { name: "Code" }));
@@ -271,13 +282,15 @@ describe("Grimoire board", () => {
 
     await waitFor(() => expect(input).toHaveValue(""));
     expect(input).toHaveFocus();
-    expect(screen.getByRole("button", { name: /reuse code, maren, up next/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Category: Code" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Assignee: Maren" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Column: Up Next" })).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/pages",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
-          title: created.title,
+          title: first.title,
           category: "code",
           chapter: null,
           assigneeId: initial.members[1].id,
@@ -286,11 +299,30 @@ describe("Grimoire board", () => {
       }),
     );
 
-    await userEvent.type(input, "Wire the spellbook tabs");
-    await userEvent.click(screen.getByRole("button", { name: /reuse code, maren, up next/i }));
-    expect(screen.getByRole("button", { name: "Category: Code" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Assignee: Maren" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Column: Up Next" })).toBeInTheDocument();
+    await userEvent.type(input, second.title);
+    await userEvent.click(screen.getByRole("button", { name: "Assignee: Maren" }));
+    await userEvent.click(screen.getByRole("option", { name: "Donavyn" }));
+    await userEvent.keyboard("{Enter}");
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/pages",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          title: second.title,
+          category: "code",
+          chapter: null,
+          assigneeId: initial.members[0].id,
+          status: "ready",
+        }),
+      }),
+    ));
+
+    await userEvent.type(input, "Sketch the tavern");
+    await userEvent.click(screen.getByRole("button", { name: "Start fresh with default settings" }));
+    expect(screen.getByRole("button", { name: "Choose category" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Choose assignee" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Choose column" })).toBeInTheDocument();
     expect(input).toHaveFocus();
   });
 
