@@ -115,11 +115,7 @@ describe("MarkdownPageStore", () => {
       .prepare("INSERT INTO users (id, name, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?, ?)")
       .run(userId, "Donavyn", "owner@example.com", "unused", "owner", timestamp);
     database
-      .prepare(
-        `INSERT INTO projects (
-          id, name, slug, pitch, player_fantasy, current_direction, direction_detail, non_goals, created_at, updated_at
-        ) VALUES (?, ?, ?, '', '', '', '', '', ?, ?)`,
-      )
+      .prepare("INSERT INTO projects (id, name, slug, created_at, updated_at) VALUES (?, ?, ?, ?, ?)")
       .run(projectId, "Wizard Simulator", "wizard-simulator", timestamp, timestamp);
     database
       .prepare(

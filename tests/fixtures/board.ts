@@ -5,12 +5,14 @@ export function boardFixture(): BoardWorkspace {
     project: {
       id: "00000000-0000-4000-8000-000000000001",
       name: "Wizard Simulator",
+      description: "",
       chaptersEnabled: false,
     },
     projects: [
       {
         id: "00000000-0000-4000-8000-000000000001",
         name: "Wizard Simulator",
+        description: "",
       },
     ],
     categories: [

@@ -1,6 +1,7 @@
 import type {
   AgentToken,
   AgentTokenScope,
+  ArchivedProject,
   AuditPage,
   AwayState,
   BoardWorkspace,
@@ -84,6 +85,11 @@ export function away(): Promise<AwayState> {
 
 export function agentTokens(): Promise<{ tokens: AgentToken[] }> {
   return request<{ tokens: AgentToken[] }>("/api/agent-tokens");
+}
+
+/** The owner's restore list: every project that has been archived, newest first. */
+export function archivedProjects(): Promise<{ projects: ArchivedProject[] }> {
+  return request<{ projects: ArchivedProject[] }>("/api/projects/archived");
 }
 
 /**

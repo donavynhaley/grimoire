@@ -131,11 +131,7 @@ export function createProject(database: DatabaseSync, ownerId: string, name: str
   database.exec("BEGIN IMMEDIATE");
   try {
     database
-      .prepare(
-        `INSERT INTO projects (
-          id, name, slug, pitch, player_fantasy, current_direction, direction_detail, non_goals, created_at, updated_at
-        ) VALUES (?, ?, ?, '', '', '', '', '', ?, ?)`,
-      )
+      .prepare("INSERT INTO projects (id, name, slug, created_at, updated_at) VALUES (?, ?, ?, ?, ?)")
       .run(projectId, name, projectSlug, now, now);
     database
       .prepare("INSERT INTO project_members (project_id, user_id, role, created_at) VALUES (?, ?, 'owner', ?)")
@@ -187,6 +183,15 @@ function migrate(database: DatabaseSync): void {
   // and a rollback needs no undo step.
   if (!projectColumns.includes("chapters_enabled")) {
     database.exec("ALTER TABLE projects ADD COLUMN chapters_enabled INTEGER NOT NULL DEFAULT 0");
+  }
+  // The design-pillars columns outlived the product shape they belonged to: written as ''
+  // at creation and never read or edited anywhere since the pillars were removed. Dropped
+  // rather than repurposed, so `description` below starts with an honest name and no ghosts.
+  for (const pillar of ["pitch", "player_fantasy", "current_direction", "direction_detail", "non_goals"]) {
+    if (projectColumns.includes(pillar)) database.exec(`ALTER TABLE projects DROP COLUMN ${pillar}`);
+  }
+  if (!projectColumns.includes("description")) {
+    database.exec("ALTER TABLE projects ADD COLUMN description TEXT NOT NULL DEFAULT ''");
   }
 
   // Agent access is additive in both directions: an older build simply never reads these,
@@ -346,11 +351,7 @@ CREATE TABLE IF NOT EXISTS projects (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   slug TEXT NOT NULL UNIQUE,
-  pitch TEXT NOT NULL DEFAULT '',
-  player_fantasy TEXT NOT NULL DEFAULT '',
-  current_direction TEXT NOT NULL DEFAULT '',
-  direction_detail TEXT NOT NULL DEFAULT '',
-  non_goals TEXT NOT NULL DEFAULT '',
+  description TEXT NOT NULL DEFAULT '',
   archived_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL

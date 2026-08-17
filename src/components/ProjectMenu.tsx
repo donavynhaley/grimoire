@@ -23,14 +23,14 @@ type Props = {
  * Configuration used to live here as a wrapping row of bare text links that grew with every
  * project-level feature the product gained. It moved into the settings dialog, which leaves
  * this menu doing the one thing its name promises and the one thing it is used for almost
- * every time it opens.
+ * every time it opens. Settings is offered to every member - the dialog itself decides what
+ * a member may read versus what an owner may change.
  */
 export function ProjectMenu({ project, projects, isOwner, busy, actions, onOpenSettings }: Props) {
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [error, setError] = useState("");
-  const hasMenu = isOwner || projects.length > 1;
 
   const close = () => {
     setOpen(false);
@@ -58,8 +58,6 @@ export function ProjectMenu({ project, projects, isOwner, busy, actions, onOpenS
       setNewName("");
     }, "The project could not be created");
   };
-
-  if (!hasMenu) return <h1>{project.name}</h1>;
 
   return (
     <div
@@ -98,42 +96,41 @@ export function ProjectMenu({ project, projects, isOwner, busy, actions, onOpenS
                 role="menuitem"
                 type="button"
               >
-                {candidate.name}
+                <span className="project-menu-option-name">{candidate.name}</span>
+                {candidate.description && <span className="project-menu-desc">{candidate.description}</span>}
               </button>
             ))}
           </div>
-          {isOwner && (
-            <div className="project-menu-owner">
-              {/* Collapsed behind a reveal, the way every column's "+ add page" already works. */}
-              {creating ? (
-                <form className="project-menu-create" onSubmit={submitNewProject}>
-                  <label className="sr-only" htmlFor="new-project-name">New project name</label>
-                  <input
-                    autoFocus
-                    id="new-project-name"
-                    name="newProjectName"
-                    onChange={(event) => setNewName(event.target.value)}
-                    onKeyDown={(event) => { if (event.key === "Escape") setCreating(false); }}
-                    placeholder="New project name..."
-                    value={newName}
-                  />
-                  <button className="primary-button compact" disabled={busy || !newName.trim()} type="submit">create</button>
-                </form>
-              ) : (
-                <button className="project-menu-entry" onClick={() => setCreating(true)} role="menuitem" type="button">
-                  <span aria-hidden="true" className="project-menu-glyph">+</span>New project
-                </button>
-              )}
-              <button
-                className="project-menu-entry settings"
-                onClick={() => { close(); onOpenSettings(); }}
-                role="menuitem"
-                type="button"
-              >
-                <span aria-hidden="true" className="project-menu-glyph">⚙</span>Project settings
+          <div className="project-menu-owner">
+            {/* Collapsed behind a reveal, the way every column's "+ add page" already works. */}
+            {isOwner && (creating ? (
+              <form className="project-menu-create" onSubmit={submitNewProject}>
+                <label className="sr-only" htmlFor="new-project-name">New project name</label>
+                <input
+                  autoFocus
+                  id="new-project-name"
+                  name="newProjectName"
+                  onChange={(event) => setNewName(event.target.value)}
+                  onKeyDown={(event) => { if (event.key === "Escape") setCreating(false); }}
+                  placeholder="New project name..."
+                  value={newName}
+                />
+                <button className="primary-button compact" disabled={busy || !newName.trim()} type="submit">create</button>
+              </form>
+            ) : (
+              <button className="project-menu-entry" onClick={() => setCreating(true)} role="menuitem" type="button">
+                <span aria-hidden="true" className="project-menu-glyph">+</span>New project
               </button>
-            </div>
-          )}
+            ))}
+            <button
+              className="project-menu-entry settings"
+              onClick={() => { close(); onOpenSettings(); }}
+              role="menuitem"
+              type="button"
+            >
+              <span aria-hidden="true" className="project-menu-glyph">⚙</span>Project settings
+            </button>
+          </div>
           {error && <p className="project-menu-error" role="alert">{error}</p>}
         </div>
       )}

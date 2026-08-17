@@ -158,6 +158,8 @@ textarea:focus-visible {
   left: 50%;
   display: grid;
   min-width: 250px;
+  /* A long project description must truncate, not widen the whole panel. */
+  max-width: min(340px, calc(100vw - 24px));
   padding: 10px;
   gap: 10px;
   background: var(--surface-raised);
@@ -171,10 +173,14 @@ textarea:focus-visible {
 .project-menu-list { display: grid; gap: 2px; }
 
 .project-menu-list button {
-  display: flex;
+  /* The description sits under the name, never beside it: a row layout made the name wrap
+     into a cramped column while the description fought it for the same line. */
+  display: grid;
+  min-width: 0;
   min-height: 30px;
-  padding: 0 10px;
-  align-items: center;
+  padding: 6px 10px;
+  gap: 2px;
+  align-content: center;
   color: var(--text);
   background: transparent;
   border: 0;
@@ -183,6 +189,7 @@ textarea:focus-visible {
   font-size: 11px;
   text-align: left;
 }
+.project-menu-option-name { min-width: 0; }
 
 .project-menu-list button:hover { background: var(--surface-soft); }
 .project-menu-list button.current { color: var(--accent); background: var(--accent-soft); }
@@ -1091,7 +1098,6 @@ textarea:hover { border-color: var(--border-bright); }
 }
 
 .dialog-panel,
-.team-dialog,
 .account-dialog {
   width: min(620px, 100%);
   max-height: min(840px, calc(100vh - 48px));
@@ -1103,7 +1109,6 @@ textarea:hover { border-color: var(--border-bright); }
   box-shadow: 0 24px 80px rgb(0 0 0 / 45%);
 }
 
-.team-dialog,
 .account-dialog { width: min(560px, 100%); }
 .dialog-header { justify-content: space-between; margin-bottom: 22px; }
 .dialog-header > div { display: grid; gap: 6px; }
@@ -2166,7 +2171,6 @@ textarea:hover { border-color: var(--border-bright); }
   .kanban-column { min-height: 0; height: auto; }
   .modal-backdrop { padding: 0; align-items: end; }
   .dialog-panel,
-  .team-dialog,
   .account-dialog,
   .library-dialog { width: 100%; max-height: 94vh; padding: 20px; border-radius: 12px 12px 0 0; }
   .library-dialog { height: 94vh; }
@@ -2502,19 +2506,91 @@ textarea:hover { border-color: var(--border-bright); }
 
 /* Project settings ------------------------------------------------------ */
 
-.settings-dialog { width: min(460px, 100%); }
+.settings-dialog { width: min(720px, 100%); }
 .settings-row { display: grid; padding: 14px 0; gap: 8px; border-top: 1px solid var(--border); }
 .settings-row:first-of-type { padding-top: 0; border-top: 0; }
 .settings-row-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .settings-summary { margin: 0; color: var(--faint); font-size: 10px; }
 .settings-summary em { color: var(--accent); font-style: normal; }
 
+/* One dialog, one rail: every section a click from every other. */
+.settings-layout { display: flex; gap: 20px; align-items: flex-start; min-height: 320px; }
+.settings-rail { display: flex; flex: 0 0 128px; flex-direction: column; gap: 2px; }
+.settings-rail button {
+  padding: 7px 9px;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+}
+.settings-rail button:hover { color: var(--text); background: var(--surface-soft); }
+.settings-rail button[aria-current="true"] { color: var(--text); background: var(--surface-raised); }
+.settings-rail button.danger { color: var(--red); }
+.settings-rail button.danger:hover { color: var(--red); }
+.settings-content { flex: 1; min-width: 0; }
+.settings-section { display: grid; gap: 10px; }
+.settings-section textarea {
+  padding: 8px 9px;
+  color: var(--text);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 11px;
+  resize: vertical;
+}
+.settings-section textarea:focus { border-color: var(--border-bright); outline: none; }
+.settings-readonly-value { margin: 0; font-size: 12px; }
+.settings-readonly-list { display: grid; margin: 0; padding: 0; gap: 8px; list-style: none; }
+.settings-readonly-list li { display: flex; align-items: center; gap: 8px; font-size: 11px; flex-wrap: wrap; }
+.reorder-buttons { display: inline-flex; gap: 2px; }
+
+/* The dialog's one outcome strip: refusals and the quiet proof an edit landed. */
+.settings-feedback { margin-top: 12px; }
+.saved-note { color: var(--accent); font-size: 10px; }
+
+.chapters-gate { border-top: 0; padding-top: 0; }
+.chapters-standing { padding-bottom: 4px; }
+.chapter-row-intent { display: grid; }
+.chapter-row-intent textarea { width: 100%; box-sizing: border-box; }
+.role-reach-note { padding-top: 2px; }
+
+.archived-project-list { display: grid; margin: 0; padding: 0; gap: 6px; list-style: none; }
+.archived-project-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+}
+
+.project-menu-desc {
+  display: block;
+  overflow: hidden;
+  min-width: 0;
+  max-width: 100%;
+  color: var(--faint);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The rail folds into a scrollable strip where a column of it would crowd the section out. */
+@media (max-width: 640px) {
+  .settings-layout { flex-direction: column; gap: 14px; }
+  .settings-rail { flex: none; width: 100%; flex-direction: row; overflow-x: auto; padding-bottom: 4px; }
+  .settings-rail button { white-space: nowrap; }
+}
+
 /* ---------- agent access ---------- */
 
 /* Beside every actor name a machine wrote for: quiet, but never absent. */
 .via-agent { color: var(--muted); font-size: 0.92em; }
 
-.agent-dialog { width: min(520px, 100%); }
 .agent-intro { margin-bottom: 14px; line-height: 1.6; }
 .agent-create { margin-bottom: 14px; }
 .agent-create select {

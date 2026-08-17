@@ -82,9 +82,9 @@ function mountWith({ tokens = [], board = boardFixture(), activity = [], away }:
 async function openAgentAccess(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByRole("button", { name: /Wizard Simulator/ }));
   await user.click(screen.getByRole("menuitem", { name: /Project settings/ }));
-  const settings = await screen.findByRole("dialog", { name: "Wizard Simulator" });
-  await user.click(within(settings).getByRole("button", { name: /manage/ , hidden: false }));
-  return screen.findByRole("dialog", { name: "Agent access" });
+  const settings = await screen.findByRole("dialog", { name: "Project settings" });
+  await user.click(within(settings).getByRole("button", { name: "Agent access" }));
+  return settings;
 }
 
 describe("agent access", () => {
@@ -92,25 +92,15 @@ describe("agent access", () => {
     const user = userEvent.setup();
     mountWith();
 
-    await user.click(await screen.findByRole("button", { name: /Wizard Simulator/ }));
-    await user.click(screen.getByRole("menuitem", { name: /Project settings/ }));
-
-    const settings = await screen.findByRole("dialog", { name: "Wizard Simulator" });
-    expect(within(settings).getByText("Agent access")).toBeInTheDocument();
-    expect(within(settings).getByText(/can never archive or promote/)).toBeInTheDocument();
+    const settings = await openAgentAccess(user);
+    expect(within(settings).getByText(/can never archive, promote/)).toBeInTheDocument();
   });
 
   it("shows a newly issued secret once, and says it will not be shown again", async () => {
     const user = userEvent.setup();
     mountWith();
 
-    await user.click(await screen.findByRole("button", { name: /Wizard Simulator/ }));
-    await user.click(screen.getByRole("menuitem", { name: /Project settings/ }));
-    const settings = await screen.findByRole("dialog", { name: "Wizard Simulator" });
-    const [manage] = within(settings).getAllByRole("button", { name: /manage/ });
-    await user.click(manage);
-
-    const dialog = await screen.findByRole("dialog", { name: "Agent access" });
+    const dialog = await openAgentAccess(user);
     await user.type(within(dialog).getByLabelText("Agent name"), "Planning agent");
     await user.click(within(dialog).getByRole("button", { name: "issue" }));
 
@@ -122,13 +112,7 @@ describe("agent access", () => {
     const user = userEvent.setup();
     mountWith({ tokens: [token({ lastUsedAt: null })] });
 
-    await user.click(await screen.findByRole("button", { name: /Wizard Simulator/ }));
-    await user.click(screen.getByRole("menuitem", { name: /Project settings/ }));
-    const settings = await screen.findByRole("dialog", { name: "Wizard Simulator" });
-    const [manage] = within(settings).getAllByRole("button", { name: /manage/ });
-    await user.click(manage);
-
-    const dialog = await screen.findByRole("dialog", { name: "Agent access" });
+    const dialog = await openAgentAccess(user);
     expect(await within(dialog).findByText("Planning agent")).toBeInTheDocument();
     expect(within(dialog).getByText(/acts as Donavyn/)).toBeInTheDocument();
     expect(within(dialog).getByText(/never used/)).toBeInTheDocument();
@@ -138,13 +122,7 @@ describe("agent access", () => {
     const user = userEvent.setup();
     const calls = mountWith({ tokens: [token()] });
 
-    await user.click(await screen.findByRole("button", { name: /Wizard Simulator/ }));
-    await user.click(screen.getByRole("menuitem", { name: /Project settings/ }));
-    const settings = await screen.findByRole("dialog", { name: "Wizard Simulator" });
-    const [manage] = within(settings).getAllByRole("button", { name: /manage/ });
-    await user.click(manage);
-
-    const dialog = await screen.findByRole("dialog", { name: "Agent access" });
+    const dialog = await openAgentAccess(user);
     await within(dialog).findByText("Planning agent");
     await user.click(within(dialog).getByRole("button", { name: "revoke" }));
 
@@ -156,26 +134,28 @@ describe("agent access", () => {
     expect(await within(dialog).findByText(/still says which agent wrote it/)).toBeInTheDocument();
   });
 
-  it("is unreachable for a member, who never gets project settings at all", async () => {
+  it("is absent for a member, whose settings read the project without reshaping it", async () => {
     const user = userEvent.setup();
     const board = boardFixture();
     mountWith({
       board: {
         ...board,
         currentUser: { ...board.currentUser, role: "member" },
-        // A second project so the switcher renders for a member at all; with one project
-        // there is no menu to open.
-        projects: [...board.projects, { id: "project-2", name: "Second project" }],
+        members: board.members.map((member) =>
+          member.id === board.currentUser.id ? { ...member, role: "member" as const, projectRole: "member" as const } : member,
+        ),
       },
     });
 
+    // A member gets the settings surface now - reading what the project is shaped like is
+    // not reshaping it - but issuing a credential stays the owner's decision.
     await user.click(await screen.findByRole("button", { name: /Wizard Simulator/ }));
-    const menu = screen.getByRole("menu", { name: "Projects" });
+    await user.click(screen.getByRole("menuitem", { name: /Project settings/ }));
+    const settings = await screen.findByRole("dialog", { name: "Project settings" });
 
-    // Issuing a credential is the owner's decision, and the whole settings surface that
-    // would lead there is owner-only, so there is nothing for a member to reach.
-    expect(within(menu).queryByRole("menuitem", { name: /Project settings/ })).toBeNull();
-    expect(screen.queryByText("Agent access")).toBeNull();
+    expect(within(settings).getByRole("button", { name: "Team" })).toBeInTheDocument();
+    expect(within(settings).queryByRole("button", { name: "Agent access" })).toBeNull();
+    expect(within(settings).queryByRole("button", { name: "Danger zone" })).toBeNull();
   });
   it("names the agent beside the person in the activity log", async () => {
     const user = userEvent.setup();
@@ -240,13 +220,7 @@ describe("agent access", () => {
       tokens: [token({ id: "expired-1", name: "Old agent", expiresAt: "2020-01-01T00:00:00.000Z" })],
     });
 
-    await user.click(await screen.findByRole("button", { name: /Wizard Simulator/ }));
-    await user.click(screen.getByRole("menuitem", { name: /Project settings/ }));
-    const settings = await screen.findByRole("dialog", { name: "Wizard Simulator" });
-    const [manage] = within(settings).getAllByRole("button", { name: /manage/ });
-    await user.click(manage);
-
-    const dialog = await screen.findByRole("dialog", { name: "Agent access" });
+    const dialog = await openAgentAccess(user);
     // The server refuses it exactly like a revoked one, so listing it live would offer a
     // revoke button on a thing that already stopped.
     expect(await within(dialog).findByText(/No agent has access/)).toBeInTheDocument();
@@ -254,15 +228,24 @@ describe("agent access", () => {
     expect(within(dialog).queryByRole("button", { name: "revoke" })).toBeNull();
   });
 
-  it("shows a true agent count the first time settings opens", async () => {
+  it("says when the agent list could not be loaded instead of claiming nobody has access", async () => {
     const user = userEvent.setup();
-    mountWith({ tokens: [token()] });
+    const board = boardFixture();
+    vi.stubGlobal("fetch", (input: RequestInfo | URL, init: RequestInit = {}) => {
+      const url = requestUrl(input);
+      if (url.startsWith("/api/agent-tokens")) return response({ error: "boom" }, 500);
+      if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
+      if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
+      if (url.startsWith("/api/seen")) return response({ ok: true });
+      if (url.startsWith("/api/session")) return response({ status: "authenticated", user: board.currentUser });
+      return response(board);
+    });
+    render(<App />);
 
-    await user.click(await screen.findByRole("button", { name: /Wizard Simulator/ }));
-    await user.click(screen.getByRole("menuitem", { name: /Project settings/ }));
-
-    const settings = await screen.findByRole("dialog", { name: "Wizard Simulator" });
-    // Fetched when settings opens, not only after the agent dialog has been visited once.
-    expect(await within(settings).findByText(/1 agent with access/)).toBeInTheDocument();
+    const dialog = await openAgentAccess(user);
+    // A failed fetch used to read as an authoritative "0 agents". The failure is now named.
+    expect(await within(dialog).findByText(/could not be loaded/)).toBeInTheDocument();
+    expect(within(dialog).queryByText(/No agent has access/)).toBeNull();
+    expect(within(dialog).getByRole("button", { name: "retry" })).toBeInTheDocument();
   });
 });

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import {
   PAGE_STATUSES,
+  type ArchivedProject,
   type BoardWorkspace,
   type Page,
   type PageCategory,
@@ -126,22 +127,33 @@ export function userCanAccessProject(database: DatabaseSync, user: User, project
 export function listProjectsForUser(database: DatabaseSync, user: User): ProjectSummary[] {
   const values =
     user.role === "owner"
-      ? rows(database, "SELECT id, name FROM projects WHERE archived_at IS NULL ORDER BY created_at")
+      ? rows(database, "SELECT id, name, description FROM projects WHERE archived_at IS NULL ORDER BY created_at")
       : rows(
         database,
-        `SELECT projects.id, projects.name FROM project_members
+        `SELECT projects.id, projects.name, projects.description FROM project_members
          JOIN projects ON projects.id = project_members.project_id
          WHERE project_members.user_id = ? AND projects.archived_at IS NULL
          ORDER BY project_members.created_at`,
         user.id,
       );
-  return values.map((value) => ({ id: String(value.id), name: String(value.name) }));
+  return values.map((value) => ({
+    id: String(value.id),
+    name: String(value.name),
+    description: String(value.description ?? ""),
+  }));
 }
 
 export function renameProject(database: DatabaseSync, projectId: string, name: string): boolean {
   const result = database
     .prepare("UPDATE projects SET name = ?, updated_at = ? WHERE id = ? AND archived_at IS NULL")
     .run(name, new Date().toISOString(), projectId);
+  return Number(result.changes) === 1;
+}
+
+export function setProjectDescription(database: DatabaseSync, projectId: string, description: string): boolean {
+  const result = database
+    .prepare("UPDATE projects SET description = ?, updated_at = ? WHERE id = ? AND archived_at IS NULL")
+    .run(description, new Date().toISOString(), projectId);
   return Number(result.changes) === 1;
 }
 
@@ -155,6 +167,26 @@ export function archiveProject(database: DatabaseSync, projectId: string): Archi
     .prepare("UPDATE projects SET archived_at = ?, updated_at = ? WHERE id = ?")
     .run(new Date().toISOString(), new Date().toISOString(), projectId);
   return "archived";
+}
+
+/** Archiving was a one-way door until this list existed; it feeds the owner's restore surface. */
+export function listArchivedProjects(database: DatabaseSync): ArchivedProject[] {
+  return rows(
+    database,
+    "SELECT id, name, archived_at FROM projects WHERE archived_at IS NOT NULL ORDER BY archived_at DESC",
+  ).map((value) => ({
+    id: String(value.id),
+    name: String(value.name),
+    archivedAt: String(value.archived_at),
+  }));
+}
+
+/** Clears `archived_at`, which is all archiving ever set - the files never left the disk. */
+export function restoreProject(database: DatabaseSync, projectId: string): boolean {
+  const result = database
+    .prepare("UPDATE projects SET archived_at = NULL, updated_at = ? WHERE id = ? AND archived_at IS NOT NULL")
+    .run(new Date().toISOString(), projectId);
+  return Number(result.changes) === 1;
 }
 
 export function categoriesForProject(database: DatabaseSync, projectId: string): ProjectCategory[] {
@@ -202,7 +234,7 @@ export function updateCategory(
   database: DatabaseSync,
   projectId: string,
   slug: string,
-  input: { name?: string; color?: string },
+  input: { name?: string; color?: string; position?: number },
 ): ProjectCategory | null {
   const current = row(
     database,
@@ -213,10 +245,11 @@ export function updateCategory(
   if (!current) return null;
   const name = input.name ?? String(current.name);
   const color = input.color ?? String(current.color);
+  const position = input.position ?? Number(current.position);
   database
-    .prepare("UPDATE categories SET name = ?, color = ? WHERE project_id = ? AND slug = ?")
-    .run(name, color, projectId, slug);
-  return { slug, name, color, position: Number(current.position) };
+    .prepare("UPDATE categories SET name = ?, color = ?, position = ? WHERE project_id = ? AND slug = ?")
+    .run(name, color, position, projectId, slug);
+  return { slug, name, color, position };
 }
 
 export function deleteCategory(
@@ -613,7 +646,7 @@ export function getBoard(
 ): BoardWorkspace | null {
   const project = row(
     database,
-    "SELECT id, name, slug, chapters_enabled FROM projects WHERE id = ?",
+    "SELECT id, name, slug, description, chapters_enabled FROM projects WHERE id = ?",
     projectId,
   );
   if (!project) return null;
@@ -624,7 +657,12 @@ export function getBoard(
   const enabled = Number(project.chapters_enabled ?? 0) === 1;
 
   return {
-    project: { id: String(project.id), name: String(project.name), chaptersEnabled: enabled },
+    project: {
+      id: String(project.id),
+      name: String(project.name),
+      description: String(project.description ?? ""),
+      chaptersEnabled: enabled,
+    },
     projects: listProjectsForUser(database, user),
     categories: categoriesForProject(database, projectId),
     fields: fieldsForProject(database, projectId),
@@ -859,7 +897,7 @@ export function restorePage(
 }
 
 export function projectById(database: DatabaseSync, projectId: string): Row | undefined {
-  return row(database, "SELECT id, name, slug FROM projects WHERE id = ?", projectId);
+  return row(database, "SELECT id, name, slug, description FROM projects WHERE id = ?", projectId);
 }
 
 export function membersForProject(database: DatabaseSync, projectId: string): Member[] {

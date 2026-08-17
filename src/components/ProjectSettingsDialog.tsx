@@ -1,87 +1,107 @@
-import { type FormEvent, useState } from "react";
-import type { Page, Chapter, ProjectCategory, ProjectField } from "../../shared/types";
-import { ApiError } from "../api/client";
+import { useEffect, useState } from "react";
+import type { ArchivedProject, Page, Chapter, Member, ProjectCategory, ProjectField, User, UserRole } from "../../shared/types";
+import { archivedProjects } from "../api/client";
 import { Growing } from "./Growing";
-import { dayLabel } from "./chapter-dates";
+import { CategoriesSection, type CategoryActions } from "./CategoriesSection";
+import { ChaptersSection, type ChapterActions } from "./ChaptersSection";
+import { FieldsSection, type FieldActions } from "./FieldsSection";
+import { AgentAccessSection } from "./AgentAccessSection";
+import { TeamSection } from "./TeamSection";
 import { useDialogEscape } from "./use-dialog-escape";
+import { type SettingsRun, useSettingsAction } from "./use-settings-action";
+
+export const SETTINGS_SECTIONS = ["general", "categories", "fields", "chapters", "team", "agents", "danger"] as const;
+export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
+
+/** The sections a member can read. Agent credentials and archiving stay owner-only. */
+const MEMBER_SECTIONS: readonly SettingsSection[] = ["general", "categories", "fields", "chapters", "team"];
+
+export function settingsSectionsFor(isOwner: boolean): readonly SettingsSection[] {
+  return isOwner ? SETTINGS_SECTIONS : MEMBER_SECTIONS;
+}
+
+const SECTION_LABELS: Record<SettingsSection, string> = {
+  general: "General",
+  categories: "Categories",
+  fields: "Page fields",
+  chapters: "Chapters",
+  team: "Team",
+  agents: "Agent access",
+  danger: "Danger zone",
+};
 
 export type ProjectSettingsActions = {
   rename: (name: string) => Promise<void>;
+  setDescription: (description: string) => Promise<void>;
   setChaptersEnabled: (enabled: boolean) => Promise<void>;
   archive: () => Promise<void>;
+  restore: (id: string) => Promise<void>;
 };
 
 type Props = {
   actions: ProjectSettingsActions;
   busy: boolean;
   canArchive: boolean;
-  /** Issuing a credential is the owner's decision, so members never see the section. */
-  canManageAgents: boolean;
-  agentCount: number;
+  /** Owners get every section; members get a read of the project's shape and its team. */
+  isOwner: boolean;
+  currentUser: User;
+  members: Member[];
+  online: ReadonlySet<string>;
   pages: Page[];
   categories: ProjectCategory[];
   chapters: Chapter[];
   chaptersEnabled: boolean;
-  project: { id: string; name: string };
-  onClose: () => void;
-  onManageAgents: () => void;
-  onManageCategories: () => void;
-  onManageChapters: () => void;
-  /** Defining what the project records is restructuring it, so members never see the section. */
-  canManageFields: boolean;
   fields: ProjectField[];
-  onManageFields: () => void;
+  project: { id: string; name: string; description: string };
+  section: SettingsSection;
+  categoryActions: CategoryActions;
+  chapterActions: ChapterActions;
+  fieldActions: FieldActions;
+  onCreateInvite: () => Promise<string>;
+  onChangeMemberRole: (id: string, role: UserRole) => Promise<void>;
+  onRemoveMember: (id: string) => Promise<void>;
+  onSetPageChapter: (id: string, chapter: string | null) => Promise<void>;
+  onSectionChange: (section: SettingsSection) => void;
+  onClose: () => void;
 };
 
 /**
- * One place for everything that configures a project.
+ * The one place a project is configured, as one dialog with a section rail.
  *
- * The project dropdown used to carry these as a wrapping row of bare text links, which grew
- * by one every time the product gained a project-level idea. Here each concern is a section
- * with a live summary, so the next one adds a section rather than another link - and a
- * genuine on/off state like the chapters gate has somewhere honest to sit, instead of
- * masquerading as a verb.
+ * These sections used to be five separate modals launched from a summary screen, plus a Team
+ * dialog on its own header button - seven doors into one feature, each with its own close
+ * behaviour. Here the rail is the whole map: every section is one click from every other,
+ * closing means closing settings, and the address bar carries `?settings=<section>` so a
+ * reload or a shared link lands exactly where the reader was.
  */
 export function ProjectSettingsDialog({
   actions,
   busy,
   canArchive,
-  canManageAgents,
-  agentCount,
+  isOwner,
+  currentUser,
+  members,
+  online,
   pages,
   categories,
   chapters,
   chaptersEnabled,
-  project,
-  onClose,
-  onManageAgents,
-  onManageCategories,
-  onManageChapters,
-  canManageFields,
   fields,
-  onManageFields,
+  project,
+  section,
+  categoryActions,
+  chapterActions,
+  fieldActions,
+  onCreateInvite,
+  onChangeMemberRole,
+  onRemoveMember,
+  onSetPageChapter,
+  onSectionChange,
+  onClose,
 }: Props) {
-  const [name, setName] = useState(project.name);
-  const [confirmingArchive, setConfirmingArchive] = useState(false);
-  const [error, setError] = useState("");
-  const current = chapters.find((chapter) => chapter.state === "open");
-  const placed = pages.filter((page) => page.chapter !== null).length;
-
-  const run = async (change: () => Promise<void>, failure: string) => {
-    setError("");
-    try {
-      await change();
-    } catch (value) {
-      setError(value instanceof ApiError ? value.message : failure);
-    }
-  };
-
-  const submitRename = (event: FormEvent) => {
-    event.preventDefault();
-    const next = name.trim();
-    if (!next || next === project.name) return;
-    void run(() => actions.rename(next), "The project could not be renamed");
-  };
+  const sections = settingsSectionsFor(isOwner);
+  const active = sections.includes(section) ? section : "general";
+  const { error, saved, run } = useSettingsAction();
 
   useDialogEscape(onClose);
 
@@ -90,139 +110,251 @@ export function ProjectSettingsDialog({
       <section aria-labelledby="project-settings-title" aria-modal="true" className="dialog-panel settings-dialog" role="dialog">
         <header className="dialog-header">
           <div>
-            <p className="eyebrow">project settings</p>
-            <h2 id="project-settings-title">{project.name}</h2>
+            <p className="eyebrow">{project.name}</p>
+            <h2 id="project-settings-title">Project settings</h2>
           </div>
           <button aria-label="Close project settings" className="icon-button" onClick={onClose} type="button">×</button>
         </header>
 
-        <form className="settings-row" onSubmit={submitRename}>
-          <span className="field-label">Name</span>
-          <div className="settings-input">
-            <label className="sr-only" htmlFor="settings-project-name">Project name</label>
-            <input
-              id="settings-project-name"
-              name="projectName"
-              onChange={(event) => setName(event.target.value)}
-              value={name}
-            />
-            <button
-              className="primary-button compact"
-              disabled={busy || !name.trim() || name.trim() === project.name}
-              type="submit"
-            >save</button>
-          </div>
-        </form>
+        <div className="settings-layout">
+          <nav aria-label="Settings sections" className="settings-rail">
+            {sections.map((candidate) => (
+              <button
+                aria-current={candidate === active ? "true" : undefined}
+                className={candidate === "danger" ? "danger" : ""}
+                key={candidate}
+                onClick={() => onSectionChange(candidate)}
+                type="button"
+              >
+                {SECTION_LABELS[candidate]}
+              </button>
+            ))}
+          </nav>
 
-        <div className="settings-row">
-          <div className="settings-row-top">
-            <span className="field-label">Categories</span>
-            <button className="settings-link" onClick={onManageCategories} type="button">edit →</button>
-          </div>
-          <p className="settings-summary">
-            {categories.length === 0
-              ? "None yet"
-              : `${categories.length} in use · ${categories.slice(0, 4).map((category) => category.name).join(", ")}${categories.length > 4 ? ` +${categories.length - 4}` : ""}`}
-          </p>
+          <Growing className="settings-content">
+            {active === "general" && (
+              <GeneralSection
+                busy={busy}
+                canManage={isOwner}
+                onRename={actions.rename}
+                onSetDescription={actions.setDescription}
+                project={project}
+                run={run}
+              />
+            )}
+            {active === "categories" && (
+              <CategoriesSection actions={categoryActions} busy={busy} canManage={isOwner} categories={categories} run={run} />
+            )}
+            {active === "fields" && (
+              <FieldsSection actions={fieldActions} busy={busy} canManage={isOwner} fields={fields} run={run} />
+            )}
+            {active === "chapters" && (
+              <ChaptersSection
+                actions={chapterActions}
+                busy={busy}
+                canManage={isOwner}
+                chapters={chapters}
+                chaptersEnabled={chaptersEnabled}
+                onSetChaptersEnabled={actions.setChaptersEnabled}
+                onSetPageChapter={onSetPageChapter}
+                pages={pages}
+                run={run}
+              />
+            )}
+            {active === "team" && (
+              <TeamSection
+                busy={busy}
+                currentUser={currentUser}
+                members={members}
+                onChangeMemberRole={onChangeMemberRole}
+                onCreateInvite={onCreateInvite}
+                onRemoveMember={onRemoveMember}
+                online={online}
+                run={run}
+              />
+            )}
+            {active === "agents" && isOwner && <AgentAccessSection run={run} />}
+            {active === "danger" && isOwner && (
+              <DangerSection
+                busy={busy}
+                canArchive={canArchive}
+                onArchive={actions.archive}
+                onRestore={actions.restore}
+                projectName={project.name}
+                run={run}
+              />
+            )}
+          </Growing>
         </div>
 
-        {canManageFields && (
-          <div className="settings-row">
-            <div className="settings-row-top">
-              <span className="field-label">Page fields</span>
-              {/* Named, because "edit →" alone is what the categories row also says. */}
-              <button aria-label="Edit page fields" className="settings-link" onClick={onManageFields} type="button">edit →</button>
-            </div>
-            <p className="settings-summary">
-              {fields.length === 0
-                ? "Extra properties every page can carry — a priority, an estimate, whatever this project tracks."
-                : `${fields.length} field${fields.length === 1 ? "" : "s"} · ${fields.map((field) => field.label).join(", ")}`}
-            </p>
-          </div>
-        )}
-
-        <Growing className="settings-row">
-          <div className="settings-row-top">
-            <span className="field-label">Chapters</span>
-            <label className="settings-toggle">
-              <input
-                aria-label="Chapters"
-                checked={chaptersEnabled}
-                disabled={busy}
-                name="chaptersEnabled"
-                onChange={(event) => void run(
-                  () => actions.setChaptersEnabled(event.target.checked),
-                  "The chapters setting could not be changed",
-                )}
-                type="checkbox"
-              />
-              <span aria-hidden="true" className="settings-knob" />
-              <span className="settings-toggle-label">{chaptersEnabled ? "on" : "off"}</span>
-            </label>
-          </div>
-          <p className="settings-summary">
-            {!chaptersEnabled
-              ? "Group pages into named stretches of work. No points, no rollover."
-              : current
-                ? `Open: ${current.name}${current.startsOn && current.endsOn ? ` · ${dayLabel(current.startsOn)} → ${dayLabel(current.endsOn)}` : current.endsOn ? ` · ends ${dayLabel(current.endsOn)}` : ""}`
-                : "No chapter open right now."}
-          </p>
-          {chaptersEnabled && (
-            <div className="settings-row-top">
-              <p className="settings-summary">
-                {chapters.length} chapter{chapters.length === 1 ? "" : "s"} · {placed} page{placed === 1 ? "" : "s"} placed
-              </p>
-              <button className="settings-link" onClick={onManageChapters} type="button">manage →</button>
-            </div>
-          )}
+        <Growing className="settings-feedback">
+          {error && <div className="error-banner" role="alert">{error}</div>}
+          {saved && !error && <div className="saved-note" role="status">saved</div>}
         </Growing>
+      </section>
+    </div>
+  );
+}
 
-        {canManageAgents && (
-          <div className="settings-row">
-            <div className="settings-row-top">
-              <span className="field-label">Agent access</span>
-              <button className="settings-link" onClick={onManageAgents} type="button">manage →</button>
-            </div>
-            <p className="settings-summary">
-              {agentCount === 0
-                ? "Let an agent write pages here. It acts as you, and can never archive or promote."
-                : `${agentCount} agent${agentCount === 1 ? "" : "s"} with access · each acts as the person who issued it`}
-            </p>
-          </div>
-        )}
+type GeneralProps = {
+  busy: boolean;
+  canManage: boolean;
+  project: { id: string; name: string; description: string };
+  onRename: (name: string) => Promise<void>;
+  onSetDescription: (description: string) => Promise<void>;
+  run: SettingsRun;
+};
 
-        <Growing className="settings-row danger">
-          <span className="field-label danger-label">Danger zone</span>
-          <div className="settings-row-top">
-            <p className="settings-summary">
-              {canArchive
-                ? "Archiving hides this project for everyone. Its files stay on disk."
-                : "The last project cannot be archived."}
-            </p>
-            {confirmingArchive ? (
-              <span className="archive-confirm">
-                <span>archive {project.name}?</span>
-                <button
-                  className="danger-text"
-                  disabled={busy}
-                  onClick={() => void run(() => actions.archive(), "The project could not be archived")}
-                  type="button"
-                >yes</button>
-                <button onClick={() => setConfirmingArchive(false)} type="button">no</button>
-              </span>
-            ) : (
+function GeneralSection({ busy, canManage, project, onRename, onSetDescription, run }: GeneralProps) {
+  const [name, setName] = useState(project.name);
+  const [description, setDescription] = useState(project.description);
+
+  const saveName = () => {
+    const next = name.trim();
+    if (!next) {
+      setName(project.name);
+      return;
+    }
+    if (next === project.name) return;
+    void run(() => onRename(next), "The project could not be renamed");
+  };
+
+  const saveDescription = () => {
+    const next = description.trim();
+    if (next === project.description) return;
+    void run(() => onSetDescription(next), "The description could not be saved");
+  };
+
+  if (!canManage) {
+    return (
+      <div className="settings-section">
+        <div className="settings-row">
+          <span className="field-label">Name</span>
+          <p className="settings-readonly-value">{project.name}</p>
+        </div>
+        <div className="settings-row">
+          <span className="field-label">Description</span>
+          <p className="settings-readonly-value">{project.description || "No description yet."}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="settings-section">
+      <div className="settings-row">
+        <label className="field-label" htmlFor="settings-project-name">Name</label>
+        <div className="settings-input">
+          <input
+            disabled={busy}
+            id="settings-project-name"
+            name="projectName"
+            onBlur={saveName}
+            onChange={(event) => setName(event.target.value)}
+            onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); saveName(); } }}
+            value={name}
+          />
+        </div>
+      </div>
+      <div className="settings-row">
+        <label className="field-label" htmlFor="settings-project-description">Description</label>
+        <textarea
+          disabled={busy}
+          id="settings-project-description"
+          name="projectDescription"
+          onBlur={saveDescription}
+          onChange={(event) => setDescription(event.target.value)}
+          placeholder="One sentence saying what this project is. It shows in the project switcher."
+          rows={2}
+          value={description}
+        />
+      </div>
+    </div>
+  );
+}
+
+type DangerProps = {
+  busy: boolean;
+  canArchive: boolean;
+  projectName: string;
+  onArchive: () => Promise<void>;
+  onRestore: (id: string) => Promise<void>;
+  run: SettingsRun;
+};
+
+function DangerSection({ busy, canArchive, projectName, onArchive, onRestore, run }: DangerProps) {
+  const [confirmingArchive, setConfirmingArchive] = useState(false);
+  const [archived, setArchived] = useState<ArchivedProject[] | null>(null);
+  const [listFailed, setListFailed] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    archivedProjects()
+      .then((value) => { if (alive) setArchived(value.projects); })
+      .catch(() => { if (alive) setListFailed(true); });
+    return () => { alive = false; };
+  }, []);
+
+  return (
+    <div className="settings-section">
+      <Growing className="settings-row danger">
+        <span className="field-label danger-label">Archive this project</span>
+        <div className="settings-row-top">
+          <p className="settings-summary">
+            {canArchive
+              ? "Archiving hides this project for everyone. Its files stay on disk, and it can be restored from the list below."
+              : "The last project cannot be archived."}
+          </p>
+          {confirmingArchive ? (
+            <span className="archive-confirm">
+              <span>archive {projectName}?</span>
               <button
                 className="danger-text"
-                disabled={!canArchive}
-                onClick={() => setConfirmingArchive(true)}
+                disabled={busy}
+                onClick={() => void run(() => onArchive(), "The project could not be archived")}
                 type="button"
-              >archive project</button>
-            )}
-          </div>
-        </Growing>
+              >yes</button>
+              <button onClick={() => setConfirmingArchive(false)} type="button">no</button>
+            </span>
+          ) : (
+            <button
+              className="danger-text"
+              disabled={!canArchive}
+              onClick={() => setConfirmingArchive(true)}
+              type="button"
+            >archive project</button>
+          )}
+        </div>
+      </Growing>
 
-        {error && <div className="error-banner" role="alert">{error}</div>}
-      </section>
+      <Growing className="settings-row archived-projects">
+        <span className="field-label">Archived projects</span>
+        {listFailed ? (
+          <p className="settings-summary">The archived list could not be loaded.</p>
+        ) : archived === null ? (
+          <p className="settings-summary">Loading…</p>
+        ) : archived.length === 0 ? (
+          <p className="settings-summary">Nothing is archived.</p>
+        ) : (
+          <ul className="archived-project-list">
+            {archived.map((candidate) => (
+              <li key={candidate.id}>
+                <span>{candidate.name}</span>
+                <button
+                  aria-label={`Restore ${candidate.name}`}
+                  className="settings-link"
+                  disabled={busy}
+                  onClick={() => void run(async () => {
+                    await onRestore(candidate.id);
+                    setArchived((current) => current?.filter((value) => value.id !== candidate.id) ?? null);
+                  }, `${candidate.name} could not be restored`)}
+                  type="button"
+                >restore</button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Growing>
     </div>
   );
 }
