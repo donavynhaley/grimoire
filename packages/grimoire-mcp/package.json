@@ -1,20 +1,41 @@
 {
   "name": "grimoire-mcp",
-  "private": true,
   "version": "0.1.0",
   "type": "module",
   "description": "An MCP server that lets an agent read and write one Grimoire project over its HTTP API.",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "grimoire",
+    "kanban",
+    "agent"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/donavynhaley/grimore/tree/main/packages/grimoire-mcp#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/donavynhaley/grimore.git",
+    "directory": "packages/grimoire-mcp"
+  },
+  "bugs": {
+    "url": "https://github.com/donavynhaley/grimore/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
   "bin": {
     "grimoire-mcp": "dist/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "check": "tsc -p tsconfig.json --noEmit",
     "start": "node dist/index.js",
-    "verify": "npm run build && node --import tsx scripts/verify-e2e.mjs"
+    "verify": "npm run build && node --import tsx scripts/verify-e2e.mjs",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
