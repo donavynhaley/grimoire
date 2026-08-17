@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import type { AwayState, BoardWorkspace, PageStatus, IdeaState, IdeaWorkspace, SessionState, User } from "../shared/types";
+import type { AwayState, BoardWorkspace, PageStatus, IdeaState, IdeaWorkspace, SessionState, User, UserRole } from "../shared/types";
 import { activity as loadActivity, ApiError, away as loadAway, board as loadBoard, editConflict, ideas as loadIdeas, liveEventsUrl, markSeen, mutate, request, session, setActiveProjectId, uploadAvatar } from "./api/client";
 import { AuthScreen } from "./components/AuthScreen";
 import { Board } from "./components/Board";
@@ -318,6 +318,9 @@ export function App() {
 
   const removeMember = (id: string) => perform(() => mutate(`/api/members/${id}`, "DELETE"));
 
+  const changeMemberRole = (id: string, role: UserRole) =>
+    perform(() => mutate(`/api/members/${id}`, "PATCH", { role }));
+
   const changePassword = async (currentPassword: string, newPassword: string) => {
     await mutate("/api/account/password", "POST", { currentPassword, newPassword });
   };
@@ -437,6 +440,7 @@ export function App() {
         onMoveBacklogToNext={moveBacklogToNext}
         revision={revision}
         onPromoteIdea={promoteIdea}
+        onChangeMemberRole={changeMemberRole}
         onRemoveMember={removeMember}
         onRestorePage={restorePage}
         onUpdate={updatePage}

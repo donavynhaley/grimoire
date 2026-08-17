@@ -37,6 +37,7 @@ import {
   renameProject,
   restorePage,
   setChaptersEnabled,
+  setMemberRole,
   updatePage,
   updateCategory,
   updateChapter,
@@ -199,6 +200,8 @@ const ideaUpdateSchema = ideaSchema.partial().extend({
   position: z.number().int().min(0).optional(),
   ...contentPreconditions,
 });
+
+const memberRoleSchema = z.object({ role: z.enum(["owner", "member"]) }).strict();
 
 const searchSchema = z.object({
   q: z.string().trim().min(1).max(240),
@@ -892,6 +895,33 @@ export function createGrimoireServer(options: Options) {
     }
 
     const memberMatch = url.pathname.match(/^\/api\/members\/([^/]+)$/);
+    if (method === "PATCH" && memberMatch) {
+      const user = requireUser(context);
+      if (user.role !== "owner") throw new HttpError(403, "Only an owner can change roles");
+      const projectId = requireProject(context, user);
+      const input = memberRoleSchema.parse(await readJson(request));
+      // Changing your own role is refused rather than guarded, because the only case worth
+      // allowing is the one that locks the instance: a sole owner demoting themselves leaves
+      // nobody who can ever promote anyone again. A second owner exists to be asked.
+      if (memberMatch[1] === user.id) throw new HttpError(409, "Ask another owner to change your own role");
+      const member = membersForProject(database, projectId).find((value) => value.id === memberMatch[1]);
+      const result = setMemberRole(database, projectId, memberMatch[1], input.role);
+      if (result === "not_found") throw new HttpError(404, "Member not found");
+      if (result === "updated" && member) {
+        audit(context, {
+          projectId,
+          entityType: "member",
+          entityId: memberMatch[1],
+          entityTitle: member.name,
+          action: "updated",
+          changes: [{ field: "role", from: member.role, to: input.role }],
+        });
+      }
+      json(response, 200, { members: membersForProject(database, projectId).map(withAvatar) });
+      broadcast(projectId, "work", requestClientId(request));
+      return;
+    }
+
     if (method === "DELETE" && memberMatch) {
       const user = requireUser(context);
       if (user.role !== "owner") throw new HttpError(403, "Only the project owner can remove members");

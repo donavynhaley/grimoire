@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { Member, User } from "../../shared/types";
+import type { Member, User, UserRole } from "../../shared/types";
 import { Avatar } from "./Avatar";
 import { useDialogEscape } from "./use-dialog-escape";
 
@@ -8,11 +8,12 @@ type Props = {
   members: Member[];
   online: ReadonlySet<string>;
   onCreateInvite: () => Promise<string>;
+  onChangeMemberRole: (id: string, role: UserRole) => Promise<void>;
   onRemoveMember: (id: string) => Promise<void>;
   onClose: () => void;
 };
 
-export function TeamDialog({ currentUser, members, online, onCreateInvite, onRemoveMember, onClose }: Props) {
+export function TeamDialog({ currentUser, members, online, onCreateInvite, onChangeMemberRole, onRemoveMember, onClose }: Props) {
   const [invite, setInvite] = useState("");
   const [busy, setBusy] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
@@ -35,6 +36,22 @@ export function TeamDialog({ currentUser, members, online, onCreateInvite, onRem
       setRemovingId(null);
     } catch (error) {
       setRemoveError(error instanceof Error ? error.message : `${member.name} could not be removed`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /**
+   * Promotion is one button rather than a confirm, because it is reversible by the same
+   * button. Removal keeps its confirm: that one takes a person off the board.
+   */
+  const changeRole = async (member: Member) => {
+    setBusy(true);
+    setRemoveError("");
+    try {
+      await onChangeMemberRole(member.id, member.projectRole === "owner" ? "member" : "owner");
+    } catch (error) {
+      setRemoveError(error instanceof Error ? error.message : `${member.name}'s role could not be changed`);
     } finally {
       setBusy(false);
     }
@@ -72,7 +89,17 @@ export function TeamDialog({ currentUser, members, online, onCreateInvite, onRem
                       <button aria-label={`Cancel removing ${member.name}`} disabled={busy} onClick={() => setRemovingId(null)} type="button">no</button>
                     </>
                   ) : (
-                    <button aria-label={`Remove ${member.name}`} className="member-remove" onClick={() => setRemovingId(member.id)} type="button">remove</button>
+                    <>
+                      <span className="member-role">{member.projectRole}</span>
+                      <button
+                        aria-label={member.projectRole === "owner" ? `Make ${member.name} a member` : `Make ${member.name} an owner`}
+                        className="member-role-change"
+                        disabled={busy}
+                        onClick={() => void changeRole(member)}
+                        type="button"
+                      >{member.projectRole === "owner" ? "make member" : "make owner"}</button>
+                      <button aria-label={`Remove ${member.name}`} className="member-remove" onClick={() => setRemovingId(member.id)} type="button">remove</button>
+                    </>
                   )}
                 </div>
               ) : <span className="member-role">{member.projectRole}</span>}

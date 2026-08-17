@@ -12,6 +12,7 @@ import {
   type ProjectCategory,
   type ProjectSummary,
   type User,
+  type UserRole,
 } from "../shared/types";
 import { MarkdownPageStore, type StoredPage } from "./markdown-pages";
 import { MarkdownChapterStore, type StoredChapter } from "./markdown-chapters";
@@ -684,6 +685,41 @@ export function membersForProject(database: DatabaseSync, projectId: string): Me
       projectRole: value.project_role as Member["projectRole"],
     }),
   );
+}
+
+export type SetMemberRoleResult = "updated" | "not_found" | "unchanged";
+
+/**
+ * Promotes or demotes a member, after the invitation that first let them in.
+ *
+ * A role was fixed at registration until now, which meant a second owner could only exist by
+ * editing the database by hand. Every owner gate in the product reads the account-wide role,
+ * so that is what changes here, and the project membership is brought along with it: leaving
+ * the two disagreeing would show someone as a member on a board they can in fact restructure.
+ *
+ * Every project they belong to is updated, because the power being granted is not per-project
+ * either. Saying otherwise on one board and not another would be the same lie in a smaller place.
+ */
+export function setMemberRole(
+  database: DatabaseSync,
+  projectId: string,
+  memberId: string,
+  role: UserRole,
+): SetMemberRoleResult {
+  const member = membersForProject(database, projectId).find((candidate) => candidate.id === memberId);
+  if (!member) return "not_found";
+  if (member.role === role && member.projectRole === role) return "unchanged";
+
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    database.prepare("UPDATE users SET role = ? WHERE id = ?").run(role, memberId);
+    database.prepare("UPDATE project_members SET role = ? WHERE user_id = ?").run(role, memberId);
+    database.exec("COMMIT");
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
+  return "updated";
 }
 
 export type RemoveMemberResult = "removed" | "not_found" | "owner";

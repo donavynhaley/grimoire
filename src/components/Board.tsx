@@ -1,5 +1,5 @@
 import { type DragEvent, type FormEvent, Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { type AuditPage, type AwayState, type BoardWorkspace, type Page, type PageStatus, type IdeaState, type IdeaWorkspace } from "../../shared/types";
+import { type AuditPage, type AwayState, type BoardWorkspace, type Page, type PageStatus, type IdeaState, type IdeaWorkspace, type UserRole } from "../../shared/types";
 import { AccountDialog } from "./AccountDialog";
 import { ActivityDialog } from "./ActivityDialog";
 import { Avatar } from "./Avatar";
@@ -64,13 +64,14 @@ type Props = {
   onLogout: () => Promise<void>;
   onMoveBacklogToNext: (id: string) => Promise<void>;
   onPromoteIdea: (id: string) => Promise<void>;
+  onChangeMemberRole: (id: string, role: UserRole) => Promise<void>;
   onRemoveMember: (id: string) => Promise<void>;
   onRestorePage: (id: string) => Promise<void>;
   onUpdateIdea: (id: string, input: Record<string, unknown>) => Promise<void>;
   onViewChange: (view: "work" | "ideas") => Promise<void>;
 };
 
-export function Board({ away, board, busy, categoryActions, chapterActions, ideas, online, projectActions, projectSettingsActions, revision, view, onCreate, onUpdate, onArchive, onCreateInvite, onCreateIdea, onChangeAvatar, onChangeName, onChangePassword, onLoadActivity, onLogout, onMoveBacklogToNext, onPromoteIdea, onRemoveAvatar, onRemoveMember, onRestorePage, onUpdateIdea, onViewChange }: Props) {
+export function Board({ away, board, busy, categoryActions, chapterActions, ideas, online, projectActions, projectSettingsActions, revision, view, onCreate, onUpdate, onArchive, onCreateInvite, onCreateIdea, onChangeAvatar, onChangeName, onChangePassword, onLoadActivity, onLogout, onMoveBacklogToNext, onPromoteIdea, onRemoveAvatar, onChangeMemberRole, onRemoveMember, onRestorePage, onUpdateIdea, onViewChange }: Props) {
   const [addingTo, setAddingTo] = useState<PageStatus | null>(null);
   const [columnTitle, setColumnTitle] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -865,6 +866,7 @@ export function Board({ away, board, busy, categoryActions, chapterActions, idea
           online={online}
           onClose={() => setTeamOpen(false)}
           onCreateInvite={onCreateInvite}
+          onChangeMemberRole={onChangeMemberRole}
           onRemoveMember={onRemoveMember}
         />
       )}
