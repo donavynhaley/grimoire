@@ -8,14 +8,18 @@ import {
   type PageStatus,
   type Chapter,
   type ChapterState,
+  type FieldType,
+  type FieldValue,
   type Member,
+  type PageFields,
   type ProjectCategory,
+  type ProjectField,
   type ProjectSummary,
   type User,
   type UserRole,
 } from "../shared/types";
 import { MarkdownPageStore, type StoredPage } from "./markdown-pages";
-import { MarkdownChapterStore, type StoredChapter } from "./markdown-chapters";
+import { isCalendarDay, MarkdownChapterStore, type StoredChapter } from "./markdown-chapters";
 
 type Row = Record<string, string | number | null>;
 
@@ -235,6 +239,187 @@ export function deleteCategory(
   return true;
 }
 
+export function fieldsForProject(database: DatabaseSync, projectId: string): ProjectField[] {
+  return rows(
+    database,
+    `SELECT key, label, type, options, position, show_on_tile FROM project_fields
+     WHERE project_id = ? ORDER BY position, created_at`,
+    projectId,
+  ).map((value) => ({
+    key: String(value.key),
+    label: String(value.label),
+    type: value.type as FieldType,
+    options: JSON.parse(String(value.options)) as string[],
+    position: Number(value.position),
+    showOnTile: Number(value.show_on_tile) === 1,
+  }));
+}
+
+export function fieldKeyFromLabel(label: string): string {
+  return label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40)
+    .replace(/-+$/g, "");
+}
+
+/**
+ * A `select` with nothing to select from is a field nobody can fill in, so it is refused at
+ * the point someone tries to define one rather than discovered when a page rejects a value.
+ */
+function normalizeOptions(type: FieldType, options: string[] | undefined): string[] | null {
+  if (type !== "select") return [];
+  const cleaned = [...new Set((options ?? []).map((option) => option.trim()).filter(Boolean))];
+  return cleaned.length > 0 ? cleaned : null;
+}
+
+export type FieldInput = {
+  label: string;
+  type: FieldType;
+  options?: string[];
+  showOnTile?: boolean;
+};
+
+export type CreateFieldResult = { field: ProjectField } | "exists" | "invalid_label" | "needs_options";
+
+export function createField(database: DatabaseSync, projectId: string, input: FieldInput): CreateFieldResult {
+  const key = fieldKeyFromLabel(input.label);
+  if (!key) return "invalid_label";
+  const options = normalizeOptions(input.type, input.options);
+  if (options === null) return "needs_options";
+  if (row(database, "SELECT 1 AS ok FROM project_fields WHERE project_id = ? AND key = ?", projectId, key)) {
+    return "exists";
+  }
+  const position = fieldsForProject(database, projectId).length;
+  const showOnTile = input.showOnTile ?? false;
+  database
+    .prepare(
+      `INSERT INTO project_fields (project_id, key, label, type, options, position, show_on_tile, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(projectId, key, input.label, input.type, JSON.stringify(options), position, showOnTile ? 1 : 0, new Date().toISOString());
+  return { field: { key, label: input.label, type: input.type, options, position, showOnTile } };
+}
+
+export type UpdateFieldResult = { field: ProjectField; cleared: number } | "not_found" | "needs_options";
+
+/**
+ * Edits a definition, but never its type.
+ *
+ * A type change would invalidate every value already stored under it, and the honest repair
+ * for that is the one a person can already do: delete the field and define the one they meant.
+ */
+export function updateField(
+  database: DatabaseSync,
+  pageStore: MarkdownPageStore,
+  projectId: string,
+  key: string,
+  input: { label?: string; options?: string[]; showOnTile?: boolean; position?: number },
+): UpdateFieldResult {
+  const project = projectById(database, projectId);
+  const current = fieldsForProject(database, projectId).find((field) => field.key === key);
+  if (!project || !current) return "not_found";
+  const options = input.options === undefined ? current.options : normalizeOptions(current.type, input.options);
+  if (options === null) return "needs_options";
+
+  const label = input.label ?? current.label;
+  const showOnTile = input.showOnTile ?? current.showOnTile;
+  const position = input.position ?? current.position;
+  database
+    .prepare("UPDATE project_fields SET label = ?, options = ?, show_on_tile = ?, position = ? WHERE project_id = ? AND key = ?")
+    .run(label, JSON.stringify(options), showOnTile ? 1 : 0, position, projectId, key);
+
+  // A value whose option was just withdrawn cannot stay: the next write touching that page
+  // would be refused for holding something the field no longer offers, and the person
+  // making that write would have had nothing to do with the withdrawal.
+  const cleared = current.type === "select"
+    ? clearFieldValues(pageStore, String(project.slug), key, (value) => typeof value === "string" && options.includes(value))
+    : 0;
+  return { field: { key, label, type: current.type, options, position, showOnTile }, cleared };
+}
+
+/** Returns how many pages lost a value, or null when there was no such field. */
+export function deleteField(
+  database: DatabaseSync,
+  pageStore: MarkdownPageStore,
+  projectId: string,
+  key: string,
+): number | null {
+  const project = projectById(database, projectId);
+  if (!project) return null;
+  const removed = database.prepare("DELETE FROM project_fields WHERE project_id = ? AND key = ?").run(projectId, key);
+  if (Number(removed.changes) !== 1) return null;
+  return clearFieldValues(pageStore, String(project.slug), key, () => false);
+}
+
+function clearFieldValues(
+  pageStore: MarkdownPageStore,
+  projectSlug: string,
+  key: string,
+  keep: (value: FieldValue) => boolean,
+): number {
+  const now = new Date().toISOString();
+  let cleared = 0;
+  for (const page of pageStore.list(projectSlug)) {
+    const value = page.fields[key];
+    if (value === undefined || keep(value)) continue;
+    const { [key]: _dropped, ...rest } = page.fields;
+    pageStore.save(projectSlug, { ...page, fields: rest, updatedAt: now });
+    cleared += 1;
+  }
+  return cleared;
+}
+
+/**
+ * Applies a patch of field values on top of what a page already holds.
+ *
+ * It is a patch rather than a replacement because an agent setting one field must not blank
+ * the others: a whole-record write would quietly erase every field the caller did not happen
+ * to know about, which for an agent is most of them. `null` is how a caller clears one, and
+ * clearing drops the key, so a page that was never filled in and one that was emptied are
+ * the same page on disk.
+ */
+export function mergePageFields(
+  definitions: ProjectField[],
+  current: PageFields,
+  patch: Record<string, FieldValue | null> | undefined,
+): PageFields {
+  if (patch === undefined) return current;
+  const merged: PageFields = { ...current };
+  for (const [key, value] of Object.entries(patch)) {
+    const definition = definitions.find((field) => field.key === key);
+    if (!definition) throw new PageDependencyError(`This project has no field called "${key}"`, 400);
+    if (value === null) delete merged[key];
+    else merged[key] = checkedFieldValue(definition, value);
+  }
+  return merged;
+}
+
+function checkedFieldValue(definition: ProjectField, value: FieldValue): FieldValue {
+  const expected = (wanted: string) =>
+    new PageDependencyError(`"${definition.label}" expects ${wanted}`, 400);
+  switch (definition.type) {
+    case "text":
+      if (typeof value !== "string") throw expected("text");
+      return value;
+    case "number":
+      if (typeof value !== "number" || !Number.isFinite(value)) throw expected("a number");
+      return value;
+    case "checkbox":
+      if (typeof value !== "boolean") throw expected("true or false");
+      return value;
+    case "date":
+      if (typeof value !== "string" || !isCalendarDay(value)) throw expected("a YYYY-MM-DD day");
+      return value;
+    case "select":
+      if (typeof value !== "string" || !definition.options.includes(value)) {
+        throw new PageDependencyError(`"${definition.label}" accepts ${definition.options.join(", ")}`, 400);
+      }
+      return value;
+  }
+}
+
 export function chaptersEnabled(database: DatabaseSync, projectId: string): boolean {
   const project = row(database, "SELECT chapters_enabled FROM projects WHERE id = ?", projectId);
   return Number(project?.chapters_enabled ?? 0) === 1;
@@ -442,6 +627,7 @@ export function getBoard(
     project: { id: String(project.id), name: String(project.name), chaptersEnabled: enabled },
     projects: listProjectsForUser(database, user),
     categories: categoriesForProject(database, projectId),
+    fields: fieldsForProject(database, projectId),
     // A disabled project serves no chapters at all, so the interface has nothing to draw
     // even if files exist on disk from before the gate was turned off.
     chapters: enabled
@@ -482,6 +668,8 @@ type PageInput = {
   description?: string;
   category?: PageCategory | null;
   chapter?: string | null;
+  /** A patch, not a replacement: `null` clears one field and absent keys are left alone. */
+  fields?: Record<string, FieldValue | null>;
   blockedBy?: string[];
   status?: PageStatus;
   assigneeId?: string | null;
@@ -513,6 +701,7 @@ export function createPage(
     description: input.description ?? "",
     category: input.category ?? null,
     chapter: input.chapter ?? null,
+    fields: mergePageFields(fieldsForProject(database, projectId), {}, input.fields),
     blockedBy: input.blockedBy ?? [],
     unblockedPages: [],
     status,
@@ -562,6 +751,7 @@ export function updatePage(
     description: input.description ?? current.description,
     category: input.category === undefined ? current.category : input.category,
     chapter: input.chapter === undefined ? current.chapter : input.chapter,
+    fields: mergePageFields(fieldsForProject(database, projectId), current.fields, input.fields),
     blockedBy: input.blockedBy ?? current.blockedBy,
     status: nextStatus,
     assignee: input.assigneeId === undefined ? current.assignee : assignee?.email.toLowerCase() ?? null,
@@ -774,6 +964,7 @@ function publicPage(database: DatabaseSync, value: StoredPage, members: Member[]
     description: value.description,
     category: value.category,
     chapter: value.chapter,
+    fields: value.fields,
     blockedBy: value.blockedBy,
     status: value.status,
     position: value.position,

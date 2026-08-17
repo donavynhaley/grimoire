@@ -8,6 +8,7 @@ export const ENTITY_LABELS: Record<AuditEntityType, string> = {
   chapter: "chapters",
   member: "team",
   agent: "agents",
+  field: "fields",
 };
 
 const PROJECT_VERBS: Partial<Record<AuditEvent["action"], string>> = {

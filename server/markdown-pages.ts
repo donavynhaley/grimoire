@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, unlinkSyn
 import { basename, join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
-import { PAGE_STATUSES, type PageCategory, type PageStatus } from "../shared/types";
+import { PAGE_STATUSES, type PageCategory, type PageFields, type PageStatus } from "../shared/types";
 import { isTimestamp, parseMarkdown, serializeMarkdown, writeAtomic, type FrontmatterValue } from "./markdown-files";
 
 export type StoredPage = {
@@ -11,6 +11,7 @@ export type StoredPage = {
   description: string;
   category: PageCategory | null;
   chapter: string | null;
+  fields: PageFields;
   blockedBy: string[];
   unblockedPages: string[];
   status: PageStatus;
@@ -31,6 +32,7 @@ const metadataSchema = z
     title: z.string().trim().min(1).max(240),
     category: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(40).nullable().optional(),
     chapter: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(60).nullable().optional(),
+    fields: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
     blocked_by: z.array(z.string().uuid()).optional(),
     unblocked_cards: z.array(z.string().uuid()).optional(),
     status: z.enum(PAGE_STATUSES),
@@ -216,6 +218,7 @@ function parsePage(markdown: string): StoredPage {
     description: parsed.body,
     category: metadata.category ?? null,
     chapter: metadata.chapter ?? null,
+    fields: metadata.fields ?? {},
     blockedBy: metadata.blocked_by ?? [],
     unblockedPages: metadata.unblocked_cards ?? [],
     status: metadata.status,
@@ -237,6 +240,9 @@ function parsePage(markdown: string): StoredPage {
  * that predates chapters only has to answer for the pages someone deliberately placed -
  * every other file still parses under the older strict schema. `docs/architecture.md`
  * records the rest of that compatibility contract.
+ *
+ * `fields` follows the same rule for the same reason, and an empty record counts as absent:
+ * a project that defines no fields, or a page nobody filled one in on, writes nothing.
  */
 function serializePage(page: StoredPage): string {
   const metadata: Array<[string, FrontmatterValue]> = [
@@ -245,6 +251,7 @@ function serializePage(page: StoredPage): string {
     ["category", page.category],
   ];
   if (page.chapter !== null) metadata.push(["chapter", page.chapter]);
+  if (Object.keys(page.fields).length > 0) metadata.push(["fields", page.fields]);
   metadata.push(["blocked_by", page.blockedBy]);
   if (page.unblockedPages.length > 0) metadata.push(["unblocked_cards", page.unblockedPages]);
   metadata.push(
@@ -267,6 +274,7 @@ function legacyRowToPage(row: LegacyPageRow): StoredPage {
     description: String(row.description),
     category: null,
     chapter: null,
+    fields: {},
     blockedBy: [],
     unblockedPages: [],
     status: row.status as PageStatus,

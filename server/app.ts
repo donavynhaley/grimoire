@@ -3,7 +3,7 @@ import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { dirname, extname, join, normalize } from "node:path";
 import { z, ZodError } from "zod";
-import type { User } from "../shared/types";
+import { FIELD_TYPES, type User } from "../shared/types";
 import { createProject, createWizardSimulatorProject, openDatabase } from "./database";
 import {
   archivePage,
@@ -16,9 +16,12 @@ import {
   createPage,
   createCategory,
   createChapter,
+  createField,
   defaultProjectIdForUser,
   deleteCategory,
   deleteChapter,
+  deleteField,
+  fieldsForProject,
   EditConflictError,
   findPage,
   findUserByEmail,
@@ -41,6 +44,7 @@ import {
   updatePage,
   updateCategory,
   updateChapter,
+  updateField,
   userCanAccessProject,
   userCount,
 } from "./repository";
@@ -140,11 +144,21 @@ const pageStatus = z.enum(["backlog", "ready", "in_progress", "review", "done"])
 const categorySlug = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(40);
 const chapterSlug = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(60);
 const calendarDay = z.string().refine(isCalendarDay, "Expected a YYYY-MM-DD day");
+/**
+ * Values for the project's own fields, as a patch. `null` clears one; an absent key is left
+ * alone. The shapes are checked here and the meanings against the project's definitions,
+ * because only the project knows what `priority` is allowed to say.
+ */
+const pageFieldPatch = z.record(
+  z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(40),
+  z.union([z.string().trim().max(200), z.number().finite(), z.boolean(), z.null()]),
+);
 const pageSchema = z.object({
   title: z.string().trim().min(1).max(240),
   description: z.string().trim().max(20_000).optional(),
   category: categorySlug.nullable().optional(),
   chapter: chapterSlug.nullable().optional(),
+  fields: pageFieldPatch.optional(),
   blockedBy: z.array(z.string().uuid()).max(20).optional(),
   status: pageStatus.optional(),
   assigneeId: z.string().uuid().nullable().optional(),
@@ -190,6 +204,17 @@ const categoryCreateSchema = z.object({
   color: z.string().regex(/^#[0-9a-f]{6}$/i),
 });
 const categoryUpdateSchema = categoryCreateSchema.partial();
+const fieldCreateSchema = z.object({
+  label: z.string().trim().min(1).max(40),
+  type: z.enum(FIELD_TYPES),
+  options: z.array(z.string().trim().min(1).max(40)).max(24).optional(),
+  showOnTile: z.boolean().optional(),
+});
+/** The type is absent on purpose: changing it would invalidate every value already stored. */
+const fieldUpdateSchema = fieldCreateSchema
+  .omit({ type: true })
+  .partial()
+  .extend({ position: z.number().int().min(0).optional() });
 const ideaState = z.enum(["inbox", "shortlist", "parked"]);
 const ideaSchema = z.object({
   title: z.string().trim().min(1).max(240),
@@ -817,6 +842,89 @@ export function createGrimoireServer(options: Options) {
       return;
     }
 
+    // Defining a field is deciding what the project records about its work, which is the same
+    // kind of decision as adding a column would be. An agent fills fields in; it never
+    // decides which exist, so these are owner-only and outside the agent allow list.
+    if (method === "POST" && url.pathname === "/api/fields") {
+      const user = requireUser(context);
+      if (user.role !== "owner") throw new HttpError(403, "Only an owner can manage fields");
+      const projectId = requireProject(context, user);
+      const input = fieldCreateSchema.parse(await readJson(request));
+      const result = createField(database, projectId, input);
+      if (result === "invalid_label") throw new HttpError(400, "The field needs a name with letters or numbers");
+      if (result === "needs_options") throw new HttpError(400, "A choice field needs at least one option");
+      if (result === "exists") throw new HttpError(409, "A field with this name already exists");
+      audit(context, {
+        projectId,
+        entityType: "field",
+        entityId: result.field.key,
+        entityTitle: result.field.label,
+        action: "created",
+        changes: [{ field: "type", from: null, to: result.field.type }],
+      });
+      json(response, 201, { field: result.field });
+      broadcast(projectId, "work", requestClientId(request));
+      return;
+    }
+
+    const fieldMatch = url.pathname.match(/^\/api\/fields\/([^/]+)$/);
+    if (method === "PATCH" && fieldMatch) {
+      const user = requireUser(context);
+      if (user.role !== "owner") throw new HttpError(403, "Only an owner can manage fields");
+      const projectId = requireProject(context, user);
+      const input = fieldUpdateSchema.parse(await readJson(request));
+      const before = fieldsForProject(database, projectId).find((field) => field.key === fieldMatch[1]);
+      const result = updateField(database, pageStore, projectId, fieldMatch[1], input);
+      if (result === "not_found") throw new HttpError(404, "Field not found");
+      if (result === "needs_options") throw new HttpError(400, "A choice field needs at least one option");
+      const edits = before
+        ? [
+          ...(before.label === result.field.label ? [] : [{ field: "name", from: before.label, to: result.field.label }]),
+          ...(before.options.join(", ") === result.field.options.join(", ")
+            ? []
+            : [{ field: "options", from: before.options.join(", "), to: result.field.options.join(", ") }]),
+          ...(before.showOnTile === result.field.showOnTile
+            ? []
+            : [{ field: "on tiles", from: before.showOnTile ? "yes" : "no", to: result.field.showOnTile ? "yes" : "no" }]),
+          // Said out loud, because withdrawing an option silently emptied pages nobody touched.
+          ...(result.cleared > 0 ? [{ field: "pages cleared", from: null, to: String(result.cleared) }] : []),
+        ]
+        : [];
+      if (edits.length > 0) {
+        audit(context, {
+          projectId,
+          entityType: "field",
+          entityId: result.field.key,
+          entityTitle: result.field.label,
+          action: "updated",
+          changes: edits,
+        });
+      }
+      json(response, 200, { field: result.field, cleared: result.cleared });
+      broadcast(projectId, "work", requestClientId(request));
+      return;
+    }
+
+    if (method === "DELETE" && fieldMatch) {
+      const user = requireUser(context);
+      if (user.role !== "owner") throw new HttpError(403, "Only an owner can manage fields");
+      const projectId = requireProject(context, user);
+      const removed = fieldsForProject(database, projectId).find((field) => field.key === fieldMatch[1]);
+      const cleared = deleteField(database, pageStore, projectId, fieldMatch[1]);
+      if (cleared === null) throw new HttpError(404, "Field not found");
+      audit(context, {
+        projectId,
+        entityType: "field",
+        entityId: fieldMatch[1],
+        entityTitle: removed?.label ?? fieldMatch[1],
+        action: "deleted",
+        changes: cleared > 0 ? [{ field: "pages cleared", from: null, to: String(cleared) }] : [],
+      });
+      json(response, 200, { ok: true, cleared });
+      broadcast(projectId, "work", requestClientId(request));
+      return;
+    }
+
     if (method === "POST" && url.pathname === "/api/chapters") {
       const user = requireUser(context);
       if (user.role !== "owner") throw new HttpError(403, "Only the owner can manage chapters");
@@ -1264,6 +1372,7 @@ export function createGrimoireServer(options: Options) {
   function labelsForProject(projectId: string): PageLabels {
     let categories: Map<string, string> | null = null;
     let chapters: Map<string, string> | null = null;
+    let fields: Map<string, string> | null = null;
     let titles: Map<string, string> | null = null;
     return {
       categoryName: (slug) => {
@@ -1277,6 +1386,10 @@ export function createGrimoireServer(options: Options) {
           chaptersForProject(database, chapterStore, projectId).map((value) => [value.slug, value.name]),
         );
         return chapters.get(slug) ?? slug;
+      },
+      fieldLabel: (key) => {
+        fields ??= new Map(fieldsForProject(database, projectId).map((value) => [value.key, value.label]));
+        return fields.get(key) ?? key;
       },
       pageTitle: (id) => {
         titles ??= new Map(listPages(database, pageStore, projectId).map((page) => [page.id, page.title]));

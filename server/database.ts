@@ -73,6 +73,29 @@ const agentTokensTable = `CREATE TABLE IF NOT EXISTS agent_tokens (
   revoked_at TEXT
 );`;
 
+/**
+ * The fields one project decided its pages carry.
+ *
+ * Definitions live here rather than on disk because they are project configuration, the same
+ * kind of thing as categories, and because a page file that carried its own schema would let
+ * two pages disagree about what a field means. The values stay in the Markdown, where the
+ * rest of the page's content is.
+ *
+ * No project is seeded with any. A team that wants none keeps files byte-identical to the
+ * ones it has now, which is the whole reason this is additive rather than a new default.
+ */
+const projectFieldsTable = `CREATE TABLE IF NOT EXISTS project_fields (
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  key TEXT NOT NULL,
+  label TEXT NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('text', 'number', 'select', 'date', 'checkbox')),
+  options TEXT NOT NULL DEFAULT '[]',
+  position INTEGER NOT NULL DEFAULT 0,
+  show_on_tile INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (project_id, key)
+);`;
+
 export const DEFAULT_PROJECT_CATEGORIES: Array<{ slug: string; name: string; color: string }> = [
   { slug: "design", name: "Design", color: "#d6bc78" },
   { slug: "code", name: "Code", color: "#8bb9c9" },
@@ -386,6 +409,8 @@ CREATE TABLE IF NOT EXISTS seen_cursors (
 );
 
 ${agentTokensTable}
+
+${projectFieldsTable}
 
 CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token_hash);
 CREATE INDEX IF NOT EXISTS idx_cards_board ON cards(project_id, status, position) WHERE archived_at IS NULL;

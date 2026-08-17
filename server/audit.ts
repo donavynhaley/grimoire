@@ -6,7 +6,9 @@ import type {
   AuditEntityType,
   AuditEvent,
   AuditPage,
+  FieldValue,
   Page,
+  PageFields,
   Chapter,
   Idea,
 } from "../shared/types";
@@ -192,8 +194,29 @@ function parseChanges(value: string | number | null): AuditChange[] {
 export type PageLabels = {
   categoryName: (slug: string | null) => string;
   chapterName: (slug: string | null) => string;
+  fieldLabel: (key: string) => string;
   pageTitle: (id: string) => string;
 };
+
+/** What a person would have typed, so the log reads the way the field did. */
+function fieldText(value: FieldValue | undefined): string | null {
+  if (value === undefined) return null;
+  if (typeof value === "boolean") return value ? "yes" : "no";
+  return String(value);
+}
+
+/**
+ * One entry per field that moved, named by its label rather than its key.
+ *
+ * They are listed individually because that is how they are read: "Priority, p2 to p0" is the
+ * sentence someone wants, and a single "fields changed" line would hide which one moved.
+ */
+function fieldChanges(before: PageFields, after: PageFields, labels: PageLabels): AuditChange[] {
+  const keys = [...new Set([...Object.keys(before), ...Object.keys(after)])].sort();
+  return keys
+    .filter((key) => before[key] !== after[key])
+    .map((key) => ({ field: labels.fieldLabel(key), from: fieldText(before[key]), to: fieldText(after[key]) }));
+}
 
 /** Fields a person would recognise, in the order they appear on the page. */
 export function pageChanges(before: Page, after: Page, labels: PageLabels): AuditChange[] {
@@ -237,6 +260,7 @@ export function pageChanges(before: Page, after: Page, labels: PageLabels): Audi
       to: describeIds(after.blockedBy, labels),
     });
   }
+  changes.push(...fieldChanges(before.fields, after.fields, labels));
   return changes;
 }
 
@@ -249,6 +273,7 @@ export function pageCreationChanges(page: Page, labels: PageLabels): AuditChange
   if (page.category) changes.push({ field: "category", from: null, to: labels.categoryName(page.category) });
   if (page.chapter) changes.push({ field: "chapter", from: null, to: labels.chapterName(page.chapter) });
   if (page.assigneeName) changes.push({ field: "assignee", from: null, to: page.assigneeName });
+  changes.push(...fieldChanges({}, page.fields, labels));
   return changes;
 }
 
