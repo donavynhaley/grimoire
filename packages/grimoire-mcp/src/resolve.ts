@@ -1,4 +1,4 @@
-import type { Board, Page } from "./client.js";
+import type { Board, FieldValue, Page, ProjectField } from "./client.js";
 
 /**
  * Turning what an agent says into what the API needs.
@@ -154,6 +154,69 @@ export function resolvePage(board: Board, value: string): Page {
 
 export function resolveBlockers(board: Board, values: string[]): string[] {
   return values.map((value) => resolvePage(board, value).id);
+}
+
+/**
+ * Turns a project's own fields into the keys and values the API stores.
+ *
+ * A field can be named by its key or by the label a person reads, and an option can be given
+ * in any casing, because "P0" and "p0" are the same thing said by two callers. Everything
+ * else is refused with the real options listed: a select exists precisely to have a closed
+ * set of answers, so quietly writing a sixth one would defeat the field.
+ */
+export function resolveFields(
+  board: Board,
+  values: Record<string, FieldValue | null>,
+): Record<string, FieldValue | null> {
+  const definitions = board.fields ?? [];
+  const resolved: Record<string, FieldValue | null> = {};
+  for (const [name, value] of Object.entries(values)) {
+    const wanted = normalise(name);
+    const field = definitions.find(
+      (candidate) => candidate.key === wanted || normalise(candidate.label) === wanted,
+    );
+    if (!field) {
+      const available = definitions.map((candidate) => candidate.label).join(", ") || "none defined";
+      throw new ResolutionError(`"${name}" is not a field in this project. Available: ${available}.`);
+    }
+    resolved[field.key] = value === null ? null : resolveFieldValue(field, value);
+  }
+  return resolved;
+}
+
+function resolveFieldValue(field: ProjectField, value: FieldValue): FieldValue {
+  if (field.type === "select") {
+    const wanted = normalise(String(value));
+    const option = field.options.find((candidate) => normalise(candidate) === wanted);
+    if (!option) {
+      throw new ResolutionError(
+        `"${value}" is not an option for ${field.label}. Options: ${field.options.join(", ")}.`,
+      );
+    }
+    return option;
+  }
+  if (field.type === "number" && typeof value !== "number") {
+    const parsed = Number(value);
+    if (Number.isNaN(parsed)) throw new ResolutionError(`${field.label} takes a number, not "${value}".`);
+    return parsed;
+  }
+  if (field.type === "checkbox" && typeof value !== "boolean") {
+    const key = normalise(String(value));
+    if (["true", "yes", "on"].includes(key)) return true;
+    if (["false", "no", "off"].includes(key)) return false;
+    throw new ResolutionError(`${field.label} takes true or false, not "${value}".`);
+  }
+  return value;
+}
+
+/** How a field's value reads back to a person: a checkbox is yes or no, not true or false. */
+export function fieldSummary(board: Board, fields: Record<string, FieldValue> | undefined): string[] {
+  if (!fields) return [];
+  const definitions = board.fields ?? [];
+  return Object.entries(fields).map(([key, value]) => {
+    const label = definitions.find((candidate) => candidate.key === key)?.label ?? key;
+    return `${label}: ${typeof value === "boolean" ? (value ? "yes" : "no") : value}`;
+  });
 }
 
 /** The label a person would recognise, for a category slug. */
