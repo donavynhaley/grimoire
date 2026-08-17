@@ -126,11 +126,16 @@ Ideas do not have assignees or work statuses because they are not work yet.
 
 The first person to open a new Grimoire installation creates the owner account.
 The first-run form prefills `owner@example.com` as the owner email, while still allowing it to be edited before setup.
-The project menu is a switcher: the projects, a collapsed "New project" field, and "Project settings".
-Project settings holds the project name, its categories, the chapters gate, and archiving, each with a summary of what it currently holds.
-The owner can create single-use invitation links from the Team dialog.
+The project menu is a switcher: the projects, each with its one-line description, a collapsed "New project" field, and "Project settings".
+Project settings is one dialog with a section rail — General, Categories, Page fields, Chapters, Team, Agent access, and a Danger zone — and the open section travels in the URL as `?settings=<section>`, so a reload or a shared link lands exactly where the reader was.
+The header's `team` button is a shortcut into the same dialog, landed on its Team section.
+Everything in settings saves as it is edited — on blur or Enter — and the dialog confirms each save with a quiet `saved` note in one fixed place; refusals appear in the same place and nowhere else.
+General holds the project's name and its optional one-sentence description; categories and fields can be reordered; each chapter carries an editable intent line, the honest replacement for a sprint goal.
+Members can open settings too and read every section an owner can reshape — the mutation controls, agent access, and the danger zone stay owner-only.
+Archiving a project offers the same eight-second undo a page gets, and the Danger zone lists every archived project with a restore action, so archiving is no longer a one-way door.
+The owner can create single-use invitation links from the Team section.
 Only the newest unused invitation remains valid, and invitation links expire after seven days.
-The owner can also remove members from the Team dialog, which revokes their sessions and live connections and clears their page assignments without erasing their authorship history.
+The owner can also remove members from the Team section, which revokes their sessions and live connections and clears their page assignments without erasing their authorship history.
 
 Accounts, sessions, invitations, project membership, and the activity log are stored in a local SQLite database.
 Pages and ideas are stored as Markdown files with validated YAML frontmatter.
@@ -148,7 +153,7 @@ When two people do write the same field, the second save is refused rather than 
 The same protection covers edits made outside Grimoire, so a change written straight into the Markdown by another editor survives a rename made in the browser.
 Moving a page between columns or reordering one carries no text, so those stay immediate.
 
-Teammates with the project open are ringed in green on the people filter bar and in the Team dialog.
+Teammates with the project open are ringed in green on the people filter bar and in the Team section of settings.
 Presence is deliberately absent from the header, where it would mostly report the signed-in person back to themselves.
 It follows the live connection itself, so it clears as soon as someone closes the tab or loses their network.
 
@@ -185,8 +190,9 @@ Deleting one, or withdrawing a choice from a list, clears the values it left beh
 
 ## Team and roles
 
-An owner can promote another member to owner, or demote one, from the Team dialog.
+An owner can promote another member to owner, or demote one, from the Team section of settings.
 The role decides who can reshape the project — its name, categories, chapters, fields, agent access, and membership — while everyone can work on pages and ideas.
+Roles are account-wide by design, and the Team section says so where the button lives: making someone an owner grants owner powers on every project, not just the one on screen.
 Changing your own role is refused: the one case worth allowing is a sole owner demoting themselves, which leaves nobody who can ever promote anyone again.
 
 ## Agent access
@@ -197,7 +203,7 @@ The owner issues a credential in Project settings, and its secret is shown once 
 A credential is a delegation rather than an account.
 It belongs to one project and one person, every write it makes is attributed to that person, and the agent that made it is named beside them, so the history reads `Donavyn, via Planning agent, added ...`.
 Nothing is ever assigned to an agent, because an assignee is the person responsible and an agent is not responsible for anything.
-An agent never appears in the people filter, the Team dialog, or presence, because presence follows an open connection and an agent holds none.
+An agent never appears in the people filter, the Team section, or presence, because presence follows an open connection and an agent holds none.
 
 An agent may create and edit pages and ideas, place a page into an existing chapter, and read the board, search, and its issuer's activity log.
 It may never archive, restore, promote an idea, manage chapters or categories, invite or remove anyone, change the project, or touch an account.

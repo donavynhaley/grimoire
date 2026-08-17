@@ -6,20 +6,22 @@ import { Avatar } from "./Avatar";
 import { AwayDigest } from "./AwayDigest";
 import { BacklogDialog } from "./BacklogDialog";
 import { PageDialog } from "./PageDialog";
-import { type CategoryActions, CategoriesDialog } from "./CategoriesDialog";
-import { type FieldActions, FieldsDialog } from "./FieldsDialog";
+import { type CategoryActions } from "./CategoriesSection";
+import { type FieldActions } from "./FieldsSection";
 import { PageFieldChips } from "./PageFields";
-import { type ChapterActions, ChaptersDialog } from "./ChaptersDialog";
+import { type ChapterActions } from "./ChaptersSection";
 import { type ChapterFilter, ChapterPicker, NO_CHAPTER } from "./ChapterPicker";
-import { agentTokenIsLive, agentTokens } from "../api/client";
 import { chapterWhen } from "./chapter-dates";
 import { DoneHistoryDialog } from "./DoneHistoryDialog";
 import { type ProjectActions, ProjectMenu } from "./ProjectMenu";
-import { type ProjectSettingsActions, ProjectSettingsDialog } from "./ProjectSettingsDialog";
-import { AgentAccessDialog } from "./AgentAccessDialog";
+import {
+  type ProjectSettingsActions,
+  ProjectSettingsDialog,
+  type SettingsSection,
+  settingsSectionsFor,
+} from "./ProjectSettingsDialog";
 import { type CapturePageInput, QuickCapture } from "./QuickCapture";
 import { SearchDialog } from "./SearchDialog";
-import { TeamDialog } from "./TeamDialog";
 import { plainTextFromMarkdown } from "./markdown-text";
 import { IdeasBoard } from "./IdeasBoard";
 import { useFlip } from "./use-flip";
@@ -70,11 +72,13 @@ type Props = {
   onChangeMemberRole: (id: string, role: UserRole) => Promise<void>;
   onRemoveMember: (id: string) => Promise<void>;
   onRestorePage: (id: string) => Promise<void>;
+  /** Puts a board-surface failure on the global banner; dialog failures stay in the dialog. */
+  onSurfaceError: (message: string) => void;
   onUpdateIdea: (id: string, input: Record<string, unknown>) => Promise<void>;
   onViewChange: (view: "work" | "ideas") => Promise<void>;
 };
 
-export function Board({ away, board, busy, categoryActions, chapterActions, fieldActions, ideas, online, projectActions, projectSettingsActions, revision, view, onCreate, onUpdate, onArchive, onCreateInvite, onCreateIdea, onChangeAvatar, onChangeName, onChangePassword, onLoadActivity, onLogout, onMoveBacklogToNext, onPromoteIdea, onRemoveAvatar, onChangeMemberRole, onRemoveMember, onRestorePage, onUpdateIdea, onViewChange }: Props) {
+export function Board({ away, board, busy, categoryActions, chapterActions, fieldActions, ideas, online, projectActions, projectSettingsActions, revision, view, onCreate, onUpdate, onArchive, onCreateInvite, onCreateIdea, onChangeAvatar, onChangeName, onChangePassword, onLoadActivity, onLogout, onMoveBacklogToNext, onPromoteIdea, onRemoveAvatar, onChangeMemberRole, onRemoveMember, onRestorePage, onSurfaceError, onUpdateIdea, onViewChange }: Props) {
   const [addingTo, setAddingTo] = useState<PageStatus | null>(null);
   const [columnTitle, setColumnTitle] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -94,19 +98,12 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
   const flightRef = useRef<HTMLDivElement>(null);
   const kanbanRef = useRef<HTMLDivElement>(null);
   useFlip(kanbanRef);
-  const [teamOpen, setTeamOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [backlogOpen, setBacklogOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   // Bumped so choosing the same idea twice still reopens it in the garden.
   const [openIdea, setOpenIdea] = useState<{ id: string; token: number } | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [categoriesOpen, setCategoriesOpen] = useState(false);
-  const [fieldsOpen, setFieldsOpen] = useState(false);
-  const [chaptersOpen, setChaptersOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [agentsOpen, setAgentsOpen] = useState(false);
-  const [agentCount, setAgentCount] = useState(0);
   const [activityOpen, setActivityOpen] = useState(false);
   // Once the history has been opened, its badge has done its job for this visit.
   const [activityVisited, setActivityVisited] = useState(false);
@@ -115,22 +112,20 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
   const [openedUnseen, setOpenedUnseen] = useState<ReadonlySet<string>>(() => new Set());
   const isOwner = board.currentUser.role === "owner";
 
-  // The settings summary states how many agents have access, so the count has to be true
-  // the first time settings opens - not only after the agent dialog has refreshed it.
+  // Which settings section is open lives in the URL, so a reload - or the remount a project
+  // switch causes - reopens exactly where the reader was, and a link can point at a section.
+  const [settingsSection, setSettingsSection] = useState<SettingsSection | null>(() => {
+    const requested = new URLSearchParams(location.search).get("settings");
+    return (settingsSectionsFor(board.currentUser.role === "owner") as readonly string[]).includes(requested ?? "")
+      ? (requested as SettingsSection)
+      : null;
+  });
   useEffect(() => {
-    if (!settingsOpen || !isOwner) return;
-    let cancelled = false;
-    void agentTokens()
-      .then(({ tokens }) => {
-        if (!cancelled) setAgentCount(tokens.filter((token) => agentTokenIsLive(token)).length);
-      })
-      .catch(() => {
-        // The section then shows its default copy; opening the dialog surfaces the error.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [settingsOpen, isOwner]);
+    const params = new URLSearchParams(location.search);
+    if (settingsSection) params.set("settings", settingsSection);
+    else params.delete("settings");
+    history.replaceState({}, "", `${location.pathname}${params.size ? `?${params}` : ""}`);
+  }, [settingsSection]);
   const unseenCount = away && !awayDismissed && !activityVisited ? away.total : 0;
   const unseenPageIds = useMemo(() => {
     const ids = new Set<string>();
@@ -343,10 +338,15 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
    * being left looking at something else would be a strange place to land.
    */
   const makeChapterCurrent = async (slug: string) => {
-    const open = board.chapters.find((value) => value.state === "open");
-    if (open && open.slug !== slug) await chapterActions.update(open.slug, { state: "closed" });
-    await chapterActions.update(slug, { state: "open" });
-    changeChapter(slug);
+    try {
+      const open = board.chapters.find((value) => value.state === "open");
+      if (open && open.slug !== slug) await chapterActions.update(open.slug, { state: "closed" });
+      await chapterActions.update(slug, { state: "open" });
+      changeChapter(slug);
+    } catch (value) {
+      // Promotion runs from the board, not a dialog, so its refusal belongs on the banner.
+      onSurfaceError(value instanceof Error ? value.message : "The chapter could not be opened");
+    }
   };
 
   const spawnFlight = (input: CapturePageInput) => {
@@ -499,7 +499,7 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
             actions={projectActions}
             busy={busy}
             isOwner={board.currentUser.role === "owner"}
-            onOpenSettings={() => setSettingsOpen(true)}
+            onOpenSettings={() => setSettingsSection("general")}
             project={board.project}
             projects={board.projects}
           />
@@ -525,7 +525,8 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
               )}
             </button>
           )}
-          <button className="quiet-button" onClick={() => setTeamOpen(true)} type="button">team</button>
+          {/* A shortcut into the one settings surface, landing on its Team section. */}
+          <button className="quiet-button" onClick={() => setSettingsSection("team")} type="button">team</button>
           <button aria-label={`Open account settings for ${board.currentUser.name}`} className="account-button" onClick={() => setAccountOpen(true)} title="Account settings" type="button">
             <Avatar avatarUrl={board.currentUser.avatarUrl} className="avatar current" name={board.currentUser.name} />
             <span>{board.currentUser.name}</span>
@@ -577,7 +578,7 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
               chapters={board.chapters}
               isOwner={isOwner}
               onChange={changeChapter}
-              onManage={() => setChaptersOpen(true)}
+              onManage={() => setSettingsSection("chapters")}
               onMakeCurrent={makeChapterCurrent}
               value={chapter}
             />
@@ -820,71 +821,31 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
           }}
         />
       )}
-      {categoriesOpen && (
-        <CategoriesDialog
-          actions={categoryActions}
-          busy={busy}
-          categories={board.categories}
-          // Opened from settings, closing returns there rather than dumping the reader on
-          // the board, so the trip out and back reads as one place.
-          onClose={() => { setCategoriesOpen(false); setSettingsOpen(true); }}
-        />
-      )}
-      {fieldsOpen && (
-        <FieldsDialog
-          actions={fieldActions}
-          busy={busy}
-          fields={board.fields}
-          onClose={() => { setFieldsOpen(false); setSettingsOpen(true); }}
-        />
-      )}
-      {chaptersOpen && (
-        <ChaptersDialog
-          actions={chapterActions}
-          busy={busy}
-          pages={board.pages}
-          chapters={board.chapters}
-          onClose={() => setChaptersOpen(false)}
-          onSetPageChapter={(id, value) => onUpdate(id, { chapter: value })}
-        />
-      )}
-      {agentsOpen && (
-        <AgentAccessDialog
-          // Opened from settings, closing returns there, the same trip the other sections make.
-          onClose={() => { setAgentsOpen(false); setSettingsOpen(true); }}
-          onCountChange={setAgentCount}
-        />
-      )}
-      {settingsOpen && (
+      {settingsSection && (
         <ProjectSettingsDialog
           actions={projectSettingsActions}
-          agentCount={agentCount}
           busy={busy}
           canArchive={board.projects.length > 1}
-          canManageAgents={isOwner}
-          pages={board.pages}
           categories={board.categories}
+          categoryActions={categoryActions}
+          chapterActions={chapterActions}
           chapters={board.chapters}
           chaptersEnabled={chaptersOn}
-          onClose={() => setSettingsOpen(false)}
-          onManageAgents={() => { setSettingsOpen(false); setAgentsOpen(true); }}
-          canManageFields={isOwner}
-          fields={board.fields}
-          onManageCategories={() => { setSettingsOpen(false); setCategoriesOpen(true); }}
-          onManageChapters={() => { setSettingsOpen(false); setChaptersOpen(true); }}
-          onManageFields={() => { setSettingsOpen(false); setFieldsOpen(true); }}
-          project={board.project}
-        />
-      )}
-      {teamOpen && (
-        <TeamDialog
           currentUser={board.currentUser}
+          fieldActions={fieldActions}
+          fields={board.fields}
+          isOwner={isOwner}
           members={board.members}
-          online={online}
-          onClose={() => setTeamOpen(false)}
-          onCreateInvite={onCreateInvite}
           onChangeMemberRole={onChangeMemberRole}
+          onClose={() => setSettingsSection(null)}
+          onCreateInvite={onCreateInvite}
+          online={online}
           onRemoveMember={onRemoveMember}
+          onSectionChange={setSettingsSection}
+          onSetPageChapter={(id, value) => onUpdate(id, { chapter: value })}
+          pages={board.pages}
+          project={board.project}
+          section={settingsSection}
         />
       )}
       {accountOpen && (

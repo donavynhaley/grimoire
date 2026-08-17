@@ -65,9 +65,9 @@ function mountWith(board: BoardWorkspace) {
 async function openFields(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByRole("button", { name: /Wizard Simulator/ }));
   await user.click(screen.getByRole("menuitem", { name: /Project settings/ }));
-  const settings = await screen.findByRole("dialog", { name: "Wizard Simulator" });
-  await user.click(within(settings).getByRole("button", { name: "Edit page fields" }));
-  return screen.findByRole("dialog", { name: "Page fields" });
+  const settings = await screen.findByRole("dialog", { name: "Project settings" });
+  await user.click(within(settings).getByRole("button", { name: "Page fields" }));
+  return settings;
 }
 
 describe("page fields", () => {
@@ -75,12 +75,17 @@ describe("page fields", () => {
     const user = userEvent.setup();
     mountWith(boardFixture());
 
-    await user.click(await screen.findByRole("button", { name: /Wizard Simulator/ }));
-    await user.click(screen.getByRole("menuitem", { name: /Project settings/ }));
-
-    const settings = await screen.findByRole("dialog", { name: "Wizard Simulator" });
-    expect(within(settings).getByText("Page fields")).toBeInTheDocument();
+    const settings = await openFields(user);
     expect(within(settings).getByText(/whatever this project tracks/)).toBeInTheDocument();
+  });
+
+  it("opens straight onto the fields section from a settings link", async () => {
+    window.history.replaceState({}, "", "/?settings=fields");
+    mountWith(boardFixture());
+
+    // The section travels in the URL, so a reload or a shared link lands exactly here.
+    const settings = await screen.findByRole("dialog", { name: "Project settings" });
+    expect(await within(settings).findByText(/whatever this project tracks/)).toBeInTheDocument();
   });
 
   it("defines a choice field with its options", async () => {

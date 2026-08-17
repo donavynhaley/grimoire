@@ -258,7 +258,8 @@ describe("closing a chapter", () => {
 
     await user.click(await screen.findByRole("button", { name: /Filter by chapter/ }));
     await user.click(screen.getByRole("menuitem", { name: /Manage chapters/ }));
-    const dialog = await screen.findByRole("dialog", { name: "Chapters" });
+    // The board's manage door opens the one settings surface, landed on its Chapters section.
+    const dialog = await screen.findByRole("dialog", { name: "Project settings" });
     await user.click(within(dialog).getByRole("button", { name: "close" }));
 
     // Two of First Brew's pages are unfinished, and every route out is a named choice.
@@ -289,16 +290,28 @@ describe("the project menu", () => {
     expect(within(menu).queryByText("archive project")).toBeNull();
   });
 
-  it("opens settings showing the chapters gate and what it holds", async () => {
+  it("opens settings whose Chapters section holds the gate and what it guards", async () => {
     const user = userEvent.setup();
     mountWith(chapteredBoard());
 
     await user.click(await screen.findByRole("button", { name: /Wizard Simulator/ }));
     await user.click(screen.getByRole("menuitem", { name: /Project settings/ }));
 
-    const dialog = await screen.findByRole("dialog", { name: "Wizard Simulator" });
+    const dialog = await screen.findByRole("dialog", { name: "Project settings" });
+    await user.click(within(dialog).getByRole("button", { name: "Chapters" }));
     expect(within(dialog).getByRole("checkbox", { name: /chapters/i })).toBeChecked();
     expect(within(dialog).getByText(/Open: First Brew/)).toBeInTheDocument();
     expect(within(dialog).getByText(/2 chapters/)).toBeInTheDocument();
+  });
+
+  it("keeps the open settings section across a reload by carrying it in the URL", async () => {
+    const user = userEvent.setup();
+    mountWith(chapteredBoard());
+
+    await user.click(await screen.findByRole("button", { name: /Filter by chapter/ }));
+    await user.click(screen.getByRole("menuitem", { name: /Manage chapters/ }));
+    await screen.findByRole("dialog", { name: "Project settings" });
+
+    expect(new URLSearchParams(location.search).get("settings")).toBe("chapters");
   });
 });

@@ -175,6 +175,23 @@ export function App() {
     }
   };
 
+  /**
+   * Like `perform`, minus the global banner.
+   *
+   * Settings mutations run inside a dialog that has its own outcome strip, and a refusal
+   * printed there and on the banner behind the backdrop is the same message said twice.
+   * The rethrow is the dialog's to answer.
+   */
+  const performSettings = async (change: () => Promise<unknown>) => {
+    setBusy(true);
+    try {
+      await change();
+      await refreshBoard();
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const createPage = (input: CapturePageInput) =>
     perform(() => mutate("/api/pages", "POST", input));
 
@@ -316,10 +333,10 @@ export function App() {
     return `${location.origin}${location.pathname}?invite=${encodeURIComponent(result.code)}`;
   };
 
-  const removeMember = (id: string) => perform(() => mutate(`/api/members/${id}`, "DELETE"));
+  const removeMember = (id: string) => performSettings(() => mutate(`/api/members/${id}`, "DELETE"));
 
   const changeMemberRole = (id: string, role: UserRole) =>
-    perform(() => mutate(`/api/members/${id}`, "PATCH", { role }));
+    performSettings(() => mutate(`/api/members/${id}`, "PATCH", { role }));
 
   const changePassword = async (currentPassword: string, newPassword: string) => {
     await mutate("/api/account/password", "POST", { currentPassword, newPassword });
@@ -371,32 +388,50 @@ export function App() {
   };
 
   const renameProject = (id: string, name: string) =>
-    perform(() => mutate(`/api/projects/${id}`, "PATCH", { name }));
+    performSettings(() => mutate(`/api/projects/${id}`, "PATCH", { name }));
+
+  const describeProject = (id: string, description: string) =>
+    performSettings(() => mutate(`/api/projects/${id}`, "PATCH", { description }));
 
   const archiveProject = async (id: string) => {
+    const name = board?.projects.find((candidate) => candidate.id === id)?.name ?? "project";
     await mutate(`/api/projects/${id}`, "DELETE");
     await openProject(null);
+    // Archiving a whole project gets the same eight seconds of grace a page does; after the
+    // toast is gone, the Danger zone's archived list is the durable way back.
+    setUndoNotice({
+      actionLabel: "Undo archive",
+      id: Date.now(),
+      message: `Archived ${name}`,
+      run: async () => {
+        await mutate(`/api/projects/${id}/restore`, "POST");
+        await openProject(id);
+      },
+    });
   };
 
+  const restoreProject = (id: string) =>
+    performSettings(() => mutate(`/api/projects/${id}/restore`, "POST"));
+
   const createCategory = (input: { name: string; color: string }) =>
-    perform(() => mutate("/api/categories", "POST", input));
-  const updateCategory = (slug: string, input: { name?: string; color?: string }) =>
-    perform(() => mutate(`/api/categories/${slug}`, "PATCH", input));
-  const deleteCategory = (slug: string) => perform(() => mutate(`/api/categories/${slug}`, "DELETE"));
+    performSettings(() => mutate("/api/categories", "POST", input));
+  const updateCategory = (slug: string, input: { name?: string; color?: string; position?: number }) =>
+    performSettings(() => mutate(`/api/categories/${slug}`, "PATCH", input));
+  const deleteCategory = (slug: string) => performSettings(() => mutate(`/api/categories/${slug}`, "DELETE"));
 
   const createField = (input: { label: string; type: FieldType; options?: string[]; showOnTile?: boolean }) =>
-    perform(() => mutate("/api/fields", "POST", input));
-  const updateField = (key: string, input: { label?: string; options?: string[]; showOnTile?: boolean }) =>
-    perform(() => mutate(`/api/fields/${key}`, "PATCH", input));
-  const deleteField = (key: string) => perform(() => mutate(`/api/fields/${key}`, "DELETE"));
+    performSettings(() => mutate("/api/fields", "POST", input));
+  const updateField = (key: string, input: { label?: string; options?: string[]; showOnTile?: boolean; position?: number }) =>
+    performSettings(() => mutate(`/api/fields/${key}`, "PATCH", input));
+  const deleteField = (key: string) => performSettings(() => mutate(`/api/fields/${key}`, "DELETE"));
 
   const createChapter = (input: { name: string; startsOn?: string | null; endsOn?: string | null }) =>
-    perform(() => mutate("/api/chapters", "POST", input));
+    performSettings(() => mutate("/api/chapters", "POST", input));
   const updateChapter = (slug: string, input: Record<string, unknown>) =>
-    perform(() => mutate(`/api/chapters/${slug}`, "PATCH", input));
-  const deleteChapter = (slug: string) => perform(() => mutate(`/api/chapters/${slug}`, "DELETE"));
+    performSettings(() => mutate(`/api/chapters/${slug}`, "PATCH", input));
+  const deleteChapter = (slug: string) => performSettings(() => mutate(`/api/chapters/${slug}`, "DELETE"));
   const setChaptersEnabled = (enabled: boolean) =>
-    perform(() => mutate(`/api/projects/${board?.project.id}`, "PATCH", { chaptersEnabled: enabled }));
+    performSettings(() => mutate(`/api/projects/${board?.project.id}`, "PATCH", { chaptersEnabled: enabled }));
 
   const logout = async () => {
     await request("/api/auth/logout", { method: "POST", body: JSON.stringify({}) });
@@ -450,14 +485,17 @@ export function App() {
         onChangeMemberRole={changeMemberRole}
         onRemoveMember={removeMember}
         onRestorePage={restorePage}
+        onSurfaceError={setError}
         onUpdate={updatePage}
         onUpdateIdea={updateIdea}
         onViewChange={changeView}
         projectActions={{ select: selectProject, create: createProject, rename: renameProject, archive: archiveProject }}
         projectSettingsActions={{
           rename: (name) => renameProject(board.project.id, name),
+          setDescription: (description) => describeProject(board.project.id, description),
           setChaptersEnabled,
           archive: () => archiveProject(board.project.id),
+          restore: restoreProject,
         }}
         view={view}
       />
