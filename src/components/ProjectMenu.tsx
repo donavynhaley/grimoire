@@ -96,7 +96,7 @@ export function ProjectMenu({ project, projects, isOwner, busy, actions, onOpenS
                 role="menuitem"
                 type="button"
               >
-                {candidate.name}
+                <span className="project-menu-option-name">{candidate.name}</span>
                 {candidate.description && <span className="project-menu-desc">{candidate.description}</span>}
               </button>
             ))}
