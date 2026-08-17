@@ -316,9 +316,9 @@ describe("Grimoire board", () => {
     const input = await screen.findByLabelText("Capture work page");
     await userEvent.type(input, `${created.title} #u`);
     await userEvent.keyboard("{Enter}");
-    await userEvent.type(input, " @don");
+    await userEvent.type(input, "@don");
     await userEvent.keyboard("{Enter}");
-    await userEvent.type(input, " /in");
+    await userEvent.type(input, "/in");
     await userEvent.keyboard("{Enter}");
     await userEvent.keyboard("{Enter}");
 

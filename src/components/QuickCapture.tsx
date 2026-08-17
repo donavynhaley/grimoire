@@ -100,7 +100,13 @@ export function QuickCapture({ busy, categories, chapters, members, onCreate }: 
       return { ...current, status: (option.value ?? "backlog") as PageStatus };
     });
     if (picker.commandStart !== null) {
-      setTitle((current) => current.slice(0, picker.commandStart!).trimEnd());
+      // Keep one trailing space so the next trigger char still follows
+      // whitespace — commandAtEnd only fires after whitespace, and without
+      // this a second command can't be typed until a space is added by hand.
+      setTitle((current) => {
+        const kept = current.slice(0, picker.commandStart!).trimEnd();
+        return kept ? `${kept} ` : "";
+      });
     }
     setPicker(null);
     inputRef.current?.focus();
