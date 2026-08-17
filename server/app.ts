@@ -237,6 +237,10 @@ function agentMayReach(method: string, pathname: string): "read" | "write" | nul
   if (method === "GET") {
     if (pathname === "/api/health" || pathname === "/api/session") return "read";
     if (pathname === "/api/board" || pathname === "/api/search" || pathname === "/api/ideas") return "read";
+    // One page, for an agent that already knows which one it wants. Reading a single page by
+    // pulling the whole board is what an agent had to do before, and on a large project that
+    // is most of a megabyte to answer a question about one title.
+    if (AGENT_PAGE_PATH.test(pathname)) return "read";
     // The activity log is owner-only, and the route enforces that against the person the
     // token acts as. A token therefore never reads more than its issuer already could.
     if (pathname === "/api/activity") return "read";
@@ -1142,6 +1146,17 @@ export function createGrimoireServer(options: Options) {
     }
 
     const pageMatch = url.pathname.match(/^\/api\/pages\/([^/]+)$/);
+    if (method === "GET" && pageMatch) {
+      const user = requireUser(context);
+      const projectId = requireProject(context, user);
+      const page = findPage(database, pageStore, projectId, pageMatch[1]);
+      // Archived pages answer 404 here rather than being served read-only, because the board
+      // has no place to put one and search is the documented way back to the archive.
+      if (!page) throw new HttpError(404, "Page not found");
+      json(response, 200, { page });
+      return;
+    }
+
     if (method === "PATCH" && pageMatch) {
       const user = requireUser(context);
       const projectId = requireProject(context, user);
