@@ -56,7 +56,7 @@ Build it first with `npm install && npm run build` in this directory.
 
 | Tool | What it does |
 | --- | --- |
-| `grimoire_board` | The whole project: every page with its column, category, chapter, assignee and blockers, plus the categories, chapters and members that exist |
+| `grimoire_board` | The whole project: every page with its column, category, chapter, assignee, blockers and field values, plus the categories, chapters, fields and members that exist |
 | `grimoire_search` | Searches titles and note bodies across every column, the backlog, the idea garden, completed work, and archived pages |
 | `grimoire_read_page` | One page's title and complete notes, exactly as stored - the values to pass as `expectedTitle` / `expectedNotes` when rewriting |
 | `grimoire_create_page` | Adds a unit of work |
@@ -68,12 +68,18 @@ Build it first with `npm install && npm run build` in this directory.
 Category, chapter, assignee, and blockers all take the names a person would use, and are resolved against the board.
 `"me"` resolves to the person the token acts as.
 An unrecognised name is refused with the real options listed, rather than guessed at.
+
+A project can also define its own fields - a priority, an estimate, a due day, whatever it tracks - and `grimoire_create_page` and `grimoire_update_page` take them as `fields`.
+A field can be named by its key or by the label a person reads, and a choice field's option can be given in any casing, so `{ "Priority": "P0" }` and `{ "priority": "p0" }` are the same write.
+Anything else is refused with the real options listed.
+`fields` is a patch: naming one field leaves every other one alone, which matters because an agent rarely knows what the rest of them hold. `null` clears one.
 A page is named by its id or its exact title - a partial title is refused with the close matches listed, because these tools rewrite bodies and a half-remembered word must never silently land on whichever page happens to contain it.
 
 ## What an agent cannot do
 
-There is no tool for archiving, promoting an idea, or managing chapters, categories, or membership, and the server refuses those routes to a token whatever its scope.
-Managing is the closed half: an agent editing a page may still place it into an existing chapter or category and take it out again, because membership is a property of the page.
+There is no tool for archiving, promoting an idea, or managing chapters, categories, fields, or membership, and the server refuses those routes to a token whatever its scope.
+Managing is the closed half: an agent editing a page may still place it into an existing chapter or category and take it out again, and fill in any field the project defined, because all of those are properties of the page.
+Deciding which fields exist is deciding what the project records about its work, which is the same kind of decision as adding a column.
 
 The rule is that **an agent may add and refine, and only a person may destroy or restructure**.
 Archiving is the sharpest case: its undo lasts eight seconds and is built for a person who just clicked, so an agent that archived thirty pages would leave no path anyone would find.

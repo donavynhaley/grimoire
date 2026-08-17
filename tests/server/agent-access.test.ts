@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -232,6 +233,41 @@ describe("agent access", () => {
 
       const board = await server.request<BoardWorkspace>("/api/board");
       expect(board.body.pages).toHaveLength(0);
+    });
+  });
+
+  describe("reading one page", () => {
+    it("serves a single page to a read-only token, in the shape the board uses", async () => {
+      const server = await startTestServer();
+      await bootstrap(server);
+      const { body } = await issue(server, { name: "Reader", scope: "read" });
+      const created = (await server.request<{ page: Page }>("/api/pages", agentPage("A page worth reading"))).body.page;
+
+      const read = await asAgent(server, body.secret, `/api/pages/${created.id}`);
+      expect(read.response.status).toBe(200);
+      // Identical to the board's own record, so an agent never has to reconcile two shapes.
+      const board = await server.request<BoardWorkspace>("/api/board");
+      expect(read.body.page).toEqual(board.body.pages.find((candidate) => candidate.id === created.id));
+
+      // And it is the same route for a person at a browser, not an agent-only affordance.
+      const person = await server.request<{ page: Page }>(`/api/pages/${created.id}`);
+      expect(person.response.status).toBe(200);
+      expect(person.body.page).toEqual(read.body.page);
+    });
+
+    it("answers 404 for an unknown page and for one that was archived", async () => {
+      const server = await startTestServer();
+      await bootstrap(server);
+      const { body } = await issue(server, { name: "Reader", scope: "read" });
+      const created = (await server.request<{ page: Page }>("/api/pages", agentPage("Soon archived"))).body.page;
+
+      const missing = await asAgent(server, body.secret, `/api/pages/${randomUUID()}`);
+      expect(missing.response.status).toBe(404);
+
+      // A person archives it; the archive is reachable through search, not through this route.
+      await server.request(`/api/pages/${created.id}`, { method: "DELETE" });
+      const archived = await asAgent(server, body.secret, `/api/pages/${created.id}`);
+      expect(archived.response.status).toBe(404);
     });
   });
 

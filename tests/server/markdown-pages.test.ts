@@ -24,6 +24,7 @@ function page(overrides: Partial<StoredPage> = {}): StoredPage {
     description: "- [ ] Test moonwort\n- [ ] Record the result",
     category: "code",
     chapter: null,
+    fields: {},
     blockedBy: ["8d3e49fa-2ce5-4cc1-80e7-b3f6d49435f9"],
     unblockedPages: [],
     status: "backlog",

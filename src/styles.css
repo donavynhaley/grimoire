@@ -1739,6 +1739,50 @@ textarea:hover { border-color: var(--border-bright); }
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
+/* Page fields: definitions in settings, values on a page, and a chip on the tile. */
+.field-intro { margin: 0 0 4px; }
+.field-manager { display: flex; flex-direction: column; gap: 10px; }
+.field-row { display: flex; flex-direction: column; gap: 6px; }
+.field-row-top { display: flex; align-items: center; gap: 8px; }
+.field-row-top input { flex: 1; min-width: 0; }
+.field-type {
+  color: var(--faint);
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.field-warning { margin: 0; color: var(--red); }
+.field-options { display: flex; flex-direction: column; gap: 4px; padding-left: 2px; }
+.field-options input { width: 100%; }
+.field-add { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+.field-add-row { display: flex; align-items: center; gap: 8px; }
+.field-add-row input { flex: 1; min-width: 0; }
+.field-type-picker { display: flex; flex-wrap: wrap; gap: 6px; }
+.field-type-picker button {
+  min-height: 26px;
+  padding: 0 9px;
+  color: var(--faint);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-size: 9px;
+  cursor: pointer;
+}
+.field-type-picker button:hover { color: var(--text); background: var(--surface-soft); }
+.field-type-picker button.selected { color: var(--text); background: var(--surface-soft); border-color: var(--text); }
+.settings-toggle.compact { font-size: 8px; }
+.page-field-chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 5px 0 0; }
+.page-field-chip {
+  padding: 1px 6px;
+  color: var(--faint);
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 8px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
 .member-role { color: var(--faint); font-size: 8px; }
 .member-actions { display: flex; align-items: center; gap: 7px; color: var(--faint); font-size: 8px; }
 .member-actions button {

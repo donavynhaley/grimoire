@@ -6,13 +6,24 @@ import {
   categoryName,
   chapterName,
   columnLabel,
+  fieldSummary,
   resolveAssignee,
   resolveBlockers,
   resolveCategory,
   resolveChapter,
+  resolveFields,
   resolvePage,
   resolveStatus,
 } from "./resolve.js";
+
+/** What a field patch looks like coming from an agent. `null` clears one. */
+const fieldPatch = z
+  .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
+  .describe(
+    "This project's own fields, by name. Values are checked against the field: a choice field " +
+      "only takes one of its options. Pass null to clear one. Call grimoire_board to see which " +
+      "fields exist.",
+  );
 
 /**
  * The tools an agent gets, and deliberately the ones it does not.
@@ -45,12 +56,14 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
         "see the project's real categories, chapters and members before writing, and pass those " +
         "names rather than guessing. " +
         (writable
-          ? "You can create and edit pages and ideas, and place a page into an existing chapter " +
-            "or take it out of one. You cannot archive anything, promote an idea, or create, " +
-            "rename, open or close chapters - and categories, membership and the project's " +
-            "settings are closed too. Those are deliberately left to a person. Before rewriting " +
-            "a page's title or notes, read them with grimoire_read_page and pass what you read " +
-            "as expectedTitle or expectedNotes."
+          ? "A project may also define its own fields - a priority, an estimate, whatever it " +
+            "tracks - and you can fill those in on any page. You can create and edit pages and " +
+            "ideas, and place a page into an existing chapter or take it out of one. You cannot " +
+            "archive anything, promote an idea, create or rename fields, or create, rename, open " +
+            "or close chapters - and categories, membership and the project's settings are closed " +
+            "too. Those are deliberately left to a person. Before rewriting a page's title or " +
+            "notes, read them with grimoire_read_page and pass what you read as expectedTitle or " +
+            "expectedNotes."
           : "This credential is read-only: you can read the board, search, and list ideas, and " +
             "nothing here can write. Ask the project owner for a write-scoped credential if " +
             "this agent should create or edit work."),
@@ -71,8 +84,8 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
       title: "Read the board",
       description:
         "The whole project as it stands: every page with its column, category, chapter, " +
-        "assignee and blockers, plus the categories, chapters and members that exist. Call " +
-        "this before writing, so names resolve to real things.",
+        "assignee, blockers and field values, plus the categories, chapters, fields and members " +
+        "that exist. Call this before writing, so names resolve to real things.",
       inputSchema: {},
     },
     async () => {
@@ -189,6 +202,7 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
           .max(20)
           .optional()
           .describe("Page ids or exact titles this page is blocked by."),
+        fields: fieldPatch.optional(),
       },
     },
     async (input) => {
@@ -201,6 +215,7 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
         if (input.chapter !== undefined) body.chapter = resolveChapter(board, input.chapter);
         if (input.assignee !== undefined) body.assigneeId = resolveAssignee(board, input.assignee);
         if (input.blockedBy !== undefined) body.blockedBy = resolveBlockers(board, input.blockedBy);
+        if (input.fields !== undefined) body.fields = resolveFields(board, input.fields);
 
         const { page } = await client.createPage(body);
         return text(`Created "${page.title}" in ${columnLabel(page.status)}.\nid: ${page.id}`);
@@ -242,6 +257,7 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
         chapter: z.string().optional().describe("A chapter name, or \"none\" to clear it."),
         assignee: z.string().optional().describe("A member's name or email, \"me\", or \"nobody\"."),
         blockedBy: z.array(z.string()).max(20).optional().describe("Replaces the blocker list."),
+        fields: fieldPatch.optional(),
       },
     },
     async (input) => {
@@ -289,8 +305,10 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
           body.assigneeId = isNobody(input.assignee) ? null : resolveAssignee(board, input.assignee);
         }
         if (input.blockedBy !== undefined) body.blockedBy = resolveBlockers(board, input.blockedBy);
+        // A patch, so naming one field leaves the rest of them alone.
+        if (input.fields !== undefined) body.fields = resolveFields(board, input.fields);
 
-        if (Object.keys(body).length === 0) return text("Nothing to change - no fields were given.");
+        if (Object.keys(body).length === 0) return text("Nothing to change - nothing was given.");
 
         const { page } = await client.updatePage(target.id, body);
         return text(`Updated "${page.title}".\n${describePage(board, page)}`);
@@ -375,6 +393,7 @@ function describePage(board: Board, page: Page): string {
   if (chapter) parts.push(`chapter: ${chapter}`);
   if (page.assigneeName) parts.push(`assignee: ${page.assigneeName}`);
   if (page.blockedBy.length > 0) parts.push(`blocked by ${page.blockedBy.length}`);
+  parts.push(...fieldSummary(board, page.fields));
   return `${parts.join(" · ")}\nid: ${page.id}`;
 }
 
@@ -397,6 +416,16 @@ function renderBoard(board: Board): string {
     );
   }
 
+  // Named with their permitted values, because a field an agent cannot see the options for
+  // is one it will guess at and be refused over.
+  if (board.fields && board.fields.length > 0) {
+    sections.push(
+      `Fields: ${board.fields
+        .map((field) => `${field.label} (${field.type === "select" ? field.options.join(" | ") : field.type})`)
+        .join(", ")}`,
+    );
+  }
+
   for (const status of ["backlog", "ready", "in_progress", "review", "done"]) {
     const pages = board.pages.filter((page) => page.status === status);
     sections.push("", `${columnLabel(status)} (${pages.length})`);
@@ -412,6 +441,7 @@ function renderBoard(board: Board): string {
       if (chapter) bits.push(`chapter: ${chapter}`);
       if (page.assigneeName) bits.push(page.assigneeName);
       if (page.blockedBy.length > 0) bits.push(`blocked by ${page.blockedBy.length}`);
+      bits.push(...fieldSummary(board, page.fields));
       sections.push(`  - ${page.title}${bits.length ? ` · ${bits.join(" · ")}` : ""}`);
       sections.push(`    id: ${page.id}`);
     }

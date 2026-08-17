@@ -173,6 +173,22 @@ Opening a page also shows its own recent history above the archive action.
 Reordering a page inside a column, or reranking the shortlist, is not recorded, because a log shaped by dragging would bury the changes worth reading.
 The history is kept in SQLite rather than the Markdown files and is never pruned.
 
+## Page fields
+
+A project can give its pages extra properties of its own — a priority, an estimate, a due day, whatever it tracks.
+Fields are defined in Project settings in five shapes: text, a number, a choice from a fixed list, a day, or yes/no.
+Grimoire names none of them, and nothing here is counted, added up, or rolled over: a number field is a number someone wrote down.
+
+A field can be marked to show on board tiles, so a project can carry more than it puts on the board.
+Renaming a field leaves every value alone.
+Deleting one, or withdrawing a choice from a list, clears the values it left behind and says how many, rather than leaving pages holding an answer the project no longer offers.
+
+## Team and roles
+
+An owner can promote another member to owner, or demote one, from the Team dialog.
+The role decides who can reshape the project — its name, categories, chapters, fields, agent access, and membership — while everyone can work on pages and ideas.
+Changing your own role is refused: the one case worth allowing is a sole owner demoting themselves, which leaves nobody who can ever promote anyone again.
+
 ## Agent access
 
 A project can let something without a browser write in it, which is how an AI agent reaches Grimoire.

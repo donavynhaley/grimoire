@@ -8,8 +8,10 @@ import {
   type Chapter,
   type Member,
   type ProjectCategory,
+  type ProjectField,
 } from "../../shared/types";
 import { Avatar } from "./Avatar";
+import { PageFieldsEditor } from "./PageFields";
 import { EditorState, otherEditorName } from "./EditorState";
 import { Growing } from "./Growing";
 import { NotesField } from "./NotesField";
@@ -32,6 +34,7 @@ type Props = {
   pages: Page[];
   categories: ProjectCategory[];
   chapters: Chapter[];
+  fields: ProjectField[];
   currentUserId: string;
   members: Member[];
   revision: number;
@@ -41,7 +44,7 @@ type Props = {
   onLoadActivity: (options: { entityId?: string; limit?: number }) => Promise<AuditPage>;
 };
 
-export function PageDialog({ page, pages, categories, chapters, currentUserId, members, revision, onUpdate, onArchive, onClose, onLoadActivity }: Props) {
+export function PageDialog({ page, pages, categories, chapters, fields, currentUserId, members, revision, onUpdate, onArchive, onClose, onLoadActivity }: Props) {
   const categoryColor = (slug: string | null) =>
     slug ? categories.find((category) => category.slug === slug)?.color : undefined;
   const swatchStyle = (slug: string | null) => {
@@ -262,6 +265,8 @@ export function PageDialog({ page, pages, categories, chapters, currentUserId, m
                 </div>
               )}
             </Growing>
+
+            <PageFieldsEditor fields={fields} values={page.fields} onUpdate={onUpdate} />
 
             <Growing className="rail-row dependency-section">
               <span className="field-label">Blocked by</span>

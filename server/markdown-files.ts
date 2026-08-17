@@ -11,7 +11,14 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 
-export type FrontmatterValue = string | number | null | string[];
+/**
+ * A flat map, written inline as JSON. Nesting is deliberately not supported: the parser is a
+ * line-oriented reader rather than a YAML implementation, and a value that could contain
+ * another map would need one.
+ */
+export type FrontmatterRecord = Record<string, string | number | boolean>;
+
+export type FrontmatterValue = string | number | null | string[] | FrontmatterRecord;
 
 export function parseMarkdown(markdown: string): { metadata: Record<string, unknown>; body: string } {
   const match = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)([\s\S]*)$/);
@@ -72,6 +79,19 @@ function parseScalar(value: string): FrontmatterValue {
     }
     return parsed;
   }
+  if (value.startsWith("{")) {
+    const parsed = JSON.parse(value) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("Frontmatter records must be JSON objects");
+    }
+    for (const entry of Object.values(parsed)) {
+      const type = typeof entry;
+      if (type !== "string" && type !== "number" && type !== "boolean") {
+        throw new Error("Frontmatter records may only hold strings, numbers, and booleans");
+      }
+    }
+    return parsed as FrontmatterRecord;
+  }
   if (value.startsWith('"')) {
     const parsed = JSON.parse(value) as unknown;
     if (typeof parsed !== "string") throw new Error("Quoted frontmatter values must be strings");
@@ -85,6 +105,7 @@ function serializeScalar(value: FrontmatterValue): string {
   if (value === null) return "null";
   if (typeof value === "number") return String(value);
   if (Array.isArray(value)) return JSON.stringify(value);
+  if (typeof value === "object") return JSON.stringify(value);
   const unsafe =
     value.trim() !== value ||
     value.length === 0 ||

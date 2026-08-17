@@ -7,12 +7,24 @@
  * and because one process is meant to own a project directory at a time.
  */
 
+export type FieldValue = string | number | boolean;
+
+export type ProjectField = {
+  key: string;
+  label: string;
+  type: "text" | "number" | "select" | "date" | "checkbox";
+  options: string[];
+  showOnTile: boolean;
+};
+
 export type Page = {
   id: string;
   title: string;
   description: string;
   category: string | null;
   chapter: string | null;
+  /** Values for the project's own fields. Absent keys were never filled in. */
+  fields: Record<string, FieldValue>;
   blockedBy: string[];
   status: string;
   position: number;
@@ -28,6 +40,8 @@ export type Board = {
   project: { id: string; name: string; chaptersEnabled?: boolean };
   categories: Array<{ slug: string; name: string; color: string }>;
   chapters: Array<{ slug: string; name: string; state: string; description: string }>;
+  /** Optional so an older Grimoire, which serves no fields at all, still parses. */
+  fields?: ProjectField[];
   members: Array<{ id: string; name: string; email: string }>;
   currentUser: { id: string; name: string; email: string };
   pages: Page[];
@@ -146,6 +160,11 @@ export class GrimoireClient {
 
   board(): Promise<Board> {
     return this.request<Board>("/api/board");
+  }
+
+  /** One page, without dragging the whole board across to read a single title. */
+  page(id: string): Promise<{ page: Page }> {
+    return this.request<{ page: Page }>(`/api/pages/${encodeURIComponent(id)}`);
   }
 
   search(query: string, limit?: number): Promise<SearchResults> {

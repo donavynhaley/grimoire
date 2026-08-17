@@ -25,6 +25,7 @@ export function boardFixture(): BoardWorkspace {
       { slug: "vfx", name: "VFX", color: "#d284d3", position: 8 },
       { slug: "production", name: "Production", color: "#a7adaf", position: 9 },
     ],
+    fields: [],
     chapters: [],
     currentUser: {
       id: "00000000-0000-4000-8000-000000000010",
@@ -55,6 +56,7 @@ export function boardFixture(): BoardWorkspace {
         description: "A small story interaction for the first room.",
         category: "narrative",
         chapter: null,
+        fields: {},
         blockedBy: [],
         status: "backlog",
         position: 0,
@@ -72,6 +74,7 @@ export function boardFixture(): BoardWorkspace {
         description: "",
         category: "modeling",
         chapter: null,
+        fields: {},
         blockedBy: [],
         status: "in_progress",
         position: 0,

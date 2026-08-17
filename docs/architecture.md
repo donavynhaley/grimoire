@@ -142,6 +142,41 @@ Archived files also contain an `archived_at` timestamp.
 When archiving removes dependency links from other pages, the archived file contains their UUIDs in `unblocked_cards` until restoration.
 That key keeps its older name deliberately: it is transient metadata on archived files only, and renaming it would make those files unreadable to any build that predates the change for no benefit a reader would ever see.
 
+## Page fields
+
+A project can define properties its own pages carry — a priority, an estimate, a due day — in five primitive shapes: `text`, `number`, `select`, `date`, `checkbox`.
+Grimoire names none of them. One project's `select` is a priority and another's is a risk level, and the product has no opinion about which.
+
+Nothing here counts, rolls up, or computes. A `number` field is a number a person wrote down, not an estimate the board adds up behind them, which is the same reason chapters carry no points.
+
+The definitions and the values are stored in different places, and deliberately:
+
+- **Definitions live in SQLite**, in `project_fields`, beside categories. They are project configuration, and a page file carrying its own schema would let two pages disagree about what a field means.
+- **Values live in the Markdown**, under one `fields:` key, because they are part of what the page says.
+
+```md
+---
+id: 8b09c17f-8a5e-49f7-99a7-6f0dc7028b47
+title: Create the potion workbench
+category: code
+fields: {"priority":"p0","estimate":3}
+blocked_by: []
+status: in_progress
+---
+```
+
+The key is emitted only when the page has values, so a project that defines no fields keeps byte-identical files to the ones it has now — the same additive rule `chapter:` follows, for the same rollback reason.
+`fields` is the one frontmatter value that is a JSON object; the parser accepts a flat map of strings, numbers, and booleans, and rejects nesting, because it is a line-oriented reader rather than a YAML implementation.
+
+A page points at a field by its **key**, which is stable across renames, so relabelling `Priority` to `Urgency` disturbs nothing.
+The **type is immutable** once defined: changing it would invalidate every value already stored under it, and the honest repair is the one a person can already do — delete the field and define the one they meant.
+
+Writes are a **patch, not a replacement**. Naming one field leaves every other alone, and `null` clears one. This matters most for agents, which rarely know what the rest of a page holds; a whole-record write would quietly erase everything the caller did not happen to mention. Clearing drops the key, so a page never filled in and one emptied are the same page on disk.
+
+Withdrawing a `select` option, or deleting a field outright, **clears the values it orphaned** and reports how many. The alternative is pages holding a value the project no longer offers, which the next unrelated write to that page would be refused over.
+
+Defining a field is owner-only and closed to agents. Deciding what the project records about its work is the same kind of decision as adding a column; filling one in is refining a page. See [Agent access](#agent-access).
+
 ## Chapter format
 
 A chapter is domain data about the work rather than operational data, so it lives in the project directory with the pages it describes.
@@ -353,8 +388,8 @@ Requests made with a credential are pinned to its project.
 `requireProject` otherwise falls back to the caller's default project, which is a convenience for a browser and a cross-project leak for an agent, so a credential never reaches that fallback and a mismatched `X-Grimoire-Project` is refused rather than redirected.
 
 What a credential may reach is an allow list rather than a set of refusals spread through the routes.
-Creating and editing pages and ideas is open, and everything that destroys or restructures is closed: archiving, restoring, promoting an idea, the chapter and category definitions, invitations, membership, the project itself, and every account route.
-Chapter and category *membership* is a property of a page, so an agent editing a page may place it into an existing chapter or category and take it out again - what it cannot do is create, rename, recolor, open, close, or delete either.
+Creating and editing pages and ideas is open, along with reading one page by id, and everything that destroys or restructures is closed: archiving, restoring, promoting an idea, the chapter, category and field definitions, invitations, membership and roles, the project itself, and every account route.
+Chapter and category *membership* is a property of a page, as are its field values, so an agent editing a page may place it into an existing chapter or category, take it out again, and fill in any field the project defined - what it cannot do is create, rename, recolor, open, close, or delete any of those definitions.
 Stated as a rule, an agent adds and refines and only a person destroys or restructures.
 Archiving is the sharpest of those, because its undo lasts eight seconds and is built for a person who has just clicked, and search-restore recovers one page at a time.
 Account routes are closed so a delegated credential cannot escalate into the identity it borrows, and the event stream is closed because presence is derived from open streams and an agent holding one would appear to be a teammate sitting in the project.

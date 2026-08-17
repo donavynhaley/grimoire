@@ -904,6 +904,35 @@ describe("Grimoire board", () => {
     );
   });
 
+  it("lets the owner promote a member to owner, and offers the reverse afterwards", async () => {
+    const initial = boardFixture();
+    const promoted = initial.members[1];
+    const updated = {
+      ...initial,
+      members: initial.members.map((member) =>
+        member.id === promoted.id ? { ...member, role: "owner" as const, projectRole: "owner" as const } : member,
+      ),
+    };
+    const fetchMock = authenticatedFetch(initial)
+      .mockImplementationOnce(() => response({ members: updated.members }))
+      .mockImplementationOnce(() => response(updated));
+    stubFetch(fetchMock);
+
+    render(<App />);
+    await userEvent.click(await screen.findByRole("button", { name: "team" }));
+
+    // An owner is never offered a control that would change their own role.
+    expect(screen.queryByRole("button", { name: `Make ${initial.currentUser.name} a member` })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: `Make ${promoted.name} an owner` }));
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/members/${promoted.id}`,
+      expect.objectContaining({ method: "PATCH", body: JSON.stringify({ role: "owner" }) }),
+    );
+    // The same button now reads the other way, because the promotion is reversible.
+    expect(await screen.findByRole("button", { name: `Make ${promoted.name} a member` })).toBeInTheDocument();
+  });
+
   it("explains that only the newest invite works for one person", async () => {
     const initial = boardFixture();
     const fetchMock = authenticatedFetch(initial);

@@ -50,6 +50,44 @@ export type ProjectSummary = {
 };
 
 /**
+ * A property a project decided its own pages should carry.
+ *
+ * Grimoire has no opinion about what a team tracks, and every attempt to guess produced a
+ * field somebody had to ignore. So the shapes are primitive and the meanings are the
+ * project's: one team's `select` is a priority, another's is a risk level, and neither is
+ * named in this file. Nothing here counts, rolls up, or computes - a number field is a
+ * number a person wrote down, not an estimate the board will add up behind them.
+ *
+ * Defining a field is restructuring the project, so it is owner-only. Filling one in is
+ * refining a page, so an agent may do it.
+ */
+export const FIELD_TYPES = ["text", "number", "select", "date", "checkbox"] as const;
+export type FieldType = (typeof FIELD_TYPES)[number];
+
+export type ProjectField = {
+  /** Stable across renames, and what a page's `fields` record is keyed by. */
+  key: string;
+  label: string;
+  type: FieldType;
+  /** What a `select` may hold, in the order it offers them. Empty for every other type. */
+  options: string[];
+  position: number;
+  /** Whether a board tile shows it, so a project can carry more than it puts on the board. */
+  showOnTile: boolean;
+};
+
+/** `date` is a plain `YYYY-MM-DD` day, like a chapter's, not an instant. */
+export type FieldValue = string | number | boolean;
+
+/**
+ * The values a page actually has, keyed by field.
+ *
+ * A field the page never filled in is absent rather than null, so an empty record and an
+ * untouched page are the same thing and neither writes anything to disk.
+ */
+export type PageFields = Record<string, FieldValue>;
+
+/**
  * A named stretch of the project's work, which pages can belong to.
  *
  * A chapter answers "what were we working on, and roughly when", never "how much did we
@@ -90,6 +128,8 @@ export type Page = {
    * belonging to a chapter, which is what lets a chapter be filled without flooding Up Next.
    */
   chapter: string | null;
+  /** Values for the project's own fields. Absent keys were never filled in. */
+  fields: PageFields;
   blockedBy: string[];
   status: PageStatus;
   position: number;
@@ -111,6 +151,8 @@ export type BoardWorkspace = {
   };
   projects: ProjectSummary[];
   categories: ProjectCategory[];
+  /** What this project chose its pages should carry. Empty until someone defines one. */
+  fields: ProjectField[];
   /** Empty when the gate is off, so a disabled project carries no chapter surface at all. */
   chapters: Chapter[];
   currentUser: User;
@@ -185,7 +227,7 @@ export type EditConflict<T> = {
   current: T;
 };
 
-export const AUDIT_ENTITY_TYPES = ["page", "idea", "project", "category", "chapter", "member", "agent"] as const;
+export const AUDIT_ENTITY_TYPES = ["page", "idea", "project", "category", "chapter", "member", "agent", "field"] as const;
 export type AuditEntityType = (typeof AUDIT_ENTITY_TYPES)[number];
 
 export const AUDIT_ACTIONS = [

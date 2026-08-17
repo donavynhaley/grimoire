@@ -27,6 +27,7 @@ describe("page board", () => {
       "categories",
       "chapters",
       "currentUser",
+      "fields",
       "members",
       "pages",
       "project",
@@ -35,6 +36,8 @@ describe("page board", () => {
     // A project that never asked for chapters carries none, so the board draws no trace of them.
     expect(workspace.project.chaptersEnabled).toBe(false);
     expect(workspace.chapters).toEqual([]);
+    // Nor does a project start with fields: they exist only once someone defines one.
+    expect(workspace.fields).toEqual([]);
     expect(workspace.project).toEqual(expect.objectContaining({ name: "Wizard Simulator" }));
     expect(workspace.projects).toEqual([expect.objectContaining({ name: "Wizard Simulator" })]);
     expect(workspace.categories[0]).toEqual({ slug: "design", name: "Design", color: "#d6bc78", position: 0 });

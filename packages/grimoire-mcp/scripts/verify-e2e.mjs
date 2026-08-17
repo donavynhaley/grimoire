@@ -297,6 +297,56 @@ try {
   });
   check("re-reading and retrying succeeds", !resolved.isError, resolved.text);
 
+  // ------------------------------------------------------------ the project's own fields
+  console.log("\nA project's own fields");
+  await api("/api/fields", {
+    method: "POST",
+    body: JSON.stringify({ label: "Priority", type: "select", options: ["p0", "p1", "p2"], showOnTile: true }),
+  });
+  await api("/api/fields", { method: "POST", body: JSON.stringify({ label: "Estimate", type: "number" }) });
+
+  const withFields = await callTool("grimoire_board");
+  check("the board names the fields and their options", withFields.text.includes("Priority (p0 | p1 | p2)"), withFields.text);
+
+  const fieldPage = await callTool("grimoire_create_page", {
+    title: "Reconcile the stale backlog",
+    column: "Up Next",
+    // Said the way a person would say it, in the wrong case and by label rather than key.
+    fields: { Priority: "P0", estimate: 3 },
+  });
+  check("a page can be created carrying field values", !fieldPage.isError, fieldPage.text);
+
+  const fieldsReadBack = await callTool("grimoire_read_page", { page: "Reconcile the stale backlog" });
+  check("the values read back by label", fieldsReadBack.text.includes("Priority: p0"), fieldsReadBack.text);
+  check("and the number survived being written", fieldsReadBack.text.includes("Estimate: 3"), fieldsReadBack.text);
+
+  const patched = await callTool("grimoire_update_page", {
+    page: "Reconcile the stale backlog",
+    fields: { priority: "p2" },
+  });
+  check("setting one field leaves the others alone", patched.text.includes("Estimate: 3"), patched.text);
+  check("and the one that was set has moved", patched.text.includes("Priority: p2"), patched.text);
+
+  const badOption = await callTool("grimoire_update_page", {
+    page: "Reconcile the stale backlog",
+    fields: { priority: "urgent" },
+  });
+  check("an option that is not offered is refused", badOption.isError, badOption.text);
+  check("and the refusal lists the real options", badOption.text.includes("p0, p1, p2"), badOption.text);
+
+  const unknownField = await callTool("grimoire_update_page", {
+    page: "Reconcile the stale backlog",
+    fields: { velocity: 9 },
+  });
+  check("a field nobody defined is refused", unknownField.isError, unknownField.text);
+
+  const defineAttempt = await fetch(`${baseUrl}/api/fields`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" },
+    body: JSON.stringify({ label: "Velocity", type: "number" }),
+  });
+  check("the token cannot define a field", defineAttempt.status === 403, String(defineAttempt.status));
+
   // ------------------------------------------------------------ ideas
   console.log("\nIdeas");
   const idea = await callTool("grimoire_create_idea", { title: "Familiars could learn habits" });

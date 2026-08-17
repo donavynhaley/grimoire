@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import type { AwayState, BoardWorkspace, PageStatus, IdeaState, IdeaWorkspace, SessionState, User } from "../shared/types";
+import type { AwayState, BoardWorkspace, FieldType, PageStatus, IdeaState, IdeaWorkspace, SessionState, User, UserRole } from "../shared/types";
 import { activity as loadActivity, ApiError, away as loadAway, board as loadBoard, editConflict, ideas as loadIdeas, liveEventsUrl, markSeen, mutate, request, session, setActiveProjectId, uploadAvatar } from "./api/client";
 import { AuthScreen } from "./components/AuthScreen";
 import { Board } from "./components/Board";
@@ -318,6 +318,9 @@ export function App() {
 
   const removeMember = (id: string) => perform(() => mutate(`/api/members/${id}`, "DELETE"));
 
+  const changeMemberRole = (id: string, role: UserRole) =>
+    perform(() => mutate(`/api/members/${id}`, "PATCH", { role }));
+
   const changePassword = async (currentPassword: string, newPassword: string) => {
     await mutate("/api/account/password", "POST", { currentPassword, newPassword });
   };
@@ -381,6 +384,12 @@ export function App() {
     perform(() => mutate(`/api/categories/${slug}`, "PATCH", input));
   const deleteCategory = (slug: string) => perform(() => mutate(`/api/categories/${slug}`, "DELETE"));
 
+  const createField = (input: { label: string; type: FieldType; options?: string[]; showOnTile?: boolean }) =>
+    perform(() => mutate("/api/fields", "POST", input));
+  const updateField = (key: string, input: { label?: string; options?: string[]; showOnTile?: boolean }) =>
+    perform(() => mutate(`/api/fields/${key}`, "PATCH", input));
+  const deleteField = (key: string) => perform(() => mutate(`/api/fields/${key}`, "DELETE"));
+
   const createChapter = (input: { name: string; startsOn?: string | null; endsOn?: string | null }) =>
     perform(() => mutate("/api/chapters", "POST", input));
   const updateChapter = (slug: string, input: Record<string, unknown>) =>
@@ -420,6 +429,7 @@ export function App() {
         board={board}
         busy={busy}
         categoryActions={{ create: createCategory, update: updateCategory, remove: deleteCategory }}
+        fieldActions={{ create: createField, update: updateField, remove: deleteField }}
         chapterActions={{ create: createChapter, update: updateChapter, remove: deleteChapter }}
         ideas={ideas}
         key={board.project.id}
@@ -437,6 +447,7 @@ export function App() {
         onMoveBacklogToNext={moveBacklogToNext}
         revision={revision}
         onPromoteIdea={promoteIdea}
+        onChangeMemberRole={changeMemberRole}
         onRemoveMember={removeMember}
         onRestorePage={restorePage}
         onUpdate={updatePage}
