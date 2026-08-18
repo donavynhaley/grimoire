@@ -13,7 +13,7 @@ export type CapturePageInput = {
 };
 
 type CaptureSettings = Omit<CapturePageInput, "title" | "fields"> & { fields: Record<string, FieldValue> };
-type PickerKind = "category" | "chapter" | "assignee" | "status" | "field";
+type PickerKind = "category" | "chapter" | "assignee" | "status" | "field" | "field-cmd";
 type PickerState = {
   kind: PickerKind;
   /** Which of the project's fields is open, when `kind` is "field". */
@@ -27,6 +27,10 @@ type PickerOption = {
   search: string;
   value: string | boolean | null;
   color?: string;
+  /** Which project field this option belongs to, for options reached through "!". */
+  fieldKey?: string;
+  /** True for the entry that opens a written field's panel rather than holding a value. */
+  opensPanel?: boolean;
 };
 
 type Props = {
@@ -149,6 +153,35 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
 
   const choose = (option: PickerOption) => {
     if (!picker) return;
+    if (picker.kind === "field-cmd" && option.fieldKey) {
+      const consumed = picker.commandStart;
+      if (option.opensPanel) {
+        // The written panel takes over exactly as if its chip had been tapped.
+        if (consumed !== null) {
+          setTitle((current) => {
+            const kept = current.slice(0, consumed).trimEnd();
+            return kept ? `${kept} ` : "";
+          });
+        }
+        openPicker("field", option.fieldKey);
+        return;
+      }
+      setSettings((current) => {
+        const next = { ...current.fields };
+        next[option.fieldKey!] = option.value as FieldValue;
+        settingsRef.current = { ...current, fields: next };
+        return settingsRef.current;
+      });
+      if (consumed !== null) {
+        setTitle((current) => {
+          const kept = current.slice(0, consumed).trimEnd();
+          return kept ? `${kept} ` : "";
+        });
+      }
+      setPicker(null);
+      inputRef.current?.focus();
+      return;
+    }
     setSettings((current) => {
       if (picker.kind === "category") return { ...current, category: option.value as PageCategory | null };
       if (picker.kind === "chapter") return { ...current, chapter: option.value as string | null };
@@ -293,7 +326,7 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
                   key={field.key}
                   onClick={() => openPicker("field", field.key)}
                   type="button"
-                ><span aria-hidden="true">•</span>{label}</button>
+                ><span aria-hidden="true">!</span>{label}</button>
               );
             })}
           </div>
@@ -344,8 +377,7 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
         <div aria-label={`Choose ${pickerHeading(picker, fieldChips).toLowerCase()}`} className={`capture-picker capture-picker-${picker.kind}`} id="capture-options" role="listbox">
           <header>
             <span>{pickerHeading(picker, fieldChips)}</span>
-            {/* The project's own fields have no trigger character to teach. */}
-            {picker.kind !== "field" && <kbd>{pickerTrigger(picker.kind)}</kbd>}
+            <kbd>{pickerTrigger(picker.kind)}</kbd>
           </header>
           {openField?.type === "search-select" && (
             <div className="capture-write capture-filter">
@@ -407,13 +439,15 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
 
 function commandAtEnd(value: string, caret: number): PickerState | null {
   if (caret !== value.length) return null;
-  const match = value.match(/(^|\s)([#@/~])([^\s]*)$/);
+  const match = value.match(/(^|\s)([#@/~!])([^\s]*)$/);
   if (!match) return null;
   const kind = match[2] === "#"
     ? "category"
     : match[2] === "~"
       ? "chapter"
-      : match[2] === "@" ? "assignee" : "status";
+      : match[2] === "@"
+        ? "assignee"
+        : match[2] === "!" ? "field-cmd" : "status";
   return {
     kind,
     query: match[3].toLowerCase(),
@@ -429,6 +463,30 @@ function pickerOptions(
   fields: ProjectField[],
 ): PickerOption[] {
   const kind = picker?.kind ?? null;
+  if (kind === "field-cmd") {
+    return fields.flatMap((field): PickerOption[] => {
+      if (!picksFromList(field)) {
+        return [{
+          id: `cmd-${field.key}`,
+          label: `${field.label}...`,
+          search: `${field.label} ${field.key}`.toLowerCase(),
+          value: null,
+          fieldKey: field.key,
+          opensPanel: true,
+        }];
+      }
+      const choices = field.type === "checkbox"
+        ? [{ raw: true, shown: "yes" }, { raw: false, shown: "no" }]
+        : field.options.map((option) => ({ raw: option as string | boolean, shown: option }));
+      return choices.map(({ raw, shown }) => ({
+        id: `cmd-${field.key}-${shown}`,
+        label: `${field.label}: ${shown}`,
+        search: `${field.label} ${shown}`.toLowerCase(),
+        value: raw,
+        fieldKey: field.key,
+      }));
+    });
+  }
   if (kind === "field") {
     const field = fields.find((candidate) => candidate.key === picker?.fieldKey);
     if (!field) return [];
@@ -509,6 +567,7 @@ function selectedValue(settings: CaptureSettings, picker: PickerState): string |
     const held = picker.fieldKey ? settings.fields[picker.fieldKey] : undefined;
     return held === undefined ? null : (held as string | boolean);
   }
+  if (picker.kind === "field-cmd") return null;
   return settings.status;
 }
 
@@ -529,6 +588,7 @@ function pickerHeading(picker: PickerState, fields: ProjectField[]): string {
   if (picker.kind === "field") {
     return fields.find((candidate) => candidate.key === picker.fieldKey)?.label ?? "Field";
   }
+  if (picker.kind === "field-cmd") return "Project fields";
   return "Column";
 }
 
@@ -536,5 +596,6 @@ function pickerTrigger(kind: PickerKind): string {
   if (kind === "category") return "#";
   if (kind === "chapter") return "~";
   if (kind === "assignee") return "@";
+  if (kind === "field" || kind === "field-cmd") return "!";
   return "/";
 }

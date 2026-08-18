@@ -106,6 +106,41 @@ describe("page fields", () => {
     );
   });
 
+  it("reaches a field option by typing ! in the title, like # reaches a category", async () => {
+    const user = userEvent.setup();
+    const board = { ...boardFixture(), fields: [priority, region] };
+    const calls = mountWith(board);
+
+    await user.type(await screen.findByLabelText("Capture work page"), "Chart the coast !salt");
+    await user.click(screen.getByRole("option", { name: "Region: salt marsh" }));
+    // The command text is consumed, the value held, and the title left clean.
+    expect(screen.getByLabelText("Capture work page")).toHaveValue("Chart the coast ");
+    expect(screen.getByRole("button", { name: "Region: salt marsh" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "add page" }));
+    await waitFor(() =>
+      expect(calls).toContainEqual(
+        expect.objectContaining({
+          url: "/api/pages",
+          method: "POST",
+          body: expect.objectContaining({ title: "Chart the coast", fields: { region: "salt marsh" } }),
+        }),
+      ),
+    );
+  });
+
+  it("routes ! to a written field's panel, since its value cannot be listed", async () => {
+    const user = userEvent.setup();
+    const board = { ...boardFixture(), fields: [estimate] };
+    mountWith(board);
+
+    await user.type(await screen.findByLabelText("Capture work page"), "Anything !est");
+    await user.click(screen.getByRole("option", { name: "Estimate..." }));
+    await user.type(screen.getByLabelText("Estimate"), "3{Enter}");
+    expect(screen.getByRole("button", { name: "Estimate: 3" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Capture work page")).toHaveValue("Anything ");
+  });
+
   it("sets a searchable choice by typing in the page editor", async () => {
     const user = userEvent.setup();
     const board = { ...boardFixture(), fields: [region] };
