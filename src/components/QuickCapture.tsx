@@ -74,6 +74,8 @@ const statusLabels: Partial<Record<PageStatus, string>> = {
 export function QuickCapture({ busy, categories, chapters, fields = [], members, onCreate }: Props) {
   const [title, setTitle] = useState("");
   const [settings, setSettings] = useState<CaptureSettings>(DEFAULT_SETTINGS);
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
   const [picker, setPicker] = useState<PickerState | null>(null);
   const [highlighted, setHighlighted] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -125,17 +127,24 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
     : null;
   const writingField = openField && !picksFromList(openField) ? openField : null;
 
-  const setWrittenField = () => {
+  /**
+   * Commits whatever the panel holds; an empty or unparseable value clears the field.
+   *
+   * Written through the ref as well as state, because the commit often runs from a blur
+   * whose very next event - the tap that caused it - may be the submit itself, one render
+   * before state catches up.
+   */
+  const setWrittenField = ({ refocus }: { refocus: boolean }) => {
     if (!writingField) return;
     const parsed = parseWritten(writingField, fieldDraft);
-    setSettings((current) => {
-      const next = { ...current.fields };
-      if (parsed === null) delete next[writingField.key];
-      else next[writingField.key] = parsed;
-      return { ...current, fields: next };
-    });
+    const nextFields = { ...settingsRef.current.fields };
+    if (parsed === null) delete nextFields[writingField.key];
+    else nextFields[writingField.key] = parsed;
+    settingsRef.current = { ...settingsRef.current, fields: nextFields };
+    setSettings(settingsRef.current);
     setPicker(null);
-    inputRef.current?.focus();
+    // Enter means "done, back to the title"; a tap-away already chose where focus goes.
+    if (refocus) inputRef.current?.focus();
   };
 
   const choose = (option: PickerOption) => {
@@ -190,7 +199,7 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
     event.preventDefault();
     const cleanTitle = title.trim();
     if (!cleanTitle || picker) return;
-    const { fields: chosenFields, ...submitted } = settings;
+    const { fields: chosenFields, ...submitted } = settingsRef.current;
     setTitle("");
     // Settings carry over to the next page on purpose: runs of similar pages
     // shouldn't need re-picking. "start fresh" below returns to the defaults.
@@ -308,13 +317,14 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
               autoFocus
               id="capture-field-value"
               inputMode={writingField.type === "number" ? "decimal" : undefined}
+              onBlur={() => setWrittenField({ refocus: false })}
               onChange={(event) => setFieldDraft(event.target.value)}
               onKeyDown={(event) => {
                 // The panel owns its keys: Enter sets without submitting the capture form,
-                // and Escape leaves the panel without putting the whole capture down.
+                // and Escape leaves the panel holding what the field held before.
                 if (event.key === "Enter") {
                   event.preventDefault();
-                  setWrittenField();
+                  setWrittenField({ refocus: true });
                 }
                 if (event.key === "Escape") {
                   event.stopPropagation();
@@ -326,14 +336,6 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
               type={writingField.type === "date" ? "date" : "text"}
               value={fieldDraft}
             />
-            <button className="primary-button compact" onClick={setWrittenField} type="button">set</button>
-            {settings.fields[writingField.key] !== undefined && (
-              <button
-                className="text-button"
-                onClick={() => { setFieldDraft(""); setWrittenField(); }}
-                type="button"
-              >clear</button>
-            )}
           </div>
         </div>
       )}

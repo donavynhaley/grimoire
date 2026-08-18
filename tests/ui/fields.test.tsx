@@ -119,6 +119,19 @@ describe("page fields", () => {
     );
   });
 
+  it("commits a written field when the reader just taps away", async () => {
+    const user = userEvent.setup();
+    const board = { ...boardFixture(), fields: [estimate] };
+    mountWith(board);
+
+    await user.type(await screen.findByLabelText("Capture work page"), "Anything");
+    await user.click(screen.getByRole("button", { name: "Choose Estimate" }));
+    await user.type(screen.getByLabelText("Estimate"), "8");
+    // No set button, no Enter: leaving the field is the save.
+    await user.click(screen.getByLabelText("Capture work page"));
+    expect(screen.getByRole("button", { name: "Estimate: 8" })).toBeInTheDocument();
+  });
+
   it("refuses to hold a written number that is not one", async () => {
     const user = userEvent.setup();
     const board = { ...boardFixture(), fields: [estimate] };
