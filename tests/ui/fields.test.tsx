@@ -111,10 +111,13 @@ describe("page fields", () => {
     const board = { ...boardFixture(), fields: [priority, region] };
     const calls = mountWith(board);
 
-    await user.type(await screen.findByLabelText("Capture work page"), "Chart the coast !salt");
-    await user.click(screen.getByRole("option", { name: "Region: salt marsh" }));
-    // The command text is consumed, the value held, and the title left clean.
+    await user.type(await screen.findByLabelText("Capture work page"), "Chart the coast !reg");
+    // Stage one is the field; the command text leaves the title on the way in.
+    await user.click(screen.getByRole("option", { name: "Region" }));
     expect(screen.getByLabelText("Capture work page")).toHaveValue("Chart the coast ");
+    // Stage two is that field's own picker - searchable, since the field is.
+    await user.type(screen.getByLabelText("Search Region options"), "salt");
+    await user.click(screen.getByRole("option", { name: "salt marsh" }));
     expect(screen.getByRole("button", { name: "Region: salt marsh" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "add page" }));
@@ -135,10 +138,32 @@ describe("page fields", () => {
     mountWith(board);
 
     await user.type(await screen.findByLabelText("Capture work page"), "Anything !est");
-    await user.click(screen.getByRole("option", { name: "Estimate..." }));
+    await user.click(screen.getByRole("option", { name: "Estimate" }));
     await user.type(screen.getByLabelText("Estimate"), "3{Enter}");
     expect(screen.getByRole("button", { name: "Estimate: 3" })).toBeInTheDocument();
     expect(screen.getByLabelText("Capture work page")).toHaveValue("Anything ");
+  });
+
+  it("drills from ! into a plain choice's options", async () => {
+    const user = userEvent.setup();
+    const board = { ...boardFixture(), fields: [priority] };
+    const calls = mountWith(board);
+
+    await user.type(await screen.findByLabelText("Capture work page"), "Sort the shelves !pri");
+    await user.click(screen.getByRole("option", { name: "Priority" }));
+    await user.click(screen.getByRole("option", { name: "p2" }));
+    expect(screen.getByRole("button", { name: "Priority: p2" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "add page" }));
+    await waitFor(() =>
+      expect(calls).toContainEqual(
+        expect.objectContaining({
+          url: "/api/pages",
+          method: "POST",
+          body: expect.objectContaining({ title: "Sort the shelves", fields: { priority: "p2" } }),
+        }),
+      ),
+    );
   });
 
   it("sets a searchable choice by typing in the page editor", async () => {

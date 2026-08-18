@@ -70,6 +70,13 @@ function parseWritten(field: ProjectField, raw: string): FieldValue | null {
   return value;
 }
 
+/** What kind of answer a field takes, said in a word beside its name in the "!" list. */
+function fieldKindWord(field: ProjectField): string {
+  if (fieldHasOptions(field.type)) return "choice";
+  if (field.type === "checkbox") return "yes / no";
+  return field.type;
+}
+
 const statusLabels: Partial<Record<PageStatus, string>> = {
   backlog: "Backlog",
   ready: "Up Next",
@@ -156,32 +163,16 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
   const choose = (option: PickerOption) => {
     if (!picker) return;
     if (picker.kind === "field-cmd" && option.fieldKey) {
-      const consumed = picker.commandStart;
-      if (option.opensPanel) {
-        // The written panel takes over exactly as if its chip had been tapped.
-        if (consumed !== null) {
-          setTitle((current) => {
-            const kept = current.slice(0, consumed).trimEnd();
-            return kept ? `${kept} ` : "";
-          });
-        }
-        openPicker("field", option.fieldKey);
-        return;
-      }
-      setSettings((current) => {
-        const next = { ...current.fields };
-        next[option.fieldKey!] = option.value as FieldValue;
-        settingsRef.current = { ...current, fields: next };
-        return settingsRef.current;
-      });
-      if (consumed !== null) {
+      // The field's own picker takes over, exactly as if its chip had been tapped, and
+      // the command text leaves the title on the way.
+      if (picker.commandStart !== null) {
+        const consumed = picker.commandStart;
         setTitle((current) => {
           const kept = current.slice(0, consumed).trimEnd();
           return kept ? `${kept} ` : "";
         });
       }
-      setPicker(null);
-      inputRef.current?.focus();
+      openPicker("field", option.fieldKey);
       return;
     }
     setSettings((current) => {
@@ -408,11 +399,12 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
             </div>
           )}
           <div>
-            {visibleOptions.map((option, index) => (
+            {visibleOptions.map((option, index) => {
+              const chosen = picker.kind !== "field-cmd" && option.value === selectedValue(settings, picker);
+              return (
               <button
-                aria-label={option.hint ? `${option.hint}: ${option.label}` : undefined}
-                aria-selected={option.value === selectedValue(settings, picker)}
-                className={`${index === highlighted ? "highlighted" : ""} ${option.value === selectedValue(settings, picker) ? "selected" : ""}`}
+                aria-selected={chosen}
+                className={`${index === highlighted ? "highlighted" : ""} ${chosen ? "selected" : ""}`}
                 id={`capture-option-${option.id}`}
                 key={option.id}
                 onMouseDown={(event) => event.preventDefault()}
@@ -430,9 +422,10 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
                 {picker.kind === "status" && <span className={`column-dot ${option.value}`} />}
                 <span>{option.label}</span>
                 {option.hint && <span aria-hidden="true" className="option-hint">{option.hint}</span>}
-                {option.value === selectedValue(settings, picker) && <span aria-hidden="true">✓</span>}
+                {chosen && <span aria-hidden="true">✓</span>}
               </button>
-            ))}
+              );
+            })}
             {visibleOptions.length === 0 && (
               <p>{picker.kind === "field-cmd" && options.length === 0
                 ? "This project has no fields yet. Define them in project settings."
@@ -472,29 +465,15 @@ function pickerOptions(
 ): PickerOption[] {
   const kind = picker?.kind ?? null;
   if (kind === "field-cmd") {
-    return fields.flatMap((field): PickerOption[] => {
-      if (!picksFromList(field)) {
-        return [{
-          id: `cmd-${field.key}`,
-          label: `${field.label}...`,
-          search: `${field.label} ${field.key}`.toLowerCase(),
-          value: null,
-          fieldKey: field.key,
-          opensPanel: true,
-        }];
-      }
-      const choices = field.type === "checkbox"
-        ? [{ raw: true, shown: "yes" }, { raw: false, shown: "no" }]
-        : field.options.map((option) => ({ raw: option as string | boolean, shown: option }));
-      return choices.map(({ raw, shown }) => ({
-        id: `cmd-${field.key}-${shown}`,
-        label: shown,
-        search: `${field.label} ${shown}`.toLowerCase(),
-        value: raw,
-        fieldKey: field.key,
-        hint: field.label,
-      }));
-    });
+    return fields.map((field) => ({
+      id: `cmd-${field.key}`,
+      label: field.label,
+      search: `${field.label} ${field.key}`.toLowerCase(),
+      value: null,
+      fieldKey: field.key,
+      opensPanel: true,
+      hint: fieldKindWord(field),
+    }));
   }
   if (kind === "field") {
     const field = fields.find((candidate) => candidate.key === picker?.fieldKey);
