@@ -3,6 +3,7 @@ import { Drawer } from "./Drawer";
 import { AUDIT_ENTITY_TYPES, type AuditEntityType, type AuditEvent, type AuditPage, type Member } from "../../shared/types";
 import { Avatar } from "./Avatar";
 import { dayLabel, describeChange, describeEvent, ENTITY_LABELS, eventText, timeLabel } from "./activity-copy";
+import { useTypingFocus } from "./use-typing-focus";
 
 const PAGE_SIZE = 60;
 
@@ -17,6 +18,7 @@ type Props = {
 };
 
 export function ActivityDialog({ awaySince, members, revision, onClose, onLoad, onOpenPage }: Props) {
+  const focusForTyping = useTypingFocus<HTMLInputElement>();
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -93,7 +95,7 @@ export function ActivityDialog({ awaySince, members, revision, onClose, onLoad, 
           <span className="sr-only">Search activity</span>
           <input
             aria-label="Search activity"
-            autoFocus
+            ref={focusForTyping}
             id="activity-search"
             name="activitySearch"
             onChange={(event) => setQuery(event.target.value)}

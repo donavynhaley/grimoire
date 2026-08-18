@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Drawer } from "./Drawer";
 import { SEARCH_GROUPS, type SearchGroup, type SearchHit, type SearchResults } from "../../shared/types";
 import { ApiError, search as searchProject } from "../api/client";
+import { useTypingFocus } from "./use-typing-focus";
 
 const GROUP_LABELS: Record<SearchGroup, string> = {
   active: "Active board",
@@ -34,6 +35,7 @@ type Props = {
  * and nothing else in the interface can reach the archive at all.
  */
 export function SearchDialog({ initialQuery, onClose, onOpenPage, onOpenIdea, onRestorePage }: Props) {
+  const focusForTyping = useTypingFocus<HTMLInputElement>({ always: true });
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<SearchResults | null>(null);
   const [failed, setFailed] = useState(false);
@@ -148,13 +150,12 @@ export function SearchDialog({ initialQuery, onClose, onOpenPage, onOpenIdea, on
         <span aria-hidden="true" className="search-glyph">/</span>
         <label className="sr-only" htmlFor="global-search">Search pages, notes, ideas, and archived work</label>
         <input
-          autoFocus
           id="global-search"
           name="globalSearch"
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={onKeyDown}
           placeholder="Search pages, notes, ideas, archived work..."
-          ref={inputRef}
+          ref={(node) => { inputRef.current = node; focusForTyping(node); }}
           type="search"
           value={query}
         />

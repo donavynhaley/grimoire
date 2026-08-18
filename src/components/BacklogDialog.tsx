@@ -3,6 +3,7 @@ import { Drawer } from "./Drawer";
 import { type Page, type PageCategory, type Chapter, type Member, type ProjectCategory } from "../../shared/types";
 import { categoryDisplay, categoryStyle } from "./category-style";
 import { plainTextFromMarkdown } from "./markdown-text";
+import { useTypingFocus } from "./use-typing-focus";
 
 type Props = {
   allPages: Page[];
@@ -23,6 +24,7 @@ type Props = {
 type ChapterChoice = string | null | "unplaced";
 
 export function BacklogDialog({ allPages, busy, pages, categories, chapters, members, targetChapter, onClose, onMoveToNext, onOpenPage, onSetChapter }: Props) {
+  const focusForTyping = useTypingFocus<HTMLInputElement>();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<PageCategory | null>(null);
   const [person, setPerson] = useState<string | null>(null);
@@ -77,7 +79,7 @@ export function BacklogDialog({ allPages, busy, pages, categories, chapters, mem
           <span className="sr-only">Search backlog</span>
           <input
             aria-label="Search backlog"
-            autoFocus
+            ref={focusForTyping}
             id="backlog-search"
             name="backlogSearch"
             onChange={(event) => setQuery(event.target.value)}

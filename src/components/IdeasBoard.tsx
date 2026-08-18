@@ -7,6 +7,7 @@ import { Drawer } from "./Drawer";
 import { useContentEditor } from "./use-content-editor";
 import { useFlip } from "./use-flip";
 import { type DragPoint, gapIndexIn, pointWithin, usePointerDrag } from "./use-pointer-drag";
+import { useTypingFocus } from "./use-typing-focus";
 
 /** Shortlist first, so a point inside it is read as a rank rather than as the layout behind it. */
 const IDEA_STATES = ["shortlist", "inbox", "parked"] as const satisfies readonly IdeaState[];
@@ -30,6 +31,7 @@ type Props = {
 };
 
 export function IdeasBoard({ workspace, busy, openIdea, unseenIdeaIds, onCreate, onUpdate, onPromote }: Props) {
+  const focusForTyping = useTypingFocus<HTMLInputElement>();
   const [title, setTitle] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(
     () => new URLSearchParams(location.search).get("idea"),
@@ -182,7 +184,7 @@ export function IdeasBoard({ workspace, busy, openIdea, unseenIdeaIds, onCreate,
         </div>
         <form className="idea-capture workspace-capture" onSubmit={capture}>
           <label className="sr-only" htmlFor="capture-idea">Capture an idea</label>
-          <input autoFocus id="capture-idea" name="ideaTitle" onChange={(event) => setTitle(event.target.value)} placeholder="Something worth remembering..." value={title} />
+          <input id="capture-idea" ref={focusForTyping} name="ideaTitle" onChange={(event) => setTitle(event.target.value)} placeholder="Something worth remembering..." value={title} />
           <button className="primary-button" disabled={busy || !title.trim()} type="submit">capture</button>
         </form>
       </div>

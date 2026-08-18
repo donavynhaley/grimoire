@@ -576,6 +576,20 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
               )}
             </button>
           )}
+          {/*
+            Search reaches the whole project from either workspace, and used to be reachable
+            only by pressing "/" - a key a phone does not have, on a surface where the one
+            visible way in appeared solely once a filter had been typed.
+          */}
+          <button
+            aria-label="Search"
+            className="quiet-button search-trigger"
+            onClick={() => setSearchOpen(true)}
+            title="Search (/)"
+            type="button"
+          >
+            <span aria-hidden="true">⌕</span><span className="search-trigger-label">search</span>
+          </button>
           {/* A shortcut into the one settings surface, landing on its Team section. */}
           <button className="quiet-button" onClick={() => setSettingsSection("team")} type="button">team</button>
           <button aria-label={`Open account settings for ${board.currentUser.name}`} className="account-button" onClick={() => setAccountOpen(true)} title="Account settings" type="button">

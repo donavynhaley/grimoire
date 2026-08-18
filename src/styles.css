@@ -2399,6 +2399,140 @@ textarea:hover { border-color: var(--border-bright); }
   .shortlist-section { min-height: 260px; }
   .shortlist-card { grid-template-columns: 34px 1fr; }
   .shortlist-card .idea-actions { grid-column: 1 / -1; flex-direction: row; border-top: 1px solid var(--border); border-left: 0; }
+  /* The label goes and the glyph stays, so search keeps a full target without a full word. */
+  .search-trigger-label { display: none; }
+  .search-trigger { padding: 0 10px; font-size: 15px; }
+}
+
+/* The phone type ramp ---------------------------------------------------- */
+
+/*
+ * The interface runs 8-11px on a desktop, which is legible at arm's length on a large screen
+ * and genuinely hard to read held in one hand. This lifts the floor without touching the
+ * desktop ramp: the dense look is the point of it, and it stays where it works.
+ *
+ * The inputs matter for a second reason. Safari zooms the whole page when a field smaller than
+ * 16px takes focus, and stays zoomed after - so every capture, search, and edit began with a
+ * lurch and left the board a little further away than it found it. 16px is not a preference
+ * here, it is the threshold at which that stops happening.
+ */
+@media (max-width: 620px) {
+  body { font-size: 14px; }
+
+  input,
+  textarea,
+  select { font-size: 16px !important; }
+  .search-input input,
+  .library-search input,
+  .page-search input,
+  .workspace-capture input,
+  .record-form input,
+  .record-form textarea { font-size: 16px; }
+
+  /* Anything carrying words a reader has to act on stops shrinking below 11px. */
+  .page-open strong,
+  .idea-open strong,
+  .board-page p,
+  .idea-open p,
+  .column-header h3,
+  .moving-bar,
+  .empty-column,
+  .empty-ideas,
+  .search-hit strong,
+  .library-page strong,
+  .history-page strong,
+  .choice,
+  .capture-field,
+  .quiet-button,
+  .text-button,
+  .move-slot,
+  .idea-actions button,
+  .dialog-footer,
+  .field-label,
+  .eyebrow { font-size: 11px; }
+
+  .category-pill,
+  .page-blocked,
+  .assignee,
+  .column-count { font-size: 9px; }
+
+  .empty-column,
+  .empty-ideas { letter-spacing: 0.04em; text-transform: none; }
+}
+
+/*
+ * Targets sized for a finger rather than a cursor.
+ *
+ * Apple asks for 44pt and Android for 48dp; this interface had controls at 26. Where a control
+ * should stay visually small, the box grows around it instead of the ink: `min-height` plus
+ * padding on the hit area, so the design reads as it did and the target is honest.
+ */
+@media (pointer: coarse), (max-width: 620px) {
+  .drag-grip { width: 44px; height: 44px; top: 2px; right: 0; opacity: 0.7; font-size: 15px; }
+  .idea-actions .drag-grip { width: 44px; height: 44px; }
+  .page-open { padding: 15px 46px 14px 15px; }
+
+  .move-slot { min-height: 44px; font-size: 10px; }
+
+  .capture-field,
+  .reset-settings,
+  .people-filters button,
+  .library-filters button,
+  .quiet-button,
+  .workspace-tabs button,
+  .account-button,
+  .chapter-trigger,
+  .library-trigger,
+  .add-to-column,
+  .choice,
+  .idea-actions button,
+  .history-reopen,
+  .library-promote,
+  .settings-rail button,
+  .search-hit,
+  .profile-icon-option { min-height: 44px; }
+
+  .people-filters button:has(.avatar) { width: 44px; }
+  .people-filters button.self-filter { width: 72px; }
+
+  /* A close control is the one thing a reader reaches for in a hurry. */
+  .icon-button {
+    display: grid;
+    width: 44px;
+    height: 44px;
+    place-items: center;
+    font-size: 20px;
+  }
+
+  .primary-button,
+  .danger-button { min-height: 44px; }
+
+  /* No double-tap-to-zoom delay on anything meant to be pressed. */
+  button,
+  a,
+  label,
+  summary,
+  [role="button"],
+  [role="option"] { touch-action: manipulation; }
+
+  /*
+   * A tap has no hover to answer it, so without this every press feels dead until the
+   * screen changes. These are the acknowledgements, and they are deliberately quick.
+   */
+  .board-page:active,
+  .idea-card:active { border-color: var(--border-bright); transform: scale(0.995); }
+  .primary-button:active,
+  .choice:active,
+  .capture-field:active,
+  .quiet-button:active,
+  .move-slot:active,
+  .library-trigger:active { filter: brightness(1.25); }
+  .page-open:active { background: var(--surface-soft); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-page:active,
+  .idea-card:active { transform: none; }
 }
 
 /* At the narrowest supported width the project name has no room left at all. It stays
@@ -3137,4 +3271,29 @@ textarea:hover { border-color: var(--border-bright); }
     border-top: 1px solid var(--border);
     border-left: 0;
   }
+}
+
+/*
+ * On a phone the properties come first, above the writing.
+ *
+ * Which column a page is in is the single most common thing anyone opens a page to change, and
+ * on a phone this dialog is how it is changed at all. Stacked in source order the rail landed
+ * underneath the notes editor and the history, so the commonest action on the board was also
+ * the furthest thing from the top of the sheet. Flex ordering moves it without moving it in
+ * the markup, so the reading order a screen reader follows stays the order the eye does.
+ */
+@media (max-width: 620px) {
+  .page-editor-split { display: flex; flex-direction: column; }
+  .page-rail {
+    order: -1;
+    margin-top: 0;
+    margin-bottom: 20px;
+    padding-top: 0;
+    padding-bottom: 18px;
+    border-top: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  /* Two properties across, so the sheet opens on the whole set rather than a long list. */
+  .page-rail .choice-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+  .page-rail .status-choices .choice { flex: 1 1 46%; }
 }

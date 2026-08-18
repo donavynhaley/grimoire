@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Drawer } from "./Drawer";
 import { type Page, type PageCategory, type Member, type ProjectCategory } from "../../shared/types";
 import { categoryDisplay, categoryStyle } from "./category-style";
+import { useTypingFocus } from "./use-typing-focus";
 
 type Props = {
   busy: boolean;
@@ -14,6 +15,7 @@ type Props = {
 };
 
 export function DoneHistoryDialog({ busy, pages, categories, members, onClose, onOpenPage, onReopen }: Props) {
+  const focusForTyping = useTypingFocus<HTMLInputElement>();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<PageCategory | null>(null);
   const [person, setPerson] = useState<string | null>(null);
@@ -60,7 +62,7 @@ export function DoneHistoryDialog({ busy, pages, categories, members, onClose, o
           <span className="sr-only">Search completed work</span>
           <input
             aria-label="Search completed work"
-            autoFocus
+            ref={focusForTyping}
             id="completed-work-search"
             name="completedWorkSearch"
             onChange={(event) => setQuery(event.target.value)}

@@ -451,49 +451,9 @@ describe("Grimoire board", () => {
     );
   });
 
-  it("lifts a page under a finger only once the touch has held still", async () => {
-    vi.useFakeTimers();
-    const initial = boardFixture();
-    const page = initial.pages[1];
-    const moved = { ...page, status: "ready" as const, position: 0 };
-    const fetchMock = authenticatedFetch(initial)
-      .mockImplementationOnce(() => response({ page: moved }))
-      .mockImplementationOnce(() => response({ ...initial, pages: [initial.pages[0], moved] }));
-    stubFetch(fetchMock);
-
-    try {
-      render(<App />);
-      const card = (await vi.waitFor(() => screen.getByText(page.title))).closest("article")!;
-      const column = screen.getByRole("region", { name: "Up Next" });
-      stubRect(column, { left: 300, right: 500, top: 100, bottom: 600 });
-
-      // A touch that leaves straight away was scrolling the board, so nothing lifts.
-      fireEvent.pointerDown(card, { pointerId: 2, pointerType: "touch", button: 0, clientX: 10, clientY: 300 });
-      fireEvent.pointerMove(window, { pointerId: 2, pointerType: "touch", clientX: 10, clientY: 260 });
-      act(() => { vi.advanceTimersByTime(400); });
-      expect(card).not.toHaveClass("drag-hidden");
-      fireEvent.pointerUp(window, { pointerId: 2, pointerType: "touch", clientX: 10, clientY: 260 });
-
-      // Holding still lifts it, and from there the drag behaves like any other.
-      fireEvent.pointerDown(card, { pointerId: 3, pointerType: "touch", button: 0, clientX: 10, clientY: 300 });
-      act(() => { vi.advanceTimersByTime(300); });
-      expect(card).toHaveClass("drag-hidden");
-      fireEvent.pointerMove(window, { pointerId: 3, pointerType: "touch", clientX: 400, clientY: 300 });
-      fireEvent.pointerUp(window, { pointerId: 3, pointerType: "touch", clientX: 400, clientY: 300 });
-
-      await vi.waitFor(() =>
-        expect(fetchMock).toHaveBeenCalledWith(
-          `/api/pages/${page.id}`,
-          expect.objectContaining({
-            method: "PATCH",
-            body: JSON.stringify({ status: "ready", position: 0 }),
-          }),
-        ),
-      );
-    } finally {
-      vi.useRealTimers();
-    }
-  });
+  // The hold that separates a scroll from a lift is exercised against the hook itself, in
+  // tests/ui/pointer-drag.test.tsx, where the clock can be driven without the whole app's
+  // own timers running alongside it.
 
   it("moves a page with taps alone, which is the only path a keyboard has", async () => {
     const initial = boardFixture();

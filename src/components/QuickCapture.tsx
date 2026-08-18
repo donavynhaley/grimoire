@@ -1,5 +1,6 @@
 import { type ChangeEvent, type FormEvent, type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { type PageCategory, type PageStatus, type Chapter, type Member, type ProjectCategory } from "../../shared/types";
+import { useTypingFocus } from "./use-typing-focus";
 
 export type CapturePageInput = {
   title: string;
@@ -52,7 +53,12 @@ export function QuickCapture({ busy, categories, chapters, members, onCreate }: 
   const [settings, setSettings] = useState<CaptureSettings>(DEFAULT_SETTINGS);
   const [picker, setPicker] = useState<PickerState | null>(null);
   const [highlighted, setHighlighted] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  /**
+   * The caret lands here on a desktop, where typing was going to start anyway, and waits on a
+   * phone, where it would raise the keyboard over the board the reader has just opened.
+   */
+  const focusOnArrival = useTypingFocus<HTMLInputElement>();
   const options = useMemo(
     () => pickerOptions(picker?.kind ?? null, categories, chapters, members),
     [categories, chapters, members, picker?.kind],
@@ -161,13 +167,12 @@ export function QuickCapture({ busy, categories, chapters, members, onCreate }: 
         aria-expanded={Boolean(picker)}
         aria-haspopup="listbox"
         autoComplete="off"
-        autoFocus
         id="quick-page"
         name="quickPage"
         onChange={changeTitle}
         onKeyDown={handleInputKeyDown}
         placeholder="Capture work..."
-        ref={inputRef}
+        ref={(node) => { inputRef.current = node; focusOnArrival(node); }}
         value={title}
       />
       <button className="primary-button" disabled={busy || !title.trim() || Boolean(picker)} type="submit">add page</button>
