@@ -1237,15 +1237,17 @@ textarea:hover { border-color: var(--border-bright); }
 /* Drawers ---------------------------------------------------------------- */
 
 /*
- * On a thumb, every overlay is a sheet held to the bottom of the screen.
+ * On a thumb, every overlay is a full screen of its own.
  *
- * The sizing is the whole point of this block. `--drawer-viewport` is the visual viewport,
- * set from JavaScript, because a sheet measured in `vh` on iOS puts its own footer behind the
- * URL bar and has no idea the keyboard has opened. The offset keeps it pinned to the visible
+ * It rises from the bottom and leaves by being pulled back down, so the geometry still says
+ * "this sits over the board" even though none of the board stays visible - a phone screen is
+ * too small to spend a strip of it on context, and the sliver the earlier sheet kept was
+ * costing more than it said.
+ *
+ * The sizing is the rest of the point. `--drawer-viewport` is the visual viewport, set from
+ * JavaScript, because a surface measured in `vh` on iOS puts its own footer behind the URL
+ * bar and has no idea the keyboard has opened. The offset keeps it pinned to the visible
  * part when iOS scrolls the layout viewport out from under it.
- *
- * A gap is left above the sheet on purpose: seeing a sliver of the board underneath is what
- * makes this read as something laid over the work rather than as a new screen.
  */
 .drawer-backdrop {
   padding: 0;
@@ -1259,18 +1261,17 @@ textarea:hover { border-color: var(--border-bright); }
   display: flex;
   width: 100%;
   max-width: none;
-  height: calc(var(--drawer-viewport, 100dvh) - 48px);
+  height: var(--drawer-viewport, 100dvh);
   max-height: none;
   margin: 0;
-  padding: 0 18px calc(18px + env(safe-area-inset-bottom, 0px));
+  /* Full screen means under the notch too, which the top inset pads back out. */
+  padding: env(safe-area-inset-top, 0px) 18px calc(18px + env(safe-area-inset-bottom, 0px));
   flex-direction: column;
   overflow-y: auto;
-  /* A list that has run out inside the sheet must not start scrolling the board behind it. */
+  /* A list that has run out inside the view must not start scrolling the board behind it. */
   overscroll-behavior: contain;
   border: 0;
-  border-top: 1px solid var(--border-bright);
-  border-radius: 22px 22px 0 0;
-  box-shadow: 0 -18px 60px rgb(0 0 0 / 55%);
+  border-radius: 0;
   animation: drawer-rise 320ms cubic-bezier(0.2, 0.7, 0.2, 1);
   transition: transform 240ms cubic-bezier(0.2, 0.7, 0.2, 1);
 }
@@ -1280,9 +1281,9 @@ textarea:hover { border-color: var(--border-bright); }
   to { transform: translateY(0); }
 }
 
-/* The search sheet is a field and its answers, so it hugs its content instead of filling. */
-.search-dialog.drawer-sheet { height: auto; max-height: calc(var(--drawer-viewport, 100dvh) - 48px); padding: 0; overflow: hidden; }
-.library-dialog.drawer-sheet { padding-top: 0; }
+/* Search owns its scrolling: the field stays put and only the answers move. */
+.search-dialog.drawer-sheet { padding: env(safe-area-inset-top, 0px) 0 0; overflow: hidden; }
+.library-dialog.drawer-sheet { padding-top: env(safe-area-inset-top, 0px); }
 
 /*
  * The handle: what says the sheet can be pulled down, and the part that hears the pull.
@@ -2971,9 +2972,16 @@ textarea:hover { border-color: var(--border-bright); }
 
 /* The rail folds into a scrollable strip where a column of it would crowd the section out. */
 @media (max-width: 640px) {
-  .settings-layout { flex-direction: column; gap: 14px; }
+  /*
+   * Stacked, the cross axis is now horizontal, and the `flex-start` that used to mean
+   * "hug the top" starts meaning "hug the left": the section shrink-wrapped to its
+   * narrowest field and dragged every input and divider down to two-thirds width.
+   */
+  .settings-layout { align-items: stretch; flex-direction: column; gap: 14px; min-height: 0; }
   .settings-rail { flex: none; width: 100%; flex-direction: row; overflow-x: auto; padding-bottom: 4px; }
   .settings-rail button { white-space: nowrap; }
+  /* A thumb cannot use a resize handle, so the box starts at a size worth writing in. */
+  .settings-section textarea { min-height: 110px; }
 }
 
 /* ---------- agent access ---------- */
