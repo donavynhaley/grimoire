@@ -573,6 +573,14 @@ textarea:focus-visible {
 /* Assignees and project fields draw no leading swatch, so their label takes its column. */
 .capture-picker-assignee [role="option"],
 .capture-picker-field [role="option"] { grid-template-columns: minmax(0, 1fr) auto; }
+
+/* A written field's panel: one input where the options would be. */
+.capture-write { display: flex; padding: 8px; align-items: center; gap: 8px; }
+.capture-write input {
+  min-width: 0;
+  height: 34px;
+  flex: 1;
+}
 .capture-picker [role="option"]:hover,
 .capture-picker [role="option"].highlighted { color: var(--text); background: var(--surface-soft); border-color: var(--border); }
 .capture-picker [role="option"].selected { color: var(--accent); }

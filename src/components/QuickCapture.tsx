@@ -48,13 +48,20 @@ const DEFAULT_SETTINGS: CaptureSettings = {
   fields: {},
 };
 
-/**
- * The fields a capture chip can honestly offer: ones whose value is a choice among a few
- * things. Text, numbers, and dates are typing, and the title bar is already for typing -
- * they stay in the page editor where a whole input is waiting for them.
- */
-function capturable(fields: ProjectField[]): ProjectField[] {
-  return fields.filter((field) => field.type === "select" || field.type === "checkbox");
+/** Whether a field answers with a choice among options, or has to be written in. */
+function picksFromList(field: ProjectField): boolean {
+  return field.type === "select" || field.type === "checkbox";
+}
+
+/** How a written value becomes the field's value; null means "could not". */
+function parseWritten(field: ProjectField, raw: string): FieldValue | null {
+  const value = raw.trim();
+  if (!value) return null;
+  if (field.type === "number") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return value;
 }
 
 const statusLabels: Partial<Record<PageStatus, string>> = {
@@ -75,7 +82,9 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
    * phone, where it would raise the keyboard over the board the reader has just opened.
    */
   const focusOnArrival = useTypingFocus<HTMLInputElement>();
-  const fieldChips = capturable(fields);
+  const fieldChips = fields;
+  /** What has been typed into a written field's panel, before it is set. */
+  const [fieldDraft, setFieldDraft] = useState("");
   const options = useMemo(
     () => pickerOptions(picker, categories, chapters, members, fieldChips),
     [categories, chapters, fieldChips, members, picker],
@@ -105,6 +114,28 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
   const openPicker = (kind: PickerKind, fieldKey?: string) => {
     setPicker({ kind, fieldKey, query: "", commandStart: null });
     setHighlighted(0);
+    // A written field's panel opens holding what it already has, ready to be corrected.
+    const held = fieldKey ? settings.fields[fieldKey] : undefined;
+    setFieldDraft(held === undefined ? "" : String(held));
+  };
+
+  /** The field the open panel belongs to, when it is one of the project's own. */
+  const openField = picker?.kind === "field"
+    ? fieldChips.find((candidate) => candidate.key === picker.fieldKey) ?? null
+    : null;
+  const writingField = openField && !picksFromList(openField) ? openField : null;
+
+  const setWrittenField = () => {
+    if (!writingField) return;
+    const parsed = parseWritten(writingField, fieldDraft);
+    setSettings((current) => {
+      const next = { ...current.fields };
+      if (parsed === null) delete next[writingField.key];
+      else next[writingField.key] = parsed;
+      return { ...current, fields: next };
+    });
+    setPicker(null);
+    inputRef.current?.focus();
   };
 
   const choose = (option: PickerOption) => {
@@ -239,11 +270,12 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
             <span aria-hidden="true">/</span>{statusLabel}</button>
             {fieldChips.map((field) => {
               const chosen = settings.fields[field.key];
+              const shown = typeof chosen === "string" && chosen.length > 18 ? `${chosen.slice(0, 17)}…` : chosen;
               const label = chosen === undefined
                 ? field.label
                 : field.type === "checkbox"
                   ? `${field.label}: ${chosen ? "yes" : "no"}`
-                  : `${field.label}: ${chosen}`;
+                  : `${field.label}: ${shown}`;
               return (
                 <button
                   aria-expanded={picker?.kind === "field" && picker.fieldKey === field.key}
@@ -267,7 +299,46 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
         </div>
       )}
 
-      {picker && (
+      {picker && writingField && (
+        <div aria-label={`Set ${writingField.label}`} className="capture-picker capture-picker-field" id="capture-options" role="group">
+          <header><span>{writingField.label}</span></header>
+          <div className="capture-write">
+            <label className="sr-only" htmlFor="capture-field-value">{writingField.label}</label>
+            <input
+              autoFocus
+              id="capture-field-value"
+              inputMode={writingField.type === "number" ? "decimal" : undefined}
+              onChange={(event) => setFieldDraft(event.target.value)}
+              onKeyDown={(event) => {
+                // The panel owns its keys: Enter sets without submitting the capture form,
+                // and Escape leaves the panel without putting the whole capture down.
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  setWrittenField();
+                }
+                if (event.key === "Escape") {
+                  event.stopPropagation();
+                  setPicker(null);
+                  inputRef.current?.focus();
+                }
+              }}
+              placeholder={writingField.type === "number" ? "A number..." : "A value..."}
+              type={writingField.type === "date" ? "date" : "text"}
+              value={fieldDraft}
+            />
+            <button className="primary-button compact" onClick={setWrittenField} type="button">set</button>
+            {settings.fields[writingField.key] !== undefined && (
+              <button
+                className="text-button"
+                onClick={() => { setFieldDraft(""); setWrittenField(); }}
+                type="button"
+              >clear</button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {picker && !writingField && (
         <div aria-label={`Choose ${pickerHeading(picker, fieldChips).toLowerCase()}`} className={`capture-picker capture-picker-${picker.kind}`} id="capture-options" role="listbox">
           <header>
             <span>{pickerHeading(picker, fieldChips)}</span>

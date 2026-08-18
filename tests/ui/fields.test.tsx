@@ -77,8 +77,6 @@ describe("page fields", () => {
     const calls = mountWith(board);
 
     await user.type(await screen.findByLabelText("Capture work page"), "Tune the familiar");
-    // Only fields a picker can answer get chips; a number is typing, and stays in the editor.
-    expect(screen.queryByRole("button", { name: "Choose Estimate" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Choose Priority" }));
     await user.click(screen.getByRole("option", { name: "p1" }));
     await user.click(screen.getByRole("button", { name: "add page" }));
@@ -97,6 +95,40 @@ describe("page fields", () => {
         },
       }),
     );
+  });
+
+  it("captures a page with a written field typed into its panel", async () => {
+    const user = userEvent.setup();
+    const board = { ...boardFixture(), fields: [estimate] };
+    const calls = mountWith(board);
+
+    await user.type(await screen.findByLabelText("Capture work page"), "Rebind the index");
+    await user.click(screen.getByRole("button", { name: "Choose Estimate" }));
+    await user.type(screen.getByLabelText("Estimate"), "5{Enter}");
+    expect(screen.getByRole("button", { name: "Estimate: 5" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "add page" }));
+    await waitFor(() =>
+      expect(calls).toContainEqual(
+        expect.objectContaining({
+          url: "/api/pages",
+          method: "POST",
+          body: expect.objectContaining({ title: "Rebind the index", fields: { estimate: 5 } }),
+        }),
+      ),
+    );
+  });
+
+  it("refuses to hold a written number that is not one", async () => {
+    const user = userEvent.setup();
+    const board = { ...boardFixture(), fields: [estimate] };
+    mountWith(board);
+
+    await user.type(await screen.findByLabelText("Capture work page"), "Anything");
+    await user.click(screen.getByRole("button", { name: "Choose Estimate" }));
+    await user.type(screen.getByLabelText("Estimate"), "soon{Enter}");
+    // Unparseable input sets nothing: the chip stays unchosen rather than holding nonsense.
+    expect(screen.getByRole("button", { name: "Choose Estimate" })).toBeInTheDocument();
   });
 
   it("clears a chosen capture field by picking not set", async () => {
