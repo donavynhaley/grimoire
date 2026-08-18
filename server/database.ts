@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { AUDIT_ENTITY_TYPES } from "../shared/types";
+import { AUDIT_ENTITY_TYPES, FIELD_TYPES } from "../shared/types";
 
 /**
  * The table definition is shared between first-run creation and the CHECK-widening
@@ -84,17 +84,22 @@ const agentTokensTable = `CREATE TABLE IF NOT EXISTS agent_tokens (
  * No project is seeded with any. A team that wants none keeps files byte-identical to the
  * ones it has now, which is the whole reason this is additive rather than a new default.
  */
-const projectFieldsTable = `CREATE TABLE IF NOT EXISTS project_fields (
+const FIELD_TYPE_LIST = FIELD_TYPES.map((value) => `'${value}'`).join(", ");
+
+/** Named so the widening rebuild below can create its replacement from the same source. */
+const projectFieldsTableNamed = (name: string) => `CREATE TABLE IF NOT EXISTS ${name} (
   project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   key TEXT NOT NULL,
   label TEXT NOT NULL,
-  type TEXT NOT NULL CHECK (type IN ('text', 'number', 'select', 'date', 'checkbox')),
+  type TEXT NOT NULL CHECK (type IN (${FIELD_TYPE_LIST})),
   options TEXT NOT NULL DEFAULT '[]',
   position INTEGER NOT NULL DEFAULT 0,
   show_on_tile INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   PRIMARY KEY (project_id, key)
 );`;
+
+const projectFieldsTable = projectFieldsTableNamed("project_fields");
 
 export const DEFAULT_PROJECT_CATEGORIES: Array<{ slug: string; name: string; color: string }> = [
   { slug: "design", name: "Design", color: "#d6bc78" },
@@ -209,6 +214,7 @@ function migrate(database: DatabaseSync): void {
   }
 
   widenAuditEntityTypes(database);
+  widenFieldTypes(database);
 
   const inviteColumns = tableColumns(database, "invites");
   if (!inviteColumns.includes("project_id")) {
@@ -258,6 +264,38 @@ function migrate(database: DatabaseSync): void {
  * Nothing references `audit_events`, so dropping it cannot cascade. Its indexes go with it
  * and are recreated here, because the startup schema has already run by this point.
  */
+/**
+ * Brings `project_fields.type` in line with the field kinds the product now has.
+ *
+ * SQLite cannot alter a CHECK constraint in place, so the table is rebuilt from the current
+ * definition and the rows copied across. This one is far simpler than the audit rebuild
+ * above: nothing references `project_fields`, none of its columns is a cursor anything else
+ * stores, and no values change - only the set the constraint will accept grows.
+ */
+function widenFieldTypes(database: DatabaseSync): void {
+  const existing = database
+    .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'project_fields'")
+    .get() as { sql?: string } | undefined;
+  if (!existing?.sql) return;
+  if (FIELD_TYPES.every((value) => existing.sql!.includes(`'${value}'`))) return;
+
+  database.exec("PRAGMA foreign_keys = OFF");
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    database.exec(projectFieldsTableNamed("project_fields_rebuild"));
+    const columns = tableColumns(database, "project_fields").join(", ");
+    database.exec(`INSERT INTO project_fields_rebuild (${columns}) SELECT ${columns} FROM project_fields`);
+    database.exec("DROP TABLE project_fields");
+    database.exec("ALTER TABLE project_fields_rebuild RENAME TO project_fields");
+    database.exec("COMMIT");
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  } finally {
+    database.exec("PRAGMA foreign_keys = ON");
+  }
+}
+
 function widenAuditEntityTypes(database: DatabaseSync): void {
   const existing = database
     .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'audit_events'")

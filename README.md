@@ -226,6 +226,9 @@ npm run dev
 The Vite development interface is normally available at `http://127.0.0.1:5173`.
 The collaborative API listens at `http://127.0.0.1:8080`.
 
+To try a change on an actual phone, run the interface with `npx vite --host` and open the address Vite prints from a phone on the same network.
+An emulated phone is close, but gestures - the held touch that lifts a page, the pull that dismisses a sheet - deserve a real thumb before they ship.
+
 Configuration options are documented in [.env.example](.env.example).
 The SQLite database is stored in `data/grimoire.sqlite` by default and is ignored by Git.
 Canonical project files are stored beneath `data/pages` by default.
@@ -239,7 +242,10 @@ See [docs/deployment.md](docs/deployment.md) for the isolated Proxmox VM, Cloudf
 ```sh
 npm test
 npm run build
+npm run test:e2e
 ```
+
+The end-to-end suite holds the app against a real Chromium as both an emulated Pixel and a desktop: touch drags, tap-based moves, sheet gestures, and the desktop presentation those must not disturb.
 
 The test suite covers authentication, secure password changes, single-use invitations, member removal, Markdown persistence, legacy migration, external edits, live project events, presence, the activity log, the active deck, Backlog search, project-wide search, completion history, reversible archives and promotions, categories, page dependencies, assignments, filtering, idea ranking, ordering, drag-and-drop interaction, Markdown note rendering, pasted note images, concurrent editing and refused overwrites, the while-you-were-away digest, markers, and seen cursor, chapters including the per-project gate, the single open chapter, closing without rollover, and the compatibility of page files with a build that predates chapters, and agent access including project pinning, revoked and expired credentials, archived projects suspending their credentials, read-only scopes, the routes no credential may reach, a session outranking a bearer header, rate limited writes that survive a backwards clock step, use tracking on reads, credential events in the log under their own entity type, agent attribution rendered in the activity, page history and away surfaces, and attribution surviving both revocation and a rebuild of the activity log.
 

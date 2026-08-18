@@ -15,7 +15,8 @@
     "build:server": "esbuild server/index.ts --bundle --format=esm --packages=external --platform=node --sourcemap --outfile=server-dist/index.js",
     "preview": "vite preview",
     "check:mcp": "npm --prefix packages/grimoire-mcp run check",
-    "verify:mcp": "npm --prefix packages/grimoire-mcp run verify"
+    "verify:mcp": "npm --prefix packages/grimoire-mcp run verify",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "react": "^19.0.0",
@@ -26,6 +27,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",

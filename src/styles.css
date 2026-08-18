@@ -570,7 +570,27 @@ textarea:focus-visible {
   cursor: pointer;
 }
 
-.capture-picker-assignee [role="option"] { grid-template-columns: minmax(0, 1fr) auto; }
+/* Assignees and project fields draw no leading swatch, so their label takes its column. */
+.capture-picker-assignee [role="option"],
+.capture-picker-field [role="option"],
+.capture-picker-field-cmd [role="option"] { grid-template-columns: minmax(0, 1fr) auto; }
+
+/* Which field an answer belongs to, said quietly beside it rather than in front of it. */
+.capture-picker .option-hint {
+  color: var(--faint);
+  font-size: 7px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* A written field's panel: one input where the options would be. */
+.capture-write { display: flex; padding: 8px; align-items: center; gap: 8px; }
+.capture-write input {
+  min-width: 0;
+  height: 34px;
+  flex: 1;
+}
 .capture-picker [role="option"]:hover,
 .capture-picker [role="option"].highlighted { color: var(--text); background: var(--surface-soft); border-color: var(--border); }
 .capture-picker [role="option"].selected { color: var(--accent); }
@@ -985,7 +1005,8 @@ textarea:hover { border-color: var(--border-bright); }
   text-align: left;
 }
 
-.page-open strong { padding-right: 16px; font-size: 11px; line-height: 1.55; overflow-wrap: anywhere; }
+/* Room for the grip, which now sits beside the title rather than inside the button. */
+.page-open strong { padding-right: 30px; font-size: 11px; line-height: 1.55; overflow-wrap: anywhere; }
 .page-open p {
   display: -webkit-box;
   overflow: hidden;
@@ -1031,14 +1052,136 @@ textarea:hover { border-color: var(--border-bright); }
 }
 .page-blocked::before { margin-right: 4px; content: "!"; }
 
+/*
+ * The grip is a real control, not a decoration.
+ *
+ * It used to be a glyph inside the button that opens the page, which meant the only way to
+ * move a card was to drag it - a gesture a touch screen never reported and a keyboard cannot
+ * make at all. As a button it picks the card up on tap or on Enter, and the board answers
+ * with somewhere to put it.
+ */
 .drag-grip {
   position: absolute;
-  top: 11px;
-  right: 10px;
+  z-index: 2;
+  top: 6px;
+  right: 5px;
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
   color: var(--faint);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font: inherit;
   font-size: 12px;
   opacity: 0.45;
+  cursor: grab;
+  transition: color 120ms ease, background 120ms ease, border-color 120ms ease, opacity 120ms ease;
 }
+.drag-grip:hover,
+.drag-grip:focus-visible { color: var(--text); border-color: var(--border-bright); opacity: 1; }
+.drag-grip[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); border-color: #465f3c; opacity: 1; }
+
+/* The shortlist keeps its actions in a row, so the grip joins them rather than floating. */
+.idea-actions .drag-grip { position: static; flex: none; }
+
+/*
+ * The card actually under the pointer, drawn over the board it is crossing.
+ *
+ * The original stays out of the flow while this is up, so the columns behind it show the gap
+ * it will land in rather than the place it left.
+ */
+.board-page.lifted,
+.idea-card.lifted {
+  position: fixed;
+  z-index: 95;
+  overflow: hidden;
+  background: var(--surface-raised);
+  border: 1px solid var(--accent);
+  border-radius: 7px;
+  box-shadow: 0 18px 44px rgb(0 0 0 / 55%);
+  opacity: 0.94;
+  transform-origin: center;
+  /* The transform is rewritten on every pointer move, so easing it would lag the finger. */
+  transition: none;
+  pointer-events: none;
+}
+.board-page.lifted strong,
+.idea-card.lifted strong { font-size: 11px; line-height: 1.55; }
+.board-page.lifted .page-open,
+.idea-card.lifted .idea-open { display: grid; padding: 13px; color: var(--text); text-align: left; }
+
+/*
+ * While a card is up, nothing else may claim the gesture: no scrolling under the finger, no
+ * text selection running away behind it, and no long-press callout on the card it left.
+ */
+.dragging-card,
+.dragging-card body { touch-action: none; user-select: none; -webkit-user-select: none; }
+.dragging-card .board-main,
+.dragging-card .ideas-main,
+.dragging-card .page-list { touch-action: none; }
+.dragging-card * { cursor: grabbing !important; }
+
+/* A card is a scroll surface first on a phone, which is why a lift there needs a moment. */
+.board-page,
+.idea-card { touch-action: pan-y; -webkit-touch-callout: none; }
+
+/*
+ * One place a held card can be put down.
+ *
+ * The gap a mouse finds by hovering is the same gap a finger taps and a keyboard reaches by
+ * Tab, so the slot is an ordinary button rather than a drop zone.
+ */
+.move-slot {
+  display: grid;
+  min-height: 38px;
+  place-items: center;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--accent) 42%, transparent);
+  border-radius: 7px;
+  font: inherit;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.move-slot:hover,
+.move-slot:focus-visible {
+  color: var(--background);
+  background: var(--accent);
+  border-color: var(--accent);
+  border-style: solid;
+  outline: none;
+}
+
+/* The Backlog pill becomes a target like any other while a page is held. */
+.library-trigger.move-target { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); border-style: dashed; }
+.library-trigger.drop-over { color: var(--background); background: var(--accent); border-color: var(--accent); }
+
+/*
+ * The board says what it is holding, because the gaps that opened everywhere are otherwise
+ * unexplained, and it offers the way back out.
+ */
+.moving-bar {
+  display: flex;
+  margin: 12px clamp(16px, 4vw, 34px) 0;
+  padding: 10px 14px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid #465f3c;
+  border-radius: 8px;
+  font-size: 10px;
+}
+.moving-bar strong { color: var(--text); }
+.moving-bar kbd { color: var(--faint); font: inherit; font-size: 8px; }
 
 .assignee { width: fit-content; min-height: 20px; gap: 6px; color: var(--muted); font-size: 8px; }
 .assignee.assigned { color: var(--muted); }
@@ -1110,6 +1253,97 @@ textarea:hover { border-color: var(--border-bright); }
 }
 
 .account-dialog { width: min(560px, 100%); }
+
+/* Drawers ---------------------------------------------------------------- */
+
+/*
+ * On a thumb, every overlay is a full screen of its own.
+ *
+ * It rises from the bottom and leaves by being pulled back down, so the geometry still says
+ * "this sits over the board" even though none of the board stays visible - a phone screen is
+ * too small to spend a strip of it on context, and the sliver the earlier sheet kept was
+ * costing more than it said.
+ *
+ * The sizing is the rest of the point. `--drawer-viewport` is the visual viewport, set from
+ * JavaScript, because a surface measured in `vh` on iOS puts its own footer behind the URL
+ * bar and has no idea the keyboard has opened. The offset keeps it pinned to the visible
+ * part when iOS scrolls the layout viewport out from under it.
+ */
+.drawer-backdrop {
+  padding: 0;
+  align-items: end;
+  top: var(--drawer-viewport-top, 0px);
+  height: var(--drawer-viewport, 100dvh);
+  bottom: auto;
+}
+
+.drawer-sheet {
+  display: flex;
+  width: 100%;
+  max-width: none;
+  height: var(--drawer-viewport, 100dvh);
+  max-height: none;
+  margin: 0;
+  /* Full screen means under the notch too, which the top inset pads back out. */
+  padding: env(safe-area-inset-top, 0px) 18px calc(18px + env(safe-area-inset-bottom, 0px));
+  flex-direction: column;
+  overflow-y: auto;
+  /* A list that has run out inside the view must not start scrolling the board behind it. */
+  overscroll-behavior: contain;
+  border: 0;
+  border-radius: 0;
+  animation: drawer-rise 320ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  transition: transform 240ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@keyframes drawer-rise {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+/* Search owns its scrolling: the field stays put and only the answers move. */
+.search-dialog.drawer-sheet { padding: env(safe-area-inset-top, 0px) 0 0; overflow: hidden; }
+.library-dialog.drawer-sheet { padding-top: env(safe-area-inset-top, 0px); }
+
+/*
+ * The handle: what says the sheet can be pulled down, and the part that hears the pull.
+ *
+ * It is a button as well, so the gesture is never the only way out - a tap closes it, which
+ * matters for anyone who cannot swipe and for anyone who does not think to try.
+ */
+.drawer-grabber {
+  position: sticky;
+  z-index: 3;
+  top: 0;
+  display: grid;
+  width: 100%;
+  min-height: 34px;
+  margin: 0 -18px 4px;
+  padding: 0;
+  flex: none;
+  place-items: center;
+  /* Wider than the sheet's own padding so the whole strip is grabbable. */
+  box-sizing: content-box;
+  background: var(--surface);
+  border: 0;
+  cursor: grab;
+  touch-action: none;
+}
+.drawer-grabber > span {
+  width: 38px;
+  height: 4px;
+  background: var(--border-bright);
+  border-radius: 999px;
+  transition: background 120ms ease;
+}
+.drawer-grabber:active > span { background: var(--faint); }
+.search-dialog .drawer-grabber,
+.library-dialog .drawer-grabber { margin: 0; padding: 4px 0 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer-sheet { animation: none; transition: none; }
+}
+
 .dialog-header { justify-content: space-between; margin-bottom: 22px; }
 .dialog-header > div { display: grid; gap: 6px; }
 .dialog-header h2 { margin: 0; font-size: 18px; }
@@ -1364,6 +1598,8 @@ textarea:hover { border-color: var(--border-bright); }
 .library-page-main p { margin: 0; overflow: hidden; color: var(--muted); font-size: 8px; line-height: 1.5; text-overflow: ellipsis; white-space: nowrap; }
 .library-page-main > span:last-child { color: var(--faint); font-size: 7px; }
 .library-page-signals { display: flex; min-height: 16px; align-items: center; gap: 6px; }
+/* A page with no category and no blockers has no signals row, not an empty strip of one. */
+.library-page-signals:empty { display: none; }
 .library-promote {
   min-width: 98px;
   padding: 0 14px;
@@ -1513,6 +1749,8 @@ textarea:hover { border-color: var(--border-bright); }
 .notes-tools { display: flex; align-items: baseline; gap: 10px; }
 .notes-upload { color: var(--amber); font-size: 8px; }
 .notes-upload.failed { color: var(--red); }
+/* Sits with `edit` as another quiet way in, not as a call to action. */
+.notes-add-image > span { font-weight: 800; }
 .notes-view {
   min-height: 46px;
   padding: 12px;
@@ -2018,18 +2256,39 @@ textarea:hover { border-color: var(--border-bright); }
 .global-error { top: 78px; bottom: auto; color: #f0c5c5; border-color: #6c393c; }
 .global-error button { margin-left: 6px; color: inherit; background: none; border: 0; cursor: pointer; }
 
+/*
+ * The one surface that asks for a decision on a timer, sized like a whisper: 9px text in a
+ * 34px bar was routinely missed entirely, and what offers an eight-second undo has to be
+ * seen inside those eight seconds.
+ */
 .undo-toast {
   right: 20px;
   bottom: 20px;
-  min-width: 250px;
+  min-width: 300px;
+  min-height: 48px;
+  padding: 0 16px;
   overflow: hidden;
+  font-size: 12px;
   animation: undo-toast-in 180ms ease-out;
 }
 
-.undo-toast > span:first-child { margin-right: auto; color: var(--text); }
-.undo-toast button { padding: 6px 8px; color: var(--accent); background: none; border: 0; cursor: pointer; font-size: 9px; font-weight: 800; }
+.undo-toast > span:first-child { margin-right: auto; color: var(--text); line-height: 1.5; }
+.undo-toast button { padding: 10px 10px; color: var(--accent); background: none; border: 0; cursor: pointer; font-size: 12px; font-weight: 800; }
 .undo-toast button:hover { color: #d4efbc; }
-.undo-toast .undo-dismiss { padding-right: 0; color: var(--faint); font-size: 14px; font-weight: 500; }
+.undo-toast .undo-dismiss { padding-right: 0; color: var(--faint); font-size: 17px; font-weight: 500; }
+
+/* On a phone it spans the bottom, above the home indicator, where a thumb already is. */
+@media (max-width: 620px) {
+  .undo-toast {
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    left: 12px;
+    min-width: 0;
+    min-height: 52px;
+    font-size: 13px;
+  }
+  .undo-toast button { font-size: 13px; }
+}
 .undo-timer { position: absolute; right: 0; bottom: 0; left: 0; height: 2px; background: var(--accent); transform-origin: left; animation: undo-timer 8s linear forwards; }
 
 @keyframes undo-toast-in {
@@ -2119,6 +2378,15 @@ textarea:hover { border-color: var(--border-bright); }
     grid-template-columns: minmax(0, 1fr);
     overflow: visible;
   }
+  /*
+   * A tablet is not a very long phone. Between a phone and a desktop there is room for two
+   * columns abreast, which halves the scroll and keeps a pair of columns comparable at a
+   * glance - the thing a board is for.
+   */
+  @media (min-width: 640px) {
+    .kanban { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .idea-layout { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
   .kanban-column { height: auto; }
   .page-list { padding-right: 0; overflow-y: visible; scrollbar-gutter: auto; }
   /* The page scrolls now, so nothing above the columns may be squeezed to fit. */
@@ -2143,6 +2411,28 @@ textarea:hover { border-color: var(--border-bright); }
      genuinely no room left for it, and spilling over the actions is worse than going. */
   .board-project { justify-items: start; padding-left: 12px; overflow: hidden; }
   .board-project .eyebrow { display: none; }
+  /*
+   * The switcher panel re-anchors to the whole top bar. Anchored to its own clipped track it
+   * opened invisibly - the tap worked and nothing appeared to happen - and even unclipped, a
+   * centred 250px panel cannot sit under a trigger this close to the edge. Spanning the bar
+   * is the same answer the chapter picker already gives on these widths.
+   */
+  .board-topbar { position: relative; }
+  .project-menu { position: static; }
+  .project-menu-panel {
+    top: calc(100% + 4px);
+    left: 10px;
+    right: 10px;
+    min-width: 0;
+    max-width: none;
+    max-height: 70dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    transform: none;
+  }
+  /* Activity and team step out of the crowded bar and into the project menu below. */
+  .activity-trigger,
+  .team-trigger { display: none; }
   /* Keyboard hints mean nothing on a touch screen, and the room is needed. */
   .workspace-tabs kbd,
   .library-trigger kbd,
@@ -2166,17 +2456,28 @@ textarea:hover { border-color: var(--border-bright); }
   .workspace-capture { width: 100%; }
   .capture-picker { right: 0; width: 100%; }
   .work-filters { margin-top: 0; }
-  .page-search { width: 100%; order: -1; }
+  /*
+   * The board filter goes below the pills rather than above them. Leading the block, it sat
+   * directly under the capture bar - two inputs stacked read as clutter, and the capture
+   * pickers opened straight over it.
+   */
+  .page-search { width: 100%; order: 5; }
   .kanban { gap: 9px; }
   .kanban-column { min-height: 0; height: auto; }
-  .modal-backdrop { padding: 0; align-items: end; }
-  .dialog-panel,
-  .account-dialog,
-  .library-dialog { width: 100%; max-height: 94vh; padding: 20px; border-radius: 12px 12px 0 0; }
-  .library-dialog { height: 94vh; }
-  .search-dialog { width: 100%; max-height: 84vh; margin-top: 0; border-radius: 12px 12px 0 0; }
   .library-page { grid-template-columns: minmax(0, 1fr); }
-  .library-promote { min-height: 34px; border-top: 1px solid var(--border); border-left: 0; }
+  /*
+   * Stacked under the content, the actions become a bar rather than a chip adrift in the
+   * corner: separated by a rule, full-height targets, and the promote button grows to take
+   * whatever width the chapter action leaves it.
+   */
+  .library-page-main { min-height: 0; }
+  .library-page-actions {
+    padding: 8px 10px;
+    border-top: 1px solid var(--border);
+    justify-content: stretch;
+  }
+  .library-page-actions .library-promote { flex: 1; min-height: 44px; }
+  .library-chapter { min-height: 44px; }
   .history-page-main { grid-template-columns: 8px minmax(0, 1fr); }
   .history-page-main time { display: none; }
   .history-reopen { min-width: 62px; }
@@ -2192,6 +2493,144 @@ textarea:hover { border-color: var(--border-bright); }
   .shortlist-section { min-height: 260px; }
   .shortlist-card { grid-template-columns: 34px 1fr; }
   .shortlist-card .idea-actions { grid-column: 1 / -1; flex-direction: row; border-top: 1px solid var(--border); border-left: 0; }
+  /* The label goes and the glyph stays, so search keeps a full target without a full word. */
+  .search-trigger-label { display: none; }
+  /* The pickers a thumb chooses from read at a size worth choosing from. */
+  .capture-picker [role="option"] { min-height: 42px; font-size: 12px; }
+  .capture-picker > header { font-size: 10px; }
+  .capture-picker .option-hint { font-size: 9px; }
+  .search-trigger { padding: 0 10px; font-size: 15px; }
+}
+
+/* The phone type ramp ---------------------------------------------------- */
+
+/*
+ * The interface runs 8-11px on a desktop, which is legible at arm's length on a large screen
+ * and genuinely hard to read held in one hand. This lifts the floor without touching the
+ * desktop ramp: the dense look is the point of it, and it stays where it works.
+ *
+ * The inputs matter for a second reason. Safari zooms the whole page when a field smaller than
+ * 16px takes focus, and stays zoomed after - so every capture, search, and edit began with a
+ * lurch and left the board a little further away than it found it. 16px is not a preference
+ * here, it is the threshold at which that stops happening.
+ */
+@media (max-width: 620px) {
+  body { font-size: 14px; }
+
+  input,
+  textarea,
+  select { font-size: 16px !important; }
+  .search-input input,
+  .library-search input,
+  .page-search input,
+  .workspace-capture input,
+  .record-form input,
+  .record-form textarea { font-size: 16px; }
+
+  /* Anything carrying words a reader has to act on stops shrinking below 11px. */
+  .page-open strong,
+  .idea-open strong,
+  .board-page p,
+  .idea-open p,
+  .column-header h3,
+  .moving-bar,
+  .empty-column,
+  .empty-ideas,
+  .search-hit strong,
+  .library-page strong,
+  .history-page strong,
+  .choice,
+  .capture-field,
+  .quiet-button,
+  .text-button,
+  .move-slot,
+  .idea-actions button,
+  .dialog-footer,
+  .field-label,
+  .eyebrow { font-size: 11px; }
+
+  .category-pill,
+  .page-blocked,
+  .assignee,
+  .column-count { font-size: 9px; }
+
+  .empty-column,
+  .empty-ideas { letter-spacing: 0.04em; text-transform: none; }
+}
+
+/*
+ * Targets sized for a finger rather than a cursor.
+ *
+ * Apple asks for 44pt and Android for 48dp; this interface had controls at 26. Where a control
+ * should stay visually small, the box grows around it instead of the ink: `min-height` plus
+ * padding on the hit area, so the design reads as it did and the target is honest.
+ */
+@media (pointer: coarse), (max-width: 620px) {
+  .drag-grip { width: 44px; height: 44px; top: 2px; right: 0; opacity: 0.7; font-size: 15px; }
+  .idea-actions .drag-grip { width: 44px; height: 44px; }
+  .page-open { padding: 15px 46px 14px 15px; }
+
+  .move-slot { min-height: 44px; font-size: 10px; }
+
+  .capture-field,
+  .reset-settings,
+  .people-filters button,
+  .library-filters button,
+  .quiet-button,
+  .workspace-tabs button,
+  .account-button,
+  .chapter-trigger,
+  .library-trigger,
+  .add-to-column,
+  .choice,
+  .idea-actions button,
+  .history-reopen,
+  .library-promote,
+  .settings-rail button,
+  .search-hit,
+  .profile-icon-option { min-height: 44px; }
+
+  .people-filters button:has(.avatar) { width: 44px; }
+  .people-filters button.self-filter { width: 72px; }
+
+  /* A close control is the one thing a reader reaches for in a hurry. */
+  .icon-button {
+    display: grid;
+    width: 44px;
+    height: 44px;
+    place-items: center;
+    font-size: 20px;
+  }
+
+  .primary-button,
+  .danger-button { min-height: 44px; }
+
+  /* No double-tap-to-zoom delay on anything meant to be pressed. */
+  button,
+  a,
+  label,
+  summary,
+  [role="button"],
+  [role="option"] { touch-action: manipulation; }
+
+  /*
+   * A tap has no hover to answer it, so without this every press feels dead until the
+   * screen changes. These are the acknowledgements, and they are deliberately quick.
+   */
+  .board-page:active,
+  .idea-card:active { border-color: var(--border-bright); transform: scale(0.995); }
+  .primary-button:active,
+  .choice:active,
+  .capture-field:active,
+  .quiet-button:active,
+  .move-slot:active,
+  .library-trigger:active { filter: brightness(1.25); }
+  .page-open:active { background: var(--surface-soft); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-page:active,
+  .idea-card:active { transform: none; }
 }
 
 /* At the narrowest supported width the project name has no room left at all. It stays
@@ -2356,8 +2795,10 @@ textarea:hover { border-color: var(--border-bright); }
     left: 0;
     right: 0;
     width: auto;
-    max-height: 60vh;
+    /* The dynamic viewport, so a panel opened with the URL bar showing still fits. */
+    max-height: 60dvh;
     overflow-y: auto;
+    overscroll-behavior: contain;
   }
 }
 
@@ -2581,9 +3022,16 @@ textarea:hover { border-color: var(--border-bright); }
 
 /* The rail folds into a scrollable strip where a column of it would crowd the section out. */
 @media (max-width: 640px) {
-  .settings-layout { flex-direction: column; gap: 14px; }
+  /*
+   * Stacked, the cross axis is now horizontal, and the `flex-start` that used to mean
+   * "hug the top" starts meaning "hug the left": the section shrink-wrapped to its
+   * narrowest field and dragged every input and divider down to two-thirds width.
+   */
+  .settings-layout { align-items: stretch; flex-direction: column; gap: 14px; min-height: 0; }
   .settings-rail { flex: none; width: 100%; flex-direction: row; overflow-x: auto; padding-bottom: 4px; }
   .settings-rail button { white-space: nowrap; }
+  /* A thumb cannot use a resize handle, so the box starts at a size worth writing in. */
+  .settings-section textarea { min-height: 110px; }
 }
 
 /* ---------- agent access ---------- */
@@ -2771,6 +3219,11 @@ textarea:hover { border-color: var(--border-bright); }
 }
 .project-menu-entry:hover { color: var(--text); background: var(--surface-soft); }
 .project-menu-entry.settings { color: var(--text); }
+/* Present only where the top bar has surrendered its activity and team buttons. */
+.project-menu-entry.phone-only { display: none; }
+@media (max-width: 620px) {
+  .project-menu-entry.phone-only { display: flex; }
+}
 .project-menu-glyph { width: 12px; flex: none; color: var(--faint); font-size: 10px; text-align: center; }
 
 /* Backlog and dialog-panel chapter controls ------------------------------ */
@@ -2786,30 +3239,40 @@ textarea:hover { border-color: var(--border-bright); }
  * `up next` used to be a full-height slab on the row's edge. Now that it shares the column
  * with the chapter action it is a button among buttons, and has to carry its own height -
  * stretching to the row is no longer what sizes it.
+ *
+ * It also carries the row's emphasis. Moving a page into Up Next is the reason this library
+ * opens; drawn in the same grey as everything around it, the one action the row exists for
+ * was the thing the eye skipped.
  */
-.library-page-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: end; }
+.library-page-actions { display: flex; padding-right: 12px; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: end; }
 .library-page-actions .library-promote {
+  display: inline-flex;
   min-width: 0;
-  min-height: 26px;
-  padding: 0 11px;
-  border: 1px solid var(--border);
-  border-left: 1px solid var(--border);
-  border-radius: 6px;
-}
-.library-page-actions .library-promote:hover { border-color: var(--accent-edge); }
-.library-chapter {
-  min-height: 26px;
-  padding: 0 10px;
+  min-height: 30px;
+  padding: 0 12px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   color: var(--accent);
   background: var(--accent-soft);
   border: 1px solid #465f3c;
+  border-radius: 6px;
+}
+.library-page-actions .library-promote:hover:not(:disabled) { color: var(--background); background: var(--accent); border-color: var(--accent); }
+/* Quiet beside the promote button: chaptering is housekeeping, not the row's purpose. */
+.library-chapter {
+  min-height: 26px;
+  padding: 0 10px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
   border-radius: 6px;
   font: inherit;
   font-size: 8px;
   white-space: nowrap;
   cursor: pointer;
 }
-.library-chapter:hover:not(:disabled) { background: #2b3d28; }
+.library-chapter:hover:not(:disabled) { color: var(--text); border-color: var(--border-bright); }
 /* A page already in the chapter reads as a state, and clicking it takes it back out. */
 .library-chapter.in {
   color: var(--faint);
@@ -2928,4 +3391,15 @@ textarea:hover { border-color: var(--border-bright); }
     border-top: 1px solid var(--border);
     border-left: 0;
   }
+}
+
+/*
+ * On a phone the sheet reads the way the page does: title, then notes, then the details
+ * underneath. The board's tap-to-move slots carry the quick column change, so the rail no
+ * longer has to fight the writing for the top of the sheet - it only has to be pleasant
+ * once the reader scrolls to it, which is what the two-across choices are for.
+ */
+@media (max-width: 620px) {
+  .page-rail .choice-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+  .page-rail .status-choices .choice { flex: 1 1 46%; }
 }

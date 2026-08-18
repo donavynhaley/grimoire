@@ -2,7 +2,18 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      viewport-fit=cover lets the layout reach under the notch and the home indicator, which
+      the safe-area insets in the stylesheet then pad back out deliberately. Without it those
+      insets are always zero and a bottom sheet has no way to know it is being covered.
+
+      interactive-widget asks the browser to shrink the layout when the keyboard opens rather
+      than scrolling the page out from under it, so a field stays where it was put.
+    -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
+    />
     <!-- link-preview:start -->
     <meta
       name="description"
@@ -12,6 +23,19 @@
     <!-- link-preview:end -->
     <meta name="robots" content="noindex, nofollow" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!--
+      Added to a home screen, this now opens as its own app rather than as a browser tab
+      wearing a generic shortcut icon. There is deliberately no service worker: the board is
+      collaborative and live, and pretending to work offline would mean answering what happens
+      to writes made while it was - which is a project of its own, not a coat of paint.
+    -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="Grimoire" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <!-- Matches the app background, so the status bar is part of the surface rather than a seam. -->
+    <meta name="theme-color" content="#101214" />
   </head>
   <body>
     <div id="root"></div>

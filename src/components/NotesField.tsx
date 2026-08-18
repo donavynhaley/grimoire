@@ -49,6 +49,8 @@ export function MarkdownView({ markdown }: { markdown: string }) {
 type Props = {
   label: string;
   editLabel: string;
+  /** Names the image picker for whichever notes these are; defaults to a plain one. */
+  addImageLabel?: string;
   name: string;
   textareaLabel: string;
   placeholder: string;
@@ -73,12 +75,13 @@ type Props = {
  * token holds the caret position while the upload runs, so typing during the
  * upload never misplaces the embed.
  */
-export function NotesField({ label, editLabel, name, textareaLabel, placeholder, rows, value, onChange }: Props) {
+export function NotesField({ label, editLabel, addImageLabel = "Add an image", name, textareaLabel, placeholder, rows, value, onChange }: Props) {
   const [editing, setEditing] = useState(false);
   const [pendingUploads, setPendingUploads] = useState(0);
   const [uploadFailed, setUploadFailed] = useState(false);
   const [dropActive, setDropActive] = useState(false);
   const dragDepth = useRef(0);
+  const imagePicker = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const valueRef = useRef(value);
   valueRef.current = value;
@@ -170,6 +173,37 @@ export function NotesField({ label, editLabel, name, textareaLabel, placeholder,
           {pendingUploads === 0 && uploadFailed && (
             <span aria-live="polite" className="notes-upload failed">image upload failed</span>
           )}
+          {/*
+            An image could only arrive by paste or by drop, and a phone can comfortably do
+            neither: there is no drag between apps, and getting a screenshot onto the
+            clipboard is several steps that end in the wrong app. This is the same upload,
+            reached the way a phone actually holds pictures.
+          */}
+          <button
+            aria-label={addImageLabel}
+            className="text-button notes-add-image"
+            onClick={() => imagePicker.current?.click()}
+            type="button"
+          >
+            <span aria-hidden="true">+</span> image
+          </button>
+          <input
+            accept="image/*"
+            aria-hidden="true"
+            className="sr-only"
+            onChange={(event) => {
+              const files = collectFiles(event.target.files);
+              // The same input has to accept the same picture twice in a row.
+              event.target.value = "";
+              if (!hasImage(files)) return;
+              if (!editing) setEditing(true);
+              void importImages(files);
+            }}
+            multiple
+            ref={imagePicker}
+            tabIndex={-1}
+            type="file"
+          />
           {!editing && (
             <button aria-label={editLabel} className="text-button" onClick={() => setEditing(true)} type="button">
               edit

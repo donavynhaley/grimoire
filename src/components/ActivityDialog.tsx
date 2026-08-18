@@ -1,7 +1,9 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Drawer } from "./Drawer";
 import { AUDIT_ENTITY_TYPES, type AuditEntityType, type AuditEvent, type AuditPage, type Member } from "../../shared/types";
 import { Avatar } from "./Avatar";
 import { dayLabel, describeChange, describeEvent, ENTITY_LABELS, eventText, timeLabel } from "./activity-copy";
+import { useTypingFocus } from "./use-typing-focus";
 
 const PAGE_SIZE = 60;
 
@@ -16,6 +18,7 @@ type Props = {
 };
 
 export function ActivityDialog({ awaySince, members, revision, onClose, onLoad, onOpenPage }: Props) {
+  const focusForTyping = useTypingFocus<HTMLInputElement>();
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -77,95 +80,93 @@ export function ActivityDialog({ awaySince, members, revision, onClose, onLoad, 
   }, [awaySince, visible]);
 
   return (
-    <div className="modal-backdrop library-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section aria-labelledby="activity-dialog-title" aria-modal="true" className="library-dialog" role="dialog">
-        <header className="dialog-header library-header">
-          <div>
-            <p className="eyebrow">project record</p>
-            <h2 id="activity-dialog-title">Activity</h2>
-            <p>Who changed what, newest first.</p>
-          </div>
-          <button aria-label="Close activity" className="icon-button" onClick={onClose} type="button">×</button>
-        </header>
+    <Drawer backdropClassName="library-backdrop" className="library-dialog" labelledBy="activity-dialog-title" onClose={onClose}>
+      <header className="dialog-header library-header">
+        <div>
+          <p className="eyebrow">project record</p>
+          <h2 id="activity-dialog-title">Activity</h2>
+          <p>Who changed what, newest first.</p>
+        </div>
+        <button aria-label="Close activity" className="icon-button" onClick={onClose} type="button">×</button>
+      </header>
 
-        <div className="library-tools">
-          <label className="library-search">
-            <span className="sr-only">Search activity</span>
-            <input
-              aria-label="Search activity"
-              autoFocus
-              id="activity-search"
-              name="activitySearch"
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search activity..."
-              type="search"
-              value={query}
-            />
-          </label>
-          <div aria-label="Activity people" className="library-filters">
-            {members.map((member) => (
+      <div className="library-tools">
+        <label className="library-search">
+          <span className="sr-only">Search activity</span>
+          <input
+            aria-label="Search activity"
+            ref={focusForTyping}
+            id="activity-search"
+            name="activitySearch"
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search activity..."
+            type="search"
+            value={query}
+          />
+        </label>
+        <div aria-label="Activity people" className="library-filters">
+          {members.map((member) => (
+            <button
+              aria-pressed={person === member.id}
+              className={person === member.id ? "active" : ""}
+              key={member.id}
+              onClick={() => setPerson(person === member.id ? null : member.id)}
+              type="button"
+            >{member.name}</button>
+          ))}
+        </div>
+        {usedTypes.length > 1 && (
+          <div aria-label="Activity kinds" className="library-filters">
+            {usedTypes.map((type) => (
               <button
-                aria-pressed={person === member.id}
-                className={person === member.id ? "active" : ""}
-                key={member.id}
-                onClick={() => setPerson(person === member.id ? null : member.id)}
+                aria-pressed={entityType === type}
+                className={entityType === type ? "active" : ""}
+                key={type}
+                onClick={() => setEntityType(entityType === type ? null : type)}
                 type="button"
-              >{member.name}</button>
+              >{ENTITY_LABELS[type]}</button>
             ))}
           </div>
-          {usedTypes.length > 1 && (
-            <div aria-label="Activity kinds" className="library-filters">
-              {usedTypes.map((type) => (
-                <button
-                  aria-pressed={entityType === type}
-                  className={entityType === type ? "active" : ""}
-                  key={type}
-                  onClick={() => setEntityType(entityType === type ? null : type)}
-                  type="button"
-                >{ENTITY_LABELS[type]}</button>
+        )}
+      </div>
+
+      <div className="history-results activity-results" aria-live="polite">
+        {error && <div className="error-banner" role="alert">{error}</div>}
+        {groups.map(([label, dayEvents]) => (
+          <section className="history-group" key={label}>
+            <header><h3>{label}</h3><span>{dayEvents.length}</span></header>
+            <div>
+              {dayEvents.map((event) => (
+                <Fragment key={event.id}>
+                  {event.id === dividerBeforeId && (
+                    <div className="unread-divider" role="separator">new since your last visit</div>
+                  )}
+                  <ActivityRow
+                    event={event}
+                    members={members}
+                    onOpenPage={event.entityType === "page" && event.entityId ? onOpenPage : undefined}
+                  />
+                </Fragment>
               ))}
             </div>
-          )}
-        </div>
-
-        <div className="history-results activity-results" aria-live="polite">
-          {error && <div className="error-banner" role="alert">{error}</div>}
-          {groups.map(([label, dayEvents]) => (
-            <section className="history-group" key={label}>
-              <header><h3>{label}</h3><span>{dayEvents.length}</span></header>
-              <div>
-                {dayEvents.map((event) => (
-                  <Fragment key={event.id}>
-                    {event.id === dividerBeforeId && (
-                      <div className="unread-divider" role="separator">new since your last visit</div>
-                    )}
-                    <ActivityRow
-                      event={event}
-                      members={members}
-                      onOpenPage={event.entityType === "page" && event.entityId ? onOpenPage : undefined}
-                    />
-                  </Fragment>
-                ))}
-              </div>
-            </section>
-          ))}
-          {visible.length === 0 && !loading && !error && (
-            <div className="library-empty">
-              <strong>{events.length === 0 ? "Nothing has happened yet." : "No activity matches."}</strong>
-              <span>{events.length === 0 ? "Changes to pages, ideas, and the team collect here." : "Try a broader search or remove a filter."}</span>
-            </div>
-          )}
-          {hasMore && (
-            <button
-              className="quiet-button load-more"
-              disabled={loading}
-              onClick={() => void load(events[events.length - 1]?.sequence)}
-              type="button"
-            >{loading ? "loading..." : "load older activity"}</button>
-          )}
-        </div>
-      </section>
-    </div>
+          </section>
+        ))}
+        {visible.length === 0 && !loading && !error && (
+          <div className="library-empty">
+            <strong>{events.length === 0 ? "Nothing has happened yet." : "No activity matches."}</strong>
+            <span>{events.length === 0 ? "Changes to pages, ideas, and the team collect here." : "Try a broader search or remove a filter."}</span>
+          </div>
+        )}
+        {hasMore && (
+          <button
+            className="quiet-button load-more"
+            disabled={loading}
+            onClick={() => void load(events[events.length - 1]?.sequence)}
+            type="button"
+          >{loading ? "loading..." : "load older activity"}</button>
+        )}
+      </div>
+    </Drawer>
   );
 }
 

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import {
+import { fieldHasOptions,
   PAGE_STATUSES,
   type ArchivedProject,
   type BoardWorkspace,
@@ -302,7 +302,7 @@ export function fieldKeyFromLabel(label: string): string {
  * the point someone tries to define one rather than discovered when a page rejects a value.
  */
 function normalizeOptions(type: FieldType, options: string[] | undefined): string[] | null {
-  if (type !== "select") return [];
+  if (!fieldHasOptions(type)) return [];
   const cleaned = [...new Set((options ?? []).map((option) => option.trim()).filter(Boolean))];
   return cleaned.length > 0 ? cleaned : null;
 }
@@ -366,7 +366,7 @@ export function updateField(
   // A value whose option was just withdrawn cannot stay: the next write touching that page
   // would be refused for holding something the field no longer offers, and the person
   // making that write would have had nothing to do with the withdrawal.
-  const cleared = current.type === "select"
+  const cleared = fieldHasOptions(current.type)
     ? clearFieldValues(pageStore, String(project.slug), key, (value) => typeof value === "string" && options.includes(value))
     : 0;
   return { field: { key, label, type: current.type, options, position, showOnTile }, cleared };
@@ -446,6 +446,7 @@ function checkedFieldValue(definition: ProjectField, value: FieldValue): FieldVa
       if (typeof value !== "string" || !isCalendarDay(value)) throw expected("a YYYY-MM-DD day");
       return value;
     case "select":
+    case "search-select":
       if (typeof value !== "string" || !definition.options.includes(value)) {
         throw new PageDependencyError(`"${definition.label}" accepts ${definition.options.join(", ")}`, 400);
       }

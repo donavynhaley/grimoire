@@ -12,7 +12,7 @@ export type FieldValue = string | number | boolean;
 export type ProjectField = {
   key: string;
   label: string;
-  type: "text" | "number" | "select" | "date" | "checkbox";
+  type: "text" | "number" | "select" | "search-select" | "date" | "checkbox";
   options: string[];
   showOnTile: boolean;
 };
