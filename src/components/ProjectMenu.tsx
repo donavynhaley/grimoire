@@ -15,6 +15,15 @@ type Props = {
   busy: boolean;
   actions: ProjectActions;
   onOpenSettings: () => void;
+  /**
+   * Where activity and team live on a phone, whose top bar has no room for their buttons.
+   * The entries are in the menu on every screen and shown only where the buttons are not,
+   * so nothing desktop-visible changes.
+   */
+  onOpenActivity?: () => void;
+  onOpenTeam: () => void;
+  /** Changes waiting on the activity log, carried here because the phone bar hides its button. */
+  activityBadge?: number;
 };
 
 /**
@@ -26,7 +35,7 @@ type Props = {
  * every time it opens. Settings is offered to every member - the dialog itself decides what
  * a member may read versus what an owner may change.
  */
-export function ProjectMenu({ project, projects, isOwner, busy, actions, onOpenSettings }: Props) {
+export function ProjectMenu({ project, projects, isOwner, busy, actions, onOpenSettings, onOpenActivity, onOpenTeam, activityBadge = 0 }: Props) {
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
@@ -122,6 +131,29 @@ export function ProjectMenu({ project, projects, isOwner, busy, actions, onOpenS
                 <span aria-hidden="true" className="project-menu-glyph">+</span>New project
               </button>
             ))}
+            {onOpenActivity && (
+              <button
+                className="project-menu-entry phone-only"
+                onClick={() => { close(); onOpenActivity(); }}
+                role="menuitem"
+                type="button"
+              >
+                <span aria-hidden="true" className="project-menu-glyph">≡</span>Activity
+                {activityBadge > 0 && (
+                  <span aria-label={`${activityBadge} changes since your last visit`} className="away-badge">
+                    {activityBadge > 99 ? "99+" : activityBadge}
+                  </span>
+                )}
+              </button>
+            )}
+            <button
+              className="project-menu-entry phone-only"
+              onClick={() => { close(); onOpenTeam(); }}
+              role="menuitem"
+              type="button"
+            >
+              <span aria-hidden="true" className="project-menu-glyph">◔</span>Team
+            </button>
             <button
               className="project-menu-entry settings"
               onClick={() => { close(); onOpenSettings(); }}

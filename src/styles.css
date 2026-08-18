@@ -1577,6 +1577,8 @@ textarea:hover { border-color: var(--border-bright); }
 .library-page-main p { margin: 0; overflow: hidden; color: var(--muted); font-size: 8px; line-height: 1.5; text-overflow: ellipsis; white-space: nowrap; }
 .library-page-main > span:last-child { color: var(--faint); font-size: 7px; }
 .library-page-signals { display: flex; min-height: 16px; align-items: center; gap: 6px; }
+/* A page with no category and no blockers has no signals row, not an empty strip of one. */
+.library-page-signals:empty { display: none; }
 .library-promote {
   min-width: 98px;
   padding: 0 14px;
@@ -2367,6 +2369,28 @@ textarea:hover { border-color: var(--border-bright); }
      genuinely no room left for it, and spilling over the actions is worse than going. */
   .board-project { justify-items: start; padding-left: 12px; overflow: hidden; }
   .board-project .eyebrow { display: none; }
+  /*
+   * The switcher panel re-anchors to the whole top bar. Anchored to its own clipped track it
+   * opened invisibly - the tap worked and nothing appeared to happen - and even unclipped, a
+   * centred 250px panel cannot sit under a trigger this close to the edge. Spanning the bar
+   * is the same answer the chapter picker already gives on these widths.
+   */
+  .board-topbar { position: relative; }
+  .project-menu { position: static; }
+  .project-menu-panel {
+    top: calc(100% + 4px);
+    left: 10px;
+    right: 10px;
+    min-width: 0;
+    max-width: none;
+    max-height: 70dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    transform: none;
+  }
+  /* Activity and team step out of the crowded bar and into the project menu below. */
+  .activity-trigger,
+  .team-trigger { display: none; }
   /* Keyboard hints mean nothing on a touch screen, and the room is needed. */
   .workspace-tabs kbd,
   .library-trigger kbd,
@@ -2394,7 +2418,19 @@ textarea:hover { border-color: var(--border-bright); }
   .kanban { gap: 9px; }
   .kanban-column { min-height: 0; height: auto; }
   .library-page { grid-template-columns: minmax(0, 1fr); }
-  .library-promote { min-height: 34px; border-top: 1px solid var(--border); border-left: 0; }
+  /*
+   * Stacked under the content, the actions become a bar rather than a chip adrift in the
+   * corner: separated by a rule, full-height targets, and the promote button grows to take
+   * whatever width the chapter action leaves it.
+   */
+  .library-page-main { min-height: 0; }
+  .library-page-actions {
+    padding: 8px 10px;
+    border-top: 1px solid var(--border);
+    justify-content: stretch;
+  }
+  .library-page-actions .library-promote { flex: 1; min-height: 44px; }
+  .library-chapter { min-height: 44px; }
   .history-page-main { grid-template-columns: 8px minmax(0, 1fr); }
   .history-page-main time { display: none; }
   .history-reopen { min-width: 62px; }
@@ -3125,6 +3161,11 @@ textarea:hover { border-color: var(--border-bright); }
 }
 .project-menu-entry:hover { color: var(--text); background: var(--surface-soft); }
 .project-menu-entry.settings { color: var(--text); }
+/* Present only where the top bar has surrendered its activity and team buttons. */
+.project-menu-entry.phone-only { display: none; }
+@media (max-width: 620px) {
+  .project-menu-entry.phone-only { display: flex; }
+}
 .project-menu-glyph { width: 12px; flex: none; color: var(--faint); font-size: 10px; text-align: center; }
 
 /* Backlog and dialog-panel chapter controls ------------------------------ */
@@ -3140,30 +3181,40 @@ textarea:hover { border-color: var(--border-bright); }
  * `up next` used to be a full-height slab on the row's edge. Now that it shares the column
  * with the chapter action it is a button among buttons, and has to carry its own height -
  * stretching to the row is no longer what sizes it.
+ *
+ * It also carries the row's emphasis. Moving a page into Up Next is the reason this library
+ * opens; drawn in the same grey as everything around it, the one action the row exists for
+ * was the thing the eye skipped.
  */
-.library-page-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: end; }
+.library-page-actions { display: flex; padding-right: 12px; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: end; }
 .library-page-actions .library-promote {
+  display: inline-flex;
   min-width: 0;
-  min-height: 26px;
-  padding: 0 11px;
-  border: 1px solid var(--border);
-  border-left: 1px solid var(--border);
-  border-radius: 6px;
-}
-.library-page-actions .library-promote:hover { border-color: var(--accent-edge); }
-.library-chapter {
-  min-height: 26px;
-  padding: 0 10px;
+  min-height: 30px;
+  padding: 0 12px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   color: var(--accent);
   background: var(--accent-soft);
   border: 1px solid #465f3c;
+  border-radius: 6px;
+}
+.library-page-actions .library-promote:hover:not(:disabled) { color: var(--background); background: var(--accent); border-color: var(--accent); }
+/* Quiet beside the promote button: chaptering is housekeeping, not the row's purpose. */
+.library-chapter {
+  min-height: 26px;
+  padding: 0 10px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
   border-radius: 6px;
   font: inherit;
   font-size: 8px;
   white-space: nowrap;
   cursor: pointer;
 }
-.library-chapter:hover:not(:disabled) { background: #2b3d28; }
+.library-chapter:hover:not(:disabled) { color: var(--text); border-color: var(--border-bright); }
 /* A page already in the chapter reads as a state, and clicking it takes it back out. */
 .library-chapter.in {
   color: var(--faint);
@@ -3285,26 +3336,12 @@ textarea:hover { border-color: var(--border-bright); }
 }
 
 /*
- * On a phone the properties come first, above the writing.
- *
- * Which column a page is in is the single most common thing anyone opens a page to change, and
- * on a phone this dialog is how it is changed at all. Stacked in source order the rail landed
- * underneath the notes editor and the history, so the commonest action on the board was also
- * the furthest thing from the top of the sheet. Flex ordering moves it without moving it in
- * the markup, so the reading order a screen reader follows stays the order the eye does.
+ * On a phone the sheet reads the way the page does: title, then notes, then the details
+ * underneath. The board's tap-to-move slots carry the quick column change, so the rail no
+ * longer has to fight the writing for the top of the sheet - it only has to be pleasant
+ * once the reader scrolls to it, which is what the two-across choices are for.
  */
 @media (max-width: 620px) {
-  .page-editor-split { display: flex; flex-direction: column; }
-  .page-rail {
-    order: -1;
-    margin-top: 0;
-    margin-bottom: 20px;
-    padding-top: 0;
-    padding-bottom: 18px;
-    border-top: 0;
-    border-bottom: 1px solid var(--border);
-  }
-  /* Two properties across, so the sheet opens on the whole set rather than a long list. */
   .page-rail .choice-grid { display: flex; flex-wrap: wrap; gap: 6px; }
   .page-rail .status-choices .choice { flex: 1 1 46%; }
 }

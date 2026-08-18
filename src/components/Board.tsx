@@ -548,9 +548,12 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
         <div className="board-project">
           <ProjectMenu
             actions={projectActions}
+            activityBadge={unseenCount}
             busy={busy}
             isOwner={board.currentUser.role === "owner"}
+            onOpenActivity={isOwner ? () => { setActivityOpen(true); setActivityVisited(true); } : undefined}
             onOpenSettings={() => setSettingsSection("general")}
+            onOpenTeam={() => setSettingsSection("team")}
             project={board.project}
             projects={board.projects}
           />
@@ -591,7 +594,7 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
             <span aria-hidden="true">⌕</span><span className="search-trigger-label">search</span>
           </button>
           {/* A shortcut into the one settings surface, landing on its Team section. */}
-          <button className="quiet-button" onClick={() => setSettingsSection("team")} type="button">team</button>
+          <button className="quiet-button team-trigger" onClick={() => setSettingsSection("team")} type="button">team</button>
           <button aria-label={`Open account settings for ${board.currentUser.name}`} className="account-button" onClick={() => setAccountOpen(true)} title="Account settings" type="button">
             <Avatar avatarUrl={board.currentUser.avatarUrl} className="avatar current" name={board.currentUser.name} />
             <span>{board.currentUser.name}</span>

@@ -71,8 +71,9 @@ test.describe("grimoire in one hand", () => {
     await page.getByRole("button", { name: /^Open Chart the leyline drift/ }).tap();
     const sheet = page.locator(".drawer-sheet");
     await expect(sheet).toBeVisible();
-    // The properties rail leads on a phone, so the column controls are at hand.
-    await expect(page.getByRole("button", { name: "Move to Done" })).toBeVisible();
+    // The sheet reads the way the page does: the writing first, the details reachable below.
+    await expect(sheet.getByRole("button", { name: "Edit notes" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Move to Done" })).toBeAttached();
 
     // The rise animation runs on the sheet itself, so the sheet is what has to settle
     // before anything inside it can be aimed at.
