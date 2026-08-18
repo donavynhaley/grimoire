@@ -985,7 +985,8 @@ textarea:hover { border-color: var(--border-bright); }
   text-align: left;
 }
 
-.page-open strong { padding-right: 16px; font-size: 11px; line-height: 1.55; overflow-wrap: anywhere; }
+/* Room for the grip, which now sits beside the title rather than inside the button. */
+.page-open strong { padding-right: 30px; font-size: 11px; line-height: 1.55; overflow-wrap: anywhere; }
 .page-open p {
   display: -webkit-box;
   overflow: hidden;
@@ -1031,14 +1032,136 @@ textarea:hover { border-color: var(--border-bright); }
 }
 .page-blocked::before { margin-right: 4px; content: "!"; }
 
+/*
+ * The grip is a real control, not a decoration.
+ *
+ * It used to be a glyph inside the button that opens the page, which meant the only way to
+ * move a card was to drag it - a gesture a touch screen never reported and a keyboard cannot
+ * make at all. As a button it picks the card up on tap or on Enter, and the board answers
+ * with somewhere to put it.
+ */
 .drag-grip {
   position: absolute;
-  top: 11px;
-  right: 10px;
+  z-index: 2;
+  top: 6px;
+  right: 5px;
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
   color: var(--faint);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font: inherit;
   font-size: 12px;
   opacity: 0.45;
+  cursor: grab;
+  transition: color 120ms ease, background 120ms ease, border-color 120ms ease, opacity 120ms ease;
 }
+.drag-grip:hover,
+.drag-grip:focus-visible { color: var(--text); border-color: var(--border-bright); opacity: 1; }
+.drag-grip[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); border-color: #465f3c; opacity: 1; }
+
+/* The shortlist keeps its actions in a row, so the grip joins them rather than floating. */
+.idea-actions .drag-grip { position: static; flex: none; }
+
+/*
+ * The card actually under the pointer, drawn over the board it is crossing.
+ *
+ * The original stays out of the flow while this is up, so the columns behind it show the gap
+ * it will land in rather than the place it left.
+ */
+.board-page.lifted,
+.idea-card.lifted {
+  position: fixed;
+  z-index: 95;
+  overflow: hidden;
+  background: var(--surface-raised);
+  border: 1px solid var(--accent);
+  border-radius: 7px;
+  box-shadow: 0 18px 44px rgb(0 0 0 / 55%);
+  opacity: 0.94;
+  transform-origin: center;
+  /* The transform is rewritten on every pointer move, so easing it would lag the finger. */
+  transition: none;
+  pointer-events: none;
+}
+.board-page.lifted strong,
+.idea-card.lifted strong { font-size: 11px; line-height: 1.55; }
+.board-page.lifted .page-open,
+.idea-card.lifted .idea-open { display: grid; padding: 13px; color: var(--text); text-align: left; }
+
+/*
+ * While a card is up, nothing else may claim the gesture: no scrolling under the finger, no
+ * text selection running away behind it, and no long-press callout on the card it left.
+ */
+.dragging-card,
+.dragging-card body { touch-action: none; user-select: none; -webkit-user-select: none; }
+.dragging-card .board-main,
+.dragging-card .ideas-main,
+.dragging-card .page-list { touch-action: none; }
+.dragging-card * { cursor: grabbing !important; }
+
+/* A card is a scroll surface first on a phone, which is why a lift there needs a moment. */
+.board-page,
+.idea-card { touch-action: pan-y; -webkit-touch-callout: none; }
+
+/*
+ * One place a held card can be put down.
+ *
+ * The gap a mouse finds by hovering is the same gap a finger taps and a keyboard reaches by
+ * Tab, so the slot is an ordinary button rather than a drop zone.
+ */
+.move-slot {
+  display: grid;
+  min-height: 38px;
+  place-items: center;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--accent) 42%, transparent);
+  border-radius: 7px;
+  font: inherit;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.move-slot:hover,
+.move-slot:focus-visible {
+  color: var(--background);
+  background: var(--accent);
+  border-color: var(--accent);
+  border-style: solid;
+  outline: none;
+}
+
+/* The Backlog pill becomes a target like any other while a page is held. */
+.library-trigger.move-target { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); border-style: dashed; }
+.library-trigger.drop-over { color: var(--background); background: var(--accent); border-color: var(--accent); }
+
+/*
+ * The board says what it is holding, because the gaps that opened everywhere are otherwise
+ * unexplained, and it offers the way back out.
+ */
+.moving-bar {
+  display: flex;
+  margin: 12px clamp(16px, 4vw, 34px) 0;
+  padding: 10px 14px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid #465f3c;
+  border-radius: 8px;
+  font-size: 10px;
+}
+.moving-bar strong { color: var(--text); }
+.moving-bar kbd { color: var(--faint); font: inherit; font-size: 8px; }
 
 .assignee { width: fit-content; min-height: 20px; gap: 6px; color: var(--muted); font-size: 8px; }
 .assignee.assigned { color: var(--muted); }

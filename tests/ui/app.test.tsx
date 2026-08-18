@@ -13,6 +13,35 @@ afterEach(() => {
   window.history.replaceState({}, "", "/");
 });
 
+/**
+ * Gives an element a box, because jsdom gives everything a zero-sized one at the origin.
+ *
+ * The board decides which column a pointer is over by asking where the columns are, so a
+ * drag test has to answer that question before it can be about dropping anything.
+ */
+function stubRect(node: Element, rect: { left: number; right: number; top: number; bottom: number }) {
+  vi.spyOn(node, "getBoundingClientRect").mockReturnValue({
+    ...rect,
+    width: rect.right - rect.left,
+    height: rect.bottom - rect.top,
+    x: rect.left,
+    y: rect.top,
+    toJSON: () => ({}),
+  } as DOMRect);
+}
+
+/**
+ * Carries a card to a point the way a mouse does: press, travel, release.
+ *
+ * A mouse lifts a card as soon as it moves, so one move past the threshold is a whole drag.
+ * Fingers are covered by the long-press tests, which hold still and wait instead.
+ */
+function dragWithPointer(card: Element, to: { x: number; y: number }) {
+  fireEvent.pointerDown(card, { pointerId: 1, pointerType: "mouse", button: 0, clientX: 10, clientY: 10 });
+  fireEvent.pointerMove(window, { pointerId: 1, pointerType: "mouse", clientX: to.x, clientY: to.y });
+  fireEvent.pointerUp(window, { pointerId: 1, pointerType: "mouse", clientX: to.x, clientY: to.y });
+}
+
 function response(body: unknown, status = 200) {
   return Promise.resolve(
     new Response(JSON.stringify(body), {
@@ -382,10 +411,78 @@ describe("Grimoire board", () => {
     render(<App />);
     const pageTitle = await screen.findByText(page.title);
     const column = screen.getByRole("region", { name: "Up Next" });
-    const dataTransfer = { setData: vi.fn(), getData: vi.fn(() => page.id), effectAllowed: "move" };
-    fireEvent.dragStart(pageTitle.closest("article")!, { dataTransfer });
-    fireEvent.dragOver(column, { dataTransfer });
-    fireEvent.drop(column, { dataTransfer });
+    stubRect(column, { left: 300, right: 500, top: 100, bottom: 600 });
+    dragWithPointer(pageTitle.closest("article")!, { x: 400, y: 300 });
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/pages/${page.id}`,
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ status: "ready", position: 0 }),
+        }),
+      ),
+    );
+  });
+
+  it("lifts a page under a finger only once the touch has held still", async () => {
+    vi.useFakeTimers();
+    const initial = boardFixture();
+    const page = initial.pages[1];
+    const moved = { ...page, status: "ready" as const, position: 0 };
+    const fetchMock = authenticatedFetch(initial)
+      .mockImplementationOnce(() => response({ page: moved }))
+      .mockImplementationOnce(() => response({ ...initial, pages: [initial.pages[0], moved] }));
+    stubFetch(fetchMock);
+
+    try {
+      render(<App />);
+      const card = (await vi.waitFor(() => screen.getByText(page.title))).closest("article")!;
+      const column = screen.getByRole("region", { name: "Up Next" });
+      stubRect(column, { left: 300, right: 500, top: 100, bottom: 600 });
+
+      // A touch that leaves straight away was scrolling the board, so nothing lifts.
+      fireEvent.pointerDown(card, { pointerId: 2, pointerType: "touch", button: 0, clientX: 10, clientY: 300 });
+      fireEvent.pointerMove(window, { pointerId: 2, pointerType: "touch", clientX: 10, clientY: 260 });
+      act(() => { vi.advanceTimersByTime(400); });
+      expect(card).not.toHaveClass("drag-hidden");
+      fireEvent.pointerUp(window, { pointerId: 2, pointerType: "touch", clientX: 10, clientY: 260 });
+
+      // Holding still lifts it, and from there the drag behaves like any other.
+      fireEvent.pointerDown(card, { pointerId: 3, pointerType: "touch", button: 0, clientX: 10, clientY: 300 });
+      act(() => { vi.advanceTimersByTime(300); });
+      expect(card).toHaveClass("drag-hidden");
+      fireEvent.pointerMove(window, { pointerId: 3, pointerType: "touch", clientX: 400, clientY: 300 });
+      fireEvent.pointerUp(window, { pointerId: 3, pointerType: "touch", clientX: 400, clientY: 300 });
+
+      await vi.waitFor(() =>
+        expect(fetchMock).toHaveBeenCalledWith(
+          `/api/pages/${page.id}`,
+          expect.objectContaining({
+            method: "PATCH",
+            body: JSON.stringify({ status: "ready", position: 0 }),
+          }),
+        ),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("moves a page with taps alone, which is the only path a keyboard has", async () => {
+    const initial = boardFixture();
+    const page = initial.pages[1];
+    const moved = { ...page, status: "ready" as const, position: 0 };
+    const fetchMock = authenticatedFetch(initial)
+      .mockImplementationOnce(() => response({ page: moved }))
+      .mockImplementationOnce(() => response({ ...initial, pages: [initial.pages[0], moved] }));
+    stubFetch(fetchMock);
+
+    render(<App />);
+    await userEvent.click(await screen.findByRole("button", { name: `Move ${page.title}` }));
+    expect(screen.getByRole("status")).toHaveTextContent(/Moving/);
+
+    await userEvent.click(screen.getByRole("button", { name: `Place ${page.title} in Up Next, position 1` }));
 
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
@@ -420,26 +517,22 @@ describe("Grimoire board", () => {
 
     render(<App />);
     const dragged = (await screen.findByText(progressPage.title)).closest("article")!;
-    const dataTransfer = { setData: vi.fn(), getData: vi.fn(() => progressPage.id), effectAllowed: "move" };
-    fireEvent.dragStart(dragged, { dataTransfer });
-    await act(async () => {
-      await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
-    });
+    const column = screen.getByRole("region", { name: "Up Next" });
+    stubRect(column, { left: 0, right: 500, top: 100, bottom: 600 });
+    const [nodeA, nodeB] = Array.from(column.querySelectorAll("article.board-page"));
+    stubRect(nodeA, { left: 0, right: 500, top: 200, bottom: 250 });
+    stubRect(nodeB, { left: 0, right: 500, top: 250, bottom: 300 });
+
+    fireEvent.pointerDown(dragged, { pointerId: 1, pointerType: "mouse", button: 0, clientX: 10, clientY: 400 });
+    fireEvent.pointerMove(window, { pointerId: 1, pointerType: "mouse", clientX: 100, clientY: 260 });
     expect(dragged).toHaveClass("drag-hidden");
 
-    const column = screen.getByRole("region", { name: "Up Next" });
-    const [nodeA, nodeB] = Array.from(column.querySelectorAll("article.board-page"));
-    vi.spyOn(nodeA, "getBoundingClientRect").mockReturnValue({ top: 0, height: 50 } as DOMRect);
-    vi.spyOn(nodeB, "getBoundingClientRect").mockReturnValue({ top: 50, height: 50 } as DOMRect);
-    const dragOverEvent = createEvent.dragOver(column, { dataTransfer });
-    Object.defineProperty(dragOverEvent, "clientY", { value: 60 });
-    fireEvent(column, dragOverEvent);
-
+    // The gap the pointer is pointing at, held open ahead of the drop.
     const placeholder = column.querySelector(".drop-placeholder");
     expect(placeholder).not.toBeNull();
     expect(placeholder!.nextElementSibling).toBe(nodeB);
 
-    fireEvent.drop(column, { dataTransfer });
+    fireEvent.pointerUp(window, { pointerId: 1, pointerType: "mouse", clientX: 100, clientY: 260 });
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
         `/api/pages/${progressPage.id}`,
@@ -466,11 +559,9 @@ describe("Grimoire board", () => {
     await screen.findByLabelText("Capture work page");
     await userEvent.keyboard("2");
     const dragged = (await screen.findByText(inboxIdea.title)).closest("article")!;
-    const dataTransfer = { setData: vi.fn(), getData: vi.fn(() => inboxIdea.id), effectAllowed: "move" };
-    fireEvent.dragStart(dragged, { dataTransfer });
     const parked = screen.getByRole("region", { name: "Parked ideas" });
-    fireEvent.dragOver(parked, { dataTransfer });
-    fireEvent.drop(parked, { dataTransfer });
+    stubRect(parked, { left: 600, right: 900, top: 100, bottom: 600 });
+    dragWithPointer(dragged, { x: 700, y: 300 });
 
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
@@ -497,10 +588,8 @@ describe("Grimoire board", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Filter by Maren" }));
     const pageTitle = screen.getByText(page.title);
     const backlog = screen.getByRole("button", { name: /open backlog/i });
-    const dataTransfer = { setData: vi.fn(), getData: vi.fn(() => page.id), effectAllowed: "move" };
-    fireEvent.dragStart(pageTitle.closest("article")!, { dataTransfer });
-    fireEvent.dragOver(backlog, { dataTransfer });
-    fireEvent.drop(backlog, { dataTransfer });
+    stubRect(backlog, { left: 20, right: 120, top: 200, bottom: 232 });
+    dragWithPointer(pageTitle.closest("article")!, { x: 60, y: 215 });
 
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(

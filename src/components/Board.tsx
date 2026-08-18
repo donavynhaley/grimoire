@@ -1,4 +1,4 @@
-import { type DragEvent, type FormEvent, Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { type AuditPage, type AwayState, type BoardWorkspace, type Page, type PageStatus, type IdeaState, type IdeaWorkspace, type UserRole } from "../../shared/types";
 import { AccountDialog } from "./AccountDialog";
 import { ActivityDialog } from "./ActivityDialog";
@@ -25,6 +25,7 @@ import { SearchDialog } from "./SearchDialog";
 import { plainTextFromMarkdown } from "./markdown-text";
 import { IdeasBoard } from "./IdeasBoard";
 import { useFlip } from "./use-flip";
+import { type DragPoint, gapIndexIn, pointWithin, usePointerDrag } from "./use-pointer-drag";
 
 const BOARD_STATUSES = ["ready", "in_progress", "review", "done"] as const satisfies readonly PageStatus[];
 
@@ -91,7 +92,17 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
   );
   const [drag, setDrag] = useState<{ id: string; height: number } | null>(null);
   const [dropHint, setDropHint] = useState<{ status: PageStatus; index: number } | null>(null);
-  const dragSession = useRef(0);
+  /**
+   * The page picked up by tap or key rather than carried by a pointer.
+   *
+   * Dragging is a gesture some people cannot make and some devices cannot report. Lifting a
+   * page into this state turns every gap on the board into an ordinary button, which is the
+   * same move performed with one tap, or with Tab and Enter, and it is the only way a
+   * keyboard has ever been able to reorder this board at all.
+   */
+  const [moving, setMoving] = useState<string | null>(null);
+  const columnNodes = useRef(new Map<PageStatus, HTMLElement>());
+  const backlogNode = useRef<HTMLButtonElement>(null);
   const [flight, setFlight] = useState<CaptureFlight | null>(null);
   const [landed, setLanded] = useState<PageStatus | null>(null);
   const shellRef = useRef<HTMLDivElement>(null);
@@ -172,6 +183,19 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
     if (!chaptersOn || !board.chapters.some((value) => value.slug === chapter)) setChapter(null);
   }, [board.chapters, chapter, chaptersOn]);
   const selectedPage = board.pages.find((page) => page.id === selectedId) ?? null;
+  const movingPage = moving ? board.pages.find((page) => page.id === moving) ?? null : null;
+
+  // A page put down by tap is put down by Escape too, the same key that calls off a drag.
+  useEffect(() => {
+    if (!moving) return;
+    const cancelOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      setMoving(null);
+    };
+    window.addEventListener("keydown", cancelOnEscape);
+    return () => window.removeEventListener("keydown", cancelOnEscape);
+  }, [moving]);
 
   // Opening a page answers its dot, whichever surface the page was opened from.
   useEffect(() => {
@@ -428,60 +452,87 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
   };
 
   const finishDrag = () => {
-    dragSession.current += 1;
     setDrag(null);
     setDropHint(null);
   };
 
-  const startPageDrag = (event: DragEvent<HTMLElement>, page: Page, slot: number) => {
-    event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("text/plain", page.id);
-    const height = event.currentTarget.offsetHeight;
-    const session = ++dragSession.current;
-    // Hide the page one frame later so the browser captures a visible drag image first.
-    requestAnimationFrame(() => {
-      if (dragSession.current !== session) return;
-      setDrag({ id: page.id, height });
-      setDropHint({ status: page.status, index: slot });
-    });
-  };
-
-  const trackColumnDrag = (event: DragEvent<HTMLElement>, status: PageStatus) => {
-    event.preventDefault();
-    if (!drag) return;
-    const pageNodes = event.currentTarget.querySelectorAll<HTMLElement>("article.board-page:not(.drag-hidden)");
-    let index = pageNodes.length;
-    for (let position = 0; position < pageNodes.length; position += 1) {
-      const rect = pageNodes[position].getBoundingClientRect();
-      if (event.clientY < rect.top + rect.height / 2) {
-        index = position;
-        break;
-      }
+  /**
+   * Which gap on the board a point is asking for.
+   *
+   * The Backlog control answers first: it overlaps nothing, and a page released on it is
+   * leaving the board rather than being placed within a column.
+   */
+  const hintAt = (point: DragPoint): { status: PageStatus; index: number } | null => {
+    const backlog = backlogNode.current?.getBoundingClientRect();
+    if (backlog && pointWithin(backlog, point)) return { status: "backlog", index: 0 };
+    for (const status of BOARD_STATUSES) {
+      const node = columnNodes.current.get(status);
+      if (!node || !pointWithin(node.getBoundingClientRect(), point)) continue;
+      return { status, index: gapIndexIn(node, "article.board-page:not(.drag-hidden)", point.y) };
     }
-    setDropHint((current) => (current?.status === status && current.index === index ? current : { status, index }));
+    return null;
   };
 
-  const dropPage = async (event: DragEvent, status: PageStatus) => {
-    event.preventDefault();
-    const id = drag?.id ?? event.dataTransfer.getData("text/plain");
-    const hint = dropHint;
-    finishDrag();
-    if (!id) return;
-    const current = board.pages.find((page) => page.id === id);
-    if (!current) return;
+  /**
+   * Where a page lands in its column's real order, given the gap it was dropped into.
+   *
+   * The hint counts the gaps the reader can see, and Done only ever shows its most recent
+   * few, so the visible gap is translated through the page it sits above before it becomes
+   * a position. Without that step a drop into a filtered column would renumber the pages
+   * hidden behind the filter.
+   */
+  const positionFor = (id: string, status: PageStatus, hint: { status: PageStatus; index: number } | null) => {
     const column = board.pages.filter((page) => page.status === status).sort(comparePosition);
     const without = column.filter((page) => page.id !== id);
-    let position = without.length;
-    if (hint && hint.status === status && status !== "backlog") {
-      const visibleBase = pagesByStatus[status as (typeof BOARD_STATUSES)[number]]
-        .filter((page) => page.id !== id);
-      const anchor = visibleBase[Math.min(hint.index, visibleBase.length)];
-      const anchored = anchor ? without.findIndex((page) => page.id === anchor.id) : -1;
-      position = anchored >= 0 ? anchored : without.length;
-    }
+    if (!hint || hint.status !== status || status === "backlog") return { column, position: without.length };
+    const visibleBase = pagesByStatus[status as (typeof BOARD_STATUSES)[number]].filter((page) => page.id !== id);
+    const anchor = visibleBase[Math.min(hint.index, visibleBase.length)];
+    const anchored = anchor ? without.findIndex((page) => page.id === anchor.id) : -1;
+    return { column, position: anchored >= 0 ? anchored : without.length };
+  };
+
+  const placePage = async (id: string, status: PageStatus, hint: { status: PageStatus; index: number } | null) => {
+    const current = board.pages.find((page) => page.id === id);
+    if (!current) return;
+    const { column, position } = positionFor(id, status, hint);
+    // A page put back exactly where it came from is not a change worth writing.
     if (current.status === status && column.findIndex((page) => page.id === id) === position) return;
     await onUpdate(id, { status, position });
   };
+
+  const pointerDrag = usePointerDrag({
+    onLift: (id, height) => {
+      const page = board.pages.find((candidate) => candidate.id === id);
+      setDrag({ id, height });
+      setDropHint(page ? { status: page.status, index: slotOf(pagesByStatus, page) } : null);
+      // A page cannot be carried and tapped into place at the same time.
+      setMoving(null);
+    },
+    onMove: (point) => {
+      const hint = hintAt(point);
+      setDropHint((current) => (sameHint(current, hint) ? current : hint));
+    },
+    onDrop: async (point) => {
+      const id = drag?.id;
+      const hint = hintAt(point) ?? dropHint;
+      finishDrag();
+      if (!id || !hint) return;
+      await placePage(id, hint.status, hint);
+    },
+    onCancel: finishDrag,
+  });
+
+  /** Puts a page down where a tap asked for it, and leaves the moving state either way. */
+  const placeMoving = async (status: PageStatus, index: number) => {
+    const id = moving;
+    setMoving(null);
+    if (!id) return;
+    await placePage(id, status, { status, index });
+  };
+
+  const liftedPage = pointerDrag.lift
+    ? board.pages.find((page) => page.id === pointerDrag.lift?.id) ?? null
+    : null;
 
   return (
     <div className="board-shell" ref={shellRef}>
@@ -538,6 +589,15 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
         <AwayDigest away={away} board={board} onDismiss={() => setAwayDismissed(true)} />
       )}
 
+      {/* While a page is held, the board says so and offers the way out, because the gaps
+          that have opened everywhere are otherwise unexplained. */}
+      {movingPage && (
+        <div className="moving-bar" role="status">
+          <span>Moving <strong>{movingPage.title}</strong> — choose where it goes</span>
+          <button className="text-button" onClick={() => setMoving(null)} type="button">cancel <kbd aria-hidden="true">esc</kbd></button>
+        </div>
+      )}
+
       {view === "work" ? <main className="board-main">
         <div className="board-intro">
           <div>
@@ -562,11 +622,12 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
 
         <div className="work-filters" aria-label="Work filters">
           <button
-            aria-label={`Open backlog, ${backlogPages.length} page${backlogPages.length === 1 ? "" : "s"}`}
-            className={`library-trigger ${drag ? "drop-ready" : ""} ${landed === "backlog" ? "landed" : ""}`}
-            onClick={() => setBacklogOpen(true)}
-            onDragOver={(event) => { if (drag) { event.preventDefault(); setDropHint(null); } }}
-            onDrop={(event) => void dropPage(event, "backlog")}
+            aria-label={moving
+              ? `Move ${board.pages.find((page) => page.id === moving)?.title ?? "page"} to the backlog`
+              : `Open backlog, ${backlogPages.length} page${backlogPages.length === 1 ? "" : "s"}`}
+            className={`library-trigger ${drag ? "drop-ready" : ""} ${dropHint?.status === "backlog" ? "drop-over" : ""} ${moving ? "move-target" : ""} ${landed === "backlog" ? "landed" : ""}`}
+            onClick={() => { if (moving) void placeMoving("backlog", 0); else setBacklogOpen(true); }}
+            ref={backlogNode}
             title="Backlog (B)"
             type="button"
           >
@@ -636,7 +697,10 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
         <div className="kanban" aria-label={`${board.project.name} board`} ref={kanbanRef}>
           {BOARD_STATUSES.map((status) => {
             const pages = pagesByStatus[status];
-            const basePages = drag ? pages.filter((page) => page.id !== drag.id) : pages;
+            // Whichever way a page was picked up, it leaves the flow of its column so the
+            // gaps being offered are the ones that will exist once it lands.
+            const liftedId = drag?.id ?? moving;
+            const basePages = liftedId ? pages.filter((page) => page.id !== liftedId) : pages;
             const hintIndex = drag && dropHint?.status === status ? Math.min(dropHint.index, basePages.length) : null;
             const placeholder = drag
               ? <div aria-hidden="true" className="drop-placeholder" data-flip-id="drop-placeholder" style={{ height: drag.height }} />
@@ -645,18 +709,21 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
             return (
               <section
                 aria-label={columnNames[status]}
-                className={`kanban-column column-${status} ${landed === status ? "landed" : ""}`}
+                className={`kanban-column column-${status} ${landed === status ? "landed" : ""} ${moving ? "moving-open" : ""}`}
                 key={status}
-                onDragOver={(event) => trackColumnDrag(event, status)}
-                onDrop={(event) => void dropPage(event, status)}
+                ref={(node) => {
+                  if (node) columnNodes.current.set(status, node);
+                  else columnNodes.current.delete(status);
+                }}
               >
                 <header className="column-header">
                   <div><span className="column-dot" /><h3>{columnNames[status]}</h3></div>
                   <span className="column-count">{status === "done" && visibleStatusCount > DONE_COLUMN_LIMIT ? `${pages.length} of ${visibleStatusCount}` : visibleStatusCount}</span>
                 </header>
                 <div className="page-list">
+                  {movingPage && <MoveSlot index={0} onPlace={placeMoving} status={status} statusName={columnNames[status]} title={movingPage.title} />}
                   {pages.map((page) => {
-                    const hidden = drag?.id === page.id;
+                    const hidden = liftedId === page.id;
                     const slot = hidden ? -1 : basePages.findIndex((candidate) => candidate.id === page.id);
                     const blockers = page.blockedBy
                       .map((id) => board.pages.find((candidate) => candidate.id === id))
@@ -670,19 +737,26 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
                       <article
                         className={`board-page ${page.category ? "" : "category-none"} ${hidden ? "drag-hidden" : ""} ${unseen ? "unseen" : ""}`}
                         data-flip-id={page.id}
-                        draggable
-                        onDragEnd={finishDrag}
-                        onDragStart={(event) => startPageDrag(event, page, slot)}
+                        onPointerDown={(event) => pointerDrag.start(event, page.id)}
                         style={category ? ({ "--category-color": category.color } as React.CSSProperties) : undefined}
                       >
                         <button
+                          aria-label={`Move ${page.title}`}
+                          aria-pressed={moving === page.id}
+                          className="drag-grip"
+                          onClick={() => {
+                            if (pointerDrag.consumeClick()) return;
+                            setMoving((current) => (current === page.id ? null : page.id));
+                          }}
+                          title={`Move ${page.title}`}
+                          type="button"
+                        >⠿</button>
+                        <button
                           aria-label={`Open ${page.title}${preview ? `. ${preview}` : ""}. ${categoryName(page.category)}. ${blockers.length ? `Blocked by ${blockers.map((blocker) => blocker.title).join(", ")}. ` : ""}${page.assigneeName ?? "unassigned"}${unseen ? ". Changed while you were away" : ""}`}
                           className="page-open"
-                          draggable
-                          onClick={() => setSelectedId(page.id)}
+                          onClick={() => { if (!pointerDrag.consumeClick()) setSelectedId(page.id); }}
                           type="button"
                         >
-                          <span className="drag-grip" aria-hidden="true">⠿</span>
                           {(page.category || blockers.length > 0) && <span className="page-signals">
                             {page.category && <span className="category-pill">{categoryName(page.category)}</span>}
                             {blockers.length > 0 && <span className="page-blocked">blocked by {blockers.length}</span>}
@@ -702,11 +776,12 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
                           </span>
                         </button>
                       </article>
+                      {movingPage && !hidden && <MoveSlot index={slot + 1} onPlace={placeMoving} status={status} statusName={columnNames[status]} title={movingPage.title} />}
                       </Fragment>
                     );
                   })}
                   {hintIndex !== null && hintIndex === basePages.length && placeholder}
-                  {pages.length === 0 && hintIndex === null && <div className="empty-column">{status === "done" ? "completed work appears here" : "drop a page here"}</div>}
+                  {pages.length === 0 && hintIndex === null && !movingPage && <div className="empty-column">{status === "done" ? "completed work appears here" : "drop a page here"}</div>}
                 </div>
                 {status === "done" && completedPages.length > DONE_COLUMN_LIMIT && (
                   <button
@@ -870,6 +945,23 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
           {flight.title}
         </div>
       )}
+      {/* The card itself stays out of the flow while it is carried; this is what the pointer
+          actually holds, drawn over the board it is crossing. */}
+      {pointerDrag.lift && liftedPage && (
+        <div
+          aria-hidden="true"
+          className="board-page lifted"
+          style={{
+            left: pointerDrag.lift.left,
+            top: pointerDrag.lift.top,
+            width: pointerDrag.lift.width,
+            height: pointerDrag.lift.height,
+            transform: `translate(${pointerDrag.lift.dx}px, ${pointerDrag.lift.dy}px)`,
+          }}
+        >
+          <span className="page-open"><strong>{liftedPage.title}</strong></span>
+        </div>
+      )}
       {busy && <div className="saving-indicator"><span className="connection-dot" />saving</div>}
     </div>
   );
@@ -882,6 +974,46 @@ type CaptureFlight = {
   from: { x: number; y: number; width: number };
   to: { x: number; y: number };
 };
+
+/**
+ * One place a held page can be put down.
+ *
+ * These are ordinary buttons, which is the whole point: the gap a mouse finds by hovering
+ * over it is the same gap a finger finds by tapping it and a keyboard finds by tabbing to it.
+ */
+function MoveSlot({ index, onPlace, status, statusName, title }: {
+  index: number;
+  onPlace: (status: PageStatus, index: number) => Promise<void>;
+  status: PageStatus;
+  statusName: string;
+  title: string;
+}) {
+  return (
+    <button
+      aria-label={`Place ${title} in ${statusName}, position ${index + 1}`}
+      className="move-slot"
+      onClick={() => void onPlace(status, index)}
+      type="button"
+    >
+      <span aria-hidden="true">place here</span>
+    </button>
+  );
+}
+
+function sameHint(
+  left: { status: PageStatus; index: number } | null,
+  right: { status: PageStatus; index: number } | null,
+): boolean {
+  if (left === null || right === null) return left === right;
+  return left.status === right.status && left.index === right.index;
+}
+
+/** Where a page currently sits among the ones its column is showing. */
+function slotOf(pagesByStatus: Record<(typeof BOARD_STATUSES)[number], Page[]>, page: Page): number {
+  const column = pagesByStatus[page.status as (typeof BOARD_STATUSES)[number]];
+  const index = column?.findIndex((candidate) => candidate.id === page.id) ?? -1;
+  return index >= 0 ? index : 0;
+}
 
 function comparePosition(left: Page, right: Page): number {
   return left.position - right.position;
