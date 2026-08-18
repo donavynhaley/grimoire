@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import { fieldHasOptions,
+  type PageGithubLink,
+  type PageGithubStatus,
   PAGE_STATUSES,
   type ArchivedProject,
   type BoardWorkspace,
@@ -647,7 +649,7 @@ export function getBoard(
 ): BoardWorkspace | null {
   const project = row(
     database,
-    "SELECT id, name, slug, description, chapters_enabled FROM projects WHERE id = ?",
+    "SELECT id, name, slug, description, chapters_enabled, github_repo, github_token FROM projects WHERE id = ?",
     projectId,
   );
   if (!project) return null;
@@ -656,6 +658,7 @@ export function getBoard(
   const pages = pageStore.list(String(project.slug));
   validateDependencyGraph(pages);
   const enabled = Number(project.chapters_enabled ?? 0) === 1;
+  const githubStatuses = githubStatusesForProject(database, projectId);
 
   return {
     project: {
@@ -663,6 +666,10 @@ export function getBoard(
       name: String(project.name),
       description: String(project.description ?? ""),
       chaptersEnabled: enabled,
+      githubRepo: String(project.github_repo ?? ""),
+      // The token itself never rides the board payload; the interface only needs to know
+      // whether one is held so settings can say "set" without saying what.
+      githubTokenSet: String(project.github_token ?? "") !== "",
     },
     projects: listProjectsForUser(database, user),
     categories: categoriesForProject(database, projectId),
@@ -674,7 +681,7 @@ export function getBoard(
       : [],
     currentUser: user,
     members,
-    pages: pages.map((page) => publicPage(database, page, members)),
+    pages: pages.map((page) => publicPage(database, page, members, githubStatuses)),
   };
 }
 
@@ -712,6 +719,8 @@ type PageInput = {
   blockedBy?: string[];
   status?: PageStatus;
   assigneeId?: string | null;
+  /** The page's tie to GitHub: a parsed link to hold, or null to let go of one. */
+  github?: PageGithubLink | null;
 };
 
 export function createPage(
@@ -751,6 +760,7 @@ export function createPage(
     updatedAt: now,
     completedAt: status === "done" ? now : null,
     archivedAt: null,
+    github: null,
   };
   validateDependencyGraph([...pages, page]);
   pageStore.save(String(project.slug), page);
@@ -794,6 +804,7 @@ export function updatePage(
     blockedBy: input.blockedBy ?? current.blockedBy,
     status: nextStatus,
     assignee: input.assigneeId === undefined ? current.assignee : assignee?.email.toLowerCase() ?? null,
+    github: input.github === undefined ? current.github : input.github,
     updatedAt: now,
     completedAt,
   };
@@ -989,7 +1000,12 @@ export function removeProjectMember(
   return "removed";
 }
 
-function publicPage(database: DatabaseSync, value: StoredPage, members: Member[]): Page {
+function publicPage(
+  database: DatabaseSync,
+  value: StoredPage,
+  members: Member[],
+  githubStatuses?: Map<string, PageGithubStatus>,
+): Page {
   const assignee = value.assignee
     ? members.find((member) => member.email.toLowerCase() === value.assignee?.toLowerCase())
     : null;
@@ -1014,6 +1030,10 @@ function publicPage(database: DatabaseSync, value: StoredPage, members: Member[]
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
     completedAt: value.completedAt,
+    github: value.github,
+    githubStatus: value.github
+      ? githubStatuses?.get(value.id) ?? { state: "unchecked", prNumber: null, prTitle: null, prUrl: null, checkedAt: null }
+      : null,
   };
 }
 
@@ -1131,4 +1151,70 @@ function validateDependencyGraph(pages: StoredPage[]): void {
     visited.add(pageId);
   };
   for (const page of pages) visit(page.id);
+}
+
+/* ---------- GitHub links ---------- */
+
+export type ProjectGithubConfig = { repo: string; token: string };
+
+export function projectGithubConfig(database: DatabaseSync, projectId: string): ProjectGithubConfig {
+  const project = row(database, "SELECT github_repo, github_token FROM projects WHERE id = ?", projectId);
+  return { repo: String(project?.github_repo ?? ""), token: String(project?.github_token ?? "") };
+}
+
+/**
+ * Points a project at its repository. The token is written only when the caller sends one,
+ * so saving the repo never wipes a credential the form deliberately left blank; an empty
+ * string sent explicitly clears it.
+ */
+export function setProjectGithub(
+  database: DatabaseSync,
+  projectId: string,
+  input: { repo?: string; token?: string },
+): void {
+  const now = new Date().toISOString();
+  if (input.repo !== undefined) {
+    database.prepare("UPDATE projects SET github_repo = ?, updated_at = ? WHERE id = ?").run(input.repo, now, projectId);
+  }
+  if (input.token !== undefined) {
+    database.prepare("UPDATE projects SET github_token = ?, updated_at = ? WHERE id = ?").run(input.token, now, projectId);
+  }
+}
+
+export function githubStatusesForProject(database: DatabaseSync, projectId: string): Map<string, PageGithubStatus> {
+  const rows = database
+    .prepare("SELECT page_id, state, pr_number, pr_title, pr_url, checked_at FROM github_link_status WHERE project_id = ?")
+    .all(projectId) as Array<Record<string, unknown>>;
+  return new Map(rows.map((value) => [
+    String(value.page_id),
+    {
+      state: String(value.state) as PageGithubStatus["state"],
+      prNumber: value.pr_number === null ? null : Number(value.pr_number),
+      prTitle: value.pr_title === null ? null : String(value.pr_title),
+      prUrl: value.pr_url === null ? null : String(value.pr_url),
+      checkedAt: value.checked_at === null ? null : String(value.checked_at),
+    },
+  ]));
+}
+
+export function saveGithubStatus(
+  database: DatabaseSync,
+  projectId: string,
+  pageId: string,
+  status: PageGithubStatus,
+): void {
+  database
+    .prepare(
+      `INSERT INTO github_link_status (project_id, page_id, state, pr_number, pr_title, pr_url, checked_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT (project_id, page_id) DO UPDATE
+       SET state = excluded.state, pr_number = excluded.pr_number, pr_title = excluded.pr_title,
+           pr_url = excluded.pr_url, checked_at = excluded.checked_at`,
+    )
+    .run(projectId, pageId, status.state, status.prNumber, status.prTitle, status.prUrl, status.checkedAt);
+}
+
+/** A link that is gone needs no cached answer about it. */
+export function clearGithubStatus(database: DatabaseSync, projectId: string, pageId: string): void {
+  database.prepare("DELETE FROM github_link_status WHERE project_id = ? AND page_id = ?").run(projectId, pageId);
 }

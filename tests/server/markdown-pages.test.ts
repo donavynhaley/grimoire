@@ -35,6 +35,7 @@ function page(overrides: Partial<StoredPage> = {}): StoredPage {
     updatedAt: "2026-08-03T12:00:00.000Z",
     completedAt: null,
     archivedAt: null,
+    github: null,
     ...overrides,
   };
 }

@@ -774,9 +774,16 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
                           onClick={() => { if (!pointerDrag.consumeClick()) setSelectedId(page.id); }}
                           type="button"
                         >
-                          {(page.category || blockers.length > 0) && <span className="page-signals">
+                          {(page.category || blockers.length > 0 || page.github) && <span className="page-signals">
                             {page.category && <span className="category-pill">{categoryName(page.category)}</span>}
                             {blockers.length > 0 && <span className="page-blocked">blocked by {blockers.length}</span>}
+                            {page.github && (
+                              <span className={`github-pill github-state-${page.githubStatus?.state ?? "unchecked"}`}>
+                                {page.githubStatus?.prNumber
+                                  ? `#${page.githubStatus.prNumber}`
+                                  : page.github.kind === "pr" ? `#${page.github.number}` : `⎇ ${page.github.name}`}
+                              </span>
+                            )}
                           </span>}
                           <strong>{page.title}</strong>
                           {preview && <p>{preview}</p>}

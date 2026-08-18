@@ -10,7 +10,7 @@ import { AgentAccessSection } from "./AgentAccessSection";
 import { TeamSection } from "./TeamSection";
 import { type SettingsRun, useSettingsAction } from "./use-settings-action";
 
-export const SETTINGS_SECTIONS = ["general", "categories", "fields", "chapters", "team", "agents", "danger"] as const;
+export const SETTINGS_SECTIONS = ["general", "categories", "fields", "chapters", "github", "team", "agents", "danger"] as const;
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
 
 /** The sections a member can read. Agent credentials and archiving stay owner-only. */
@@ -25,6 +25,7 @@ const SECTION_LABELS: Record<SettingsSection, string> = {
   categories: "Categories",
   fields: "Page fields",
   chapters: "Chapters",
+  github: "GitHub",
   team: "Team",
   agents: "Agent access",
   danger: "Danger zone",
@@ -34,6 +35,8 @@ export type ProjectSettingsActions = {
   rename: (name: string) => Promise<void>;
   setDescription: (description: string) => Promise<void>;
   setChaptersEnabled: (enabled: boolean) => Promise<void>;
+  setGithubRepo: (repo: string) => Promise<void>;
+  setGithubToken: (token: string) => Promise<void>;
   archive: () => Promise<void>;
   restore: (id: string) => Promise<void>;
 };
@@ -52,7 +55,7 @@ type Props = {
   chapters: Chapter[];
   chaptersEnabled: boolean;
   fields: ProjectField[];
-  project: { id: string; name: string; description: string };
+  project: { id: string; name: string; description: string; githubRepo: string; githubTokenSet: boolean };
   section: SettingsSection;
   categoryActions: CategoryActions;
   chapterActions: ChapterActions;
@@ -139,6 +142,9 @@ export function ProjectSettingsDialog({
               run={run}
             />
           )}
+          {active === "github" && (
+            <GithubSection busy={busy} project={project} onSetRepo={actions.setGithubRepo} onSetToken={actions.setGithubToken} run={run} />
+          )}
           {active === "categories" && (
             <CategoriesSection actions={categoryActions} busy={busy} canManage={isOwner} categories={categories} run={run} />
           )}
@@ -195,11 +201,95 @@ export function ProjectSettingsDialog({
 type GeneralProps = {
   busy: boolean;
   canManage: boolean;
-  project: { id: string; name: string; description: string };
+  project: { id: string; name: string; description: string; githubRepo: string; githubTokenSet: boolean };
   onRename: (name: string) => Promise<void>;
   onSetDescription: (description: string) => Promise<void>;
   run: SettingsRun;
 };
+
+/**
+ * Where a project says which repository its pull requests live in.
+ *
+ * The token is write-only from here: the form can tell one is held and can replace or clear
+ * it, but never reads it back, because a secret that round-trips to a browser is not one.
+ */
+function GithubSection({ busy, project, onSetRepo, onSetToken, run }: {
+  busy: boolean;
+  project: { githubRepo: string; githubTokenSet: boolean };
+  onSetRepo: (repo: string) => Promise<void>;
+  onSetToken: (token: string) => Promise<void>;
+  run: SettingsRun;
+}) {
+  const [repo, setRepo] = useState(project.githubRepo);
+  const [token, setToken] = useState("");
+
+  const saveRepo = () => {
+    const next = repo.trim();
+    if (next === project.githubRepo) return;
+    void run(() => onSetRepo(next), "The repository could not be saved");
+  };
+
+  const saveToken = () => {
+    const next = token.trim();
+    if (!next) return;
+    setToken("");
+    void run(() => onSetToken(next), "The token could not be saved");
+  };
+
+  return (
+    <div className="settings-section">
+      <p className="chapters-note">
+        Link a page to a pull request or branch, and the board follows the code: the page moves
+        into Review while its pull request is open, and into Done when it merges. Grimoire checks
+        every couple of minutes, and only ever moves a page forward.
+      </p>
+      <div className="settings-row">
+        <label className="field-label" htmlFor="settings-github-repo">Repository</label>
+        <div className="settings-input">
+          <input
+            disabled={busy}
+            id="settings-github-repo"
+            name="githubRepo"
+            onBlur={saveRepo}
+            onChange={(event) => setRepo(event.target.value)}
+            onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); saveRepo(); } }}
+            placeholder="owner/repository"
+            value={repo}
+          />
+        </div>
+        <p className="settings-summary">Where this project&apos;s pull requests live. Clearing it pauses the automation.</p>
+      </div>
+      <div className="settings-row">
+        <label className="field-label" htmlFor="settings-github-token">Access token</label>
+        <div className="settings-input">
+          <input
+            disabled={busy}
+            id="settings-github-token"
+            name="githubToken"
+            onBlur={saveToken}
+            onChange={(event) => setToken(event.target.value)}
+            onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); saveToken(); } }}
+            placeholder={project.githubTokenSet ? "A token is saved. Paste a new one to replace it." : "github_pat_..."}
+            type="password"
+            value={token}
+          />
+        </div>
+        <p className="settings-summary">
+          A fine-grained token with read access to pull requests. Optional for public repositories.
+          It stays on the server and is never shown again.
+        </p>
+        {project.githubTokenSet && (
+          <button
+            className="text-button danger-text"
+            disabled={busy}
+            onClick={() => void run(() => onSetToken(""), "The token could not be cleared")}
+            type="button"
+          >forget the saved token</button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function GeneralSection({ busy, canManage, project, onRename, onSetDescription, run }: GeneralProps) {
   const [name, setName] = useState(project.name);

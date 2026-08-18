@@ -319,6 +319,11 @@ export function PageDialog({ page, pages, categories, chapters, fields, currentU
               <button aria-label="Add blocking page" className="add-dependency" onClick={() => setFindingBlocker(true)} type="button">+ add blocking page</button>
             )}
           </Growing>
+
+          <Growing className="rail-row">
+            <span className="field-label">GitHub</span>
+            <GithubRow github={page.github} onUpdate={onUpdate} status={page.githubStatus} />
+          </Growing>
         </div>
       </div>
     </Drawer>
@@ -403,5 +408,101 @@ function HistoryEvents({ events, members }: { events: AuditEvent[] | null; membe
         );
       })}
     </ol>
+  );
+}
+
+const GITHUB_STATE_WORDS: Record<string, string> = {
+  open: "open",
+  draft: "draft",
+  merged: "merged",
+  closed: "closed",
+  missing: "not found",
+  unchecked: "no PR yet",
+};
+
+/**
+ * A page's tie to GitHub: paste a pull request or branch to make one, watch what it says,
+ * let go of it. The state is whatever the server last heard; the link out goes to the pull
+ * request once one exists.
+ */
+function GithubRow({ github, onUpdate, status }: {
+  github: Page["github"];
+  onUpdate: (input: Record<string, unknown>) => Promise<void>;
+  status: Page["githubStatus"];
+}) {
+  const [linking, setLinking] = useState(false);
+  const [reference, setReference] = useState("");
+  const [refused, setRefused] = useState(false);
+
+  const submit = async () => {
+    const value = reference.trim();
+    if (!value) return;
+    setRefused(false);
+    try {
+      await onUpdate({ github: value });
+      setLinking(false);
+      setReference("");
+    } catch {
+      // The server explains what it accepts; here it is enough to say it said no.
+      setRefused(true);
+    }
+  };
+
+  if (!github) {
+    if (!linking) {
+      return (
+        <button aria-label="Link a pull request or branch" className="add-dependency" onClick={() => setLinking(true)} type="button">
+          + link a pull request or branch
+        </button>
+      );
+    }
+    return (
+      <div className="dependency-search">
+        <label>
+          <span className="sr-only">Pull request or branch</span>
+          <input
+            aria-label="Pull request or branch"
+            autoFocus
+            onChange={(event) => setReference(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") { event.preventDefault(); void submit(); }
+              if (event.key !== "Escape") return;
+              event.stopPropagation();
+              setLinking(false);
+              setRefused(false);
+            }}
+            placeholder="PR URL, #123, or a branch name..."
+            type="text"
+            value={reference}
+          />
+        </label>
+        {refused && <p className="github-refused" role="alert">That does not read as a pull request, a branch, or a GitHub URL.</p>}
+        <div>
+          <button className="text-button" onClick={() => void submit()} type="button">link</button>
+          <button className="text-button" onClick={() => { setLinking(false); setRefused(false); }} type="button">cancel</button>
+        </div>
+      </div>
+    );
+  }
+
+  const state = status?.state ?? "unchecked";
+  const label = github.kind === "pr" || status?.prNumber
+    ? `PR #${status?.prNumber ?? (github.kind === "pr" ? github.number : "?")}`
+    : `branch ${github.name}`;
+  return (
+    <div className="rail-value github-link">
+      <span className={`rail-current github-state-${state}`} title={status?.prTitle ?? undefined}>
+        {status?.prUrl ? (
+          <a href={status.prUrl} rel="noreferrer" target="_blank">{label}</a>
+        ) : label}
+        <em>{GITHUB_STATE_WORDS[state]}</em>
+      </span>
+      <button
+        aria-label="Unlink from GitHub"
+        className="rail-change"
+        onClick={() => void onUpdate({ github: null })}
+        type="button"
+      >unlink</button>
+    </div>
   );
 }

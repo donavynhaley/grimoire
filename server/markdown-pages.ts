@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, unlinkSyn
 import { basename, join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
-import { PAGE_STATUSES, type PageCategory, type PageFields, type PageStatus } from "../shared/types";
+import { PAGE_STATUSES, type PageGithubLink, type PageCategory, type PageFields, type PageStatus } from "../shared/types";
 import { isTimestamp, parseMarkdown, serializeMarkdown, writeAtomic, type FrontmatterValue } from "./markdown-files";
 
 export type StoredPage = {
@@ -22,6 +22,7 @@ export type StoredPage = {
   updatedAt: string;
   completedAt: string | null;
   archivedAt: string | null;
+  github: PageGithubLink | null;
 };
 
 type LegacyPageRow = Record<string, string | number | null>;
@@ -43,6 +44,13 @@ const metadataSchema = z
     updated_at: z.string().refine(isTimestamp, "updated_at must be an ISO timestamp"),
     completed_at: z.string().refine(isTimestamp, "completed_at must be an ISO timestamp").nullable().optional(),
     archived_at: z.string().refine(isTimestamp, "archived_at must be an ISO timestamp").nullable().optional(),
+    github: z
+      .union([
+        z.object({ kind: z.literal("pr"), number: z.number().int().min(1), repo: z.string().optional() }),
+        z.object({ kind: z.literal("branch"), name: z.string().min(1).max(200), repo: z.string().optional() }),
+      ])
+      .nullable()
+      .optional(),
   })
   .strict();
 
@@ -229,6 +237,7 @@ function parsePage(markdown: string): StoredPage {
     updatedAt: metadata.updated_at,
     completedAt: metadata.completed_at ?? (metadata.status === "done" ? metadata.updated_at : null),
     archivedAt: metadata.archived_at ?? null,
+    github: metadata.github ?? null,
   };
 }
 
@@ -263,12 +272,14 @@ function serializePage(page: StoredPage): string {
     ["updated_at", page.updatedAt],
     ["completed_at", page.completedAt],
   );
+  if (page.github !== null) metadata.push(["github", page.github as unknown as FrontmatterValue]);
   if (page.archivedAt !== null) metadata.push(["archived_at", page.archivedAt]);
   return serializeMarkdown(metadata, page.description);
 }
 
 function legacyRowToPage(row: LegacyPageRow): StoredPage {
   return {
+    github: null,
     id: String(row.id),
     title: String(row.title),
     description: String(row.description),

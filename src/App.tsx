@@ -494,6 +494,8 @@ export function App() {
           rename: (name) => renameProject(board.project.id, name),
           setDescription: (description) => describeProject(board.project.id, description),
           setChaptersEnabled,
+          setGithubRepo: (repo) => performSettings(() => mutate(`/api/projects/${board.project.id}`, "PATCH", { githubRepo: repo })),
+          setGithubToken: (token) => performSettings(() => mutate(`/api/projects/${board.project.id}`, "PATCH", { githubToken: token })),
           archive: () => archiveProject(board.project.id),
           restore: restoreProject,
         }}
@@ -510,6 +512,10 @@ function applyOptimisticPageUpdate(
 ): BoardWorkspace {
   const current = board.pages.find((page) => page.id === id);
   if (!current) return board;
+  // The github reference travels as pasted text and only the server can read it into a
+  // link, so the optimistic page keeps what it had until the parsed truth arrives.
+  const { github: _github, ...safeInput } = input;
+  input = safeInput;
   const targetStatus = (input.status as PageStatus | undefined) ?? current.status;
   const targetPosition = typeof input.position === "number" ? input.position : current.position;
   const completedAt = targetStatus === "done"
