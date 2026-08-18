@@ -634,7 +634,7 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
               <p className="chapter-intent">{plainTextFromMarkdown(selectedChapter.description)}</p>
             )}
           </div>
-          <QuickCapture busy={busy} categories={board.categories} chapters={chaptersOn ? board.chapters : []} members={board.members} onCreate={capturePage} />
+          <QuickCapture busy={busy} categories={board.categories} chapters={chaptersOn ? board.chapters : []} fields={board.fields} members={board.members} onCreate={capturePage} />
         </div>
 
         <div className="work-filters" aria-label="Work filters">

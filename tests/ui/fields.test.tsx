@@ -71,6 +71,49 @@ async function openFields(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("page fields", () => {
+  it("captures a page with a project field chosen from the capture bar", async () => {
+    const user = userEvent.setup();
+    const board = { ...boardFixture(), fields: [priority, estimate] };
+    const calls = mountWith(board);
+
+    await user.type(await screen.findByLabelText("Capture work page"), "Tune the familiar");
+    // Only fields a picker can answer get chips; a number is typing, and stays in the editor.
+    expect(screen.queryByRole("button", { name: "Choose Estimate" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Choose Priority" }));
+    await user.click(screen.getByRole("option", { name: "p1" }));
+    await user.click(screen.getByRole("button", { name: "add page" }));
+
+    await waitFor(() =>
+      expect(calls).toContainEqual({
+        url: "/api/pages",
+        method: "POST",
+        body: {
+          title: "Tune the familiar",
+          category: null,
+          chapter: null,
+          assigneeId: null,
+          status: "backlog",
+          fields: { priority: "p1" },
+        },
+      }),
+    );
+  });
+
+  it("clears a chosen capture field by picking not set", async () => {
+    const user = userEvent.setup();
+    const board = { ...boardFixture(), fields: [priority] };
+    mountWith(board);
+
+    await user.type(await screen.findByLabelText("Capture work page"), "Anything");
+    await user.click(screen.getByRole("button", { name: "Choose Priority" }));
+    await user.click(screen.getByRole("option", { name: "p2" }));
+    expect(screen.getByRole("button", { name: "Priority: p2" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Priority: p2" }));
+    await user.click(screen.getByRole("option", { name: "Not set" }));
+    expect(screen.getByRole("button", { name: "Choose Priority" })).toBeInTheDocument();
+  });
+
   it("offers the section from project settings, saying what fields are for", async () => {
     const user = userEvent.setup();
     mountWith(boardFixture());

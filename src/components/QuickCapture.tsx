@@ -1,5 +1,5 @@
 import { type ChangeEvent, type FormEvent, type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
-import { type PageCategory, type PageStatus, type Chapter, type Member, type ProjectCategory } from "../../shared/types";
+import { type FieldValue, type PageCategory, type PageStatus, type Chapter, type Member, type ProjectCategory, type ProjectField } from "../../shared/types";
 import { useTypingFocus } from "./use-typing-focus";
 
 export type CapturePageInput = {
@@ -8,12 +8,16 @@ export type CapturePageInput = {
   chapter: string | null;
   assigneeId: string | null;
   status: PageStatus;
+  /** Values for the project's own fields, present only for the ones actually chosen. */
+  fields?: Record<string, FieldValue>;
 };
 
-type CaptureSettings = Omit<CapturePageInput, "title">;
-type PickerKind = "category" | "chapter" | "assignee" | "status";
+type CaptureSettings = Omit<CapturePageInput, "title" | "fields"> & { fields: Record<string, FieldValue> };
+type PickerKind = "category" | "chapter" | "assignee" | "status" | "field";
 type PickerState = {
   kind: PickerKind;
+  /** Which of the project's fields is open, when `kind` is "field". */
+  fieldKey?: string;
   query: string;
   commandStart: number | null;
 };
@@ -21,7 +25,7 @@ type PickerOption = {
   id: string;
   label: string;
   search: string;
-  value: string | null;
+  value: string | boolean | null;
   color?: string;
 };
 
@@ -30,6 +34,8 @@ type Props = {
   categories: ProjectCategory[];
   /** Empty when the project has not enabled chapters, which hides the control entirely. */
   chapters: Chapter[];
+  /** The project's own fields; the ones a picker can answer get capture chips of their own. */
+  fields?: ProjectField[];
   members: Member[];
   onCreate: (input: CapturePageInput) => Promise<void>;
 };
@@ -39,7 +45,17 @@ const DEFAULT_SETTINGS: CaptureSettings = {
   chapter: null,
   assigneeId: null,
   status: "backlog",
+  fields: {},
 };
+
+/**
+ * The fields a capture chip can honestly offer: ones whose value is a choice among a few
+ * things. Text, numbers, and dates are typing, and the title bar is already for typing -
+ * they stay in the page editor where a whole input is waiting for them.
+ */
+function capturable(fields: ProjectField[]): ProjectField[] {
+  return fields.filter((field) => field.type === "select" || field.type === "checkbox");
+}
 
 const statusLabels: Partial<Record<PageStatus, string>> = {
   backlog: "Backlog",
@@ -48,7 +64,7 @@ const statusLabels: Partial<Record<PageStatus, string>> = {
   review: "Review",
 };
 
-export function QuickCapture({ busy, categories, chapters, members, onCreate }: Props) {
+export function QuickCapture({ busy, categories, chapters, fields = [], members, onCreate }: Props) {
   const [title, setTitle] = useState("");
   const [settings, setSettings] = useState<CaptureSettings>(DEFAULT_SETTINGS);
   const [picker, setPicker] = useState<PickerState | null>(null);
@@ -59,9 +75,10 @@ export function QuickCapture({ busy, categories, chapters, members, onCreate }: 
    * phone, where it would raise the keyboard over the board the reader has just opened.
    */
   const focusOnArrival = useTypingFocus<HTMLInputElement>();
+  const fieldChips = capturable(fields);
   const options = useMemo(
-    () => pickerOptions(picker?.kind ?? null, categories, chapters, members),
-    [categories, chapters, members, picker?.kind],
+    () => pickerOptions(picker, categories, chapters, members, fieldChips),
+    [categories, chapters, fieldChips, members, picker],
   );
   const visibleOptions = useMemo(() => filterOptions(options, picker?.query ?? ""), [options, picker?.query]);
   const selectedCategory = settings.category
@@ -85,8 +102,8 @@ export function QuickCapture({ busy, categories, chapters, members, onCreate }: 
     setPicker(command);
   };
 
-  const openPicker = (kind: PickerKind) => {
-    setPicker({ kind, query: "", commandStart: null });
+  const openPicker = (kind: PickerKind, fieldKey?: string) => {
+    setPicker({ kind, fieldKey, query: "", commandStart: null });
     setHighlighted(0);
   };
 
@@ -94,8 +111,15 @@ export function QuickCapture({ busy, categories, chapters, members, onCreate }: 
     if (!picker) return;
     setSettings((current) => {
       if (picker.kind === "category") return { ...current, category: option.value as PageCategory | null };
-      if (picker.kind === "chapter") return { ...current, chapter: option.value };
-      if (picker.kind === "assignee") return { ...current, assigneeId: option.value };
+      if (picker.kind === "chapter") return { ...current, chapter: option.value as string | null };
+      if (picker.kind === "assignee") return { ...current, assigneeId: option.value as string | null };
+      if (picker.kind === "field" && picker.fieldKey) {
+        // Choosing "not set" removes the key entirely, so the created page never carries it.
+        const next = { ...current.fields };
+        if (option.value === null) delete next[picker.fieldKey];
+        else next[picker.fieldKey] = option.value;
+        return { ...current, fields: next };
+      }
       return { ...current, status: (option.value ?? "backlog") as PageStatus };
     });
     if (picker.commandStart !== null) {
@@ -135,17 +159,18 @@ export function QuickCapture({ busy, categories, chapters, members, onCreate }: 
     event.preventDefault();
     const cleanTitle = title.trim();
     if (!cleanTitle || picker) return;
-    const submitted = settings;
+    const { fields: chosenFields, ...submitted } = settings;
     setTitle("");
     // Settings carry over to the next page on purpose: runs of similar pages
     // shouldn't need re-picking. "start fresh" below returns to the defaults.
     setPicker(null);
     inputRef.current?.focus();
-    await onCreate({ title: cleanTitle, ...submitted });
+    // An empty patch is left off entirely, so a capture with no fields sends what it always sent.
+    await onCreate({ title: cleanTitle, ...submitted, ...(Object.keys(chosenFields).length ? { fields: chosenFields } : {}) });
   };
 
   const resetSettings = () => {
-    setSettings(DEFAULT_SETTINGS);
+    setSettings({ ...DEFAULT_SETTINGS, fields: {} });
     setPicker(null);
     inputRef.current?.focus();
   };
@@ -212,6 +237,24 @@ export function QuickCapture({ busy, categories, chapters, members, onCreate }: 
               type="button"
             >{/* The glyph is the trigger it teaches: typing "/" is what opens this picker. */}
             <span aria-hidden="true">/</span>{statusLabel}</button>
+            {fieldChips.map((field) => {
+              const chosen = settings.fields[field.key];
+              const label = chosen === undefined
+                ? field.label
+                : field.type === "checkbox"
+                  ? `${field.label}: ${chosen ? "yes" : "no"}`
+                  : `${field.label}: ${chosen}`;
+              return (
+                <button
+                  aria-expanded={picker?.kind === "field" && picker.fieldKey === field.key}
+                  aria-label={chosen === undefined ? `Choose ${field.label}` : label}
+                  className={chosen === undefined ? "capture-field" : "capture-field active"}
+                  key={field.key}
+                  onClick={() => openPicker("field", field.key)}
+                  type="button"
+                ><span aria-hidden="true">•</span>{label}</button>
+              );
+            })}
           </div>
           {hasCustomSettings(settings) && (
             <button
@@ -225,13 +268,17 @@ export function QuickCapture({ busy, categories, chapters, members, onCreate }: 
       )}
 
       {picker && (
-        <div aria-label={`Choose ${pickerHeading(picker.kind).toLowerCase()}`} className={`capture-picker capture-picker-${picker.kind}`} id="capture-options" role="listbox">
-          <header><span>{pickerHeading(picker.kind)}</span><kbd>{pickerTrigger(picker.kind)}</kbd></header>
+        <div aria-label={`Choose ${pickerHeading(picker, fieldChips).toLowerCase()}`} className={`capture-picker capture-picker-${picker.kind}`} id="capture-options" role="listbox">
+          <header>
+            <span>{pickerHeading(picker, fieldChips)}</span>
+            {/* The project's own fields have no trigger character to teach. */}
+            {picker.kind !== "field" && <kbd>{pickerTrigger(picker.kind)}</kbd>}
+          </header>
           <div>
             {visibleOptions.map((option, index) => (
               <button
-                aria-selected={option.value === selectedValue(settings, picker.kind)}
-                className={`${index === highlighted ? "highlighted" : ""} ${option.value === selectedValue(settings, picker.kind) ? "selected" : ""}`}
+                aria-selected={option.value === selectedValue(settings, picker)}
+                className={`${index === highlighted ? "highlighted" : ""} ${option.value === selectedValue(settings, picker) ? "selected" : ""}`}
                 id={`capture-option-${option.id}`}
                 key={option.id}
                 onMouseDown={(event) => event.preventDefault()}
@@ -248,7 +295,7 @@ export function QuickCapture({ busy, categories, chapters, members, onCreate }: 
                 )}
                 {picker.kind === "status" && <span className={`column-dot ${option.value}`} />}
                 <span>{option.label}</span>
-                {option.value === selectedValue(settings, picker.kind) && <span aria-hidden="true">✓</span>}
+                {option.value === selectedValue(settings, picker) && <span aria-hidden="true">✓</span>}
               </button>
             ))}
             {visibleOptions.length === 0 && <p>No matches</p>}
@@ -276,11 +323,33 @@ function commandAtEnd(value: string, caret: number): PickerState | null {
 }
 
 function pickerOptions(
-  kind: PickerKind | null,
+  picker: PickerState | null,
   categories: ProjectCategory[],
   chapters: Chapter[],
   members: Member[],
+  fields: ProjectField[],
 ): PickerOption[] {
+  const kind = picker?.kind ?? null;
+  if (kind === "field") {
+    const field = fields.find((candidate) => candidate.key === picker?.fieldKey);
+    if (!field) return [];
+    if (field.type === "checkbox") {
+      return [
+        { id: `field-${field.key}-none`, label: "Not set", search: "not set none clear", value: null },
+        { id: `field-${field.key}-yes`, label: "Yes", search: "yes true checked", value: true },
+        { id: `field-${field.key}-no`, label: "No", search: "no false unchecked", value: false },
+      ];
+    }
+    return [
+      { id: `field-${field.key}-none`, label: "Not set", search: "not set none clear", value: null },
+      ...field.options.map((option) => ({
+        id: `field-${field.key}-${option}`,
+        label: option,
+        search: option.toLowerCase(),
+        value: option,
+      })),
+    ];
+  }
   if (kind === "category") {
     return [
       { id: "category-none", label: "No category", search: "none uncategorized", value: null },
@@ -333,10 +402,14 @@ function filterOptions(options: PickerOption[], query: string): PickerOption[] {
     .sort((left, right) => Number(!left.search.startsWith(query)) - Number(!right.search.startsWith(query)));
 }
 
-function selectedValue(settings: CaptureSettings, kind: PickerKind): string | null {
-  if (kind === "category") return settings.category;
-  if (kind === "chapter") return settings.chapter;
-  if (kind === "assignee") return settings.assigneeId;
+function selectedValue(settings: CaptureSettings, picker: PickerState): string | boolean | null {
+  if (picker.kind === "category") return settings.category;
+  if (picker.kind === "chapter") return settings.chapter;
+  if (picker.kind === "assignee") return settings.assigneeId;
+  if (picker.kind === "field") {
+    const held = picker.fieldKey ? settings.fields[picker.fieldKey] : undefined;
+    return held === undefined ? null : (held as string | boolean);
+  }
   return settings.status;
 }
 
@@ -345,14 +418,18 @@ function hasCustomSettings(settings: CaptureSettings): boolean {
     settings.category !== null ||
     settings.chapter !== null ||
     settings.assigneeId !== null ||
-    settings.status !== "backlog"
+    settings.status !== "backlog" ||
+    Object.keys(settings.fields).length > 0
   );
 }
 
-function pickerHeading(kind: PickerKind): string {
-  if (kind === "category") return "Category";
-  if (kind === "chapter") return "Chapter";
-  if (kind === "assignee") return "Assign to";
+function pickerHeading(picker: PickerState, fields: ProjectField[]): string {
+  if (picker.kind === "category") return "Category";
+  if (picker.kind === "chapter") return "Chapter";
+  if (picker.kind === "assignee") return "Assign to";
+  if (picker.kind === "field") {
+    return fields.find((candidate) => candidate.key === picker.fieldKey)?.label ?? "Field";
+  }
   return "Column";
 }
 

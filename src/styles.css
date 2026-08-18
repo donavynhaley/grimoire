@@ -570,7 +570,9 @@ textarea:focus-visible {
   cursor: pointer;
 }
 
-.capture-picker-assignee [role="option"] { grid-template-columns: minmax(0, 1fr) auto; }
+/* Assignees and project fields draw no leading swatch, so their label takes its column. */
+.capture-picker-assignee [role="option"],
+.capture-picker-field [role="option"] { grid-template-columns: minmax(0, 1fr) auto; }
 .capture-picker [role="option"]:hover,
 .capture-picker [role="option"].highlighted { color: var(--text); background: var(--surface-soft); border-color: var(--border); }
 .capture-picker [role="option"].selected { color: var(--accent); }
@@ -2436,7 +2438,12 @@ textarea:hover { border-color: var(--border-bright); }
   .workspace-capture { width: 100%; }
   .capture-picker { right: 0; width: 100%; }
   .work-filters { margin-top: 0; }
-  .page-search { width: 100%; order: -1; }
+  /*
+   * The board filter goes below the pills rather than above them. Leading the block, it sat
+   * directly under the capture bar - two inputs stacked read as clutter, and the capture
+   * pickers opened straight over it.
+   */
+  .page-search { width: 100%; order: 5; }
   .kanban { gap: 9px; }
   .kanban-column { min-height: 0; height: auto; }
   .library-page { grid-template-columns: minmax(0, 1fr); }
