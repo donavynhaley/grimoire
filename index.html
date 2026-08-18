@@ -2,7 +2,18 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      viewport-fit=cover lets the layout reach under the notch and the home indicator, which
+      the safe-area insets in the stylesheet then pad back out deliberately. Without it those
+      insets are always zero and a bottom sheet has no way to know it is being covered.
+
+      interactive-widget asks the browser to shrink the layout when the keyboard opens rather
+      than scrolling the page out from under it, so a field stays where it was put.
+    -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
+    />
     <!-- link-preview:start -->
     <meta
       name="description"

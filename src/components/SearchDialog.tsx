@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Drawer } from "./Drawer";
 import { SEARCH_GROUPS, type SearchGroup, type SearchHit, type SearchResults } from "../../shared/types";
 import { ApiError, search as searchProject } from "../api/client";
 
@@ -142,89 +143,87 @@ export function SearchDialog({ initialQuery, onClose, onOpenPage, onOpenIdea, on
   const hidden = results && results.query === trimmed ? results.total - results.hits.length : 0;
 
   return (
-    <div className="modal-backdrop search-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section aria-label="Search everything" aria-modal="true" className="search-dialog" role="dialog">
-        <div className="search-input">
-          <span aria-hidden="true" className="search-glyph">/</span>
-          <label className="sr-only" htmlFor="global-search">Search pages, notes, ideas, and archived work</label>
-          <input
-            autoFocus
-            id="global-search"
-            name="globalSearch"
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={onKeyDown}
-            placeholder="Search pages, notes, ideas, archived work..."
-            ref={inputRef}
-            type="search"
-            value={query}
-          />
-          <button aria-label="Close search" className="icon-button" onClick={onClose} type="button">×</button>
-        </div>
+    <Drawer backdropClassName="search-backdrop" className="search-dialog" label="Search everything" onClose={onClose}>
+      <div className="search-input">
+        <span aria-hidden="true" className="search-glyph">/</span>
+        <label className="sr-only" htmlFor="global-search">Search pages, notes, ideas, and archived work</label>
+        <input
+          autoFocus
+          id="global-search"
+          name="globalSearch"
+          onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={onKeyDown}
+          placeholder="Search pages, notes, ideas, archived work..."
+          ref={inputRef}
+          type="search"
+          value={query}
+        />
+        <button aria-label="Close search" className="icon-button" onClick={onClose} type="button">×</button>
+      </div>
 
-        <div aria-live="polite" className="search-results" ref={listRef}>
-          {!trimmed && (
-            <p className="search-hint">
-              Everything is in here: every column, the backlog, the idea garden, completed work, and pages that were archived.
-            </p>
-          )}
-          {failed && <p className="search-hint">Search could not be reached. Try again in a moment.</p>}
-          {showEmpty && <p className="search-hint">Nothing in this project mentions “{trimmed}”.</p>}
-          {grouped.map((section) => (
-            <div className="search-group" key={section.group}>
-              <p className="search-group-label">{GROUP_LABELS[section.group]} <span>{section.hits.length}</span></p>
-              {section.hits.map((hit) => {
-                const index = openable.indexOf(hit);
-                const openableHit = index >= 0;
-                const className = `search-hit ${openableHit && index === active ? "active" : ""} ${openableHit ? "" : "closed"}`;
-                const body = (
-                  <span className="search-hit-body">
-                    <span className="search-hit-line">
-                      {hit.category && (
-                        <span
-                          className="category-pill"
-                          style={hit.categoryColor ? ({ "--category-color": hit.categoryColor } as React.CSSProperties) : undefined}
-                        >{hit.category}</span>
-                      )}
-                      <strong>{hit.title}</strong>
-                      <span className="search-hit-where">{hit.where}</span>
-                    </span>
-                    {hit.snippet && <span className="search-hit-snippet">{hit.snippet}</span>}
+      <div aria-live="polite" className="search-results" ref={listRef}>
+        {!trimmed && (
+          <p className="search-hint">
+            Everything is in here: every column, the backlog, the idea garden, completed work, and pages that were archived.
+          </p>
+        )}
+        {failed && <p className="search-hint">Search could not be reached. Try again in a moment.</p>}
+        {showEmpty && <p className="search-hint">Nothing in this project mentions “{trimmed}”.</p>}
+        {grouped.map((section) => (
+          <div className="search-group" key={section.group}>
+            <p className="search-group-label">{GROUP_LABELS[section.group]} <span>{section.hits.length}</span></p>
+            {section.hits.map((hit) => {
+              const index = openable.indexOf(hit);
+              const openableHit = index >= 0;
+              const className = `search-hit ${openableHit && index === active ? "active" : ""} ${openableHit ? "" : "closed"}`;
+              const body = (
+                <span className="search-hit-body">
+                  <span className="search-hit-line">
+                    {hit.category && (
+                      <span
+                        className="category-pill"
+                        style={hit.categoryColor ? ({ "--category-color": hit.categoryColor } as React.CSSProperties) : undefined}
+                      >{hit.category}</span>
+                    )}
+                    <strong>{hit.title}</strong>
+                    <span className="search-hit-where">{hit.where}</span>
                   </span>
-                );
-                return openableHit ? (
+                  {hit.snippet && <span className="search-hit-snippet">{hit.snippet}</span>}
+                </span>
+              );
+              return openableHit ? (
+                <button
+                  className={className}
+                  key={hit.id}
+                  onClick={() => open(hit)}
+                  onMouseEnter={() => setActive(index)}
+                  type="button"
+                >{body}</button>
+              ) : (
+                <div className={className} key={hit.id}>
+                  {body}
+                  {/* Search is the only way back to an archived page, so it carries the way back. */}
                   <button
-                    className={className}
-                    key={hit.id}
-                    onClick={() => open(hit)}
-                    onMouseEnter={() => setActive(index)}
+                    aria-label={`Restore ${hit.title}`}
+                    className="search-restore"
+                    disabled={restoring !== null}
+                    onClick={() => void restore(hit.id)}
                     type="button"
-                  >{body}</button>
-                ) : (
-                  <div className={className} key={hit.id}>
-                    {body}
-                    {/* Search is the only way back to an archived page, so it carries the way back. */}
-                    <button
-                      aria-label={`Restore ${hit.title}`}
-                      className="search-restore"
-                      disabled={restoring !== null}
-                      onClick={() => void restore(hit.id)}
-                      type="button"
-                    >{restoring === hit.id ? "restoring..." : "restore"}</button>
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-          {hidden > 0 && <p className="search-hint">{hidden} more match{hidden === 1 ? "" : "es"}. Narrow the search to reach them.</p>}
-        </div>
+                  >{restoring === hit.id ? "restoring..." : "restore"}</button>
+                </div>
+              );
+            })}
+          </div>
+        ))}
+        {hidden > 0 && <p className="search-hint">{hidden} more match{hidden === 1 ? "" : "es"}. Narrow the search to reach them.</p>}
+      </div>
 
-        <div className="search-foot">
-          <span><kbd>↑</kbd><kbd>↓</kbd> to move</span>
-          <span><kbd>enter</kbd> to open</span>
-          <span><kbd>esc</kbd> to close</span>
-        </div>
-      </section>
-    </div>
+      <div className="search-foot">
+        <span><kbd>↑</kbd><kbd>↓</kbd> to move</span>
+        <span><kbd>enter</kbd> to open</span>
+        <span><kbd>esc</kbd> to close</span>
+      </div>
+    </Drawer>
   );
 }
 

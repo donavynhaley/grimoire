@@ -19,15 +19,41 @@ afterEach(() => {
  * The board decides which column a pointer is over by asking where the columns are, so a
  * drag test has to answer that question before it can be about dropping anything.
  */
-function stubRect(node: Element, rect: { left: number; right: number; top: number; bottom: number }) {
-  vi.spyOn(node, "getBoundingClientRect").mockReturnValue({
+function domRect(rect: { left: number; right: number; top: number; bottom: number }): DOMRect {
+  return {
     ...rect,
     width: rect.right - rect.left,
     height: rect.bottom - rect.top,
     x: rect.left,
     y: rect.top,
     toJSON: () => ({}),
-  } as DOMRect);
+  } as DOMRect;
+}
+
+function stubRect(node: Element, rect: { left: number; right: number; top: number; bottom: number }) {
+  vi.spyOn(node, "getBoundingClientRect").mockReturnValue(domRect(rect));
+}
+
+/**
+ * Gives a column and the cards inside it a real stacked layout, answered at call time.
+ *
+ * Spying on individual card elements is fragile: React is free to build a fresh element for a
+ * card when the placeholder appears beside it, and a spy bound to the old one goes with it.
+ * Resolving from the prototype, by the card's current position among its siblings, stays true
+ * however the tree is rebuilt.
+ */
+function layOutColumn(column: Element, top = 200, rowHeight = 50) {
+  vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+    if (this === column) return domRect({ left: 0, right: 500, top: 0, bottom: 900 });
+    if (column.contains(this) && this.matches("article.board-page")) {
+      const cards = Array.from(column.querySelectorAll("article.board-page:not(.drag-hidden)"));
+      const index = cards.indexOf(this);
+      if (index >= 0) {
+        return domRect({ left: 0, right: 500, top: top + index * rowHeight, bottom: top + (index + 1) * rowHeight });
+      }
+    }
+    return domRect({ left: 0, right: 0, top: 0, bottom: 0 });
+  });
 }
 
 /**
@@ -518,10 +544,9 @@ describe("Grimoire board", () => {
     render(<App />);
     const dragged = (await screen.findByText(progressPage.title)).closest("article")!;
     const column = screen.getByRole("region", { name: "Up Next" });
-    stubRect(column, { left: 0, right: 500, top: 100, bottom: 600 });
-    const [nodeA, nodeB] = Array.from(column.querySelectorAll("article.board-page"));
-    stubRect(nodeA, { left: 0, right: 500, top: 200, bottom: 250 });
-    stubRect(nodeB, { left: 0, right: 500, top: 250, bottom: 300 });
+    // Two ready cards stacked at 200-250 and 250-300, so a pointer at 260 is past the first
+    // card's midpoint and short of the second's: the gap between them.
+    layOutColumn(column);
 
     fireEvent.pointerDown(dragged, { pointerId: 1, pointerType: "mouse", button: 0, clientX: 10, clientY: 400 });
     fireEvent.pointerMove(window, { pointerId: 1, pointerType: "mouse", clientX: 100, clientY: 260 });
@@ -530,7 +555,7 @@ describe("Grimoire board", () => {
     // The gap the pointer is pointing at, held open ahead of the drop.
     const placeholder = column.querySelector(".drop-placeholder");
     expect(placeholder).not.toBeNull();
-    expect(placeholder!.nextElementSibling).toBe(nodeB);
+    expect(placeholder!.nextElementSibling).toBe(screen.getByText(readyB.title).closest("article"));
 
     fireEvent.pointerUp(window, { pointerId: 1, pointerType: "mouse", clientX: 100, clientY: 260 });
     await waitFor(() =>

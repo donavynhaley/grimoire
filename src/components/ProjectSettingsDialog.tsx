@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Drawer } from "./Drawer";
 import type { ArchivedProject, Page, Chapter, Member, ProjectCategory, ProjectField, User, UserRole } from "../../shared/types";
 import { archivedProjects } from "../api/client";
 import { Growing } from "./Growing";
@@ -7,7 +8,6 @@ import { ChaptersSection, type ChapterActions } from "./ChaptersSection";
 import { FieldsSection, type FieldActions } from "./FieldsSection";
 import { AgentAccessSection } from "./AgentAccessSection";
 import { TeamSection } from "./TeamSection";
-import { useDialogEscape } from "./use-dialog-escape";
 import { type SettingsRun, useSettingsAction } from "./use-settings-action";
 
 export const SETTINGS_SECTIONS = ["general", "categories", "fields", "chapters", "team", "agents", "danger"] as const;
@@ -103,96 +103,92 @@ export function ProjectSettingsDialog({
   const active = sections.includes(section) ? section : "general";
   const { error, saved, run } = useSettingsAction();
 
-  useDialogEscape(onClose);
-
   return (
-    <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section aria-labelledby="project-settings-title" aria-modal="true" className="dialog-panel settings-dialog" role="dialog">
-        <header className="dialog-header">
-          <div>
-            <p className="eyebrow">{project.name}</p>
-            <h2 id="project-settings-title">Project settings</h2>
-          </div>
-          <button aria-label="Close project settings" className="icon-button" onClick={onClose} type="button">×</button>
-        </header>
-
-        <div className="settings-layout">
-          <nav aria-label="Settings sections" className="settings-rail">
-            {sections.map((candidate) => (
-              <button
-                aria-current={candidate === active ? "true" : undefined}
-                className={candidate === "danger" ? "danger" : ""}
-                key={candidate}
-                onClick={() => onSectionChange(candidate)}
-                type="button"
-              >
-                {SECTION_LABELS[candidate]}
-              </button>
-            ))}
-          </nav>
-
-          <Growing className="settings-content">
-            {active === "general" && (
-              <GeneralSection
-                busy={busy}
-                canManage={isOwner}
-                onRename={actions.rename}
-                onSetDescription={actions.setDescription}
-                project={project}
-                run={run}
-              />
-            )}
-            {active === "categories" && (
-              <CategoriesSection actions={categoryActions} busy={busy} canManage={isOwner} categories={categories} run={run} />
-            )}
-            {active === "fields" && (
-              <FieldsSection actions={fieldActions} busy={busy} canManage={isOwner} fields={fields} run={run} />
-            )}
-            {active === "chapters" && (
-              <ChaptersSection
-                actions={chapterActions}
-                busy={busy}
-                canManage={isOwner}
-                chapters={chapters}
-                chaptersEnabled={chaptersEnabled}
-                onSetChaptersEnabled={actions.setChaptersEnabled}
-                onSetPageChapter={onSetPageChapter}
-                pages={pages}
-                run={run}
-              />
-            )}
-            {active === "team" && (
-              <TeamSection
-                busy={busy}
-                currentUser={currentUser}
-                members={members}
-                onChangeMemberRole={onChangeMemberRole}
-                onCreateInvite={onCreateInvite}
-                onRemoveMember={onRemoveMember}
-                online={online}
-                run={run}
-              />
-            )}
-            {active === "agents" && isOwner && <AgentAccessSection run={run} />}
-            {active === "danger" && isOwner && (
-              <DangerSection
-                busy={busy}
-                canArchive={canArchive}
-                onArchive={actions.archive}
-                onRestore={actions.restore}
-                projectName={project.name}
-                run={run}
-              />
-            )}
-          </Growing>
+    <Drawer className="dialog-panel settings-dialog" labelledBy="project-settings-title" onClose={onClose}>
+      <header className="dialog-header">
+        <div>
+          <p className="eyebrow">{project.name}</p>
+          <h2 id="project-settings-title">Project settings</h2>
         </div>
+        <button aria-label="Close project settings" className="icon-button" onClick={onClose} type="button">×</button>
+      </header>
 
-        <Growing className="settings-feedback">
-          {error && <div className="error-banner" role="alert">{error}</div>}
-          {saved && !error && <div className="saved-note" role="status">saved</div>}
+      <div className="settings-layout">
+        <nav aria-label="Settings sections" className="settings-rail">
+          {sections.map((candidate) => (
+            <button
+              aria-current={candidate === active ? "true" : undefined}
+              className={candidate === "danger" ? "danger" : ""}
+              key={candidate}
+              onClick={() => onSectionChange(candidate)}
+              type="button"
+            >
+              {SECTION_LABELS[candidate]}
+            </button>
+          ))}
+        </nav>
+
+        <Growing className="settings-content">
+          {active === "general" && (
+            <GeneralSection
+              busy={busy}
+              canManage={isOwner}
+              onRename={actions.rename}
+              onSetDescription={actions.setDescription}
+              project={project}
+              run={run}
+            />
+          )}
+          {active === "categories" && (
+            <CategoriesSection actions={categoryActions} busy={busy} canManage={isOwner} categories={categories} run={run} />
+          )}
+          {active === "fields" && (
+            <FieldsSection actions={fieldActions} busy={busy} canManage={isOwner} fields={fields} run={run} />
+          )}
+          {active === "chapters" && (
+            <ChaptersSection
+              actions={chapterActions}
+              busy={busy}
+              canManage={isOwner}
+              chapters={chapters}
+              chaptersEnabled={chaptersEnabled}
+              onSetChaptersEnabled={actions.setChaptersEnabled}
+              onSetPageChapter={onSetPageChapter}
+              pages={pages}
+              run={run}
+            />
+          )}
+          {active === "team" && (
+            <TeamSection
+              busy={busy}
+              currentUser={currentUser}
+              members={members}
+              onChangeMemberRole={onChangeMemberRole}
+              onCreateInvite={onCreateInvite}
+              onRemoveMember={onRemoveMember}
+              online={online}
+              run={run}
+            />
+          )}
+          {active === "agents" && isOwner && <AgentAccessSection run={run} />}
+          {active === "danger" && isOwner && (
+            <DangerSection
+              busy={busy}
+              canArchive={canArchive}
+              onArchive={actions.archive}
+              onRestore={actions.restore}
+              projectName={project.name}
+              run={run}
+            />
+          )}
         </Growing>
-      </section>
-    </div>
+      </div>
+
+      <Growing className="settings-feedback">
+        {error && <div className="error-banner" role="alert">{error}</div>}
+        {saved && !error && <div className="saved-note" role="status">saved</div>}
+      </Growing>
+    </Drawer>
   );
 }
 

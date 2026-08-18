@@ -1,8 +1,8 @@
 import { type ChangeEvent, type FormEvent, useState } from "react";
+import { Drawer } from "./Drawer";
 import type { User } from "../../shared/types";
 import { ApiError } from "../api/client";
 import { Avatar } from "./Avatar";
-import { useDialogEscape } from "./use-dialog-escape";
 
 const AVATAR_TYPES = ["image/png", "image/jpeg", "image/webp"];
 const AVATAR_SIZE_LIMIT = 2_000_000;
@@ -136,109 +136,105 @@ export function AccountDialog({ user, onChangeAvatar, onChangeName, onChangePass
     }
   };
 
-  useDialogEscape(onClose);
-
   return (
-    <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section aria-labelledby="account-dialog-title" aria-modal="true" className="account-dialog" role="dialog">
-        <header className="dialog-header">
-          <div><p className="eyebrow">signed in as</p><h2 id="account-dialog-title">Account settings</h2></div>
-          <button aria-label="Close account settings" className="icon-button" onClick={onClose} type="button">×</button>
-        </header>
+    <Drawer className="account-dialog" labelledBy="account-dialog-title" onClose={onClose}>
+      <header className="dialog-header">
+        <div><p className="eyebrow">signed in as</p><h2 id="account-dialog-title">Account settings</h2></div>
+        <button aria-label="Close account settings" className="icon-button" onClick={onClose} type="button">×</button>
+      </header>
 
-        <div className="account-identity">
-          <Avatar avatarUrl={user.avatarUrl} className="avatar large" name={user.name} />
-          <div className="account-identity-copy">
-            <strong>{user.name}</strong>
-            <span>{user.email}</span>
-          </div>
+      <div className="account-identity">
+        <Avatar avatarUrl={user.avatarUrl} className="avatar large" name={user.name} />
+        <div className="account-identity-copy">
+          <strong>{user.name}</strong>
+          <span>{user.email}</span>
         </div>
+      </div>
 
-        <form className="display-name-form" onSubmit={submitName}>
-          <label>
-            <span className="field-label">Display name</span>
+      <form className="display-name-form" onSubmit={submitName}>
+        <label>
+          <span className="field-label">Display name</span>
+          <input
+            aria-label="Display name"
+            autoComplete="name"
+            maxLength={80}
+            minLength={2}
+            name="displayName"
+            onChange={(event) => { setDisplayName(event.target.value); setNameSaved(false); }}
+            required
+            value={displayName}
+          />
+        </label>
+        <button className="quiet-button" disabled={nameBusy || !displayName.trim() || displayName.trim() === user.name} type="submit">
+          {nameBusy ? "saving..." : "save name"}
+        </button>
+        <small>This is the name on your cards, ideas, and mentions everywhere in Grimoire.</small>
+        {nameError && <div className="error-banner" role="alert">{nameError}</div>}
+        {nameSaved && <div className="success-banner" role="status">name updated</div>}
+      </form>
+
+      <div className="avatar-editor">
+        <fieldset className="profile-icon-picker" disabled={avatarBusy}>
+          <legend className="field-label">Choose a profile icon</legend>
+          <div className="profile-icon-grid">
+            {PROFILE_ICONS.map((icon) => (
+              <button
+                aria-label={`Use ${icon.name} as profile picture`}
+                aria-pressed={selectedIcon === icon.path}
+                className="profile-icon-option"
+                key={icon.path}
+                onClick={() => void chooseIcon(icon.name, icon.path)}
+                title={icon.name}
+                type="button"
+              >
+                <img alt="" src={icon.path} />
+              </button>
+            ))}
+          </div>
+        </fieldset>
+        <div className="avatar-actions">
+          <label className="quiet-button avatar-upload">
+            {avatarBusy ? "saving..." : user.avatarUrl ? "upload a different picture" : "upload a picture"}
             <input
-              aria-label="Display name"
-              autoComplete="name"
-              maxLength={80}
-              minLength={2}
-              name="displayName"
-              onChange={(event) => { setDisplayName(event.target.value); setNameSaved(false); }}
-              required
-              value={displayName}
+              accept={AVATAR_TYPES.join(",")}
+              aria-label="Upload profile picture"
+              disabled={avatarBusy}
+              onChange={(event) => void pickAvatar(event)}
+              type="file"
             />
           </label>
-          <button className="quiet-button" disabled={nameBusy || !displayName.trim() || displayName.trim() === user.name} type="submit">
-            {nameBusy ? "saving..." : "save name"}
-          </button>
-          <small>This is the name on your cards, ideas, and mentions everywhere in Grimoire.</small>
-          {nameError && <div className="error-banner" role="alert">{nameError}</div>}
-          {nameSaved && <div className="success-banner" role="status">name updated</div>}
-        </form>
-
-        <div className="avatar-editor">
-          <fieldset className="profile-icon-picker" disabled={avatarBusy}>
-            <legend className="field-label">Choose a profile icon</legend>
-            <div className="profile-icon-grid">
-              {PROFILE_ICONS.map((icon) => (
-                <button
-                  aria-label={`Use ${icon.name} as profile picture`}
-                  aria-pressed={selectedIcon === icon.path}
-                  className="profile-icon-option"
-                  key={icon.path}
-                  onClick={() => void chooseIcon(icon.name, icon.path)}
-                  title={icon.name}
-                  type="button"
-                >
-                  <img alt="" src={icon.path} />
-                </button>
-              ))}
-            </div>
-          </fieldset>
-          <div className="avatar-actions">
-            <label className="quiet-button avatar-upload">
-              {avatarBusy ? "saving..." : user.avatarUrl ? "upload a different picture" : "upload a picture"}
-              <input
-                accept={AVATAR_TYPES.join(",")}
-                aria-label="Upload profile picture"
-                disabled={avatarBusy}
-                onChange={(event) => void pickAvatar(event)}
-                type="file"
-              />
-            </label>
-            {user.avatarUrl && (
-              <button className="text-button" disabled={avatarBusy} onClick={() => void removeAvatar()} type="button">
-                remove picture
-              </button>
-            )}
-          </div>
-          {avatarError && <span className="avatar-error" role="alert">{avatarError}</span>}
+          {user.avatarUrl && (
+            <button className="text-button" disabled={avatarBusy} onClick={() => void removeAvatar()} type="button">
+              remove picture
+            </button>
+          )}
         </div>
+        {avatarError && <span className="avatar-error" role="alert">{avatarError}</span>}
+      </div>
 
-        <form className="password-form" onSubmit={submit}>
-          <p className="field-label">Change password</p>
-          <input
-            aria-label="Account email"
-            autoComplete="username"
-            className="sr-only"
-            name="email"
-            readOnly
-            type="email"
-            value={user.email}
-          />
-          <label><span>Current password</span><input autoComplete="current-password" name="currentPassword" onChange={(event) => setCurrentPassword(event.target.value)} required type="password" value={currentPassword} /></label>
-          <label><span>New password</span><input autoComplete="new-password" minLength={12} name="newPassword" onChange={(event) => setNewPassword(event.target.value)} required type="password" value={newPassword} /><small>Use at least 12 characters.</small></label>
-          <label><span>Confirm new password</span><input autoComplete="new-password" minLength={12} name="newPasswordConfirmation" onChange={(event) => setConfirmation(event.target.value)} required type="password" value={confirmation} /></label>
-          {error && <div className="error-banner" role="alert">{error}</div>}
-          {changed && <div className="success-banner" role="status">password changed</div>}
-          <button className="primary-button" disabled={busy} type="submit">{busy ? "changing..." : "change password"}</button>
-        </form>
+      <form className="password-form" onSubmit={submit}>
+        <p className="field-label">Change password</p>
+        <input
+          aria-label="Account email"
+          autoComplete="username"
+          className="sr-only"
+          name="email"
+          readOnly
+          type="email"
+          value={user.email}
+        />
+        <label><span>Current password</span><input autoComplete="current-password" name="currentPassword" onChange={(event) => setCurrentPassword(event.target.value)} required type="password" value={currentPassword} /></label>
+        <label><span>New password</span><input autoComplete="new-password" minLength={12} name="newPassword" onChange={(event) => setNewPassword(event.target.value)} required type="password" value={newPassword} /><small>Use at least 12 characters.</small></label>
+        <label><span>Confirm new password</span><input autoComplete="new-password" minLength={12} name="newPasswordConfirmation" onChange={(event) => setConfirmation(event.target.value)} required type="password" value={confirmation} /></label>
+        {error && <div className="error-banner" role="alert">{error}</div>}
+        {changed && <div className="success-banner" role="status">password changed</div>}
+        <button className="primary-button" disabled={busy} type="submit">{busy ? "changing..." : "change password"}</button>
+      </form>
 
-        <footer className="account-footer">
-          <span>Other signed-in devices are logged out after a password change.</span>
-          <button className="text-button danger-text" onClick={onLogout} type="button">sign out</button>
-        </footer>
-      </section>
-    </div>
+      <footer className="account-footer">
+        <span>Other signed-in devices are logged out after a password change.</span>
+        <button className="text-button danger-text" onClick={onLogout} type="button">sign out</button>
+      </footer>
+    </Drawer>
   );
 }

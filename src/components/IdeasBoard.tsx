@@ -3,8 +3,8 @@ import type { Idea, IdeaState, IdeaWorkspace } from "../../shared/types";
 import { EditorState } from "./EditorState";
 import { NotesField } from "./NotesField";
 import { plainTextFromMarkdown } from "./markdown-text";
+import { Drawer } from "./Drawer";
 import { useContentEditor } from "./use-content-editor";
-import { useDialogEscape } from "./use-dialog-escape";
 import { useFlip } from "./use-flip";
 import { type DragPoint, gapIndexIn, pointWithin, usePointerDrag } from "./use-pointer-drag";
 
@@ -404,44 +404,40 @@ function IdeaDialog({ idea, shortlistPosition, onUpdate, onPromote, onClose }: {
     if (await editor.flush()) onClose();
   };
 
-  useDialogEscape(close);
-
   return (
-    <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) void close(); }}>
-      <section aria-labelledby="idea-dialog-title" aria-modal="true" className="dialog-panel idea-dialog" role="dialog">
-        <header className="dialog-header">
-          <div><p className="eyebrow">possibility, not commitment</p><h2 id="idea-dialog-title">Edit idea</h2></div>
-          <button aria-label="Close idea" className="icon-button" onClick={() => void close()} type="button">×</button>
-        </header>
-        <div className="record-form">
-          <label><span>Title</span><input aria-label="Idea title" name="ideaTitle" onChange={(event) => editor.setTitle(event.target.value)} value={editor.title} /></label>
-          <NotesField
-            editLabel="Edit idea notes"
-            label="Notes"
-            name="ideaDescription"
-            onChange={editor.setDescription}
-            placeholder="What makes this interesting?"
-            rows={7}
-            textareaLabel="Idea notes"
-            value={editor.description}
-          />
-          <EditorState editor={editor} who={null} />
+    <Drawer className="dialog-panel idea-dialog" labelledBy="idea-dialog-title" onClose={close}>
+      <header className="dialog-header">
+        <div><p className="eyebrow">possibility, not commitment</p><h2 id="idea-dialog-title">Edit idea</h2></div>
+        <button aria-label="Close idea" className="icon-button" onClick={() => void close()} type="button">×</button>
+      </header>
+      <div className="record-form">
+        <label><span>Title</span><input aria-label="Idea title" name="ideaTitle" onChange={(event) => editor.setTitle(event.target.value)} value={editor.title} /></label>
+        <NotesField
+          editLabel="Edit idea notes"
+          label="Notes"
+          name="ideaDescription"
+          onChange={editor.setDescription}
+          placeholder="What makes this interesting?"
+          rows={7}
+          textareaLabel="Idea notes"
+          value={editor.description}
+        />
+        <EditorState editor={editor} who={null} />
+      </div>
+      <div className="dialog-section">
+        <span className="field-label">Keep it where?</span>
+        <div className="choice-grid">
+          <button className={idea.state === "inbox" ? "choice active" : "choice"} onClick={() => onUpdate({ state: "inbox" })} type="button">inbox</button>
+          <button className={idea.state === "shortlist" ? "choice active" : "choice"} onClick={() => onUpdate({ state: "shortlist", position: shortlistPosition })} type="button">shortlist</button>
+          <button className={idea.state === "parked" ? "choice active" : "choice"} onClick={() => onUpdate({ state: "parked" })} type="button">parked</button>
         </div>
-        <div className="dialog-section">
-          <span className="field-label">Keep it where?</span>
-          <div className="choice-grid">
-            <button className={idea.state === "inbox" ? "choice active" : "choice"} onClick={() => onUpdate({ state: "inbox" })} type="button">inbox</button>
-            <button className={idea.state === "shortlist" ? "choice active" : "choice"} onClick={() => onUpdate({ state: "shortlist", position: shortlistPosition })} type="button">shortlist</button>
-            <button className={idea.state === "parked" ? "choice active" : "choice"} onClick={() => onUpdate({ state: "parked" })} type="button">parked</button>
-          </div>
-        </div>
-        <footer className="dialog-footer promotion-footer">
-          <span>captured by {idea.createdByName}</span>
-          {confirmPromotion ? (
-            <div className="archive-confirm"><span>create a backlog page and archive this idea?</span><button className="primary-button compact" onClick={onPromote} type="button">yes, make page</button><button className="text-button" onClick={() => setConfirmPromotion(false)} type="button">cancel</button></div>
-          ) : <button className="primary-button compact" onClick={() => setConfirmPromotion(true)} type="button">make work page</button>}
-        </footer>
-      </section>
-    </div>
+      </div>
+      <footer className="dialog-footer promotion-footer">
+        <span>captured by {idea.createdByName}</span>
+        {confirmPromotion ? (
+          <div className="archive-confirm"><span>create a backlog page and archive this idea?</span><button className="primary-button compact" onClick={onPromote} type="button">yes, make page</button><button className="text-button" onClick={() => setConfirmPromotion(false)} type="button">cancel</button></div>
+        ) : <button className="primary-button compact" onClick={() => setConfirmPromotion(true)} type="button">make work page</button>}
+      </footer>
+    </Drawer>
   );
 }

@@ -1233,6 +1233,96 @@ textarea:hover { border-color: var(--border-bright); }
 }
 
 .account-dialog { width: min(560px, 100%); }
+
+/* Drawers ---------------------------------------------------------------- */
+
+/*
+ * On a thumb, every overlay is a sheet held to the bottom of the screen.
+ *
+ * The sizing is the whole point of this block. `--drawer-viewport` is the visual viewport,
+ * set from JavaScript, because a sheet measured in `vh` on iOS puts its own footer behind the
+ * URL bar and has no idea the keyboard has opened. The offset keeps it pinned to the visible
+ * part when iOS scrolls the layout viewport out from under it.
+ *
+ * A gap is left above the sheet on purpose: seeing a sliver of the board underneath is what
+ * makes this read as something laid over the work rather than as a new screen.
+ */
+.drawer-backdrop {
+  padding: 0;
+  align-items: end;
+  top: var(--drawer-viewport-top, 0px);
+  height: var(--drawer-viewport, 100dvh);
+  bottom: auto;
+}
+
+.drawer-sheet {
+  display: flex;
+  width: 100%;
+  max-width: none;
+  height: calc(var(--drawer-viewport, 100dvh) - 48px);
+  max-height: none;
+  margin: 0;
+  padding: 0 18px calc(18px + env(safe-area-inset-bottom, 0px));
+  flex-direction: column;
+  overflow-y: auto;
+  /* A list that has run out inside the sheet must not start scrolling the board behind it. */
+  overscroll-behavior: contain;
+  border: 0;
+  border-top: 1px solid var(--border-bright);
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -18px 60px rgb(0 0 0 / 55%);
+  animation: drawer-rise 320ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  transition: transform 240ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@keyframes drawer-rise {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+/* The search sheet is a field and its answers, so it hugs its content instead of filling. */
+.search-dialog.drawer-sheet { height: auto; max-height: calc(var(--drawer-viewport, 100dvh) - 48px); padding: 0; overflow: hidden; }
+.library-dialog.drawer-sheet { padding-top: 0; }
+
+/*
+ * The handle: what says the sheet can be pulled down, and the part that hears the pull.
+ *
+ * It is a button as well, so the gesture is never the only way out - a tap closes it, which
+ * matters for anyone who cannot swipe and for anyone who does not think to try.
+ */
+.drawer-grabber {
+  position: sticky;
+  z-index: 3;
+  top: 0;
+  display: grid;
+  width: 100%;
+  min-height: 34px;
+  margin: 0 -18px 4px;
+  padding: 0;
+  flex: none;
+  place-items: center;
+  /* Wider than the sheet's own padding so the whole strip is grabbable. */
+  box-sizing: content-box;
+  background: var(--surface);
+  border: 0;
+  cursor: grab;
+  touch-action: none;
+}
+.drawer-grabber > span {
+  width: 38px;
+  height: 4px;
+  background: var(--border-bright);
+  border-radius: 999px;
+  transition: background 120ms ease;
+}
+.drawer-grabber:active > span { background: var(--faint); }
+.search-dialog .drawer-grabber,
+.library-dialog .drawer-grabber { margin: 0; padding: 4px 0 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer-sheet { animation: none; transition: none; }
+}
+
 .dialog-header { justify-content: space-between; margin-bottom: 22px; }
 .dialog-header > div { display: grid; gap: 6px; }
 .dialog-header h2 { margin: 0; font-size: 18px; }
@@ -2292,12 +2382,6 @@ textarea:hover { border-color: var(--border-bright); }
   .page-search { width: 100%; order: -1; }
   .kanban { gap: 9px; }
   .kanban-column { min-height: 0; height: auto; }
-  .modal-backdrop { padding: 0; align-items: end; }
-  .dialog-panel,
-  .account-dialog,
-  .library-dialog { width: 100%; max-height: 94vh; padding: 20px; border-radius: 12px 12px 0 0; }
-  .library-dialog { height: 94vh; }
-  .search-dialog { width: 100%; max-height: 84vh; margin-top: 0; border-radius: 12px 12px 0 0; }
   .library-page { grid-template-columns: minmax(0, 1fr); }
   .library-promote { min-height: 34px; border-top: 1px solid var(--border); border-left: 0; }
   .history-page-main { grid-template-columns: 8px minmax(0, 1fr); }
@@ -2479,8 +2563,10 @@ textarea:hover { border-color: var(--border-bright); }
     left: 0;
     right: 0;
     width: auto;
-    max-height: 60vh;
+    /* The dynamic viewport, so a panel opened with the URL bar showing still fits. */
+    max-height: 60dvh;
     overflow-y: auto;
+    overscroll-behavior: contain;
   }
 }
 
