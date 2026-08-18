@@ -31,6 +31,8 @@ type PickerOption = {
   fieldKey?: string;
   /** True for the entry that opens a written field's panel rather than holding a value. */
   opensPanel?: boolean;
+  /** Whose answer this is, drawn quietly beside the value in the "!" list. */
+  hint?: string;
 };
 
 type Props = {
@@ -408,6 +410,7 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
           <div>
             {visibleOptions.map((option, index) => (
               <button
+                aria-label={option.hint ? `${option.hint}: ${option.label}` : undefined}
                 aria-selected={option.value === selectedValue(settings, picker)}
                 className={`${index === highlighted ? "highlighted" : ""} ${option.value === selectedValue(settings, picker) ? "selected" : ""}`}
                 id={`capture-option-${option.id}`}
@@ -426,10 +429,15 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
                 )}
                 {picker.kind === "status" && <span className={`column-dot ${option.value}`} />}
                 <span>{option.label}</span>
+                {option.hint && <span aria-hidden="true" className="option-hint">{option.hint}</span>}
                 {option.value === selectedValue(settings, picker) && <span aria-hidden="true">✓</span>}
               </button>
             ))}
-            {visibleOptions.length === 0 && <p>No matches</p>}
+            {visibleOptions.length === 0 && (
+              <p>{picker.kind === "field-cmd" && options.length === 0
+                ? "This project has no fields yet. Define them in project settings."
+                : "No matches"}</p>
+            )}
           </div>
         </div>
       )}
@@ -480,10 +488,11 @@ function pickerOptions(
         : field.options.map((option) => ({ raw: option as string | boolean, shown: option }));
       return choices.map(({ raw, shown }) => ({
         id: `cmd-${field.key}-${shown}`,
-        label: `${field.label}: ${shown}`,
+        label: shown,
         search: `${field.label} ${shown}`.toLowerCase(),
         value: raw,
         fieldKey: field.key,
+        hint: field.label,
       }));
     });
   }

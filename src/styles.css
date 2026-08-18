@@ -572,7 +572,17 @@ textarea:focus-visible {
 
 /* Assignees and project fields draw no leading swatch, so their label takes its column. */
 .capture-picker-assignee [role="option"],
-.capture-picker-field [role="option"] { grid-template-columns: minmax(0, 1fr) auto; }
+.capture-picker-field [role="option"],
+.capture-picker-field-cmd [role="option"] { grid-template-columns: minmax(0, 1fr) auto; }
+
+/* Which field an answer belongs to, said quietly beside it rather than in front of it. */
+.capture-picker .option-hint {
+  color: var(--faint);
+  font-size: 7px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
 
 /* A written field's panel: one input where the options would be. */
 .capture-write { display: flex; padding: 8px; align-items: center; gap: 8px; }
@@ -2485,6 +2495,10 @@ textarea:hover { border-color: var(--border-bright); }
   .shortlist-card .idea-actions { grid-column: 1 / -1; flex-direction: row; border-top: 1px solid var(--border); border-left: 0; }
   /* The label goes and the glyph stays, so search keeps a full target without a full word. */
   .search-trigger-label { display: none; }
+  /* The pickers a thumb chooses from read at a size worth choosing from. */
+  .capture-picker [role="option"] { min-height: 42px; font-size: 12px; }
+  .capture-picker > header { font-size: 10px; }
+  .capture-picker .option-hint { font-size: 9px; }
   .search-trigger { padding: 0 10px; font-size: 15px; }
 }
 
