@@ -7,3 +7,6 @@ server-dist/
 *.log
 .DS_Store
 data/
+tests/e2e/.data/
+test-results/
+playwright-report/

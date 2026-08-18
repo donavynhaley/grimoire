@@ -201,10 +201,22 @@ export function usePointerDrag({ onMove, onDrop, onCancel, onLift }: Options) {
         return;
       }
 
-      // Once a card is up it owns the gesture, including the scroll the browser would do.
-      if (event.cancelable) event.preventDefault();
       setLift((value) => (value ? { ...value, dx: event.clientX - current.originX, dy: event.clientY - current.originY } : value));
       handlers.current.onMove(latest.current);
+    };
+
+    /**
+     * Refuses the browser's scroll while a card is up.
+     *
+     * This must be the native touchmove: cancelling a pointermove does not stop a scroll, and
+     * `touch-action` is latched when the finger lands - a card has to allow vertical panning
+     * so the board can be scrolled at all, which means by the time a hold has turned into a
+     * lift, the browser still believes this touch may become a pan. Cancelling the first move
+     * after the lift is what keeps that pan from starting, and with it the `pointercancel`
+     * that would have torn the drag down.
+     */
+    const refuseScroll = (event: TouchEvent) => {
+      if (pending.current?.lifted && event.cancelable) event.preventDefault();
     };
 
     const up = (event: PointerEvent) => {
@@ -237,16 +249,26 @@ export function usePointerDrag({ onMove, onDrop, onCancel, onLift }: Options) {
       handlers.current.onCancel();
     };
 
-    // Non-passive, because a lifted card has to be able to refuse the browser's scroll.
-    window.addEventListener("pointermove", move, { passive: false });
+    // Android answers a stationary long-press with a context menu, and a long-press is
+    // exactly the gesture that lifts a card. Once one is up, the menu stays out of it.
+    const suppressMenu = (event: Event) => {
+      if (pending.current?.lifted) event.preventDefault();
+    };
+
+    window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
     window.addEventListener("pointercancel", abandon);
     window.addEventListener("keydown", abandonOnEscape, true);
+    window.addEventListener("contextmenu", suppressMenu, true);
+    // Non-passive, because refusing the scroll is its whole purpose.
+    window.addEventListener("touchmove", refuseScroll, { capture: true, passive: false });
     return () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", abandon);
       window.removeEventListener("keydown", abandonOnEscape, true);
+      window.removeEventListener("contextmenu", suppressMenu, true);
+      window.removeEventListener("touchmove", refuseScroll, { capture: true });
       teardown();
     };
   }, [beginLift, teardown]);
