@@ -33,6 +33,15 @@ const priority: ProjectField = {
   showOnTile: true,
 };
 
+const region: ProjectField = {
+  key: "region",
+  label: "Region",
+  type: "search-select",
+  options: ["coastal shelf", "deep forest", "high peaks", "salt marsh"],
+  position: 1,
+  showOnTile: true,
+};
+
 const estimate: ProjectField = {
   key: "estimate",
   label: "Estimate",
@@ -94,6 +103,53 @@ describe("page fields", () => {
           fields: { priority: "p1" },
         },
       }),
+    );
+  });
+
+  it("sets a searchable choice by typing in the page editor", async () => {
+    const user = userEvent.setup();
+    const board = { ...boardFixture(), fields: [region] };
+    const calls = mountWith(board);
+
+    await user.click(await screen.findByText(board.pages[1].title));
+    await user.click(screen.getByRole("button", { name: "Change Region" }));
+    await user.type(screen.getByLabelText("Find a Region option"), "fore");
+    // The list narrows to what was typed instead of offering every option as a button.
+    expect(screen.queryByRole("button", { name: "Set Region to salt marsh" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Set Region to deep forest" }));
+
+    await waitFor(() =>
+      expect(calls).toContainEqual(
+        expect.objectContaining({
+          url: `/api/pages/${board.pages[1].id}`,
+          method: "PATCH",
+          body: { fields: { region: "deep forest" } },
+        }),
+      ),
+    );
+  });
+
+  it("filters a searchable choice's capture picker by typing", async () => {
+    const user = userEvent.setup();
+    const board = { ...boardFixture(), fields: [region] };
+    const calls = mountWith(board);
+
+    await user.type(await screen.findByLabelText("Capture work page"), "Map the marsh");
+    await user.click(screen.getByRole("button", { name: "Choose Region" }));
+    await user.type(screen.getByLabelText("Search Region options"), "marsh");
+    expect(screen.queryByRole("option", { name: "high peaks" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("option", { name: "salt marsh" }));
+    expect(screen.getByRole("button", { name: "Region: salt marsh" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "add page" }));
+    await waitFor(() =>
+      expect(calls).toContainEqual(
+        expect.objectContaining({
+          url: "/api/pages",
+          method: "POST",
+          body: expect.objectContaining({ fields: { region: "salt marsh" } }),
+        }),
+      ),
     );
   });
 
@@ -190,6 +246,25 @@ describe("page fields", () => {
       url: "/api/fields",
       method: "POST",
       body: { label: "Priority", type: "select", options: ["p0", "p1", "p2"] },
+    });
+  });
+
+  it("defines a searchable choice, which needs options the same way", async () => {
+    const user = userEvent.setup();
+    const calls = mountWith(boardFixture());
+
+    const dialog = await openFields(user);
+    await user.click(within(dialog).getByRole("button", { name: "searchable choice" }));
+    // Options are still the field's whole vocabulary; searching only changes how they are found.
+    expect(within(dialog).getByRole("button", { name: "add" })).toBeDisabled();
+    await user.type(within(dialog).getByLabelText("New field name"), "Region");
+    await user.type(within(dialog).getByLabelText("Options"), "coast, forest, peaks");
+    await user.click(within(dialog).getByRole("button", { name: "add" }));
+
+    expect(calls).toContainEqual({
+      url: "/api/fields",
+      method: "POST",
+      body: { label: "Region", type: "search-select", options: ["coast", "forest", "peaks"] },
     });
   });
 

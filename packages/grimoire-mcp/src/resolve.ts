@@ -185,7 +185,7 @@ export function resolveFields(
 }
 
 function resolveFieldValue(field: ProjectField, value: FieldValue): FieldValue {
-  if (field.type === "select") {
+  if (field.type === "select" || field.type === "search-select") {
     const wanted = normalise(String(value));
     const option = field.options.find((candidate) => normalise(candidate) === wanted);
     if (!option) {

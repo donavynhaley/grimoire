@@ -421,7 +421,7 @@ function renderBoard(board: Board): string {
   if (board.fields && board.fields.length > 0) {
     sections.push(
       `Fields: ${board.fields
-        .map((field) => `${field.label} (${field.type === "select" ? field.options.join(" | ") : field.type})`)
+        .map((field) => `${field.label} (${field.type === "select" || field.type === "search-select" ? field.options.join(" | ") : field.type})`)
         .join(", ")}`,
     );
   }

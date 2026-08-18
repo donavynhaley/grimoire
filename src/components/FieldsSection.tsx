@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from "react";
-import { FIELD_TYPES, type FieldType, type ProjectField } from "../../shared/types";
+import { FIELD_TYPES, fieldHasOptions, type FieldType, type ProjectField } from "../../shared/types";
 import { Growing } from "./Growing";
 import type { SettingsRun } from "./use-settings-action";
 
@@ -22,6 +22,7 @@ const TYPE_LABELS: Record<FieldType, string> = {
   text: "text",
   number: "number",
   select: "choice",
+  "search-select": "searchable choice",
   date: "date",
   checkbox: "yes / no",
 };
@@ -30,7 +31,8 @@ const TYPE_LABELS: Record<FieldType, string> = {
 const TYPE_HINTS: Record<FieldType, string> = {
   text: "Anything typed in.",
   number: "A number someone wrote down. Nothing adds them up.",
-  select: "One of a fixed set of answers you list.",
+  select: "One of a fixed set of answers you list, offered as buttons.",
+  "search-select": "The same fixed answers, found by typing - for lists too long to read.",
   date: "A day, like 2026-08-16.",
   checkbox: "Yes or no.",
 };
@@ -58,7 +60,7 @@ export function FieldsSection({ fields, busy, actions, canManage, run }: Props) 
     if (!label) return;
     const options = textToOptions(newOptions);
     void run(async () => {
-      await actions.create({ label, type: newType, ...(newType === "select" ? { options } : {}) });
+      await actions.create({ label, type: newType, ...(fieldHasOptions(newType) ? { options } : {}) });
       setNewLabel("");
       setNewOptions("");
       setNewType("text");
@@ -111,7 +113,7 @@ export function FieldsSection({ fields, busy, actions, canManage, run }: Props) 
             <li key={field.key}>
               {field.label}
               <span className="field-type">{TYPE_LABELS[field.type]}</span>
-              {field.type === "select" && <span className="settings-summary">{optionsToText(field.options)}</span>}
+              {fieldHasOptions(field.type) && <span className="settings-summary">{optionsToText(field.options)}</span>}
             </li>
           ))}
           {ordered.length === 0 && <li className="settings-summary">No fields yet.</li>}
@@ -202,7 +204,7 @@ export function FieldsSection({ fields, busy, actions, canManage, run }: Props) 
                 Deleting it also clears its value from every page that has one.
               </p>
             )}
-            {field.type === "select" && (
+            {fieldHasOptions(field.type) && (
               <div className="field-options">
                 <label className="sr-only" htmlFor={`field-options-${field.key}`}>Options for {field.label}</label>
                 <input
@@ -247,7 +249,7 @@ export function FieldsSection({ fields, busy, actions, canManage, run }: Props) 
             placeholder="Field name..."
             value={newLabel}
           />
-          {newType === "select" && (
+          {fieldHasOptions(newType) && (
             <>
               <label className="sr-only" htmlFor="new-field-options">Options</label>
               <input
@@ -261,7 +263,7 @@ export function FieldsSection({ fields, busy, actions, canManage, run }: Props) 
           )}
           <button
             className="primary-button compact"
-            disabled={busy || !newLabel.trim() || (newType === "select" && textToOptions(newOptions).length === 0)}
+            disabled={busy || !newLabel.trim() || (fieldHasOptions(newType) && textToOptions(newOptions).length === 0)}
             type="submit"
           >add</button>
         </div>

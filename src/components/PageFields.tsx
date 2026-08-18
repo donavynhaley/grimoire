@@ -55,7 +55,13 @@ export function PageFieldsEditor({ fields, values, onUpdate }: Props) {
       {fields.map((field) => (
         <Growing className="rail-row" key={field.key}>
           <span className="field-label">{field.label}</span>
-          {field.type === "select" ? (
+          {field.type === "search-select" ? (
+            <SearchableChoice
+              field={field}
+              onSet={(value) => void set(field.key, value)}
+              value={values[field.key]}
+            />
+          ) : field.type === "select" ? (
             <div className="choice-grid field-choices">
               <button
                 aria-label={`Clear ${field.label}`}
@@ -126,6 +132,90 @@ export function PageFieldsEditor({ fields, values, onUpdate }: Props) {
         </Growing>
       ))}
     </>
+  );
+}
+
+/**
+ * A choice found by typing rather than read from a wall of buttons.
+ *
+ * A plain choice field shows every option at once, which is right up to about the point a
+ * team's option list outgrows the rail. This one rests as its value, and opens into the same
+ * search-and-pick the blocker finder uses: type a little, tap the answer.
+ */
+function SearchableChoice({ field, onSet, value }: {
+  field: ProjectField;
+  onSet: (value: string | null) => void;
+  value: FieldValue | undefined;
+}) {
+  const [searching, setSearching] = useState(false);
+  const [query, setQuery] = useState("");
+  const normalized = query.trim().toLowerCase();
+  const matches = field.options.filter((option) => option.toLowerCase().includes(normalized)).slice(0, 8);
+
+  const close = () => {
+    setSearching(false);
+    setQuery("");
+  };
+
+  if (!searching) {
+    return (
+      <div className="rail-value">
+        <span className="rail-current">{fieldValueText(field, value)}</span>
+        <button
+          aria-label={`Change ${field.label}`}
+          className="rail-change"
+          onClick={() => setSearching(true)}
+          type="button"
+        >change</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="dependency-search">
+      <label>
+        <span className="sr-only">{`Find a ${field.label} option`}</span>
+        <input
+          aria-label={`Find a ${field.label} option`}
+          autoFocus
+          onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && matches.length > 0) {
+              event.preventDefault();
+              onSet(matches[0]);
+              close();
+              return;
+            }
+            if (event.key !== "Escape") return;
+            // Leaving the search must not also close the whole page.
+            event.stopPropagation();
+            close();
+          }}
+          placeholder="Type to search options..."
+          type="search"
+          value={query}
+        />
+      </label>
+      <div className="dependency-results">
+        {matches.map((option) => (
+          <button
+            aria-label={`Set ${field.label} to ${option}`}
+            key={option}
+            onClick={() => { onSet(option); close(); }}
+            type="button"
+          >
+            <span>{option === value ? <strong>{option} ✓</strong> : <strong>{option}</strong>}</span>
+          </button>
+        ))}
+        {matches.length === 0 && <p>No matching options.</p>}
+      </div>
+      <div>
+        {value !== undefined && (
+          <button className="text-button" onClick={() => { onSet(null); close(); }} type="button">clear</button>
+        )}
+        <button className="text-button" onClick={close} type="button">cancel</button>
+      </div>
+    </div>
   );
 }
 

@@ -75,8 +75,13 @@ export type ArchivedProject = {
  * Defining a field is restructuring the project, so it is owner-only. Filling one in is
  * refining a page, so an agent may do it.
  */
-export const FIELD_TYPES = ["text", "number", "select", "date", "checkbox"] as const;
+export const FIELD_TYPES = ["text", "number", "select", "search-select", "date", "checkbox"] as const;
 export type FieldType = (typeof FIELD_TYPES)[number];
+
+/** Both kinds of choice field: same options, same validation - they differ only in how they present. */
+export function fieldHasOptions(type: FieldType): boolean {
+  return type === "select" || type === "search-select";
+}
 
 export type ProjectField = {
   /** Stable across renames, and what a page's `fields` record is keyed by. */

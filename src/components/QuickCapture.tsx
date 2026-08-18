@@ -1,5 +1,5 @@
 import { type ChangeEvent, type FormEvent, type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
-import { type FieldValue, type PageCategory, type PageStatus, type Chapter, type Member, type ProjectCategory, type ProjectField } from "../../shared/types";
+import { fieldHasOptions, type FieldValue, type PageCategory, type PageStatus, type Chapter, type Member, type ProjectCategory, type ProjectField } from "../../shared/types";
 import { useTypingFocus } from "./use-typing-focus";
 
 export type CapturePageInput = {
@@ -50,7 +50,7 @@ const DEFAULT_SETTINGS: CaptureSettings = {
 
 /** Whether a field answers with a choice among options, or has to be written in. */
 function picksFromList(field: ProjectField): boolean {
-  return field.type === "select" || field.type === "checkbox";
+  return fieldHasOptions(field.type) || field.type === "checkbox";
 }
 
 /** How a written value becomes the field's value; null means "could not". */
@@ -347,6 +347,32 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
             {/* The project's own fields have no trigger character to teach. */}
             {picker.kind !== "field" && <kbd>{pickerTrigger(picker.kind)}</kbd>}
           </header>
+          {openField?.type === "search-select" && (
+            <div className="capture-write capture-filter">
+              <label className="sr-only" htmlFor="capture-field-filter">{`Search ${openField.label} options`}</label>
+              <input
+                autoFocus
+                id="capture-field-filter"
+                onChange={(event) => setPicker((current) => (current ? { ...current, query: event.target.value.toLowerCase() } : current))}
+                onKeyDown={(event) => {
+                  // Enter takes the best match, the way the title bar's typed pickers do.
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    if (visibleOptions.length > 0) choose(visibleOptions[0]);
+                    return;
+                  }
+                  if (event.key === "Escape") {
+                    event.stopPropagation();
+                    setPicker(null);
+                    inputRef.current?.focus();
+                  }
+                }}
+                placeholder="Type to search..."
+                type="search"
+                value={picker.query}
+              />
+            </div>
+          )}
           <div>
             {visibleOptions.map((option, index) => (
               <button

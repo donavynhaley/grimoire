@@ -75,6 +75,29 @@ describe("custom page fields", () => {
       expect((await defineField(server, { label: "!!!", type: "text" })).response.status).toBe(400);
     });
 
+    it("treats a searchable choice as a choice: options required, values checked against them", async () => {
+      const server = await startTestServer();
+      await bootstrap(server);
+
+      // No options, no field - same refusal the plain choice gets.
+      expect((await defineField(server, { label: "Zone", type: "search-select" })).response.status).toBe(400);
+
+      const made2 = await defineField(server, {
+        label: "Zone",
+        type: "search-select",
+        options: ["coast", "forest", "peaks"],
+      });
+      expect(made2.body.field.type).toBe("search-select");
+
+      const made = await createPage(server, { title: "Chart the coast", fields: { zone: "coast" } });
+      expect(made.response.status).toBe(201);
+      expect(made.body.page.fields).toEqual({ zone: "coast" });
+
+      // A value outside the list is refused, exactly as a plain choice refuses it.
+      const refused = await createPage(server, { title: "Nowhere", fields: { zone: "swamp" } });
+      expect(refused.response.status).toBe(400);
+    });
+
     it("is owner-only, because deciding what the project records is restructuring it", async () => {
       const server = await startTestServer();
       await bootstrap(server);
