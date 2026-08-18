@@ -210,7 +210,8 @@ export function QuickCapture({ busy, categories, chapters, members, onCreate }: 
               className={settings.status === "backlog" ? "capture-field" : "capture-field active"}
               onClick={() => openPicker("status")}
               type="button"
-            ><span aria-hidden="true">→</span>{statusLabel}</button>
+            >{/* The glyph is the trigger it teaches: typing "/" is what opens this picker. */}
+            <span aria-hidden="true">/</span>{statusLabel}</button>
           </div>
           {hasCustomSettings(settings) && (
             <button

@@ -2236,18 +2236,39 @@ textarea:hover { border-color: var(--border-bright); }
 .global-error { top: 78px; bottom: auto; color: #f0c5c5; border-color: #6c393c; }
 .global-error button { margin-left: 6px; color: inherit; background: none; border: 0; cursor: pointer; }
 
+/*
+ * The one surface that asks for a decision on a timer, sized like a whisper: 9px text in a
+ * 34px bar was routinely missed entirely, and what offers an eight-second undo has to be
+ * seen inside those eight seconds.
+ */
 .undo-toast {
   right: 20px;
   bottom: 20px;
-  min-width: 250px;
+  min-width: 300px;
+  min-height: 48px;
+  padding: 0 16px;
   overflow: hidden;
+  font-size: 12px;
   animation: undo-toast-in 180ms ease-out;
 }
 
-.undo-toast > span:first-child { margin-right: auto; color: var(--text); }
-.undo-toast button { padding: 6px 8px; color: var(--accent); background: none; border: 0; cursor: pointer; font-size: 9px; font-weight: 800; }
+.undo-toast > span:first-child { margin-right: auto; color: var(--text); line-height: 1.5; }
+.undo-toast button { padding: 10px 10px; color: var(--accent); background: none; border: 0; cursor: pointer; font-size: 12px; font-weight: 800; }
 .undo-toast button:hover { color: #d4efbc; }
-.undo-toast .undo-dismiss { padding-right: 0; color: var(--faint); font-size: 14px; font-weight: 500; }
+.undo-toast .undo-dismiss { padding-right: 0; color: var(--faint); font-size: 17px; font-weight: 500; }
+
+/* On a phone it spans the bottom, above the home indicator, where a thumb already is. */
+@media (max-width: 620px) {
+  .undo-toast {
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    left: 12px;
+    min-width: 0;
+    min-height: 52px;
+    font-size: 13px;
+  }
+  .undo-toast button { font-size: 13px; }
+}
 .undo-timer { position: absolute; right: 0; bottom: 0; left: 0; height: 2px; background: var(--accent); transform-origin: left; animation: undo-timer 8s linear forwards; }
 
 @keyframes undo-toast-in {
