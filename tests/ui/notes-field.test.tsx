@@ -193,6 +193,24 @@ describe("NotesField image paste", () => {
     expect(textarea).toHaveValue("Existing notes.");
   });
 
+  it("takes an image from the picker, which is the only route a phone has", async () => {
+    vi.mocked(uploadImage).mockResolvedValue({ name: "from-camera-roll.png" });
+    const { container } = render(<PasteHarness />);
+
+    // Neither paste nor drag-and-drop is available on a phone, so the picker is the way in.
+    expect(screen.getByRole("button", { name: "Add an image" })).toBeInTheDocument();
+    const picker = container.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(picker).toHaveAttribute("accept", "image/*");
+
+    const file = new File([Uint8Array.from([137, 80, 78, 71])], "photo.png", { type: "image/png" });
+    fireEvent.change(picker, { target: { files: [file] } });
+
+    await waitFor(() => expect(uploadImage).toHaveBeenCalledWith(file));
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: "Notes" })).toHaveValue("Existing notes.\n\n![[from-camera-roll.png]]"),
+    );
+  });
+
   it("ignores pastes that contain no image", async () => {
     render(<PasteHarness />);
 

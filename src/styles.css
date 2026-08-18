@@ -1726,6 +1726,8 @@ textarea:hover { border-color: var(--border-bright); }
 .notes-tools { display: flex; align-items: baseline; gap: 10px; }
 .notes-upload { color: var(--amber); font-size: 8px; }
 .notes-upload.failed { color: var(--red); }
+/* Sits with `edit` as another quiet way in, not as a call to action. */
+.notes-add-image > span { font-weight: 800; }
 .notes-view {
   min-height: 46px;
   padding: 12px;
@@ -2331,6 +2333,15 @@ textarea:hover { border-color: var(--border-bright); }
     flex: none;
     grid-template-columns: minmax(0, 1fr);
     overflow: visible;
+  }
+  /*
+   * A tablet is not a very long phone. Between a phone and a desktop there is room for two
+   * columns abreast, which halves the scroll and keeps a pair of columns comparable at a
+   * glance - the thing a board is for.
+   */
+  @media (min-width: 640px) {
+    .kanban { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .idea-layout { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
   .kanban-column { height: auto; }
   .page-list { padding-right: 0; overflow-y: visible; scrollbar-gutter: auto; }
