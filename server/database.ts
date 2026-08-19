@@ -208,6 +208,14 @@ function migrate(database: DatabaseSync): void {
   if (!projectColumns.includes("estimates_enabled")) {
     database.exec("ALTER TABLE projects ADD COLUMN estimates_enabled INTEGER NOT NULL DEFAULT 0");
   }
+  // Where a chapter recap is posted, and whether closing one posts it. Additive and empty,
+  // so a project that never asks for this stores nothing and posts nothing.
+  if (!projectColumns.includes("discord_webhook")) {
+    database.exec("ALTER TABLE projects ADD COLUMN discord_webhook TEXT NOT NULL DEFAULT ''");
+  }
+  if (!projectColumns.includes("recap_on_close")) {
+    database.exec("ALTER TABLE projects ADD COLUMN recap_on_close INTEGER NOT NULL DEFAULT 1");
+  }
   if (!projectColumns.includes("description")) {
     database.exec("ALTER TABLE projects ADD COLUMN description TEXT NOT NULL DEFAULT ''");
   }

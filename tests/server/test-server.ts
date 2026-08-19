@@ -28,6 +28,8 @@ type TestServerOptions = {
   staticDirectory?: string;
   /** Stands in for the GitHub API; the poll interval stays off so tests drive syncs by hand. */
   githubFetcher?: Parameters<typeof createGrimoireServer>[0]["githubFetcher"];
+  /** Stands in for Discord, so a test can be the thing a recap is posted to. */
+  discordPoster?: Parameters<typeof createGrimoireServer>[0]["discordPoster"];
 };
 
 export async function startTestServer(
@@ -42,6 +44,7 @@ export async function startTestServer(
     staticDirectory: options.staticDirectory,
     githubPollMs: 0,
     githubFetcher: options.githubFetcher,
+    discordPoster: options.discordPoster,
   });
 
   await new Promise<void>((resolve) => app.server.listen(0, "127.0.0.1", resolve));

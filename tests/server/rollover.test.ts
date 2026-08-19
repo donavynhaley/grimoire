@@ -252,6 +252,29 @@ describe("velocity", () => {
 });
 
 describe("estimates", () => {
+  it("reports the gate it was actually set to, from every surface that answers for it", async () => {
+    const server = await startTestServer();
+    await bootstrap(server);
+    const projectId = await project(server, { estimates: false });
+
+    // The PATCH reply and the board have to agree; a gate read through the wrong query
+    // once answered "off" however it had been set.
+    const { body } = await server.request<{ project: { estimatesEnabled: boolean } }>(
+      `/api/projects/${projectId}`,
+      { method: "PATCH", body: JSON.stringify({ estimatesEnabled: true }) },
+    );
+    expect(body.project.estimatesEnabled).toBe(true);
+    expect((await board(server)).project.estimatesEnabled).toBe(true);
+
+    const off = await server.request<{ project: { estimatesEnabled: boolean } }>(
+      `/api/projects/${projectId}`,
+      { method: "PATCH", body: JSON.stringify({ estimatesEnabled: false }) },
+    );
+    expect(off.body.project.estimatesEnabled).toBe(false);
+    expect((await board(server)).project.estimatesEnabled).toBe(false);
+  });
+
+
   it("keeps the estimate in the page's own file, and clears it with null", async () => {
     const server = await startTestServer();
     await bootstrap(server);
