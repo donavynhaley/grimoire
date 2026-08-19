@@ -111,13 +111,31 @@ describe("the connection check", () => {
     await user.click(screen.getByRole("menuitem", { name: "Project settings" }));
     await user.click(await screen.findByRole("button", { name: "GitHub" }));
 
-    // The section teaches the whole path, not just two blank fields.
+    // A configured project gets its section back: the steps wait behind the question mark.
+    expect(screen.queryByText(/create a fine-grained access token/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "How do I set this up?" }));
     expect(screen.getByText(/create a fine-grained access token/)).toBeInTheDocument();
     expect(screen.getByText(/Pull requests: read-only/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "check the connection" }));
     expect(await screen.findByRole("status")).toHaveTextContent("Connected: wizards/simulator (private repository).");
     expect(calls).toEqual(["/api/github/verify"]);
+  });
+});
+
+describe("the setup instructions", () => {
+  it("open themselves for a project that has not been set up yet", async () => {
+    const user = userEvent.setup();
+    // boardFixture has no repository, which is exactly when the steps are worth reading.
+    mountWith(boardFixture());
+
+    await user.click(await screen.findByRole("button", { name: /Wizard Simulator/ }));
+    await user.click(screen.getByRole("menuitem", { name: "Project settings" }));
+    await user.click(await screen.findByRole("button", { name: "GitHub" }));
+
+    expect(screen.getByText(/create a fine-grained access token/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Hide setup instructions" }));
+    expect(screen.queryByText(/create a fine-grained access token/)).not.toBeInTheDocument();
   });
 });
 

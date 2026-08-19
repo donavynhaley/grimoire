@@ -223,6 +223,8 @@ function GithubSection({ busy, project, onSetRepo, onSetToken, run }: {
   const [repo, setRepo] = useState(project.githubRepo);
   const [token, setToken] = useState("");
   const [verdict, setVerdict] = useState<GithubVerification | "checking" | null>(null);
+  // Open on arrival only while nothing is configured, which is exactly when it is needed.
+  const [showingSetup, setShowingSetup] = useState(!project.githubRepo);
 
   const saveRepo = () => {
     const next = repo.trim();
@@ -250,26 +252,48 @@ function GithubSection({ busy, project, onSetRepo, onSetToken, run }: {
 
   return (
     <div className="settings-section">
-      <p className="chapters-note">
-        Link a page to a pull request or branch, and the board follows the code: the page moves
-        into Review while its pull request is open, and into Done when it merges. Grimoire checks
-        every couple of minutes, and only ever moves a page forward.
-      </p>
+      {/*
+        The steps are onboarding: needed once, in the way every visit after. They fold behind
+        the question mark, which stays beside the sentence that says what the section is for.
+      */}
+      <div className="github-intro">
+        <p className="chapters-note">
+          Link a page to a pull request or branch, and the board follows the code: the page moves
+          into Review while its pull request is open, and into Done when it merges.
+        </p>
+        <button
+          aria-expanded={showingSetup}
+          aria-label={showingSetup ? "Hide setup instructions" : "How do I set this up?"}
+          className="github-help"
+          onClick={() => setShowingSetup((showing) => !showing)}
+          title="How do I set this up?"
+          type="button"
+        >?</button>
+      </div>
 
-      {/* The whole setup, said as steps, because a blank pair of fields explains nothing. */}
-      <ol className="github-setup">
-        <li>Name the repository this project&apos;s pull requests live in, as <code>owner/name</code>.</li>
-        <li>
-          For a private repository,{" "}
-          <a href="https://github.com/settings/personal-access-tokens/new" rel="noreferrer" target="_blank">
-            create a fine-grained access token
-          </a>{" "}
-          on GitHub: under <em>Only select repositories</em> choose this one, and under{" "}
-          <em>Repository permissions</em> grant <em>Pull requests: read-only</em>. Nothing else is
-          needed. A public repository needs no token at all.
-        </li>
-        <li>Paste the token below, then check the connection.</li>
-      </ol>
+      <Growing className="github-setup-fold">
+        {showingSetup && (
+          <ol className="github-setup">
+            <li>Name the repository this project&apos;s pull requests live in, as <code>owner/name</code>.</li>
+            <li>
+              For a private repository,{" "}
+              <a href="https://github.com/settings/personal-access-tokens/new" rel="noreferrer" target="_blank">
+                create a fine-grained access token
+              </a>{" "}
+              on GitHub: under <em>Only select repositories</em> choose this one, and under{" "}
+              <em>Repository permissions</em> grant <em>Pull requests: read-only</em>. Nothing else is
+              needed. A public repository needs no token at all.
+            </li>
+            <li>Paste the token below, then check the connection.</li>
+            <li>
+              On any page, the <strong>GitHub</strong> row in its details takes a pull request URL, a
+              number like <code>#12</code>, or a branch name. A linked branch adopts whichever pull
+              request it grows.
+            </li>
+            <li>Grimoire checks every couple of minutes, and only ever moves a page forward.</li>
+          </ol>
+        )}
+      </Growing>
 
       <div className="settings-row">
         <label className="field-label" htmlFor="settings-github-repo">Repository</label>
@@ -330,11 +354,6 @@ function GithubSection({ busy, project, onSetRepo, onSetToken, run }: {
         </div>
       </div>
 
-      <p className="chapters-note">
-        Then, on any page: the <strong>GitHub</strong> row in its details takes a pull request URL,
-        a number like <code>#12</code>, or a branch name. A linked branch adopts whichever pull
-        request it grows.
-      </p>
     </div>
   );
 }
