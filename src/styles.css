@@ -1084,6 +1084,23 @@ textarea:hover { border-color: var(--border-bright); }
 .github-link .rail-current.github-state-closed { color: var(--red); }
 .github-refused { margin: 4px 0 0; color: var(--red); font-size: 9px; }
 
+/* The pull request picker: a number and a title lead, the branch and author follow. */
+.github-results button { grid-template-columns: minmax(0, 1fr) auto; }
+.github-results strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.github-draft-tag {
+  flex: none;
+  padding: 1px 6px;
+  color: var(--muted);
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
 /* The GitHub section's setup steps and its proof of connection. */
 .github-intro { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .github-intro .chapters-note { margin-bottom: 0; }

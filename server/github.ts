@@ -244,3 +244,56 @@ export async function verifyRepoAccess(
     return { ok: false, reason: "unreachable", message: "GitHub could not be reached from the server." };
   }
 }
+
+/** One line in the picker: enough to recognise a pull request, nothing more. */
+export type OpenPullRequest = {
+  number: number;
+  title: string;
+  url: string;
+  state: "open" | "draft";
+  branch: string;
+  author: string;
+};
+
+/**
+ * The pull requests someone might plausibly be linking to: open ones, drafts included.
+ *
+ * Merged and closed pull requests are left out on purpose. A page is linked while the work
+ * is live, and a list that carried every pull request the repository ever had would bury
+ * the handful that matter under history.
+ *
+ * The answer is cached briefly because this is asked while a person types. GitHub's own
+ * rate limit is generous, but a request per keystroke is rude to it and slow for them.
+ */
+const openPullRequestCache = new Map<string, { at: number; items: OpenPullRequest[] }>();
+const OPEN_PR_CACHE_MS = 30_000;
+
+export async function listOpenPullRequests(
+  fetcher: GithubFetcher,
+  repo: string,
+  token: string,
+  now: number = Date.now(),
+): Promise<OpenPullRequest[]> {
+  const target = normalizeRepo(repo);
+  if (!target) return [];
+  const cached = openPullRequestCache.get(target);
+  if (cached && now - cached.at < OPEN_PR_CACHE_MS) return cached.items;
+
+  const { status, body } = await fetcher(`/repos/${target}/pulls?state=open&sort=updated&direction=desc&per_page=50`, token);
+  if (status !== 200 || !Array.isArray(body)) return cached?.items ?? [];
+  const items = (body as Array<Record<string, unknown>>).map((pr) => ({
+    number: Number(pr.number),
+    title: String(pr.title ?? ""),
+    url: String(pr.html_url ?? ""),
+    state: pr.draft ? "draft" as const : "open" as const,
+    branch: String((pr.head as Record<string, unknown> | undefined)?.ref ?? ""),
+    author: String((pr.user as Record<string, unknown> | undefined)?.login ?? ""),
+  }));
+  openPullRequestCache.set(target, { at: now, items });
+  return items;
+}
+
+/** Lets a project that just changed its repository or token ask again immediately. */
+export function forgetOpenPullRequests(repo: string): void {
+  openPullRequestCache.delete(normalizeRepo(repo));
+}

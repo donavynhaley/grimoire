@@ -4,7 +4,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { dirname, extname, join, normalize } from "node:path";
 import { z, ZodError } from "zod";
 import { FIELD_TYPES, PAGE_STATUSES, type PageGithubLink, type PageStatus, type User } from "../shared/types";
-import { githubApiFetcher, normalizeRepo, parseGithubReference, syncProjectGithub, verifyRepoAccess, type GithubFetcher } from "./github";
+import { forgetOpenPullRequests, githubApiFetcher, listOpenPullRequests, normalizeRepo, parseGithubReference, syncProjectGithub, verifyRepoAccess, type GithubFetcher } from "./github";
 import { createProject, createWizardSimulatorProject, openDatabase } from "./database";
 import {
   archivePage,
@@ -672,6 +672,15 @@ export function createGrimoireServer(options: Options) {
       return;
     }
 
+    if (method === "GET" && url.pathname === "/api/github/pulls") {
+      const user = requireUser(context);
+      const projectId = requireProject(context, user);
+      const config = projectGithubConfig(database, projectId);
+      const pulls = await listOpenPullRequests(options.githubFetcher ?? githubApiFetcher, config.repo, config.token);
+      json(response, 200, { pulls });
+      return;
+    }
+
     if (method === "POST" && url.pathname === "/api/github/verify") {
       const user = requireUser(context);
       if (user.role !== "owner") throw new HttpError(403, "Only the owner can check the GitHub connection");
@@ -819,7 +828,11 @@ export function createGrimoireServer(options: Options) {
           githubTokenSet: githubAfter.token !== "",
         },
       });
-      // A freshly pointed-at repository answers now rather than on the next poll.
+      // A freshly pointed-at repository answers now rather than on the next poll, and the
+      // list of open pull requests is asked again rather than served from the old answer.
+      if (input.githubRepo !== undefined || input.githubToken !== undefined) {
+        forgetOpenPullRequests(githubAfter.repo);
+      }
       if (githubAfter.repo) void runGithubSync(projectId);
       broadcast(projectId, "work", requestClientId(request));
       return;

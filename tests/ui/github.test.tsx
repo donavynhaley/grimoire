@@ -24,7 +24,7 @@ function requestUrl(input: RequestInfo | URL): string {
   return input instanceof URL ? `${input.pathname}${input.search}` : input.url;
 }
 
-function mountWith(board: BoardWorkspace, patchStatus = 200) {
+function mountWith(board: BoardWorkspace, patchStatus = 200, pulls: unknown[] = []) {
   const calls: Array<{ url: string; method: string; body: unknown }> = [];
   vi.stubGlobal("fetch", (input: RequestInfo | URL, init: RequestInit = {}) => {
     const url = requestUrl(input);
@@ -36,6 +36,7 @@ function mountWith(board: BoardWorkspace, patchStatus = 200) {
     if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
     if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
     if (url.startsWith("/api/agent-tokens")) return response({ tokens: [] });
+    if (url === "/api/github/pulls") return response({ pulls });
     if (url.startsWith("/api/session")) return response({ status: "authenticated", user: board.currentUser });
     return response(board);
   });
@@ -156,6 +157,58 @@ describe("a page's GitHub row", () => {
           method: "PATCH",
           body: { github: "#41" },
         }),
+      ),
+    );
+  });
+
+  it("offers the repository's open pull requests, narrowing as it is typed", async () => {
+    const user = userEvent.setup();
+    const board = boardFixture();
+    const calls = mountWith(board, 200, [
+      { number: 21, title: "Rework the circle", url: "u21", state: "open", branch: "feat/circle", author: "maren" },
+      { number: 20, title: "Half-finished idea", url: "u20", state: "draft", branch: "feat/idea", author: "mira" },
+    ]);
+
+    await user.click(await screen.findByText(board.pages[1].title));
+    await user.click(screen.getByRole("button", { name: "Link a pull request or branch" }));
+
+    // Both are offered before anything is typed, drafts marked as such.
+    expect(await screen.findByRole("button", { name: /Link pull request 21/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Link pull request 20/ })).toBeInTheDocument();
+    expect(screen.getByText("draft")).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Pull request or branch"), "circle");
+    expect(screen.queryByRole("button", { name: /Link pull request 20/ })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Link pull request 21/ }));
+    await waitFor(() =>
+      expect(calls).toContainEqual(
+        expect.objectContaining({
+          url: `/api/pages/${board.pages[1].id}`,
+          method: "PATCH",
+          body: { github: "#21" },
+        }),
+      ),
+    );
+  });
+
+  it("still takes a branch nobody suggested", async () => {
+    const user = userEvent.setup();
+    const board = boardFixture();
+    const calls = mountWith(board, 200, [
+      { number: 21, title: "Rework the circle", url: "u21", state: "open", branch: "feat/circle", author: "maren" },
+    ]);
+
+    await user.click(await screen.findByText(board.pages[1].title));
+    await user.click(screen.getByRole("button", { name: "Link a pull request or branch" }));
+    await user.type(screen.getByLabelText("Pull request or branch"), "feat/nothing-suggested");
+    // Nothing matches, and the field says so without getting in the way.
+    expect(screen.getByText(/still used as written/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "link" }));
+    await waitFor(() =>
+      expect(calls).toContainEqual(
+        expect.objectContaining({ method: "PATCH", body: { github: "feat/nothing-suggested" } }),
       ),
     );
   });

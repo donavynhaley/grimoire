@@ -87,6 +87,20 @@ export function agentTokens(): Promise<{ tokens: AgentToken[] }> {
   return request<{ tokens: AgentToken[] }>("/api/agent-tokens");
 }
 
+/** The repository's open pull requests, drafts included, for the link picker. */
+export type OpenPullRequest = {
+  number: number;
+  title: string;
+  url: string;
+  state: "open" | "draft";
+  branch: string;
+  author: string;
+};
+
+export function openPullRequests(): Promise<{ pulls: OpenPullRequest[] }> {
+  return request<{ pulls: OpenPullRequest[] }>("/api/github/pulls");
+}
+
 /** Asks the server whether its GitHub repository and token actually answer. */
 export type GithubVerification =
   | { ok: true; repo: string; private: boolean }

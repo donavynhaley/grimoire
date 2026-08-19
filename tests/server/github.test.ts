@@ -27,6 +27,11 @@ function fakeGithub(answers: Record<string, unknown>) {
       if (answer === "unauthorized") return { status: 401, body: { message: "Bad credentials" } };
       return answer ? { status: 200, body: answer } : { status: 404, body: null };
     }
+    const openList = path.match(/^\/repos\/([^/]+\/[^/]+)\/pulls\?state=open&/);
+    if (openList) {
+      const answer = answers[`open:${openList[1]}`];
+      return { status: 200, body: Array.isArray(answer) ? answer : [] };
+    }
     const head = path.match(/^\/repos\/([^/]+\/[^/]+)\/pulls\?head=([^&]+)&/);
     if (head) {
       const branch = decodeURIComponent(head[2]).split(":")[1];
@@ -291,5 +296,35 @@ describe("checking the connection", () => {
       "/api/github/verify", { method: "POST", body: "{}" },
     );
     expect(body).toMatchObject({ ok: false, reason: "no_repo" });
+  });
+});
+
+describe("the pull request picker", () => {
+  it("offers the repository's open and draft pull requests, newest first", async () => {
+    const github = fakeGithub({
+      "open:wizards/simulator": [
+        { number: 21, title: "Rework the circle", html_url: "u21", draft: false, head: { ref: "feat/circle" }, user: { login: "maren" } },
+        { number: 20, title: "Half-finished idea", html_url: "u20", draft: true, head: { ref: "feat/idea" }, user: { login: "mira" } },
+      ],
+    });
+    const server = await startTestServer(undefined, { githubFetcher: github.fetcher });
+    await bootstrap(server);
+    await configureRepo(server, (await board(server)).project.id, "t");
+
+    const { body } = await server.request<{ pulls: Array<Record<string, unknown>> }>("/api/github/pulls");
+    expect(body.pulls).toEqual([
+      { number: 21, title: "Rework the circle", url: "u21", state: "open", branch: "feat/circle", author: "maren" },
+      { number: 20, title: "Half-finished idea", url: "u20", state: "draft", branch: "feat/idea", author: "mira" },
+    ]);
+  });
+
+  it("offers nothing rather than failing when no repository is configured", async () => {
+    const github = fakeGithub({});
+    const server = await startTestServer(undefined, { githubFetcher: github.fetcher });
+    await bootstrap(server);
+
+    const { response, body } = await server.request<{ pulls: unknown[] }>("/api/github/pulls");
+    expect(response.status).toBe(200);
+    expect(body.pulls).toEqual([]);
   });
 });

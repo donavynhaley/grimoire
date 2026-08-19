@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { openPullRequests, type OpenPullRequest } from "../api/client";
 import {
   PAGE_STATUSES,
   type AuditEvent,
@@ -433,9 +434,30 @@ function GithubRow({ github, onUpdate, status }: {
   const [linking, setLinking] = useState(false);
   const [reference, setReference] = useState("");
   const [refused, setRefused] = useState(false);
+  const [pulls, setPulls] = useState<OpenPullRequest[]>([]);
 
-  const submit = async () => {
-    const value = reference.trim();
+  // Asked once per opening of the field; the server caches the answer for everyone else.
+  useEffect(() => {
+    if (!linking) return;
+    let alive = true;
+    openPullRequests()
+      .then((answer) => { if (alive) setPulls(answer.pulls); })
+      // A repository nobody configured, or one GitHub will not answer for, simply offers
+      // no suggestions; the field still takes anything typed.
+      .catch(() => undefined);
+    return () => { alive = false; };
+  }, [linking]);
+
+  const query = reference.trim().toLowerCase().replace(/^#/, "");
+  const matches = query
+    ? pulls.filter((pull) =>
+      String(pull.number).startsWith(query) ||
+      pull.title.toLowerCase().includes(query) ||
+      pull.branch.toLowerCase().includes(query))
+    : pulls;
+
+  const submit = async (raw: string) => {
+    const value = raw.trim();
     if (!value) return;
     setRefused(false);
     try {
@@ -465,20 +487,50 @@ function GithubRow({ github, onUpdate, status }: {
             autoFocus
             onChange={(event) => setReference(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === "Enter") { event.preventDefault(); void submit(); }
+              if (event.key === "Enter") {
+                event.preventDefault();
+                // Enter takes the obvious match when the list has narrowed to one thing,
+                // and otherwise sends exactly what was typed.
+                void submit(matches.length === 1 && !reference.trim().startsWith("#") ? `#${matches[0].number}` : reference);
+                return;
+              }
               if (event.key !== "Escape") return;
               event.stopPropagation();
               setLinking(false);
               setRefused(false);
             }}
-            placeholder="PR URL, #123, or a branch name..."
+            placeholder="Search open pull requests, or paste a URL or branch..."
             type="text"
             value={reference}
           />
         </label>
         {refused && <p className="github-refused" role="alert">That does not read as a pull request, a branch, or a GitHub URL.</p>}
+        {/*
+          The repository's live pull requests, so the common case is recognising one rather
+          than remembering its number. Anything typed still stands on its own, which is what
+          keeps branches and other repositories reachable from the same field.
+        */}
+        {pulls.length > 0 && (
+          <div className="dependency-results github-results">
+            {matches.slice(0, 8).map((pull) => (
+              <button
+                aria-label={`Link pull request ${pull.number}, ${pull.title}`}
+                key={pull.number}
+                onClick={() => void submit(`#${pull.number}`)}
+                type="button"
+              >
+                <span>
+                  <strong>#{pull.number} {pull.title}</strong>
+                  <small>{pull.branch}{pull.author ? ` · ${pull.author}` : ""}</small>
+                </span>
+                {pull.state === "draft" && <em className="github-draft-tag">draft</em>}
+              </button>
+            ))}
+            {matches.length === 0 && <p>No open pull request matches. What you type is still used as written.</p>}
+          </div>
+        )}
         <div>
-          <button className="text-button" onClick={() => void submit()} type="button">link</button>
+          <button className="text-button" onClick={() => void submit(reference)} type="button">link</button>
           <button className="text-button" onClick={() => { setLinking(false); setRefused(false); }} type="button">cancel</button>
         </div>
       </div>
