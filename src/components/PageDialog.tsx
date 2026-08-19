@@ -37,6 +37,8 @@ type Props = {
   chapters: Chapter[];
   fields: ProjectField[];
   currentUserId: string;
+  /** The project's repository, so a project without one shows no GitHub surface at all. */
+  githubRepo: string;
   members: Member[];
   revision: number;
   onUpdate: (input: Record<string, unknown>) => Promise<void>;
@@ -45,7 +47,7 @@ type Props = {
   onLoadActivity: (options: { entityId?: string; limit?: number }) => Promise<AuditPage>;
 };
 
-export function PageDialog({ page, pages, categories, chapters, fields, currentUserId, members, revision, onUpdate, onArchive, onClose, onLoadActivity }: Props) {
+export function PageDialog({ page, pages, categories, chapters, fields, currentUserId, githubRepo, members, revision, onUpdate, onArchive, onClose, onLoadActivity }: Props) {
   const categoryColor = (slug: string | null) =>
     slug ? categories.find((category) => category.slug === slug)?.color : undefined;
   const swatchStyle = (slug: string | null) => {
@@ -143,7 +145,7 @@ export function PageDialog({ page, pages, categories, chapters, fields, currentU
             <EditorState editor={editor} who={otherEditor} />
           </div>
 
-          <GithubLink github={page.github} onUpdate={onUpdate} status={page.githubStatus} />
+          <GithubLink github={page.github} onUpdate={onUpdate} repo={githubRepo} status={page.githubStatus} />
 
           <PageHistory
             events={history}

@@ -695,7 +695,13 @@ export function findPage(
   const project = projectById(database, projectId);
   if (!project) return null;
   const stored = pageStore.get(String(project.slug), pageId);
-  return stored ? publicPage(database, stored, membersForProject(database, projectId)) : null;
+  if (!stored) return null;
+  return publicPage(
+    database,
+    stored,
+    membersForProject(database, projectId),
+    githubStatusesForProject(database, projectId),
+  );
 }
 
 export function listPages(

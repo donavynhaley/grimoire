@@ -6,17 +6,25 @@ import { Growing } from "./Growing";
 type Props = {
   github: Page["github"];
   status: Page["githubStatus"];
+  /** "owner/name", or empty when this project has not been pointed at a repository. */
+  repo: string;
   onUpdate: (input: Record<string, unknown>) => Promise<void>;
 };
 
-const STATE_WORDS: Record<string, string> = {
-  open: "open",
-  draft: "draft",
-  merged: "merged",
-  closed: "closed",
-  missing: "not found",
-  unchecked: "no PR yet",
-};
+/**
+ * What a state is called, which depends on what was linked.
+ *
+ * "unchecked" covers two unrelated situations. A branch link has genuinely found no pull
+ * request yet, which is a normal thing to sit at for days. A pull request link has simply
+ * not been asked about yet, which lasts a moment - calling that "no PR yet" would tell
+ * somebody who just picked a pull request from a list that it does not exist.
+ */
+function stateWord(state: string, kind: "pr" | "branch"): string {
+  if (state !== "unchecked") {
+    return { open: "open", draft: "draft", merged: "merged", closed: "closed", missing: "not found" }[state] ?? state;
+  }
+  return kind === "branch" ? "no PR yet" : "checking...";
+}
 
 /**
  * The page's tie to GitHub, chosen the way every other list in the product is chosen.
@@ -30,7 +38,7 @@ const STATE_WORDS: Record<string, string> = {
  * opened a pull request for, or a URL in another repository, is offered as its own choice
  * at the foot of the list rather than being second-guessed.
  */
-export function GithubLink({ github, status, onUpdate }: Props) {
+export function GithubLink({ github, status, repo, onUpdate }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [pulls, setPulls] = useState<OpenPullRequest[]>([]);
@@ -84,6 +92,13 @@ export function GithubLink({ github, status, onUpdate }: Props) {
     }
   };
 
+  /*
+   * A project that has never been pointed at a repository has no use for this at all, so it
+   * is absent rather than present-and-useless. A link made before the repository was cleared
+   * still shows, because something already linked must remain visible and removable.
+   */
+  if (!repo && !github) return null;
+
   const state = status?.state ?? "unchecked";
   const label = github === null
     ? "Not linked"
@@ -104,7 +119,7 @@ export function GithubLink({ github, status, onUpdate }: Props) {
             type="button"
           >
             <span className="github-trigger-label">{label}</span>
-            {github && <span className="github-trigger-state">{STATE_WORDS[state]}</span>}
+            {github && <span className="github-trigger-state">{stateWord(state, github.kind)}</span>}
             {status?.prTitle && <span className="github-trigger-title">{status.prTitle}</span>}
             <span aria-hidden="true" className="github-trigger-caret">▾</span>
           </button>

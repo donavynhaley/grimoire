@@ -869,6 +869,7 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
           chapters={chaptersOn ? board.chapters : []}
           fields={board.fields}
           currentUserId={board.currentUser.id}
+          githubRepo={board.project.githubRepo}
           members={board.members}
           revision={revision}
           onArchive={async () => { await onArchive(selectedPage.id); setSelectedId(null); }}

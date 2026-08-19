@@ -1496,10 +1496,22 @@ export function createGrimoireServer(options: Options) {
         ...(githubLink !== undefined ? { github: githubLink } : {}),
       });
       if (!page) throw new HttpError(404, "Page or assignee not found");
-      // A dropped link needs no cached answer; a fresh one deserves an immediate answer.
+      // A dropped link needs no cached answer.
       if (githubLink === null) clearGithubStatus(database, projectId, page.id);
-      if (githubLink) void runGithubSync(projectId);
+      /*
+       * A fresh link is resolved before answering, rather than on the next poll. Someone who
+       * just chose a pull request from a list of open ones should not be told "no PR yet"
+       * for two minutes while the poller catches up - and since resolving may also move the
+       * page, the reply has to be re-read rather than reported from before it happened.
+       */
+      let settled = page;
+      if (githubLink) {
+        await runGithubSync(projectId);
+        settled = findPage(database, pageStore, projectId, page.id) ?? page;
+      }
       if (before) {
+        // The diff is what this request asked for; a move the automation made on top of it
+        // is the automation's to record, under its own name.
         const changes = pageChanges(before, page, labels);
         const action = changeAction(changes);
         // Reordering inside one column changes nothing a reader would look for.
@@ -1507,7 +1519,7 @@ export function createGrimoireServer(options: Options) {
           audit(context, { projectId, entityType: "page", entityId: page.id, entityTitle: page.title, action, changes });
         }
       }
-      json(response, 200, { page });
+      json(response, 200, { page: settled });
       broadcast(projectId, "work", requestClientId(request));
       return;
     }

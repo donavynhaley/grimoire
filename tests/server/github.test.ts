@@ -261,6 +261,24 @@ describe("the board following the code", () => {
   });
 });
 
+describe("linking answers with what GitHub said", () => {
+  it("resolves a fresh link before replying, so nothing reads as unchecked", async () => {
+    const github = fakeGithub({
+      "wizards/simulator#12": { number: 12, title: "Hold the circle", html_url: "u", state: "open", draft: false, merged_at: null },
+    });
+    const server = await startTestServer(undefined, { githubFetcher: github.fetcher });
+    await bootstrap(server);
+    await configureRepo(server, (await board(server)).project.id);
+    const page = await makePage(server, "Some work", "in_progress");
+
+    // The reply to the link itself already carries the answer, and the move it caused.
+    const { body } = await link(server, page.id, "#12");
+    expect(body.page.githubStatus?.state).toBe("open");
+    expect(body.page.githubStatus?.prTitle).toBe("Hold the circle");
+    expect(body.page.status).toBe("review");
+  });
+});
+
 describe("checking the connection", () => {
   it("confirms a reachable repository and says whether it is private", async () => {
     const github = fakeGithub({ "repo:wizards/simulator": { private: true } });

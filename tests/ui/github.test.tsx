@@ -44,6 +44,13 @@ function mountWith(board: BoardWorkspace, patchStatus = 200, pulls: unknown[] = 
   return calls;
 }
 
+/** A project pointed at a repository, with nothing linked yet. */
+function configuredBoard(): BoardWorkspace {
+  const board = boardFixture();
+  board.project.githubRepo = "wizards/simulator";
+  return board;
+}
+
 function linkedBoard(): BoardWorkspace {
   const board = boardFixture();
   board.project.githubRepo = "wizards/simulator";
@@ -143,7 +150,7 @@ describe("the setup instructions", () => {
 describe("a page's GitHub row", () => {
   it("links a pasted reference from the editor", async () => {
     const user = userEvent.setup();
-    const board = boardFixture();
+    const board = configuredBoard();
     const calls = mountWith(board);
 
     await user.click(await screen.findByText(board.pages[1].title));
@@ -163,7 +170,7 @@ describe("a page's GitHub row", () => {
 
   it("offers the repository's open pull requests, narrowing as it is typed", async () => {
     const user = userEvent.setup();
-    const board = boardFixture();
+    const board = configuredBoard();
     const calls = mountWith(board, 200, [
       { number: 21, title: "Rework the circle", url: "u21", state: "open", branch: "feat/circle", author: "maren" },
       { number: 20, title: "Half-finished idea", url: "u20", state: "draft", branch: "feat/idea", author: "mira" },
@@ -194,7 +201,7 @@ describe("a page's GitHub row", () => {
 
   it("still takes a branch nobody suggested", async () => {
     const user = userEvent.setup();
-    const board = boardFixture();
+    const board = configuredBoard();
     const calls = mountWith(board, 200, [
       { number: 21, title: "Rework the circle", url: "u21", state: "open", branch: "feat/circle", author: "maren" },
     ]);
@@ -239,7 +246,7 @@ describe("a page's GitHub row", () => {
 
   it("says plainly when the server refuses a reference", async () => {
     const user = userEvent.setup();
-    const board = boardFixture();
+    const board = configuredBoard();
     mountWith(board, 400);
 
     await user.click(await screen.findByText(board.pages[1].title));
@@ -247,6 +254,67 @@ describe("a page's GitHub row", () => {
     await user.type(screen.getByLabelText("Search pull requests, or type a branch"), "??{Enter}");
     const dialog = screen.getByRole("dialog", { name: "Edit page" });
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(/does not read as/);
+  });
+});
+
+describe("a project with no repository", () => {
+  it("shows no GitHub surface at all, rather than an empty one", async () => {
+    const user = userEvent.setup();
+    // boardFixture names no repository.
+    const board = boardFixture();
+    mountWith(board);
+
+    await user.click(await screen.findByText(board.pages[1].title));
+    expect(screen.getByRole("dialog", { name: "Edit page" })).toBeInTheDocument();
+    expect(screen.queryByText("GitHub")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Not linked/ })).not.toBeInTheDocument();
+  });
+
+  it("still shows a link made before the repository was cleared, so it can be removed", async () => {
+    const user = userEvent.setup();
+    const board = boardFixture();
+    board.pages[1] = {
+      ...board.pages[1],
+      github: { kind: "pr", number: 41 },
+      githubStatus: { state: "open", prNumber: 41, prTitle: "Hold the circle", prUrl: "u", checkedAt: null },
+    };
+    mountWith(board);
+
+    await user.click(await screen.findByText(board.pages[1].title));
+    expect(screen.getByRole("button", { name: /#41/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Unlink from GitHub" })).toBeInTheDocument();
+  });
+});
+
+describe("what an unchecked link is called", () => {
+  it("says a pull request is being checked, and only a branch has no PR yet", async () => {
+    const user = userEvent.setup();
+    const board = linkedBoard();
+    // Freshly linked, before anything has been heard back about it.
+    board.pages[1] = {
+      ...board.pages[1],
+      githubStatus: { state: "unchecked", prNumber: null, prTitle: null, prUrl: null, checkedAt: null },
+    };
+    mountWith(board);
+
+    await user.click(await screen.findByText(board.pages[1].title));
+    const trigger = screen.getByRole("button", { name: /#41/ });
+    expect(trigger).toHaveTextContent("checking...");
+    expect(trigger).not.toHaveTextContent("no PR yet");
+  });
+
+  it("says a branch has no pull request yet, because that is a place to sit for days", async () => {
+    const user = userEvent.setup();
+    const board = linkedBoard();
+    board.pages[1] = {
+      ...board.pages[1],
+      github: { kind: "branch", name: "feat/rituals" },
+      githubStatus: { state: "unchecked", prNumber: null, prTitle: null, prUrl: null, checkedAt: null },
+    };
+    mountWith(board);
+
+    await user.click(await screen.findByText(board.pages[1].title));
+    expect(screen.getByRole("button", { name: /feat\/rituals/ })).toHaveTextContent("no PR yet");
   });
 });
 
