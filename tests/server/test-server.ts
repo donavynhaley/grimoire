@@ -26,6 +26,8 @@ afterEach(async () => {
 type TestServerOptions = {
   /** Serves the built shell, which only production does, for link preview coverage. */
   staticDirectory?: string;
+  /** Stands in for the GitHub API; the poll interval stays off so tests drive syncs by hand. */
+  githubFetcher?: Parameters<typeof createGrimoireServer>[0]["githubFetcher"];
 };
 
 export async function startTestServer(
@@ -38,6 +40,8 @@ export async function startTestServer(
     databasePath,
     production: options.staticDirectory !== undefined,
     staticDirectory: options.staticDirectory,
+    githubPollMs: 0,
+    githubFetcher: options.githubFetcher,
   });
 
   await new Promise<void>((resolve) => app.server.listen(0, "127.0.0.1", resolve));

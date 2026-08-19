@@ -38,6 +38,11 @@ function chapter(overrides: Partial<Chapter> = {}): Chapter {
     createdAt: "2026-08-13T00:00:00.000Z",
     updatedAt: "2026-08-13T00:00:00.000Z",
     closedAt: null,
+  carriedPages: null,
+  carriedEstimate: null,
+  carriedTo: null,
+  deliveredPages: null,
+  deliveredEstimate: null,
     ...overrides,
   };
 }
@@ -53,7 +58,8 @@ function chapteredBoard(): BoardWorkspace {
   return {
     ...board,
     project: { ...board.project, chaptersEnabled: true },
-    chapters: [chapter(), chapter({ slug: "second-brew", name: "Second Brew", state: "planned", startsOn: null, endsOn: null })],
+    velocity: [],
+  chapters: [chapter(), chapter({ slug: "second-brew", name: "Second Brew", state: "planned", startsOn: null, endsOn: null })],
     pages: [
       page({ id: "page-in", title: "Inside the chapter", chapter: "first-brew", status: "ready", position: 0 }),
       page({ id: "page-out", title: "Outside the chapter", chapter: null, status: "ready", position: 1 }),
@@ -63,9 +69,16 @@ function chapteredBoard(): BoardWorkspace {
   };
 }
 
+/** Mounts the app over a board, recording every write it makes. */
 function mountWith(board: BoardWorkspace) {
-  vi.stubGlobal("fetch", (input: RequestInfo | URL) => {
+  const calls: Array<{ url: string; method: string; body: unknown }> = [];
+  vi.stubGlobal("fetch", (input: RequestInfo | URL, init: RequestInit = {}) => {
     const url = requestUrl(input);
+    const method = init.method ?? "GET";
+    if (method !== "GET") {
+      calls.push({ url, method, body: init.body ? JSON.parse(String(init.body)) : null });
+      return response({ ok: true });
+    }
     if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
     if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
     if (url.startsWith("/api/seen")) return response({ ok: true });
@@ -73,6 +86,7 @@ function mountWith(board: BoardWorkspace) {
     return response(board);
   });
   render(<App />);
+  return calls;
 }
 
 describe("chapters on the board", () => {
@@ -264,13 +278,38 @@ describe("closing a chapter", () => {
 
     // Two of First Brew's pages are unfinished, and every route out is a named choice.
     expect(within(dialog).getByText(/2 pages are unfinished/)).toBeInTheDocument();
+    // Rolling onward leads, naming where the work would go.
+    expect(within(dialog).getByRole("button", { name: "roll them into Second Brew" })).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "leave them here" })).toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: "move them to Second Brew" })).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "release them" })).toBeInTheDocument();
 
     // Backing out changes nothing at all.
     await user.click(within(dialog).getByRole("button", { name: "cancel" }));
     expect(within(dialog).queryByText(/unfinished/)).toBeNull();
+  });
+
+  it("rolls the work onward as one act rather than a sweep of page edits", async () => {
+    const user = userEvent.setup();
+    const calls = mountWith(chapteredBoard());
+
+    await user.click(await screen.findByRole("button", { name: /Filter by chapter/ }));
+    await user.click(screen.getByRole("menuitem", { name: /Manage chapters/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Project settings" });
+    await user.click(within(dialog).getByRole("button", { name: "close" }));
+    await user.click(within(dialog).getByRole("button", { name: "roll them into Second Brew" }));
+
+    // One request says both what happened to the chapter and what happened to its work.
+    await waitFor(() =>
+      expect(calls).toContainEqual(
+        expect.objectContaining({
+          url: "/api/chapters/first-brew/close",
+          method: "POST",
+          body: { rollover: "next" },
+        }),
+      ),
+    );
+    // And no page was edited one at a time to achieve it.
+    expect(calls.filter((call) => call.url.startsWith("/api/pages/"))).toHaveLength(0);
   });
 });
 

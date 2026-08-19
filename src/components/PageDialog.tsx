@@ -17,6 +17,7 @@ import { Growing } from "./Growing";
 import { NotesField } from "./NotesField";
 import { describeChange, describeEvent, relativeLabel } from "./activity-copy";
 import { Drawer } from "./Drawer";
+import { GithubLink } from "./GithubLink";
 import { useContentEditor } from "./use-content-editor";
 
 const PAGE_HISTORY_LIMIT = 6;
@@ -36,6 +37,10 @@ type Props = {
   chapters: Chapter[];
   fields: ProjectField[];
   currentUserId: string;
+  /** The project's repository, so a project without one shows no GitHub surface at all. */
+  githubRepo: string;
+  /** Off unless the project asked for estimates, and then no page shows one. */
+  estimatesEnabled: boolean;
   members: Member[];
   revision: number;
   onUpdate: (input: Record<string, unknown>) => Promise<void>;
@@ -44,7 +49,7 @@ type Props = {
   onLoadActivity: (options: { entityId?: string; limit?: number }) => Promise<AuditPage>;
 };
 
-export function PageDialog({ page, pages, categories, chapters, fields, currentUserId, members, revision, onUpdate, onArchive, onClose, onLoadActivity }: Props) {
+export function PageDialog({ page, pages, categories, chapters, estimatesEnabled, fields, currentUserId, githubRepo, members, revision, onUpdate, onArchive, onClose, onLoadActivity }: Props) {
   const categoryColor = (slug: string | null) =>
     slug ? categories.find((category) => category.slug === slug)?.color : undefined;
   const swatchStyle = (slug: string | null) => {
@@ -141,6 +146,8 @@ export function PageDialog({ page, pages, categories, chapters, fields, currentU
             />
             <EditorState editor={editor} who={otherEditor} />
           </div>
+
+          <GithubLink github={page.github} onUpdate={onUpdate} repo={githubRepo} status={page.githubStatus} />
 
           <PageHistory
             events={history}
@@ -262,6 +269,13 @@ export function PageDialog({ page, pages, categories, chapters, fields, currentU
               </div>
             )}
           </Growing>
+
+          {estimatesEnabled && (
+            <Growing className="rail-row">
+              <span className="field-label">Estimate</span>
+              <EstimateRow estimate={page.estimate} onUpdate={onUpdate} />
+            </Growing>
+          )}
 
           <PageFieldsEditor fields={fields} values={page.fields} onUpdate={onUpdate} />
 
@@ -403,5 +417,64 @@ function HistoryEvents({ events, members }: { events: AuditEvent[] | null; membe
         );
       })}
     </ol>
+  );
+}
+
+
+/**
+ * How much work a page is, said as a number and nothing more.
+ *
+ * It rests as its value and edits as a plain input, like the written fields beside it, and an
+ * emptied box clears it rather than storing a nought - "nobody has said" and "no work at all"
+ * are different answers and the board counts them differently.
+ */
+function EstimateRow({ estimate, onUpdate }: {
+  estimate: number | null;
+  onUpdate: (input: Record<string, unknown>) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+
+  const commit = () => {
+    setEditing(false);
+    const trimmed = draft.trim();
+    if (!trimmed) {
+      if (estimate !== null) void onUpdate({ estimate: null });
+      return;
+    }
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed) || parsed < 0 || parsed === estimate) return;
+    void onUpdate({ estimate: parsed });
+  };
+
+  if (editing) {
+    return (
+      <input
+        aria-label="Estimate"
+        autoFocus
+        inputMode="decimal"
+        name="estimate"
+        onBlur={commit}
+        onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") { event.preventDefault(); commit(); }
+          if (event.key === "Escape") { event.stopPropagation(); setEditing(false); }
+        }}
+        type="text"
+        value={draft}
+      />
+    );
+  }
+
+  return (
+    <div className="rail-value">
+      <span className="rail-current">{estimate === null ? "—" : estimate}</span>
+      <button
+        aria-label="Change estimate"
+        className="rail-change"
+        onClick={() => { setDraft(estimate === null ? "" : String(estimate)); setEditing(true); }}
+        type="button"
+      >change</button>
+    </div>
   );
 }

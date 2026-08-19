@@ -7,6 +7,9 @@ export function boardFixture(): BoardWorkspace {
       name: "Wizard Simulator",
       description: "",
       chaptersEnabled: false,
+      githubRepo: "",
+      githubTokenSet: false,
+      estimatesEnabled: false,
     },
     projects: [
       {
@@ -29,6 +32,7 @@ export function boardFixture(): BoardWorkspace {
     ],
     fields: [],
     chapters: [],
+  velocity: [],
     currentUser: {
       id: "00000000-0000-4000-8000-000000000010",
       name: "Donavyn",
@@ -69,6 +73,9 @@ export function boardFixture(): BoardWorkspace {
         createdAt: "2026-08-03T00:00:00.000Z",
         updatedAt: "2026-08-03T00:00:00.000Z",
         completedAt: null,
+        estimate: null,
+        github: null,
+        githubStatus: null,
       },
       {
         id: "00000000-0000-4000-8000-000000000021",
@@ -87,6 +94,9 @@ export function boardFixture(): BoardWorkspace {
         createdAt: "2026-08-03T00:00:00.000Z",
         updatedAt: "2026-08-03T00:00:00.000Z",
         completedAt: null,
+        estimate: null,
+        github: null,
+        githubStatus: null,
       },
     ],
   };

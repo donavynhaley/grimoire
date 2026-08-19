@@ -133,6 +133,73 @@ export type Chapter = {
   createdAt: string;
   updatedAt: string;
   closedAt: string | null;
+  /**
+   * What was still unfinished when this chapter closed, recorded at the moment it closed.
+   *
+   * Counted then rather than derived later because the pages themselves move on: once they
+   * belong to the next chapter, nothing about them still says they were carried out of this
+   * one. Null until the chapter has been closed at all.
+   */
+  carriedPages: number | null;
+  carriedEstimate: number | null;
+  /** Where the unfinished work went, when it went somewhere. */
+  carriedTo: string | null;
+  /**
+   * What this chapter delivered, counted the moment it closed.
+   *
+   * Both readings are kept: how many pages were finished in it, and what those pages were
+   * estimated at. A team that estimates everything reads the second; a team that estimates
+   * some of its work still has the first, and neither is derived from the other.
+   *
+   * Recorded rather than recomputed because a closed chapter is history: pages archived,
+   * reopened, or re-placed afterwards would otherwise quietly rewrite what a finished
+   * stretch of work is remembered as having delivered. Null until the chapter closes.
+   */
+  deliveredPages: number | null;
+  deliveredEstimate: number | null;
+};
+
+/**
+ * What a chapter delivered, and what it did not.
+ *
+ * Delivered counts pages finished while they belonged to this chapter, which is the only
+ * honest reading: rollover moves unfinished work onward, so a page that carried over is
+ * counted by whichever chapter it was actually finished in. Nothing here is a forecast -
+ * the product refuses to estimate on anyone's behalf - it only adds up what happened.
+ */
+export type ChapterVelocity = {
+  slug: string;
+  /** Both readings of what was delivered: the count of pages, and what they were estimated at. */
+  donePages: number;
+  doneEstimate: number;
+  openPages: number;
+  openEstimate: number;
+  /** Pages estimated at nothing, so a reader can tell an empty total from an unestimated one. */
+  unestimatedPages: number;
+  /**
+   * True once the chapter has closed and these numbers are the ones it recorded, rather than
+   * a live count of whatever happens to point at it now.
+   */
+  recorded: boolean;
+};
+
+/**
+ * A page's tie to the work in GitHub: a pull request by number, or a branch a pull
+ * request will eventually be opened from. The repository is usually the project's
+ * configured one; a link pasted as a full URL may name another and carries it here.
+ */
+export type PageGithubLink =
+  | { kind: "pr"; number: number; repo?: string }
+  | { kind: "branch"; name: string; repo?: string };
+
+/** What GitHub last said about a linked page, cached server-side between polls. */
+export type PageGithubStatus = {
+  state: "open" | "draft" | "merged" | "closed" | "missing" | "unchecked";
+  /** Present once a pull request exists, including one adopted for a branch link. */
+  prNumber: number | null;
+  prTitle: string | null;
+  prUrl: string | null;
+  checkedAt: string | null;
 };
 
 export type Page = {
@@ -159,6 +226,18 @@ export type Page = {
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
+  /**
+   * How much work this page is, in whatever unit the team means by it.
+   *
+   * Nothing multiplies, forecasts, or rolls this up on anyone's behalf; it is added together
+   * per chapter and shown, and that is all. Null when nobody has said, and always null while
+   * the project has estimates switched off.
+   */
+  estimate: number | null;
+  /** The GitHub work this page is tied to, or null. */
+  github: PageGithubLink | null;
+  /** What GitHub last said about that link; null when the page has none. */
+  githubStatus: PageGithubStatus | null;
 };
 
 export type BoardWorkspace = {
@@ -169,6 +248,12 @@ export type BoardWorkspace = {
     description: string;
     /** Off unless this project asked for chapters. When false the interface shows none of them. */
     chaptersEnabled: boolean;
+    /** "owner/name" of the repository this project's pull requests live in, or empty. */
+    githubRepo: string;
+    /** Whether a token is held for that repository; the token itself never leaves the server. */
+    githubTokenSet: boolean;
+    /** Off unless this project asked for estimates. When false, no page carries one. */
+    estimatesEnabled: boolean;
   };
   projects: ProjectSummary[];
   categories: ProjectCategory[];
@@ -176,6 +261,8 @@ export type BoardWorkspace = {
   fields: ProjectField[];
   /** Empty when the gate is off, so a disabled project carries no chapter surface at all. */
   chapters: Chapter[];
+  /** One entry per chapter, empty when either chapters or estimates are off. */
+  velocity: ChapterVelocity[];
   currentUser: User;
   members: Member[];
   pages: Page[];

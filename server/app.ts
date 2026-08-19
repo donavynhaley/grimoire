@@ -3,7 +3,8 @@ import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { dirname, extname, join, normalize } from "node:path";
 import { z, ZodError } from "zod";
-import { FIELD_TYPES, type User } from "../shared/types";
+import { FIELD_TYPES, PAGE_STATUSES, type PageGithubLink, type PageStatus, type User } from "../shared/types";
+import { forgetOpenPullRequests, githubApiFetcher, listOpenPullRequests, normalizeRepo, parseGithubReference, syncProjectGithub, verifyRepoAccess, type GithubFetcher } from "./github";
 import { createProject, createWizardSimulatorProject, openDatabase } from "./database";
 import {
   archivePage,
@@ -50,6 +51,13 @@ import {
   updateField,
   userCanAccessProject,
   userCount,
+  projectGithubConfig,
+  setProjectGithub,
+  clearGithubStatus,
+  closeChapter,
+  nextChapterAfter,
+  setEstimatesEnabled,
+  estimatesEnabled,
 } from "./repository";
 import { createOpaqueToken, hashPassword, hashToken, verifyPassword } from "./security";
 import {
@@ -69,7 +77,8 @@ import { createIdea, findIdea, getIdeas, promoteIdea, undoPromotion, updateIdea 
 import { MarkdownIdeaStore } from "./markdown-ideas";
 import { searchProject } from "./search";
 import { applyLinkPreview, pagePreview, ideaPreview, type LinkPreview } from "./link-preview";
-import {
+import { CHAPTER_STATE_LABELS,
+  PAGE_COLUMN_LABELS,
   AUDIT_PAGE_SIZE,
   pageChanges,
   pageCreationChanges,
@@ -94,6 +103,10 @@ type Options = {
   databasePath: string;
   production: boolean;
   staticDirectory?: string;
+  /** How often linked pages ask GitHub what happened; 0 disables the poller. */
+  githubPollMs?: number;
+  /** Stands in for the GitHub API in tests. */
+  githubFetcher?: GithubFetcher;
 };
 
 type RequestContext = {
@@ -165,6 +178,7 @@ const pageSchema = z.object({
   blockedBy: z.array(z.string().uuid()).max(20).optional(),
   status: pageStatus.optional(),
   assigneeId: z.string().uuid().nullable().optional(),
+  estimate: z.number().finite().min(0).max(100_000).nullable().optional(),
 });
 /**
  * Compare-and-swap fields, sent only for the content a client is actually rewriting.
@@ -176,6 +190,8 @@ const contentPreconditions = {
   expectedDescription: z.string().trim().max(20_000).optional(),
 };
 const pageUpdateSchema = pageSchema.partial().extend({
+  /** A pasted reference - PR URL, #123, branch, or branch URL - or null to unlink. */
+  github: z.string().trim().max(400).nullable().optional(),
   position: z.number().int().min(0).optional(),
   ...contentPreconditions,
 });
@@ -187,9 +203,18 @@ const projectUpdateSchema = z
     name: z.string().trim().min(2).max(80).optional(),
     description: z.string().trim().max(2000).optional(),
     chaptersEnabled: z.boolean().optional(),
+    githubRepo: z.string().trim().max(200).optional(),
+    githubToken: z.string().trim().max(300).optional(),
+    estimatesEnabled: z.boolean().optional(),
   })
   .refine(
-    (input) => input.name !== undefined || input.description !== undefined || input.chaptersEnabled !== undefined,
+    (input) =>
+      input.name !== undefined ||
+      input.description !== undefined ||
+      input.chaptersEnabled !== undefined ||
+      input.githubRepo !== undefined ||
+      input.githubToken !== undefined ||
+      input.estimatesEnabled !== undefined,
     { message: "Nothing to update" },
   );
 const chapterState = z.enum(["planned", "open", "closed"]);
@@ -199,6 +224,14 @@ const chapterCreateSchema = z.object({
   startsOn: calendarDay.nullable().optional(),
   endsOn: calendarDay.nullable().optional(),
   state: chapterState.optional(),
+});
+/**
+ * How a closing chapter disposes of what it did not finish. "next" is the planned chapter
+ * after it, "release" sets the work loose, "keep" leaves it where it is, and a slug names
+ * somewhere exactly.
+ */
+const chapterCloseSchema = z.object({
+  rollover: z.union([z.literal("next"), z.literal("release"), z.literal("keep"), chapterSlug]).optional(),
 });
 const chapterUpdateSchema = chapterCreateSchema.partial().extend({
   position: z.number().int().min(0).optional(),
@@ -313,6 +346,52 @@ export function createGrimoireServer(options: Options) {
   // Per-token write allowance. In memory on purpose: it guards this process against a
   // runaway loop, and persisting it would mean a write on every request to limit writes.
   const writeLimiter = new AgentRateLimiter();
+
+  /**
+   * The board following the code: linked pages are brought up to date with GitHub on an
+   * interval, and immediately when a link or a repository is set, so the first answer never
+   * waits for the clock. Auto-moves are audited under the actor "GitHub" - a name, not a
+   * member - so the log says plainly that the robot did it.
+   */
+  const githubDeps = {
+    database,
+    pageStore,
+    chapterStore,
+    fetcher: options.githubFetcher ?? githubApiFetcher,
+    onMoved: ({ projectId, page, from, to }: { projectId: string; page: { id: string; title: string }; from: string; to: string }) => {
+      recordAuditEvent(database, {
+        projectId,
+        actor: { id: null, name: "GitHub" },
+        entityType: "page",
+        entityId: page.id,
+        entityTitle: page.title,
+        action: "moved",
+        changes: [{
+          field: "column",
+          from: PAGE_COLUMN_LABELS[from as PageStatus],
+          to: PAGE_COLUMN_LABELS[to as PageStatus],
+        }],
+      });
+    },
+    onChanged: (projectId: string) => broadcast(projectId, "work", null),
+  };
+  async function runGithubSync(projectId: string): Promise<void> {
+    try {
+      await syncProjectGithub(githubDeps, projectId);
+    } catch (error) {
+      console.error("github sync failed", error);
+    }
+  }
+  async function runAllGithubSync(): Promise<void> {
+    const projects = database
+      .prepare("SELECT id FROM projects WHERE github_repo != '' AND archived_at IS NULL")
+      .all() as Array<{ id: string }>;
+    for (const project of projects) await runGithubSync(String(project.id));
+  }
+  const githubPollMs = options.githubPollMs ?? 120_000;
+  const githubPoll = githubPollMs > 0 ? setInterval(() => void runAllGithubSync(), githubPollMs) : null;
+  // The poll must never be the reason the process cannot exit.
+  githubPoll?.unref?.();
 
   const server = createServer((request, response) => {
     void handle(request, response).catch((error) => {
@@ -608,6 +687,36 @@ export function createGrimoireServer(options: Options) {
       return;
     }
 
+    if (method === "GET" && url.pathname === "/api/github/pulls") {
+      const user = requireUser(context);
+      const projectId = requireProject(context, user);
+      const config = projectGithubConfig(database, projectId);
+      const pulls = await listOpenPullRequests(options.githubFetcher ?? githubApiFetcher, config.repo, config.token);
+      json(response, 200, { pulls });
+      return;
+    }
+
+    if (method === "POST" && url.pathname === "/api/github/verify") {
+      const user = requireUser(context);
+      if (user.role !== "owner") throw new HttpError(403, "Only the owner can check the GitHub connection");
+      const projectId = requireProject(context, user);
+      await readJson(request);
+      const config = projectGithubConfig(database, projectId);
+      const verdict = await verifyRepoAccess(options.githubFetcher ?? githubApiFetcher, config.repo, config.token);
+      json(response, 200, verdict);
+      return;
+    }
+
+    if (method === "POST" && url.pathname === "/api/github/refresh") {
+      const user = requireUser(context);
+      const projectId = requireProject(context, user);
+      await readJson(request);
+      await runGithubSync(projectId);
+      json(response, 200, { ok: true });
+      broadcast(projectId, "work", requestClientId(request));
+      return;
+    }
+
     if (method === "POST" && url.pathname === "/api/invites") {
       const user = requireUser(context);
       if (user.role !== "owner") throw new HttpError(403, "Only the project owner can create invitations");
@@ -680,6 +789,19 @@ export function createGrimoireServer(options: Options) {
           });
         }
       }
+      if (input.estimatesEnabled !== undefined) {
+        const wasEnabled = estimatesEnabled(database, projectId);
+        if (wasEnabled !== input.estimatesEnabled) {
+          if (!setEstimatesEnabled(database, projectId, input.estimatesEnabled)) {
+            throw new HttpError(404, "Project not found");
+          }
+          changes.push({
+            field: "estimates",
+            from: wasEnabled ? "on" : "off",
+            to: input.estimatesEnabled ? "on" : "off",
+          });
+        }
+      }
       if (input.chaptersEnabled !== undefined) {
         const wasEnabled = chaptersEnabled(database, projectId);
         if (wasEnabled !== input.chaptersEnabled) {
@@ -694,6 +816,24 @@ export function createGrimoireServer(options: Options) {
         }
       }
 
+      if (input.githubRepo !== undefined) {
+        const previousRepo = projectGithubConfig(database, projectId).repo;
+        const nextRepo = normalizeRepo(input.githubRepo);
+        if (nextRepo !== previousRepo) {
+          setProjectGithub(database, projectId, { repo: nextRepo });
+          changes.push({ field: "github repository", from: previousRepo || null, to: nextRepo || null });
+        }
+      }
+      if (input.githubToken !== undefined) {
+        // The log records that a token changed hands, never what it was.
+        const hadToken = projectGithubConfig(database, projectId).token !== "";
+        setProjectGithub(database, projectId, { token: input.githubToken });
+        const hasToken = input.githubToken !== "";
+        if (hadToken !== hasToken) {
+          changes.push({ field: "github token", from: hadToken ? "set" : null, to: hasToken ? "set" : null });
+        }
+      }
+
       const name = input.name ?? previousName;
       if (changes.length > 0) {
         audit(context, {
@@ -705,14 +845,24 @@ export function createGrimoireServer(options: Options) {
           changes,
         });
       }
+      const githubAfter = projectGithubConfig(database, projectId);
       json(response, 200, {
         project: {
           id: projectId,
           name,
           description: String(projectById(database, projectId)?.description ?? ""),
           chaptersEnabled: chaptersEnabled(database, projectId),
+          estimatesEnabled: estimatesEnabled(database, projectId),
+          githubRepo: githubAfter.repo,
+          githubTokenSet: githubAfter.token !== "",
         },
       });
+      // A freshly pointed-at repository answers now rather than on the next poll, and the
+      // list of open pull requests is asked again rather than served from the old answer.
+      if (input.githubRepo !== undefined || input.githubToken !== undefined) {
+        forgetOpenPullRequests(githubAfter.repo);
+      }
+      if (githubAfter.repo) void runGithubSync(projectId);
       broadcast(projectId, "work", requestClientId(request));
       return;
     }
@@ -1029,6 +1179,63 @@ export function createGrimoireServer(options: Options) {
         });
       }
       json(response, 200, { chapter: result.chapter });
+      broadcast(projectId, "work", requestClientId(request));
+      return;
+    }
+
+    const chapterCloseMatch = url.pathname.match(/^\/api\/chapters\/([^/]+)\/close$/);
+    if (method === "POST" && chapterCloseMatch) {
+      const user = requireUser(context);
+      if (user.role !== "owner") throw new HttpError(403, "Only the owner can manage chapters");
+      const projectId = requireProject(context, user);
+      requireChaptersEnabled(projectId);
+      const input = chapterCloseSchema.parse(await readJson(request));
+      const slug = chapterCloseMatch[1];
+      const project = projectById(database, projectId);
+      if (!project) throw new HttpError(404, "Project not found");
+
+      /*
+       * "next" is resolved here rather than in the browser so the rollover means the same
+       * thing however it was asked for - and so a chapter with nothing planned after it
+       * refuses plainly instead of silently setting the work loose.
+       */
+      let carryTo: string | null | undefined;
+      if (input.rollover === "next") {
+        carryTo = nextChapterAfter(chapterStore, String(project.slug), slug);
+        if (!carryTo) throw new HttpError(400, "There is no planned chapter to roll the work into");
+      } else if (input.rollover === "release") carryTo = null;
+      else if (input.rollover === "keep") carryTo = undefined;
+      else carryTo = input.rollover ?? undefined;
+
+      const before = chapterStore.list(String(project.slug)).find((chapter) => chapter.slug === slug);
+      const result = closeChapter(database, pageStore, chapterStore, projectId, slug, carryTo);
+      if (result === "not_found") throw new HttpError(404, "Chapter not found");
+      if (result === "already_closed") throw new HttpError(409, "That chapter is already closed");
+      if (result === "no_target") throw new HttpError(400, "That chapter cannot take the work");
+
+      const carriedWord = result.carried.pages === 0
+        ? "nothing unfinished"
+        : `${result.carried.pages} page${result.carried.pages === 1 ? "" : "s"}${
+          result.carried.estimate > 0 ? ` (${result.carried.estimate})` : ""
+        }`;
+      audit(context, {
+        projectId,
+        entityType: "chapter",
+        entityId: slug,
+        entityTitle: result.chapter.name,
+        action: "updated",
+        changes: [
+          { field: "state", from: CHAPTER_STATE_LABELS[before?.state ?? "open"], to: CHAPTER_STATE_LABELS.closed },
+          {
+            field: "carried over",
+            from: null,
+            to: carryTo === undefined || result.carried.pages === 0
+              ? carriedWord
+              : `${carriedWord} to ${carryTo ?? "no chapter"}`,
+          },
+        ],
+      });
+      json(response, 200, { chapter: result.chapter, carried: result.carried });
       broadcast(projectId, "work", requestClientId(request));
       return;
     }
@@ -1357,11 +1564,40 @@ export function createGrimoireServer(options: Options) {
       const projectId = requireProject(context, user);
       const labels = labelsForProject(projectId);
       const before = findPage(database, pageStore, projectId, pageMatch[1]);
-      const input = pageUpdateSchema.parse(await readJson(request));
+      const { github: githubRaw, ...input } = pageUpdateSchema.parse(await readJson(request));
       if (input.chapter) requireChaptersEnabled(projectId);
-      const page = updatePage(database, pageStore, chapterStore, projectId, pageMatch[1], input);
+      let githubLink: PageGithubLink | null | undefined;
+      if (githubRaw !== undefined) {
+        if (githubRaw === null) githubLink = null;
+        else {
+          const parsed = parseGithubReference(githubRaw, projectGithubConfig(database, projectId).repo);
+          if (!parsed) {
+            throw new HttpError(400, "That does not read as a pull request, a branch, or a GitHub URL");
+          }
+          githubLink = parsed;
+        }
+      }
+      const page = updatePage(database, pageStore, chapterStore, projectId, pageMatch[1], {
+        ...input,
+        ...(githubLink !== undefined ? { github: githubLink } : {}),
+      });
       if (!page) throw new HttpError(404, "Page or assignee not found");
+      // A dropped link needs no cached answer.
+      if (githubLink === null) clearGithubStatus(database, projectId, page.id);
+      /*
+       * A fresh link is resolved before answering, rather than on the next poll. Someone who
+       * just chose a pull request from a list of open ones should not be told "no PR yet"
+       * for two minutes while the poller catches up - and since resolving may also move the
+       * page, the reply has to be re-read rather than reported from before it happened.
+       */
+      let settled = page;
+      if (githubLink) {
+        await runGithubSync(projectId);
+        settled = findPage(database, pageStore, projectId, page.id) ?? page;
+      }
       if (before) {
+        // The diff is what this request asked for; a move the automation made on top of it
+        // is the automation's to record, under its own name.
         const changes = pageChanges(before, page, labels);
         const action = changeAction(changes);
         // Reordering inside one column changes nothing a reader would look for.
@@ -1369,7 +1605,7 @@ export function createGrimoireServer(options: Options) {
           audit(context, { projectId, entityType: "page", entityId: page.id, entityTitle: page.title, action, changes });
         }
       }
-      json(response, 200, { page });
+      json(response, 200, { page: settled });
       broadcast(projectId, "work", requestClientId(request));
       return;
     }
@@ -1660,6 +1896,7 @@ export function createGrimoireServer(options: Options) {
     closeEventStreams,
     close: () => {
       if (databaseClosed) return;
+      if (githubPoll) clearInterval(githubPoll);
       closeEventStreams();
       database.close();
       databaseClosed = true;

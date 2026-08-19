@@ -32,7 +32,8 @@ export const IDEA_LIST_LABELS: Record<Idea["state"], string> = {
 };
 
 export type AuditActor = {
-  id: string;
+  /** Null when the actor is not a member at all - the GitHub automation, for one. */
+  id: string | null;
   name: string;
 };
 
@@ -261,7 +262,17 @@ export function pageChanges(before: Page, after: Page, labels: PageLabels): Audi
     });
   }
   changes.push(...fieldChanges(before.fields, after.fields, labels));
+  if (githubLinkLabel(before.github) !== githubLinkLabel(after.github)) {
+    changes.push({ field: "github", from: githubLinkLabel(before.github), to: githubLinkLabel(after.github) });
+  }
   return changes;
+}
+
+/** How a link reads in a log line: "PR #12", "branch feat/x", nothing at all. */
+export function githubLinkLabel(link: Page["github"]): string | null {
+  if (!link) return null;
+  const suffix = link.repo ? ` (${link.repo})` : "";
+  return link.kind === "pr" ? `PR #${link.number}${suffix}` : `branch ${link.name}${suffix}`;
 }
 
 /**

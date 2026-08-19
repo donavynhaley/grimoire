@@ -10,6 +10,9 @@ export type FieldActions = {
 };
 
 type Props = {
+  /** Estimates are a built-in field with its own gate, so it lives with the others. */
+  estimatesEnabled: boolean;
+  onSetEstimatesEnabled: (enabled: boolean) => Promise<void>;
   fields: ProjectField[];
   busy: boolean;
   actions: FieldActions;
@@ -45,7 +48,7 @@ function textToOptions(value: string): string[] {
   return [...new Set(value.split(",").map((option) => option.trim()).filter(Boolean))];
 }
 
-export function FieldsSection({ fields, busy, actions, canManage, run }: Props) {
+export function FieldsSection({ estimatesEnabled, onSetEstimatesEnabled, fields, busy, actions, canManage, run }: Props) {
   const [newLabel, setNewLabel] = useState("");
   const [newType, setNewType] = useState<FieldType>("text");
   const [newOptions, setNewOptions] = useState("");
@@ -124,6 +127,33 @@ export function FieldsSection({ fields, busy, actions, canManage, run }: Props) 
 
   return (
     <div className="settings-section">
+      {canManage && (
+        <Growing className="settings-row chapters-gate">
+          <div className="settings-row-top">
+            <span className="field-label">Estimates</span>
+            <label className="settings-toggle">
+              <input
+                aria-label="Estimates"
+                checked={estimatesEnabled}
+                disabled={busy}
+                name="estimatesEnabled"
+                onChange={(event) => void run(
+                  () => onSetEstimatesEnabled(event.target.checked),
+                  "The estimates setting could not be changed",
+                )}
+                type="checkbox"
+              />
+              <span aria-hidden="true" className="settings-knob" />
+              <span className="settings-toggle-label">{estimatesEnabled ? "on" : "off"}</span>
+            </label>
+          </div>
+          <p className="settings-summary">
+            A number on every page saying how much work it is, in whatever unit this team
+            means by one. Nothing forecasts or multiplies it; with chapters on, it is added
+            up per chapter so a closed stretch can say what it delivered.
+          </p>
+        </Growing>
+      )}
       <p className="settings-summary field-intro">
         Extra properties every page can carry — a priority, an estimate, whatever this project tracks.
         Nothing here is counted or added up.

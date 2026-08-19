@@ -774,9 +774,19 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
                           onClick={() => { if (!pointerDrag.consumeClick()) setSelectedId(page.id); }}
                           type="button"
                         >
-                          {(page.category || blockers.length > 0) && <span className="page-signals">
+                          {(page.category || blockers.length > 0 || page.github || (board.project.estimatesEnabled && page.estimate !== null)) && <span className="page-signals">
                             {page.category && <span className="category-pill">{categoryName(page.category)}</span>}
                             {blockers.length > 0 && <span className="page-blocked">blocked by {blockers.length}</span>}
+                            {board.project.estimatesEnabled && page.estimate !== null && (
+                              <span className="estimate-pill" title={`Estimated at ${page.estimate}`}>{page.estimate}</span>
+                            )}
+                            {page.github && (
+                              <span className={`github-pill github-state-${page.githubStatus?.state ?? "unchecked"}`}>
+                                {page.githubStatus?.prNumber
+                                  ? `#${page.githubStatus.prNumber}`
+                                  : page.github.kind === "pr" ? `#${page.github.number}` : `⎇ ${page.github.name}`}
+                              </span>
+                            )}
                           </span>}
                           <strong>{page.title}</strong>
                           {preview && <p>{preview}</p>}
@@ -862,6 +872,8 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
           chapters={chaptersOn ? board.chapters : []}
           fields={board.fields}
           currentUserId={board.currentUser.id}
+          estimatesEnabled={board.project.estimatesEnabled}
+          githubRepo={board.project.githubRepo}
           members={board.members}
           revision={revision}
           onArchive={async () => { await onArchive(selectedPage.id); setSelectedId(null); }}
@@ -923,6 +935,7 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
           chapterActions={chapterActions}
           chapters={board.chapters}
           chaptersEnabled={chaptersOn}
+          velocity={board.velocity}
           currentUser={board.currentUser}
           fieldActions={fieldActions}
           fields={board.fields}

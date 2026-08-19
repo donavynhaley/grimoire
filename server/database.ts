@@ -195,6 +195,19 @@ function migrate(database: DatabaseSync): void {
   for (const pillar of ["pitch", "player_fantasy", "current_direction", "direction_detail", "non_goals"]) {
     if (projectColumns.includes(pillar)) database.exec(`ALTER TABLE projects DROP COLUMN ${pillar}`);
   }
+  // Which repository this project's pull requests live in, and the token that may read it.
+  // Additive and empty by default: a project that never links GitHub stores nothing.
+  if (!projectColumns.includes("github_repo")) {
+    database.exec("ALTER TABLE projects ADD COLUMN github_repo TEXT NOT NULL DEFAULT ''");
+  }
+  if (!projectColumns.includes("github_token")) {
+    database.exec("ALTER TABLE projects ADD COLUMN github_token TEXT NOT NULL DEFAULT ''");
+  }
+  // Estimates are a gate like chapters: off by default, so a project that never asks for
+  // them keeps page files byte-identical to the ones it has now.
+  if (!projectColumns.includes("estimates_enabled")) {
+    database.exec("ALTER TABLE projects ADD COLUMN estimates_enabled INTEGER NOT NULL DEFAULT 0");
+  }
   if (!projectColumns.includes("description")) {
     database.exec("ALTER TABLE projects ADD COLUMN description TEXT NOT NULL DEFAULT ''");
   }
@@ -450,6 +463,16 @@ CREATE TABLE IF NOT EXISTS seen_cursors (
 ${agentTokensTable}
 
 ${projectFieldsTable}
+CREATE TABLE IF NOT EXISTS github_link_status (
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  page_id TEXT NOT NULL,
+  state TEXT NOT NULL CHECK (state IN ('open', 'draft', 'merged', 'closed', 'missing', 'unchecked')),
+  pr_number INTEGER,
+  pr_title TEXT,
+  pr_url TEXT,
+  checked_at TEXT,
+  PRIMARY KEY (project_id, page_id)
+);
 
 CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token_hash);
 CREATE INDEX IF NOT EXISTS idx_cards_board ON cards(project_id, status, position) WHERE archived_at IS NULL;

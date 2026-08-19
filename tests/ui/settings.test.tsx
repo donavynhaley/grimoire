@@ -64,7 +64,7 @@ describe("the one settings surface", () => {
     const settings = await openSettings(user);
     const rail = within(settings).getByRole("navigation", { name: "Settings sections" });
     expect(within(rail).getAllByRole("button").map((button) => button.textContent)).toEqual([
-      "General", "Categories", "Page fields", "Chapters", "Team", "Agent access", "Danger zone",
+      "General", "Categories", "Page fields", "Chapters", "GitHub", "Team", "Agent access", "Danger zone",
     ]);
   });
 
