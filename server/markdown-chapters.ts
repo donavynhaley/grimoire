@@ -19,6 +19,8 @@ export type StoredChapter = {
   carriedPages: number | null;
   carriedEstimate: number | null;
   carriedTo: string | null;
+  deliveredPages: number | null;
+  deliveredEstimate: number | null;
 };
 
 /** A plain calendar day. A chapter boundary is a day the team named, not an instant. */
@@ -43,6 +45,8 @@ const metadataSchema = z
     carried_pages: z.number().int().min(0).nullable().optional(),
     carried_estimate: z.number().finite().min(0).nullable().optional(),
     carried_to: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(60).nullable().optional(),
+    delivered_pages: z.number().int().min(0).nullable().optional(),
+    delivered_estimate: z.number().finite().min(0).nullable().optional(),
   })
   .strict()
   .refine(
@@ -110,6 +114,8 @@ export class MarkdownChapterStore {
         carriedPages: metadata.carried_pages ?? null,
         carriedEstimate: metadata.carried_estimate ?? null,
         carriedTo: metadata.carried_to ?? null,
+        deliveredPages: metadata.delivered_pages ?? null,
+        deliveredEstimate: metadata.delivered_estimate ?? null,
       };
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
@@ -150,6 +156,8 @@ function serializeChapter(chapter: StoredChapter): string {
   if (chapter.carriedPages !== null) metadata.push(["carried_pages", chapter.carriedPages]);
   if (chapter.carriedEstimate !== null) metadata.push(["carried_estimate", chapter.carriedEstimate]);
   if (chapter.carriedTo !== null) metadata.push(["carried_to", chapter.carriedTo]);
+  if (chapter.deliveredPages !== null) metadata.push(["delivered_pages", chapter.deliveredPages]);
+  if (chapter.deliveredEstimate !== null) metadata.push(["delivered_estimate", chapter.deliveredEstimate]);
   return serializeMarkdown(metadata, chapter.description);
 }
 

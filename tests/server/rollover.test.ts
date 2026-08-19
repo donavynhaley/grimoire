@@ -167,7 +167,52 @@ describe("velocity", () => {
       openPages: 2,
       openEstimate: 5,
       unestimatedPages: 1,
+      recorded: false,
     });
+  });
+
+  it("records both readings when the chapter closes: pages finished and what they were estimated at", async () => {
+    const server = await startTestServer();
+    await bootstrap(server);
+    await project(server);
+    const open = await chapter(server, "First Brew", "open");
+    await chapter(server, "Second Brew");
+
+    for (const estimate of [3, 5]) {
+      const done = await page(server, { title: `Finished ${estimate}`, chapter: open.slug, estimate });
+      await server.request(`/api/pages/${done.id}`, { method: "PATCH", body: JSON.stringify({ status: "done" }) });
+    }
+    // A page finished but never estimated still counts as a page delivered.
+    const unestimated = await page(server, { title: "Finished, unestimated", chapter: open.slug });
+    await server.request(`/api/pages/${unestimated.id}`, { method: "PATCH", body: JSON.stringify({ status: "done" }) });
+    await page(server, { title: "Unfinished", chapter: open.slug, estimate: 2, status: "ready" });
+
+    await close(server, open.slug, "next");
+    const closed = (await board(server)).chapters.find((candidate) => candidate.slug === open.slug)!;
+    expect(closed.deliveredPages).toBe(3);
+    expect(closed.deliveredEstimate).toBe(8);
+    expect(closed.carriedPages).toBe(1);
+    expect(closed.carriedEstimate).toBe(2);
+  });
+
+  it("keeps a closed chapter's record even when its pages are archived afterwards", async () => {
+    const server = await startTestServer();
+    await bootstrap(server);
+    await project(server);
+    const open = await chapter(server, "First Brew", "open");
+    await chapter(server, "Second Brew");
+    const done = await page(server, { title: "Finished work", chapter: open.slug, estimate: 5 });
+    await server.request(`/api/pages/${done.id}`, { method: "PATCH", body: JSON.stringify({ status: "done" }) });
+
+    await close(server, open.slug, "next");
+    const before = (await board(server)).velocity.find((entry) => entry.slug === open.slug)!;
+    expect(before).toMatchObject({ donePages: 1, doneEstimate: 5, recorded: true });
+
+    // Archiving the page afterwards must not rewrite what the chapter is remembered as
+    // having delivered - that stretch of work really did finish it.
+    await server.request(`/api/pages/${done.id}`, { method: "DELETE" });
+    const after = (await board(server)).velocity.find((entry) => entry.slug === open.slug)!;
+    expect(after).toMatchObject({ donePages: 1, doneEstimate: 5, recorded: true });
   });
 
   it("credits a rolled-over page to whichever chapter it was finished in", async () => {

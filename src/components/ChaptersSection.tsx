@@ -189,8 +189,16 @@ export function ChaptersSection({ pages, chapters, velocity, busy, actions, chap
                     <p className="chapter-velocity">
                       {chapterVelocity && (
                         <>
+                          {/* Both readings, because a team that estimates only some of its
+                              work still has a page count, and neither number implies the
+                              other. */}
+                          <strong>{chapterVelocity.donePages}</strong>
+                          {" "}page{chapterVelocity.donePages === 1 ? "" : "s"}
+                          {" · "}
                           <strong>{chapterVelocity.doneEstimate}</strong> delivered
-                          {chapterVelocity.openEstimate > 0 && <> · {chapterVelocity.openEstimate} still open</>}
+                          {chapterVelocity.openPages > 0 && (
+                            <> · {chapterVelocity.openPages} still open ({chapterVelocity.openEstimate})</>
+                          )}
                           {chapterVelocity.unestimatedPages > 0 && (
                             <> · <em>{chapterVelocity.unestimatedPages} unestimated</em></>
                           )}
@@ -204,6 +212,7 @@ export function ChaptersSection({ pages, chapters, velocity, busy, actions, chap
                           {chapter.carriedTo ? ` to ${chapters.find((c) => c.slug === chapter.carriedTo)?.name ?? chapter.carriedTo}` : " onward"}
                         </>
                       )}
+                      {chapterVelocity?.recorded && <span className="chapter-velocity-sealed" title="Counted when this chapter closed"> · as closed</span>}
                     </p>
                   )}
                   <div className="chapter-row-main">

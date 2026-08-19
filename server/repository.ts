@@ -544,6 +544,8 @@ export function createChapter(
     carriedPages: null,
     carriedEstimate: null,
     carriedTo: null,
+    deliveredPages: null,
+    deliveredEstimate: null,
   };
   chapterStore.save(projectSlug, chapter);
   return { chapter: publicChapter(database, chapter, members) };
@@ -691,7 +693,7 @@ export function getBoard(
     // Chapters and estimates are separate gates, and velocity is the place they meet: it is
     // an estimate summed per chapter, so it needs both to mean anything.
     velocity: enabled && estimatesOn
-      ? chapterStore.list(String(project.slug)).map((chapter) => velocityFor(chapter.slug, pages))
+      ? chapterStore.list(String(project.slug)).map((chapter) => velocityFor(chapter, pages))
       : [],
   };
 }
@@ -705,18 +707,23 @@ export function getBoard(
  * are counted separately rather than as zero, so an empty total can be told from an
  * unestimated one.
  */
-function velocityFor(slug: string, pages: StoredPage[]): ChapterVelocity {
-  const mine = pages.filter((page) => page.chapter === slug);
+function velocityFor(chapter: StoredChapter, pages: StoredPage[]): ChapterVelocity {
+  const mine = pages.filter((page) => page.chapter === chapter.slug);
   const done = mine.filter((page) => page.status === "done");
   const open = mine.filter((page) => page.status !== "done");
   const total = (group: StoredPage[]) => group.reduce((sum, page) => sum + (page.estimate ?? 0), 0);
+  // A closed chapter answers with the numbers it recorded as it closed. Anything else would
+  // let later edits rewrite history: archive a delivered page and the stretch it was
+  // delivered in would quietly claim less than it did.
+  const recorded = chapter.deliveredPages !== null;
   return {
-    slug,
-    donePages: done.length,
-    doneEstimate: total(done),
+    slug: chapter.slug,
+    donePages: recorded ? chapter.deliveredPages! : done.length,
+    doneEstimate: recorded ? chapter.deliveredEstimate ?? 0 : total(done),
     openPages: open.length,
     openEstimate: total(open),
     unestimatedPages: mine.filter((page) => page.estimate === null).length,
+    recorded,
   };
 }
 
@@ -1174,6 +1181,8 @@ function publicChapter(database: DatabaseSync, value: StoredChapter, members: Me
     carriedPages: value.carriedPages,
     carriedEstimate: value.carriedEstimate,
     carriedTo: value.carriedTo,
+    deliveredPages: value.deliveredPages,
+    deliveredEstimate: value.deliveredEstimate,
   };
 }
 
@@ -1311,8 +1320,11 @@ export function closeChapter(
   }
 
   const pages = pageStore.list(projectSlug);
-  const unfinished = pages.filter((page) => page.chapter === slug && page.status !== "done");
-  const carriedEstimate = unfinished.reduce((sum, page) => sum + (page.estimate ?? 0), 0);
+  const mine = pages.filter((page) => page.chapter === slug);
+  const unfinished = mine.filter((page) => page.status !== "done");
+  const delivered = mine.filter((page) => page.status === "done");
+  const total = (group: StoredPage[]) => group.reduce((sum, page) => sum + (page.estimate ?? 0), 0);
+  const carriedEstimate = total(unfinished);
   const now = new Date().toISOString();
 
   // Rollover is only a move when somewhere was named; "leave them here" closes over work
@@ -1332,6 +1344,10 @@ export function closeChapter(
     carriedPages: unfinished.length,
     carriedEstimate,
     carriedTo: carryTo ?? null,
+    // Both readings of what it delivered, counted now rather than recomputed later: pages
+    // archived or re-placed after the fact must not rewrite a finished stretch's record.
+    deliveredPages: delivered.length,
+    deliveredEstimate: total(delivered),
   };
   chapterStore.save(projectSlug, closed);
   return {

@@ -144,6 +144,19 @@ export type Chapter = {
   carriedEstimate: number | null;
   /** Where the unfinished work went, when it went somewhere. */
   carriedTo: string | null;
+  /**
+   * What this chapter delivered, counted the moment it closed.
+   *
+   * Both readings are kept: how many pages were finished in it, and what those pages were
+   * estimated at. A team that estimates everything reads the second; a team that estimates
+   * some of its work still has the first, and neither is derived from the other.
+   *
+   * Recorded rather than recomputed because a closed chapter is history: pages archived,
+   * reopened, or re-placed afterwards would otherwise quietly rewrite what a finished
+   * stretch of work is remembered as having delivered. Null until the chapter closes.
+   */
+  deliveredPages: number | null;
+  deliveredEstimate: number | null;
 };
 
 /**
@@ -156,12 +169,18 @@ export type Chapter = {
  */
 export type ChapterVelocity = {
   slug: string;
+  /** Both readings of what was delivered: the count of pages, and what they were estimated at. */
   donePages: number;
   doneEstimate: number;
   openPages: number;
   openEstimate: number;
   /** Pages estimated at nothing, so a reader can tell an empty total from an unestimated one. */
   unestimatedPages: number;
+  /**
+   * True once the chapter has closed and these numbers are the ones it recorded, rather than
+   * a live count of whatever happens to point at it now.
+   */
+  recorded: boolean;
 };
 
 /**

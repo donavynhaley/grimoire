@@ -19,6 +19,8 @@ function chapter(overrides: Partial<Chapter> = {}): Chapter {
   carriedPages: null,
   carriedEstimate: null,
   carriedTo: null,
+  deliveredPages: null,
+  deliveredEstimate: null,
     ...overrides,
   };
 }

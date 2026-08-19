@@ -3034,6 +3034,8 @@ textarea:hover { border-color: var(--border-bright); }
 .chapter-velocity { margin: 0 0 2px; color: var(--muted); font-size: 9px; letter-spacing: 0.02em; }
 .chapter-velocity strong { color: var(--accent); font-size: 10px; }
 .chapter-velocity em { color: var(--faint); font-style: normal; }
+/* Said once a chapter's numbers are the ones it recorded rather than a live count. */
+.chapter-velocity-sealed { color: var(--faint); font-size: 8px; letter-spacing: 0.08em; text-transform: uppercase; }
 
 .chapter-row-main { display: flex; align-items: center; gap: 9px; }
 .chapter-row-main input {
