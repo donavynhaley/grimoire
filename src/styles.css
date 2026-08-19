@@ -1075,20 +1075,97 @@ textarea:hover { border-color: var(--border-bright); }
 .github-state-closed { color: var(--red); background: color-mix(in srgb, var(--red) 9%, transparent); border-color: color-mix(in srgb, var(--red) 25%, transparent); }
 .github-state-draft { color: var(--muted); }
 
-/* The rail's account of the link: the reference, its state, and the way out of it. */
-.github-link .rail-current { display: inline-flex; align-items: baseline; gap: 7px; min-width: 0; }
-.github-link .rail-current a { color: inherit; }
-.github-link .rail-current em { color: var(--faint); font-size: 8px; font-style: normal; letter-spacing: 0.06em; text-transform: uppercase; }
-.github-link .rail-current.github-state-open { color: var(--blue); }
-.github-link .rail-current.github-state-merged { color: var(--accent); }
-.github-link .rail-current.github-state-closed { color: var(--red); }
-.github-refused { margin: 4px 0 0; color: var(--red); font-size: 9px; }
+/*
+ * The page's GitHub link, sitting with the writing above the history fold.
+ *
+ * It is a trigger and a panel, like the chapter picker and the project switcher, rather than
+ * a bespoke field: the same shape everywhere means the same gesture everywhere. The panel is
+ * as wide as the column so a pull request title can be read rather than guessed at.
+ */
+.page-github { display: grid; gap: 8px; }
+.github-picker { position: relative; }
+.github-current { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 
-/* The pull request picker: a number and a title lead, the branch and author follow. */
-.github-results button { grid-template-columns: minmax(0, 1fr) auto; }
-.github-results strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.github-trigger {
+  display: inline-flex;
+  min-height: 32px;
+  padding: 0 10px;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  max-width: 100%;
+  color: var(--muted);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+.github-trigger:hover { color: var(--text); border-color: var(--border-bright); }
+.github-trigger-label { font-weight: 700; white-space: nowrap; }
+.github-trigger-state { color: var(--faint); font-size: 8px; letter-spacing: 0.08em; text-transform: uppercase; }
+/* The pull request's own words, which is what tells a reader they linked the right one. */
+.github-trigger-title { min-width: 0; overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.github-trigger-caret { color: var(--faint); font-size: 8px; }
+.github-trigger.github-state-open { color: var(--blue); border-color: color-mix(in srgb, var(--blue) 32%, var(--border)); }
+.github-trigger.github-state-merged { color: var(--accent); background: var(--accent-soft); border-color: #465f3c; }
+.github-trigger.github-state-closed { color: var(--red); border-color: color-mix(in srgb, var(--red) 28%, var(--border)); }
+.github-open-link { color: var(--faint); font-size: 9px; }
+.github-open-link:hover { color: var(--accent); }
+
+.github-panel {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  display: grid;
+  max-height: min(340px, 52vh);
+  padding: 6px;
+  gap: 4px;
+  overflow: hidden auto;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-bright);
+  border-radius: 8px;
+  box-shadow: 0 18px 40px rgb(0 0 0 / 55%);
+}
+.github-search { display: block; position: sticky; top: -6px; z-index: 1; margin: -6px -6px 2px; padding: 6px; background: var(--surface-raised); }
+.github-search input { width: 100%; height: 34px; box-sizing: border-box; }
+.github-options { display: grid; gap: 2px; }
+
+/* A row a person can actually read: the number and its state, then the title, then where
+   it came from. Titles wrap to two lines rather than being cut off at the first word. */
+.github-option {
+  display: grid;
+  padding: 9px 10px;
+  gap: 3px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.github-option:hover,
+.github-option:focus-visible { background: var(--surface-soft); border-color: var(--border); outline: none; }
+.github-option-head { display: flex; align-items: center; gap: 7px; }
+.github-option-number { color: var(--blue); font-size: 10px; font-weight: 800; }
+.github-option-title {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1.45;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
+}
+.github-option-meta { color: var(--faint); font-size: 9px; }
 .github-draft-tag {
-  flex: none;
   padding: 1px 6px;
   color: var(--muted);
   background: var(--surface-soft);
@@ -1100,6 +1177,24 @@ textarea:hover { border-color: var(--border-bright); }
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
+.github-empty { margin: 0; padding: 10px; color: var(--faint); font-size: 10px; line-height: 1.6; }
+
+/* Whatever was typed, offered as its own choice rather than silently accepted or refused. */
+.github-use-typed {
+  padding: 9px 10px;
+  margin-top: 2px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px dashed var(--border-bright);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+.github-use-typed:hover { color: var(--text); border-color: var(--accent); }
+.github-use-typed strong { color: var(--accent); overflow-wrap: anywhere; }
+.github-refused { margin: 6px 2px 2px; color: var(--red); font-size: 9px; }
 
 /* The GitHub section's setup steps and its proof of connection. */
 .github-intro { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
@@ -2683,6 +2778,10 @@ textarea:hover { border-color: var(--border-bright); }
     font-size: 20px;
   }
   .github-help { width: 44px; height: 44px; font-size: 14px; }
+  .github-trigger { min-height: 44px; font-size: 12px; }
+  .github-option { min-height: 44px; padding: 11px 12px; }
+  .github-option-title { font-size: 12px; }
+  .github-use-typed { min-height: 44px; }
 
   .primary-button,
   .danger-button { min-height: 44px; }
