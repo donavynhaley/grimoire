@@ -1084,6 +1084,15 @@ textarea:hover { border-color: var(--border-bright); }
 .github-link .rail-current.github-state-closed { color: var(--red); }
 .github-refused { margin: 4px 0 0; color: var(--red); font-size: 9px; }
 
+/* The GitHub section's setup steps and its proof of connection. */
+.github-setup { display: grid; margin: 0 0 16px; padding-left: 18px; gap: 8px; color: var(--muted); font-size: 11px; line-height: 1.6; max-width: 62ch; }
+.github-setup a { color: var(--accent); }
+.github-setup em { color: var(--text); font-style: normal; }
+.github-check { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.github-check-result { margin: 0; font-size: 10px; max-width: 48ch; }
+.github-check-result.ok { color: var(--accent); }
+.github-check-result.failed { color: var(--red); }
+
 /*
  * The grip is a real control, not a decoration.
  *

@@ -87,6 +87,15 @@ export function agentTokens(): Promise<{ tokens: AgentToken[] }> {
   return request<{ tokens: AgentToken[] }>("/api/agent-tokens");
 }
 
+/** Asks the server whether its GitHub repository and token actually answer. */
+export type GithubVerification =
+  | { ok: true; repo: string; private: boolean }
+  | { ok: false; reason: string; message: string };
+
+export function verifyGithub(): Promise<GithubVerification> {
+  return request<GithubVerification>("/api/github/verify", { method: "POST", body: "{}" });
+}
+
 /** The owner's restore list: every project that has been archived, newest first. */
 export function archivedProjects(): Promise<{ projects: ArchivedProject[] }> {
   return request<{ projects: ArchivedProject[] }>("/api/projects/archived");

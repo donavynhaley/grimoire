@@ -4,7 +4,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { dirname, extname, join, normalize } from "node:path";
 import { z, ZodError } from "zod";
 import { FIELD_TYPES, PAGE_STATUSES, type PageGithubLink, type PageStatus, type User } from "../shared/types";
-import { githubApiFetcher, normalizeRepo, parseGithubReference, syncProjectGithub, type GithubFetcher } from "./github";
+import { githubApiFetcher, normalizeRepo, parseGithubReference, syncProjectGithub, verifyRepoAccess, type GithubFetcher } from "./github";
 import { createProject, createWizardSimulatorProject, openDatabase } from "./database";
 import {
   archivePage,
@@ -669,6 +669,17 @@ export function createGrimoireServer(options: Options) {
       setSession(response, userId);
       json(response, 201, { user });
       broadcast(projectId, "work", null);
+      return;
+    }
+
+    if (method === "POST" && url.pathname === "/api/github/verify") {
+      const user = requireUser(context);
+      if (user.role !== "owner") throw new HttpError(403, "Only the owner can check the GitHub connection");
+      const projectId = requireProject(context, user);
+      await readJson(request);
+      const config = projectGithubConfig(database, projectId);
+      const verdict = await verifyRepoAccess(options.githubFetcher ?? githubApiFetcher, config.repo, config.token);
+      json(response, 200, verdict);
       return;
     }
 

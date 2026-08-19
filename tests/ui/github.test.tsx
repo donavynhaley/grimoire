@@ -85,6 +85,42 @@ describe("the GitHub settings section", () => {
   });
 });
 
+describe("the connection check", () => {
+  it("walks through setup and reports what the server found", async () => {
+    const user = userEvent.setup();
+    const board = boardFixture();
+    board.project.githubRepo = "wizards/simulator";
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", (input: RequestInfo | URL, init: RequestInit = {}) => {
+      const url = requestUrl(input);
+      const method = init.method ?? "GET";
+      if (url === "/api/github/verify") {
+        calls.push(url);
+        return response({ ok: true, repo: "wizards/simulator", private: true });
+      }
+      if (method !== "GET") return response({ ok: true });
+      if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
+      if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
+      if (url.startsWith("/api/agent-tokens")) return response({ tokens: [] });
+      if (url.startsWith("/api/session")) return response({ status: "authenticated", user: board.currentUser });
+      return response(board);
+    });
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /Wizard Simulator/ }));
+    await user.click(screen.getByRole("menuitem", { name: "Project settings" }));
+    await user.click(await screen.findByRole("button", { name: "GitHub" }));
+
+    // The section teaches the whole path, not just two blank fields.
+    expect(screen.getByText(/create a fine-grained access token/)).toBeInTheDocument();
+    expect(screen.getByText(/Pull requests: read-only/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "check the connection" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Connected: wizards/simulator (private repository).");
+    expect(calls).toEqual(["/api/github/verify"]);
+  });
+});
+
 describe("a page's GitHub row", () => {
   it("links a pasted reference from the editor", async () => {
     const user = userEvent.setup();

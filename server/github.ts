@@ -206,3 +206,41 @@ export async function syncProjectGithub(deps: SyncDependencies, projectId: strin
 function statusDiffers(before: PageGithubStatus | undefined, next: PageGithubStatus): boolean {
   return before?.state !== next.state || before?.prNumber !== next.prNumber || before?.prTitle !== next.prTitle;
 }
+
+export type RepoVerification =
+  | { ok: true; repo: string; private: boolean }
+  | { ok: false; reason: "no_repo" | "unauthorized" | "not_found" | "unreachable"; message: string };
+
+/**
+ * Asks GitHub whether the configured repository answers to the configured token.
+ *
+ * The one wrinkle worth explaining to a person: GitHub answers 404, not 403, for a private
+ * repository the caller cannot see, so "not found" here usually means the token - not the
+ * name - is what is wrong.
+ */
+export async function verifyRepoAccess(
+  fetcher: GithubFetcher,
+  repo: string,
+  token: string,
+): Promise<RepoVerification> {
+  const target = normalizeRepo(repo);
+  if (!target) return { ok: false, reason: "no_repo", message: "Name a repository first, as owner/name." };
+  try {
+    const { status, body } = await fetcher(`/repos/${target}`, token);
+    if (status === 200 && body) {
+      return { ok: true, repo: target, private: Boolean((body as Record<string, unknown>).private) };
+    }
+    if (status === 401) {
+      return { ok: false, reason: "unauthorized", message: "GitHub refused the token. It may be expired or mistyped." };
+    }
+    return {
+      ok: false,
+      reason: "not_found",
+      message: token
+        ? "GitHub cannot see that repository with this token. Check the name, and that the token was granted this repository."
+        : "GitHub cannot see that repository. If it is private, it needs a token.",
+    };
+  } catch {
+    return { ok: false, reason: "unreachable", message: "GitHub could not be reached from the server." };
+  }
+}

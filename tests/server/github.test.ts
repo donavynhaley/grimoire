@@ -21,6 +21,12 @@ function fakeGithub(answers: Record<string, unknown>) {
       const answer = answers[`${pull[1]}#${pull[2]}`];
       return answer ? { status: 200, body: answer } : { status: 404, body: null };
     }
+    const repoOnly = path.match(/^\/repos\/([^/]+\/[^/]+)$/);
+    if (repoOnly) {
+      const answer = answers[`repo:${repoOnly[1]}`];
+      if (answer === "unauthorized") return { status: 401, body: { message: "Bad credentials" } };
+      return answer ? { status: 200, body: answer } : { status: 404, body: null };
+    }
     const head = path.match(/^\/repos\/([^/]+\/[^/]+)\/pulls\?head=([^&]+)&/);
     if (head) {
       const branch = decodeURIComponent(head[2]).split(":")[1];
@@ -247,5 +253,43 @@ describe("the board following the code", () => {
     const files = readdirSync(directory).filter((name) => name.endsWith(".md"));
     const contents = files.map((name) => readFileSync(join(directory, name), "utf8")).join("\n");
     expect(contents).toContain('github: {"kind":"branch","name":"feat/rituals"}');
+  });
+});
+
+describe("checking the connection", () => {
+  it("confirms a reachable repository and says whether it is private", async () => {
+    const github = fakeGithub({ "repo:wizards/simulator": { private: true } });
+    const server = await startTestServer(undefined, { githubFetcher: github.fetcher });
+    await bootstrap(server);
+    await configureRepo(server, (await board(server)).project.id, "t");
+
+    const { body } = await server.request<{ ok: boolean; repo: string; private: boolean }>(
+      "/api/github/verify", { method: "POST", body: "{}" },
+    );
+    expect(body).toEqual({ ok: true, repo: "wizards/simulator", private: true });
+  });
+
+  it("explains a 404 as a token problem when a token is held, since GitHub hides private repos that way", async () => {
+    const github = fakeGithub({});
+    const server = await startTestServer(undefined, { githubFetcher: github.fetcher });
+    await bootstrap(server);
+    await configureRepo(server, (await board(server)).project.id, "t");
+
+    const { body } = await server.request<{ ok: boolean; message: string }>(
+      "/api/github/verify", { method: "POST", body: "{}" },
+    );
+    expect(body.ok).toBe(false);
+    expect(body.message).toContain("token");
+  });
+
+  it("asks for a repository before anything else", async () => {
+    const github = fakeGithub({});
+    const server = await startTestServer(undefined, { githubFetcher: github.fetcher });
+    await bootstrap(server);
+
+    const { body } = await server.request<{ ok: boolean; reason: string }>(
+      "/api/github/verify", { method: "POST", body: "{}" },
+    );
+    expect(body).toMatchObject({ ok: false, reason: "no_repo" });
   });
 });

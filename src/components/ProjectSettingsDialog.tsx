@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Drawer } from "./Drawer";
 import type { ArchivedProject, Page, Chapter, Member, ProjectCategory, ProjectField, User, UserRole } from "../../shared/types";
-import { archivedProjects } from "../api/client";
+import { archivedProjects, verifyGithub, type GithubVerification } from "../api/client";
 import { Growing } from "./Growing";
 import { CategoriesSection, type CategoryActions } from "./CategoriesSection";
 import { ChaptersSection, type ChapterActions } from "./ChaptersSection";
@@ -222,10 +222,12 @@ function GithubSection({ busy, project, onSetRepo, onSetToken, run }: {
 }) {
   const [repo, setRepo] = useState(project.githubRepo);
   const [token, setToken] = useState("");
+  const [verdict, setVerdict] = useState<GithubVerification | "checking" | null>(null);
 
   const saveRepo = () => {
     const next = repo.trim();
     if (next === project.githubRepo) return;
+    setVerdict(null);
     void run(() => onSetRepo(next), "The repository could not be saved");
   };
 
@@ -233,7 +235,17 @@ function GithubSection({ busy, project, onSetRepo, onSetToken, run }: {
     const next = token.trim();
     if (!next) return;
     setToken("");
+    setVerdict(null);
     void run(() => onSetToken(next), "The token could not be saved");
+  };
+
+  const check = async () => {
+    setVerdict("checking");
+    try {
+      setVerdict(await verifyGithub());
+    } catch {
+      setVerdict({ ok: false, reason: "unreachable", message: "The check itself failed. Try again in a moment." });
+    }
   };
 
   return (
@@ -243,6 +255,22 @@ function GithubSection({ busy, project, onSetRepo, onSetToken, run }: {
         into Review while its pull request is open, and into Done when it merges. Grimoire checks
         every couple of minutes, and only ever moves a page forward.
       </p>
+
+      {/* The whole setup, said as steps, because a blank pair of fields explains nothing. */}
+      <ol className="github-setup">
+        <li>Name the repository this project&apos;s pull requests live in, as <code>owner/name</code>.</li>
+        <li>
+          For a private repository,{" "}
+          <a href="https://github.com/settings/personal-access-tokens/new" rel="noreferrer" target="_blank">
+            create a fine-grained access token
+          </a>{" "}
+          on GitHub: under <em>Only select repositories</em> choose this one, and under{" "}
+          <em>Repository permissions</em> grant <em>Pull requests: read-only</em>. Nothing else is
+          needed. A public repository needs no token at all.
+        </li>
+        <li>Paste the token below, then check the connection.</li>
+      </ol>
+
       <div className="settings-row">
         <label className="field-label" htmlFor="settings-github-repo">Repository</label>
         <div className="settings-input">
@@ -257,8 +285,9 @@ function GithubSection({ busy, project, onSetRepo, onSetToken, run }: {
             value={repo}
           />
         </div>
-        <p className="settings-summary">Where this project&apos;s pull requests live. Clearing it pauses the automation.</p>
+        <p className="settings-summary">Clearing it pauses the automation; nothing already linked is forgotten.</p>
       </div>
+
       <div className="settings-row">
         <label className="field-label" htmlFor="settings-github-token">Access token</label>
         <div className="settings-input">
@@ -274,10 +303,7 @@ function GithubSection({ busy, project, onSetRepo, onSetToken, run }: {
             value={token}
           />
         </div>
-        <p className="settings-summary">
-          A fine-grained token with read access to pull requests. Optional for public repositories.
-          It stays on the server and is never shown again.
-        </p>
+        <p className="settings-summary">It stays on the server and is never shown again.</p>
         {project.githubTokenSet && (
           <button
             className="text-button danger-text"
@@ -287,6 +313,28 @@ function GithubSection({ busy, project, onSetRepo, onSetToken, run }: {
           >forget the saved token</button>
         )}
       </div>
+
+      <div className="settings-row">
+        <span className="field-label">Connection</span>
+        <div className="github-check">
+          <button className="quiet-button" disabled={busy || verdict === "checking"} onClick={() => void check()} type="button">
+            {verdict === "checking" ? "checking..." : "check the connection"}
+          </button>
+          {verdict !== null && verdict !== "checking" && (
+            <p className={verdict.ok ? "github-check-result ok" : "github-check-result failed"} role="status">
+              {verdict.ok
+                ? `Connected: ${verdict.repo} (${verdict.private ? "private" : "public"} repository).`
+                : verdict.message}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <p className="chapters-note">
+        Then, on any page: the <strong>GitHub</strong> row in its details takes a pull request URL,
+        a number like <code>#12</code>, or a branch name. A linked branch adopts whichever pull
+        request it grows.
+      </p>
     </div>
   );
 }
