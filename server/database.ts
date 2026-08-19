@@ -203,6 +203,11 @@ function migrate(database: DatabaseSync): void {
   if (!projectColumns.includes("github_token")) {
     database.exec("ALTER TABLE projects ADD COLUMN github_token TEXT NOT NULL DEFAULT ''");
   }
+  // Estimates are a gate like chapters: off by default, so a project that never asks for
+  // them keeps page files byte-identical to the ones it has now.
+  if (!projectColumns.includes("estimates_enabled")) {
+    database.exec("ALTER TABLE projects ADD COLUMN estimates_enabled INTEGER NOT NULL DEFAULT 0");
+  }
   if (!projectColumns.includes("description")) {
     database.exec("ALTER TABLE projects ADD COLUMN description TEXT NOT NULL DEFAULT ''");
   }

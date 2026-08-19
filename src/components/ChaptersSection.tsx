@@ -1,11 +1,13 @@
 import { type FormEvent, useState } from "react";
-import type { Page, Chapter } from "../../shared/types";
+import type { Page, Chapter, ChapterVelocity } from "../../shared/types";
 import { Growing } from "./Growing";
 import { chapterWhen, dayLabel } from "./chapter-dates";
 import type { SettingsRun } from "./use-settings-action";
 
 export type ChapterActions = {
   create: (input: { name: string; startsOn?: string | null; endsOn?: string | null }) => Promise<void>;
+  /** Closes a chapter and says what becomes of the work it did not finish. */
+  close: (slug: string, rollover: "next" | "release" | "keep" | string) => Promise<void>;
   update: (
     slug: string,
     input: { name?: string; description?: string; startsOn?: string | null; endsOn?: string | null; state?: Chapter["state"] },
@@ -16,6 +18,8 @@ export type ChapterActions = {
 type Props = {
   pages: Page[];
   chapters: Chapter[];
+  /** Per-chapter totals; empty when either chapters or estimates are switched off. */
+  velocity: ChapterVelocity[];
   busy: boolean;
   actions: ChapterActions;
   chaptersEnabled: boolean;
@@ -31,7 +35,7 @@ function openChapter(chapters: Chapter[]): Chapter | undefined {
   return chapters.find((chapter) => chapter.state === "open");
 }
 
-export function ChaptersSection({ pages, chapters, busy, actions, chaptersEnabled, canManage, onSetChaptersEnabled, onSetPageChapter, run }: Props) {
+export function ChaptersSection({ pages, chapters, velocity, busy, actions, chaptersEnabled, canManage, onSetChaptersEnabled, onSetPageChapter, run }: Props) {
   const [newName, setNewName] = useState("");
   const [newStart, setNewStart] = useState("");
   const [newEnd, setNewEnd] = useState("");
@@ -166,16 +170,42 @@ export function ChaptersSection({ pages, chapters, busy, actions, chaptersEnable
       ) : (
         <>
           <p className="chapters-note">
-            A chapter is a stretch of work with a name and, if it helps, dates. Nothing is counted, nothing rolls
-            over, and closing one never moves a page.
+            A chapter is a stretch of work with a name and, if it helps, dates. Nothing is estimated on
+            anyone&apos;s behalf and nothing is forecast; with estimates on, a chapter adds up what it
+            delivered. Closing one asks what should happen to the work it did not finish, and moves a page
+            only because somebody said so.
           </p>
 
           <div className="chapter-manager">
             {chapters.map((chapter) => {
               const placedIn = countIn(chapter.slug);
               const unfinished = unfinishedIn(chapter.slug);
+              // Where a rollover would send the work: the next chapter still planned.
+              const nextPlanned = plannedChapters.find((candidate) => candidate.slug !== chapter.slug);
+              const chapterVelocity = velocity.find((entry) => entry.slug === chapter.slug);
               return (
                 <Growing className={`chapter-row state-${chapter.state}`} key={chapter.slug}>
+                  {(chapterVelocity || chapter.carriedPages !== null) && (
+                    <p className="chapter-velocity">
+                      {chapterVelocity && (
+                        <>
+                          <strong>{chapterVelocity.doneEstimate}</strong> delivered
+                          {chapterVelocity.openEstimate > 0 && <> · {chapterVelocity.openEstimate} still open</>}
+                          {chapterVelocity.unestimatedPages > 0 && (
+                            <> · <em>{chapterVelocity.unestimatedPages} unestimated</em></>
+                          )}
+                        </>
+                      )}
+                      {chapter.carriedPages !== null && chapter.carriedPages > 0 && (
+                        <>
+                          {chapterVelocity && " · "}
+                          carried {chapter.carriedPages} page{chapter.carriedPages === 1 ? "" : "s"}
+                          {chapter.carriedEstimate ? ` (${chapter.carriedEstimate})` : ""}
+                          {chapter.carriedTo ? ` to ${chapters.find((c) => c.slug === chapter.carriedTo)?.name ?? chapter.carriedTo}` : " onward"}
+                        </>
+                      )}
+                    </p>
+                  )}
                   <div className="chapter-row-main">
                     <label className="sr-only" htmlFor={`chapter-name-${chapter.slug}`}>Rename {chapter.name}</label>
                     <input
@@ -254,33 +284,49 @@ export function ChaptersSection({ pages, chapters, busy, actions, chaptersEnable
                               sprint-like behaviour there is, so the unfinished pages move only
                               because someone chose one of these, and dismissing does nothing. */}
                           <div className="chapter-close-choices">
+                            {/*
+                              Rolling the work onward leads, because it is what a team
+                              closing a stretch of work almost always means - but it is still
+                              a choice somebody makes, never a thing that happens to them.
+                            */}
+                            {unfinished > 0 && nextPlanned && (
+                              <button
+                                disabled={busy}
+                                onClick={() => void run(
+                                  () => actions.close(chapter.slug, "next"),
+                                  "The chapter could not be closed",
+                                )}
+                                type="button"
+                              >roll them into {nextPlanned.name}</button>
+                            )}
                             <button
                               disabled={busy}
-                              onClick={() => void run(async () => {
-                                await close(chapter.slug);
-                              }, "The chapter could not be closed")}
+                              onClick={() => void run(
+                                () => actions.close(chapter.slug, "keep"),
+                                "The chapter could not be closed",
+                              )}
                               type="button"
                             >{unfinished > 0 ? "leave them here" : "close it"}</button>
                             {unfinished > 0 && plannedChapters
-                              .filter((candidate) => candidate.slug !== chapter.slug)
+                              .filter((candidate) => candidate.slug !== chapter.slug && candidate.slug !== nextPlanned?.slug)
                               .map((candidate) => (
                                 <button
                                   disabled={busy}
                                   key={candidate.slug}
-                                  onClick={() => void run(async () => {
-                                    await moveUnfinished(chapter.slug, candidate.slug);
-                                    await close(chapter.slug);
-                                  }, "The pages could not be moved")}
+                                  onClick={() => void run(
+                                    () => actions.close(chapter.slug, candidate.slug),
+                                    "The pages could not be moved",
+                                  )}
                                   type="button"
                                 >move them to {candidate.name}</button>
                               ))}
                             {unfinished > 0 && (
                               <button
                                 disabled={busy}
-                                onClick={() => void run(async () => {
-                                  await moveUnfinished(chapter.slug, null);
-                                  await close(chapter.slug);
-                                }, "The pages could not be released")}
+                                onClick={() => void run(
+                                  () => actions.close(chapter.slug, "release"),
+                                  "The pages could not be released",
+                                )}
                                 type="button"
                               >release them</button>
                             )}

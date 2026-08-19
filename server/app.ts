@@ -54,6 +54,10 @@ import {
   projectGithubConfig,
   setProjectGithub,
   clearGithubStatus,
+  closeChapter,
+  nextChapterAfter,
+  setEstimatesEnabled,
+  estimatesEnabled,
 } from "./repository";
 import { createOpaqueToken, hashPassword, hashToken, verifyPassword } from "./security";
 import {
@@ -73,7 +77,7 @@ import { createIdea, findIdea, getIdeas, promoteIdea, undoPromotion, updateIdea 
 import { MarkdownIdeaStore } from "./markdown-ideas";
 import { searchProject } from "./search";
 import { applyLinkPreview, pagePreview, ideaPreview, type LinkPreview } from "./link-preview";
-import {
+import { CHAPTER_STATE_LABELS,
   PAGE_COLUMN_LABELS,
   AUDIT_PAGE_SIZE,
   pageChanges,
@@ -174,6 +178,7 @@ const pageSchema = z.object({
   blockedBy: z.array(z.string().uuid()).max(20).optional(),
   status: pageStatus.optional(),
   assigneeId: z.string().uuid().nullable().optional(),
+  estimate: z.number().finite().min(0).max(100_000).nullable().optional(),
 });
 /**
  * Compare-and-swap fields, sent only for the content a client is actually rewriting.
@@ -200,6 +205,7 @@ const projectUpdateSchema = z
     chaptersEnabled: z.boolean().optional(),
     githubRepo: z.string().trim().max(200).optional(),
     githubToken: z.string().trim().max(300).optional(),
+    estimatesEnabled: z.boolean().optional(),
   })
   .refine(
     (input) =>
@@ -207,7 +213,8 @@ const projectUpdateSchema = z
       input.description !== undefined ||
       input.chaptersEnabled !== undefined ||
       input.githubRepo !== undefined ||
-      input.githubToken !== undefined,
+      input.githubToken !== undefined ||
+      input.estimatesEnabled !== undefined,
     { message: "Nothing to update" },
   );
 const chapterState = z.enum(["planned", "open", "closed"]);
@@ -217,6 +224,14 @@ const chapterCreateSchema = z.object({
   startsOn: calendarDay.nullable().optional(),
   endsOn: calendarDay.nullable().optional(),
   state: chapterState.optional(),
+});
+/**
+ * How a closing chapter disposes of what it did not finish. "next" is the planned chapter
+ * after it, "release" sets the work loose, "keep" leaves it where it is, and a slug names
+ * somewhere exactly.
+ */
+const chapterCloseSchema = z.object({
+  rollover: z.union([z.literal("next"), z.literal("release"), z.literal("keep"), chapterSlug]).optional(),
 });
 const chapterUpdateSchema = chapterCreateSchema.partial().extend({
   position: z.number().int().min(0).optional(),
@@ -774,6 +789,19 @@ export function createGrimoireServer(options: Options) {
           });
         }
       }
+      if (input.estimatesEnabled !== undefined) {
+        const wasEnabled = estimatesEnabled(database, projectId);
+        if (wasEnabled !== input.estimatesEnabled) {
+          if (!setEstimatesEnabled(database, projectId, input.estimatesEnabled)) {
+            throw new HttpError(404, "Project not found");
+          }
+          changes.push({
+            field: "estimates",
+            from: wasEnabled ? "on" : "off",
+            to: input.estimatesEnabled ? "on" : "off",
+          });
+        }
+      }
       if (input.chaptersEnabled !== undefined) {
         const wasEnabled = chaptersEnabled(database, projectId);
         if (wasEnabled !== input.chaptersEnabled) {
@@ -824,6 +852,7 @@ export function createGrimoireServer(options: Options) {
           name,
           description: String(projectById(database, projectId)?.description ?? ""),
           chaptersEnabled: chaptersEnabled(database, projectId),
+          estimatesEnabled: estimatesEnabled(database, projectId),
           githubRepo: githubAfter.repo,
           githubTokenSet: githubAfter.token !== "",
         },
@@ -1150,6 +1179,63 @@ export function createGrimoireServer(options: Options) {
         });
       }
       json(response, 200, { chapter: result.chapter });
+      broadcast(projectId, "work", requestClientId(request));
+      return;
+    }
+
+    const chapterCloseMatch = url.pathname.match(/^\/api\/chapters\/([^/]+)\/close$/);
+    if (method === "POST" && chapterCloseMatch) {
+      const user = requireUser(context);
+      if (user.role !== "owner") throw new HttpError(403, "Only the owner can manage chapters");
+      const projectId = requireProject(context, user);
+      requireChaptersEnabled(projectId);
+      const input = chapterCloseSchema.parse(await readJson(request));
+      const slug = chapterCloseMatch[1];
+      const project = projectById(database, projectId);
+      if (!project) throw new HttpError(404, "Project not found");
+
+      /*
+       * "next" is resolved here rather than in the browser so the rollover means the same
+       * thing however it was asked for - and so a chapter with nothing planned after it
+       * refuses plainly instead of silently setting the work loose.
+       */
+      let carryTo: string | null | undefined;
+      if (input.rollover === "next") {
+        carryTo = nextChapterAfter(chapterStore, String(project.slug), slug);
+        if (!carryTo) throw new HttpError(400, "There is no planned chapter to roll the work into");
+      } else if (input.rollover === "release") carryTo = null;
+      else if (input.rollover === "keep") carryTo = undefined;
+      else carryTo = input.rollover ?? undefined;
+
+      const before = chapterStore.list(String(project.slug)).find((chapter) => chapter.slug === slug);
+      const result = closeChapter(database, pageStore, chapterStore, projectId, slug, carryTo);
+      if (result === "not_found") throw new HttpError(404, "Chapter not found");
+      if (result === "already_closed") throw new HttpError(409, "That chapter is already closed");
+      if (result === "no_target") throw new HttpError(400, "That chapter cannot take the work");
+
+      const carriedWord = result.carried.pages === 0
+        ? "nothing unfinished"
+        : `${result.carried.pages} page${result.carried.pages === 1 ? "" : "s"}${
+          result.carried.estimate > 0 ? ` (${result.carried.estimate})` : ""
+        }`;
+      audit(context, {
+        projectId,
+        entityType: "chapter",
+        entityId: slug,
+        entityTitle: result.chapter.name,
+        action: "updated",
+        changes: [
+          { field: "state", from: CHAPTER_STATE_LABELS[before?.state ?? "open"], to: CHAPTER_STATE_LABELS.closed },
+          {
+            field: "carried over",
+            from: null,
+            to: carryTo === undefined || result.carried.pages === 0
+              ? carriedWord
+              : `${carriedWord} to ${carryTo ?? "no chapter"}`,
+          },
+        ],
+      });
+      json(response, 200, { chapter: result.chapter, carried: result.carried });
       broadcast(projectId, "work", requestClientId(request));
       return;
     }

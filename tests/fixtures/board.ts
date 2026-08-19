@@ -9,6 +9,7 @@ export function boardFixture(): BoardWorkspace {
       chaptersEnabled: false,
       githubRepo: "",
       githubTokenSet: false,
+      estimatesEnabled: false,
     },
     projects: [
       {
@@ -31,6 +32,7 @@ export function boardFixture(): BoardWorkspace {
     ],
     fields: [],
     chapters: [],
+  velocity: [],
     currentUser: {
       id: "00000000-0000-4000-8000-000000000010",
       name: "Donavyn",
@@ -71,6 +73,7 @@ export function boardFixture(): BoardWorkspace {
         createdAt: "2026-08-03T00:00:00.000Z",
         updatedAt: "2026-08-03T00:00:00.000Z",
         completedAt: null,
+        estimate: null,
         github: null,
         githubStatus: null,
       },
@@ -91,6 +94,7 @@ export function boardFixture(): BoardWorkspace {
         createdAt: "2026-08-03T00:00:00.000Z",
         updatedAt: "2026-08-03T00:00:00.000Z",
         completedAt: null,
+        estimate: null,
         github: null,
         githubStatus: null,
       },

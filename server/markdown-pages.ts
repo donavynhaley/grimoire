@@ -23,6 +23,7 @@ export type StoredPage = {
   completedAt: string | null;
   archivedAt: string | null;
   github: PageGithubLink | null;
+  estimate: number | null;
 };
 
 type LegacyPageRow = Record<string, string | number | null>;
@@ -44,6 +45,7 @@ const metadataSchema = z
     updated_at: z.string().refine(isTimestamp, "updated_at must be an ISO timestamp"),
     completed_at: z.string().refine(isTimestamp, "completed_at must be an ISO timestamp").nullable().optional(),
     archived_at: z.string().refine(isTimestamp, "archived_at must be an ISO timestamp").nullable().optional(),
+    estimate: z.number().finite().min(0).max(100_000).nullable().optional(),
     github: z
       .union([
         z.object({ kind: z.literal("pr"), number: z.number().int().min(1), repo: z.string().optional() }),
@@ -238,6 +240,7 @@ function parsePage(markdown: string): StoredPage {
     completedAt: metadata.completed_at ?? (metadata.status === "done" ? metadata.updated_at : null),
     archivedAt: metadata.archived_at ?? null,
     github: metadata.github ?? null,
+    estimate: metadata.estimate ?? null,
   };
 }
 
@@ -272,6 +275,7 @@ function serializePage(page: StoredPage): string {
     ["updated_at", page.updatedAt],
     ["completed_at", page.completedAt],
   );
+  if (page.estimate !== null) metadata.push(["estimate", page.estimate]);
   if (page.github !== null) metadata.push(["github", page.github as unknown as FrontmatterValue]);
   if (page.archivedAt !== null) metadata.push(["archived_at", page.archivedAt]);
   return serializeMarkdown(metadata, page.description);
@@ -280,6 +284,7 @@ function serializePage(page: StoredPage): string {
 function legacyRowToPage(row: LegacyPageRow): StoredPage {
   return {
     github: null,
+    estimate: null,
     id: String(row.id),
     title: String(row.title),
     description: String(row.description),

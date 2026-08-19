@@ -1052,6 +1052,22 @@ textarea:hover { border-color: var(--border-bright); }
 }
 .page-blocked::before { margin-right: 4px; content: "!"; }
 
+/* How much work a page is, worn as quietly as everything else on a card. */
+.estimate-pill {
+  display: inline-flex;
+  min-width: 17px;
+  min-height: 17px;
+  padding: 0 5px;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 7px;
+  font-weight: 800;
+}
+
 /* What GitHub last said about the page, worn as quietly as the category. */
 .github-pill {
   display: inline-flex;
@@ -3013,6 +3029,11 @@ textarea:hover { border-color: var(--border-bright); }
 }
 .chapter-row.state-open { border-left-color: var(--accent); }
 .chapter-row.state-closed { border-left-color: var(--border); opacity: 0.78; }
+
+/* What a chapter delivered, and what it carried onward when it closed. */
+.chapter-velocity { margin: 0 0 2px; color: var(--muted); font-size: 9px; letter-spacing: 0.02em; }
+.chapter-velocity strong { color: var(--accent); font-size: 10px; }
+.chapter-velocity em { color: var(--faint); font-style: normal; }
 
 .chapter-row-main { display: flex; align-items: center; gap: 9px; }
 .chapter-row-main input {

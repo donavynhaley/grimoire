@@ -8,7 +8,10 @@ The website is a visual editing layer over portable Markdown files.
 
 The game project is represented entirely by work pages and ideas.
 There are no built-in design pillars, milestones, outcomes, asset pipelines, or story-point systems.
-A project can opt into Chapters, which group pages into named stretches of work, but nothing in them counts, estimates, or rolls over.
+A project can opt into Chapters, which group pages into named stretches of work.
+Closing a chapter asks what should happen to whatever it did not finish: roll it into the next chapter, send it somewhere named, set it loose, or leave it where it is.
+A project can also opt into Estimates, a number on each page saying how much work it is.
+With both on, a chapter says what it delivered and what it carried onward - added up from what happened, never forecast.
 
 ## Work
 
@@ -85,7 +88,7 @@ Chapters are off until a project turns them on, and a project that never does se
 
 A chapter is a named stretch of the project's work, with optional dates, that a page can belong to.
 It answers what the team was working on and roughly when, never how much was committed to.
-There are no points, no estimates, no capacity, no velocity, no burndown, and no progress figure.
+There is no capacity, no burndown, and no forecast: a project that leaves Estimates off has no numbers in it at all.
 Dates are descriptive rather than binding: a chapter with neither a start nor an end is still a chapter, and one whose end date has passed keeps running until somebody closes it.
 
 At most one chapter is open at a time.
@@ -97,9 +100,22 @@ A page can sit in the Backlog while already belonging to a chapter, so a chapter
 The Backlog library gains a chapter filter and a one-click way to add any page to the chapter currently being viewed.
 
 Closing a chapter never moves a page by itself.
-It asks what should happen to the work that did not land, and every answer is a named choice: leave it here, move it to a planned chapter, or release it.
+It asks what should happen to the work that did not land, and every answer is a named choice: roll it into the next planned chapter, move it to a chapter named exactly, release it, or leave it here.
 Dismissing the question does nothing, and no page is ever carried forward automatically.
-Because nothing is moved out, a closed chapter stays an honest record of what was finished and what was not.
+Rolling over moves only what is unfinished, so a page finished inside a chapter stays in the chapter that finished it.
+Whatever the answer, the chapter records how many pages it could not finish and where they went, counted as it closes: once the pages belong to the next chapter, nothing about them still says they were carried out of this one.
+
+## Estimates
+
+Estimates are off until a project turns them on, and a project that never does carries no estimate on any page.
+
+An estimate is one number on a page saying how much work it is, in whatever unit the team means by one.
+Nothing multiplies it, forecasts from it, or rolls it up on anyone's behalf.
+A page nobody has estimated is not zero, and the two are never confused: the totals below count unestimated pages separately.
+
+With chapters on as well, each chapter adds up what it delivered - the estimates of pages finished while they belonged to it - alongside what it still holds open.
+Because rollover moves unfinished work onward, a page that carried over is counted by whichever chapter actually finished it, not the one that hoped to.
+That is the whole of velocity here: a sum of what happened, shown beside the chapter it happened in, with no line drawn through it and no next number predicted.
 
 With chapters enabled, the work filter bar grows a chapter picker.
 It lists the open chapter first, then planned ones, then closed ones newest first, alongside "All work" and the pages nobody has placed.
@@ -247,7 +263,7 @@ npm run test:e2e
 
 The end-to-end suite holds the app against a real Chromium as both an emulated Pixel and a desktop: touch drags, tap-based moves, sheet gestures, and the desktop presentation those must not disturb.
 
-The test suite covers authentication, secure password changes, single-use invitations, member removal, Markdown persistence, legacy migration, external edits, live project events, presence, the activity log, the active deck, Backlog search, project-wide search, completion history, reversible archives and promotions, categories, page dependencies, assignments, filtering, idea ranking, ordering, drag-and-drop interaction, Markdown note rendering, pasted note images, concurrent editing and refused overwrites, the while-you-were-away digest, markers, and seen cursor, chapters including the per-project gate, the single open chapter, closing without rollover, and the compatibility of page files with a build that predates chapters, and agent access including project pinning, revoked and expired credentials, archived projects suspending their credentials, read-only scopes, the routes no credential may reach, a session outranking a bearer header, rate limited writes that survive a backwards clock step, use tracking on reads, credential events in the log under their own entity type, agent attribution rendered in the activity, page history and away surfaces, and attribution surviving both revocation and a rebuild of the activity log.
+The test suite covers authentication, secure password changes, single-use invitations, member removal, Markdown persistence, legacy migration, external edits, live project events, presence, the activity log, the active deck, Backlog search, project-wide search, completion history, reversible archives and promotions, categories, page dependencies, assignments, filtering, idea ranking, ordering, drag-and-drop interaction, Markdown note rendering, pasted note images, concurrent editing and refused overwrites, the while-you-were-away digest, markers, and seen cursor, chapters including the per-project gate, the single open chapter, closing a chapter with and without rollover, per-chapter velocity, and the compatibility of page files with a build that predates chapters, and agent access including project pinning, revoked and expired credentials, archived projects suspending their credentials, read-only scopes, the routes no credential may reach, a session outranking a bearer header, rate limited writes that survive a backwards clock step, use tracking on reads, credential events in the log under their own entity type, agent attribution rendered in the activity, page history and away surfaces, and attribution surviving both revocation and a rebuild of the activity log.
 
 ## Self-hosting
 

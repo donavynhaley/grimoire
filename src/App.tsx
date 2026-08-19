@@ -429,6 +429,10 @@ export function App() {
     performSettings(() => mutate("/api/chapters", "POST", input));
   const updateChapter = (slug: string, input: Record<string, unknown>) =>
     performSettings(() => mutate(`/api/chapters/${slug}`, "PATCH", input));
+  /** Closing decides what happens to unfinished work, so the server does it as one act. */
+  const closeChapter = (slug: string, rollover: string) =>
+    performSettings(() => mutate(`/api/chapters/${slug}/close`, "POST", { rollover }));
+
   const deleteChapter = (slug: string) => performSettings(() => mutate(`/api/chapters/${slug}`, "DELETE"));
   const setChaptersEnabled = (enabled: boolean) =>
     performSettings(() => mutate(`/api/projects/${board?.project.id}`, "PATCH", { chaptersEnabled: enabled }));
@@ -465,7 +469,7 @@ export function App() {
         busy={busy}
         categoryActions={{ create: createCategory, update: updateCategory, remove: deleteCategory }}
         fieldActions={{ create: createField, update: updateField, remove: deleteField }}
-        chapterActions={{ create: createChapter, update: updateChapter, remove: deleteChapter }}
+        chapterActions={{ create: createChapter, update: updateChapter, close: closeChapter, remove: deleteChapter }}
         ideas={ideas}
         key={board.project.id}
         onChangeAvatar={changeAvatar}
@@ -494,6 +498,8 @@ export function App() {
           rename: (name) => renameProject(board.project.id, name),
           setDescription: (description) => describeProject(board.project.id, description),
           setChaptersEnabled,
+          setEstimatesEnabled: (enabled) =>
+            performSettings(() => mutate(`/api/projects/${board.project.id}`, "PATCH", { estimatesEnabled: enabled })),
           setGithubRepo: (repo) => performSettings(() => mutate(`/api/projects/${board.project.id}`, "PATCH", { githubRepo: repo })),
           setGithubToken: (token) => performSettings(() => mutate(`/api/projects/${board.project.id}`, "PATCH", { githubToken: token })),
           archive: () => archiveProject(board.project.id),

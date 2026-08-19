@@ -36,6 +36,7 @@ function page(overrides: Partial<StoredPage> = {}): StoredPage {
     completedAt: null,
     archivedAt: null,
     github: null,
+    estimate: null,
     ...overrides,
   };
 }

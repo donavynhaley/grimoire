@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Drawer } from "./Drawer";
-import type { ArchivedProject, Page, Chapter, Member, ProjectCategory, ProjectField, User, UserRole } from "../../shared/types";
+import type { ArchivedProject, Page, Chapter, ChapterVelocity, Member, ProjectCategory, ProjectField, User, UserRole } from "../../shared/types";
 import { archivedProjects, verifyGithub, type GithubVerification } from "../api/client";
 import { Growing } from "./Growing";
 import { CategoriesSection, type CategoryActions } from "./CategoriesSection";
@@ -35,6 +35,7 @@ export type ProjectSettingsActions = {
   rename: (name: string) => Promise<void>;
   setDescription: (description: string) => Promise<void>;
   setChaptersEnabled: (enabled: boolean) => Promise<void>;
+  setEstimatesEnabled: (enabled: boolean) => Promise<void>;
   setGithubRepo: (repo: string) => Promise<void>;
   setGithubToken: (token: string) => Promise<void>;
   archive: () => Promise<void>;
@@ -54,8 +55,10 @@ type Props = {
   categories: ProjectCategory[];
   chapters: Chapter[];
   chaptersEnabled: boolean;
+  /** Per-chapter totals, passed through to the chapters section that shows them. */
+  velocity: ChapterVelocity[];
   fields: ProjectField[];
-  project: { id: string; name: string; description: string; githubRepo: string; githubTokenSet: boolean };
+  project: { id: string; name: string; description: string; githubRepo: string; githubTokenSet: boolean; estimatesEnabled: boolean };
   section: SettingsSection;
   categoryActions: CategoryActions;
   chapterActions: ChapterActions;
@@ -89,6 +92,7 @@ export function ProjectSettingsDialog({
   categories,
   chapters,
   chaptersEnabled,
+  velocity,
   fields,
   project,
   section,
@@ -149,7 +153,15 @@ export function ProjectSettingsDialog({
             <CategoriesSection actions={categoryActions} busy={busy} canManage={isOwner} categories={categories} run={run} />
           )}
           {active === "fields" && (
-            <FieldsSection actions={fieldActions} busy={busy} canManage={isOwner} fields={fields} run={run} />
+            <FieldsSection
+              actions={fieldActions}
+              busy={busy}
+              canManage={isOwner}
+              estimatesEnabled={project.estimatesEnabled}
+              fields={fields}
+              onSetEstimatesEnabled={actions.setEstimatesEnabled}
+              run={run}
+            />
           )}
           {active === "chapters" && (
             <ChaptersSection
@@ -161,6 +173,7 @@ export function ProjectSettingsDialog({
               onSetChaptersEnabled={actions.setChaptersEnabled}
               onSetPageChapter={onSetPageChapter}
               pages={pages}
+              velocity={velocity}
               run={run}
             />
           )}

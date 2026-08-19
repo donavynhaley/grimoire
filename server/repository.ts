@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import { fieldHasOptions,
+  type ChapterVelocity,
   type PageGithubLink,
   type PageGithubStatus,
   PAGE_STATUSES,
@@ -540,6 +541,9 @@ export function createChapter(
     createdAt: now,
     updatedAt: now,
     closedAt: state === "closed" ? now : null,
+    carriedPages: null,
+    carriedEstimate: null,
+    carriedTo: null,
   };
   chapterStore.save(projectSlug, chapter);
   return { chapter: publicChapter(database, chapter, members) };
@@ -649,7 +653,7 @@ export function getBoard(
 ): BoardWorkspace | null {
   const project = row(
     database,
-    "SELECT id, name, slug, description, chapters_enabled, github_repo, github_token FROM projects WHERE id = ?",
+    "SELECT id, name, slug, description, chapters_enabled, estimates_enabled, github_repo, github_token FROM projects WHERE id = ?",
     projectId,
   );
   if (!project) return null;
@@ -658,6 +662,7 @@ export function getBoard(
   const pages = pageStore.list(String(project.slug));
   validateDependencyGraph(pages);
   const enabled = Number(project.chapters_enabled ?? 0) === 1;
+  const estimatesOn = Number(project.estimates_enabled ?? 0) === 1;
   const githubStatuses = githubStatusesForProject(database, projectId);
 
   return {
@@ -670,6 +675,7 @@ export function getBoard(
       // The token itself never rides the board payload; the interface only needs to know
       // whether one is held so settings can say "set" without saying what.
       githubTokenSet: String(project.github_token ?? "") !== "",
+      estimatesEnabled: Number(project.estimates_enabled ?? 0) === 1,
     },
     projects: listProjectsForUser(database, user),
     categories: categoriesForProject(database, projectId),
@@ -682,6 +688,35 @@ export function getBoard(
     currentUser: user,
     members,
     pages: pages.map((page) => publicPage(database, page, members, githubStatuses)),
+    // Chapters and estimates are separate gates, and velocity is the place they meet: it is
+    // an estimate summed per chapter, so it needs both to mean anything.
+    velocity: enabled && estimatesOn
+      ? chapterStore.list(String(project.slug)).map((chapter) => velocityFor(chapter.slug, pages))
+      : [],
+  };
+}
+
+/**
+ * What one chapter delivered and what it still holds.
+ *
+ * Delivered counts pages finished while they belonged to this chapter, which is the only
+ * honest reading once rollover exists: unfinished work moves onward, so a page that carried
+ * over is counted by whichever chapter it was actually finished in. Pages nobody estimated
+ * are counted separately rather than as zero, so an empty total can be told from an
+ * unestimated one.
+ */
+function velocityFor(slug: string, pages: StoredPage[]): ChapterVelocity {
+  const mine = pages.filter((page) => page.chapter === slug);
+  const done = mine.filter((page) => page.status === "done");
+  const open = mine.filter((page) => page.status !== "done");
+  const total = (group: StoredPage[]) => group.reduce((sum, page) => sum + (page.estimate ?? 0), 0);
+  return {
+    slug,
+    donePages: done.length,
+    doneEstimate: total(done),
+    openPages: open.length,
+    openEstimate: total(open),
+    unestimatedPages: mine.filter((page) => page.estimate === null).length,
   };
 }
 
@@ -727,6 +762,8 @@ type PageInput = {
   assigneeId?: string | null;
   /** The page's tie to GitHub: a parsed link to hold, or null to let go of one. */
   github?: PageGithubLink | null;
+  /** How much work this is; null clears it. */
+  estimate?: number | null;
 };
 
 export function createPage(
@@ -767,6 +804,7 @@ export function createPage(
     completedAt: status === "done" ? now : null,
     archivedAt: null,
     github: null,
+    estimate: input.estimate ?? null,
   };
   validateDependencyGraph([...pages, page]);
   pageStore.save(String(project.slug), page);
@@ -811,6 +849,7 @@ export function updatePage(
     status: nextStatus,
     assignee: input.assigneeId === undefined ? current.assignee : assignee?.email.toLowerCase() ?? null,
     github: input.github === undefined ? current.github : input.github,
+    estimate: input.estimate === undefined ? current.estimate : input.estimate,
     updatedAt: now,
     completedAt,
   };
@@ -1036,6 +1075,7 @@ function publicPage(
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
     completedAt: value.completedAt,
+    estimate: value.estimate,
     github: value.github,
     githubStatus: value.github
       ? githubStatuses?.get(value.id) ?? { state: "unchecked", prNumber: null, prTitle: null, prUrl: null, checkedAt: null }
@@ -1131,6 +1171,9 @@ function publicChapter(database: DatabaseSync, value: StoredChapter, members: Me
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
     closedAt: value.closedAt,
+    carriedPages: value.carriedPages,
+    carriedEstimate: value.carriedEstimate,
+    carriedTo: value.carriedTo,
   };
 }
 
@@ -1223,4 +1266,98 @@ export function saveGithubStatus(
 /** A link that is gone needs no cached answer about it. */
 export function clearGithubStatus(database: DatabaseSync, projectId: string, pageId: string): void {
   database.prepare("DELETE FROM github_link_status WHERE project_id = ? AND page_id = ?").run(projectId, pageId);
+}
+
+/* ---------- closing a chapter, and what it leaves behind ---------- */
+
+export type ChapterCloseResult =
+  | { chapter: Chapter; carried: { pages: number; estimate: number; to: string | null } }
+  | "not_found"
+  | "already_closed"
+  | "no_target";
+
+/**
+ * Closes a chapter and decides what happens to the work it did not finish.
+ *
+ * This is one act rather than a close followed by a sweep of page edits, because a chapter
+ * that closed while its rollover half-happened would leave the board lying about what a
+ * stretch delivered. The pages move, the totals are counted, and the chapter records them
+ * together or none of it happens.
+ *
+ * What is recorded is counted here rather than derived later: once the pages belong to the
+ * next chapter, nothing about them still says they were carried out of this one.
+ *
+ * `carryTo` names where unfinished work goes - another chapter, or null to set it loose.
+ * Only unfinished pages move; a page finished inside this chapter stays in it, which is what
+ * makes the delivered total mean what it says.
+ */
+export function closeChapter(
+  database: DatabaseSync,
+  pageStore: MarkdownPageStore,
+  chapterStore: MarkdownChapterStore,
+  projectId: string,
+  slug: string,
+  carryTo: string | null | undefined,
+): ChapterCloseResult {
+  const project = projectById(database, projectId);
+  if (!project) return "not_found";
+  const projectSlug = String(project.slug);
+  const chapters = chapterStore.list(projectSlug);
+  const chapter = chapters.find((candidate) => candidate.slug === slug);
+  if (!chapter) return "not_found";
+  if (chapter.state === "closed") return "already_closed";
+  if (carryTo && !chapters.some((candidate) => candidate.slug === carryTo && candidate.slug !== slug)) {
+    return "no_target";
+  }
+
+  const pages = pageStore.list(projectSlug);
+  const unfinished = pages.filter((page) => page.chapter === slug && page.status !== "done");
+  const carriedEstimate = unfinished.reduce((sum, page) => sum + (page.estimate ?? 0), 0);
+  const now = new Date().toISOString();
+
+  // Rollover is only a move when somewhere was named; "leave them here" closes over work
+  // that keeps belonging to the chapter it was not finished in, which is also a fact worth
+  // recording rather than a nothing.
+  if (carryTo !== undefined) {
+    for (const page of unfinished) {
+      pageStore.save(projectSlug, { ...page, chapter: carryTo, updatedAt: now });
+    }
+  }
+
+  const closed: StoredChapter = {
+    ...chapter,
+    state: "closed",
+    updatedAt: now,
+    closedAt: now,
+    carriedPages: unfinished.length,
+    carriedEstimate,
+    carriedTo: carryTo ?? null,
+  };
+  chapterStore.save(projectSlug, closed);
+  return {
+    chapter: publicChapter(database, closed, membersForProject(database, projectId)),
+    carried: { pages: unfinished.length, estimate: carriedEstimate, to: carryTo ?? null },
+  };
+}
+
+/** The chapter a rollover would reach for: the next planned one in reading order. */
+export function nextChapterAfter(
+  chapterStore: MarkdownChapterStore,
+  projectSlug: string,
+  slug: string,
+): string | null {
+  const planned = chapterStore.list(projectSlug).filter((chapter) => chapter.state === "planned" && chapter.slug !== slug);
+  return planned[0]?.slug ?? null;
+}
+
+export function setEstimatesEnabled(database: DatabaseSync, projectId: string, enabled: boolean): boolean {
+  const result = database
+    .prepare("UPDATE projects SET estimates_enabled = ?, updated_at = ? WHERE id = ?")
+    .run(enabled ? 1 : 0, new Date().toISOString(), projectId);
+  return Number(result.changes) > 0;
+}
+
+export function estimatesEnabled(database: DatabaseSync, projectId: string): boolean {
+  const project = projectById(database, projectId);
+  return Number(project?.estimates_enabled ?? 0) === 1;
 }

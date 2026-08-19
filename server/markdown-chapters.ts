@@ -16,6 +16,9 @@ export type StoredChapter = {
   createdAt: string;
   updatedAt: string;
   closedAt: string | null;
+  carriedPages: number | null;
+  carriedEstimate: number | null;
+  carriedTo: string | null;
 };
 
 /** A plain calendar day. A chapter boundary is a day the team named, not an instant. */
@@ -37,6 +40,9 @@ const metadataSchema = z
     created_at: z.string().refine(isTimestamp, "created_at must be an ISO timestamp"),
     updated_at: z.string().refine(isTimestamp, "updated_at must be an ISO timestamp"),
     closed_at: z.string().refine(isTimestamp, "closed_at must be an ISO timestamp").nullable().optional(),
+    carried_pages: z.number().int().min(0).nullable().optional(),
+    carried_estimate: z.number().finite().min(0).nullable().optional(),
+    carried_to: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(60).nullable().optional(),
   })
   .strict()
   .refine(
@@ -101,6 +107,9 @@ export class MarkdownChapterStore {
         createdAt: metadata.created_at,
         updatedAt: metadata.updated_at,
         closedAt: metadata.closed_at ?? null,
+        carriedPages: metadata.carried_pages ?? null,
+        carriedEstimate: metadata.carried_estimate ?? null,
+        carriedTo: metadata.carried_to ?? null,
       };
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
@@ -136,6 +145,11 @@ function serializeChapter(chapter: StoredChapter): string {
     ["updated_at", chapter.updatedAt],
     ["closed_at", chapter.closedAt],
   ];
+  // Written only by a chapter that actually closed over unfinished work, so every other
+  // chapter file stays byte-identical to the ones already on disk.
+  if (chapter.carriedPages !== null) metadata.push(["carried_pages", chapter.carriedPages]);
+  if (chapter.carriedEstimate !== null) metadata.push(["carried_estimate", chapter.carriedEstimate]);
+  if (chapter.carriedTo !== null) metadata.push(["carried_to", chapter.carriedTo]);
   return serializeMarkdown(metadata, chapter.description);
 }
 
