@@ -277,6 +277,9 @@ The sanctioned path is therefore offline — write the page files directly with 
 It reads the project's own categories and field definitions out of SQLite, resolves every row against them, serializes each page, and re-parses the result under the same rules the board loads with.
 Only when every row survives does `--apply` write a single file; without it the script reports and writes nothing.
 
+Its map has three sections, differing only in where their pages land: `backlog_pages` go to Backlog with no chapter, since Backlog means accepted but unscheduled and a chapter is a sprint; `as_is_pages` keep the column they had and take the `--chapter` flag; `done_pages` land in Done under the sprint that delivered them, each row naming its own chapter because history spans many.
+A per-row `chapter` beats the flag, and a `completed_at` may be supplied where the source system records no completion time — an explicitly-stated proxy orders the Done history, where the import timestamp would make every page identical.
+
 Existing page files are parsed before anything is planned, so an import into an already-broken board refuses rather than adding to the pile, and positions continue from the pages each column already holds.
 Each imported body opens with `Imported from Notion task <id>`, which is also the marker a rerun skips on, so the script is safe to run twice.
 
