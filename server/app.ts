@@ -3,7 +3,7 @@ import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { dirname, extname, join, normalize } from "node:path";
 import { z, ZodError } from "zod";
-import { FIELD_TYPES, PAGE_STATUSES, type PageGithubLink, type PageStatus, type User } from "../shared/types";
+import { BODY_MAX_LENGTH, FIELD_TYPES, PAGE_STATUSES, type PageGithubLink, type PageStatus, type User } from "../shared/types";
 import { buildRecap, discordPoster, postRecap, recapMessages, type DiscordPoster } from "./recap";
 import { forgetOpenPullRequests, githubApiFetcher, listOpenPullRequests, normalizeRepo, parseGithubReference, syncProjectGithub, verifyRepoAccess, type GithubFetcher } from "./github";
 import { createProject, createWizardSimulatorProject, openDatabase } from "./database";
@@ -177,7 +177,7 @@ const pageFieldPatch = z.record(
 );
 const pageSchema = z.object({
   title: z.string().trim().min(1).max(240),
-  description: z.string().trim().max(20_000).optional(),
+  description: z.string().trim().max(BODY_MAX_LENGTH).optional(),
   category: categorySlug.nullable().optional(),
   chapter: chapterSlug.nullable().optional(),
   fields: pageFieldPatch.optional(),
@@ -193,7 +193,7 @@ const pageSchema = z.object({
  */
 const contentPreconditions = {
   expectedTitle: z.string().trim().max(240).optional(),
-  expectedDescription: z.string().trim().max(20_000).optional(),
+  expectedDescription: z.string().trim().max(BODY_MAX_LENGTH).optional(),
 };
 const pageUpdateSchema = pageSchema.partial().extend({
   /** A pasted reference - PR URL, #123, branch, or branch URL - or null to unlink. */
@@ -230,7 +230,7 @@ const projectUpdateSchema = z
 const chapterState = z.enum(["planned", "open", "closed"]);
 const chapterCreateSchema = z.object({
   name: z.string().trim().min(1).max(80),
-  description: z.string().trim().max(20_000).optional(),
+  description: z.string().trim().max(BODY_MAX_LENGTH).optional(),
   startsOn: calendarDay.nullable().optional(),
   endsOn: calendarDay.nullable().optional(),
   state: chapterState.optional(),
@@ -245,7 +245,7 @@ const chapterCloseSchema = z.object({
 });
 const chapterUpdateSchema = chapterCreateSchema.partial().extend({
   position: z.number().int().min(0).optional(),
-  expectedDescription: z.string().trim().max(20_000).optional(),
+  expectedDescription: z.string().trim().max(BODY_MAX_LENGTH).optional(),
 });
 const categoryCreateSchema = z.object({
   name: z.string().trim().min(1).max(32),
@@ -268,7 +268,7 @@ const fieldUpdateSchema = fieldCreateSchema
 const ideaState = z.enum(["inbox", "shortlist", "parked"]);
 const ideaSchema = z.object({
   title: z.string().trim().min(1).max(240),
-  description: z.string().trim().max(20_000).optional(),
+  description: z.string().trim().max(BODY_MAX_LENGTH).optional(),
   state: ideaState.optional(),
 });
 const ideaUpdateSchema = ideaSchema.partial().extend({

@@ -25,6 +25,20 @@ export type Member = User & {
 export const PAGE_STATUSES = ["backlog", "ready", "in_progress", "review", "done"] as const;
 export type PageStatus = (typeof PAGE_STATUSES)[number];
 
+/**
+ * How long a page, chapter, or idea body may be.
+ *
+ * The number is a guard against a paste going wrong, not a statement about what a body is for.
+ * Nothing downstream needs it: the Markdown file has no length, and the frontmatter is
+ * unaffected either way. It was 20,000 until a migration arrived carrying real specifications
+ * that ran past it - thirteen of them, the longest at 34,164 characters - and truncating a
+ * specification to satisfy a number nothing depended on is the wrong trade.
+ *
+ * `packages/grimoire-mcp` carries its own copy, because it ships to npm on its own and imports
+ * nothing from here. The two must move together.
+ */
+export const BODY_MAX_LENGTH = 50_000;
+
 export type PageCategory = string;
 
 export type ProjectCategory = {
