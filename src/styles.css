@@ -3049,7 +3049,32 @@ textarea:hover { border-color: var(--border-bright); }
 /* Chapters dialog ------------------------------------------------------- */
 
 .chapters-note { margin: 0 0 16px; color: var(--faint); font-size: 11px; max-width: 62ch; }
-.chapter-manager { display: grid; margin-bottom: 18px; gap: 8px; }
+/*
+ * The chapters scroll in a well of their own rather than lengthening the dialog.
+ *
+ * A project accumulates chapters for as long as it runs, and each one here is a whole
+ * editable row - name, notes, both dates, and its actions. Eight of them stand taller than
+ * the dialog can ever be, so letting the section grow pushed the on/off switch, the line
+ * saying which chapter is open, and the form for naming the next one out of the window
+ * entirely: the reader lost every part of the panel that says where they are.
+ *
+ * Capping it hands those back. The rows are raised, so the well only needs an edge and a
+ * little inset to read as one container holding a list, and the cap is short enough that
+ * the form underneath is always in sight.
+ */
+.chapter-manager {
+  display: grid;
+  max-height: min(42vh, 360px);
+  margin-bottom: 18px;
+  padding: 8px;
+  gap: 8px;
+  overflow-y: auto;
+  /* Reaching the end of the chapters is not a reason to start scrolling the dialog. */
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
 
 .chapter-row {
   display: grid;
