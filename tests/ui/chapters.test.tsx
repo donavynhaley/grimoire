@@ -69,6 +69,18 @@ function chapteredBoard(): BoardWorkspace {
   };
 }
 
+/** The same board with a finished chapter behind the open one. */
+function withClosedChapter(): BoardWorkspace {
+  const board = chapteredBoard();
+  return {
+    ...board,
+    chapters: [
+      ...board.chapters,
+      chapter({ slug: "old-brew", name: "Old Brew", state: "closed", closedAt: "2026-08-12T00:00:00.000Z" }),
+    ],
+  };
+}
+
 /** Mounts the app over a board, recording every write it makes. */
 function mountWith(board: BoardWorkspace) {
   const calls: Array<{ url: string; method: string; body: unknown }> = [];
@@ -168,6 +180,50 @@ describe("chapters on the board", () => {
     const trigger = await screen.findByRole("button", { name: /Filter by chapter/ });
     expect(trigger).toHaveAccessibleName(/All work/);
     expect(await screen.findByText("Outside the chapter")).toBeInTheDocument();
+  });
+
+  it("folds the finished chapters away and opens them on request", async () => {
+    const user = userEvent.setup();
+    mountWith(withClosedChapter());
+
+    await user.click(await screen.findByRole("button", { name: /Filter by chapter/ }));
+
+    // The live chapters are in reach; the finished one is behind its own count.
+    expect(screen.getByRole("menuitem", { name: /Second Brew/ })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /Old Brew/ })).toBeNull();
+
+    const fold = screen.getByRole("button", { name: /earlier/ });
+    expect(fold).toHaveAttribute("aria-expanded", "false");
+    expect(fold).toHaveTextContent("1");
+
+    await user.click(fold);
+    expect(screen.getByRole("menuitem", { name: /Old Brew/ })).toBeInTheDocument();
+  });
+
+  it("folds them back once the picker has been closed again", async () => {
+    const user = userEvent.setup();
+    mountWith(withClosedChapter());
+
+    const trigger = await screen.findByRole("button", { name: /Filter by chapter/ });
+    await user.click(trigger);
+    await user.click(screen.getByRole("button", { name: /earlier/ }));
+    expect(screen.getByRole("menuitem", { name: /Old Brew/ })).toBeInTheDocument();
+
+    // Reaching for one old chapter is not a standing instruction to keep showing them all.
+    await user.click(trigger);
+    await user.click(trigger);
+    expect(screen.queryByRole("menuitem", { name: /Old Brew/ })).toBeNull();
+  });
+
+  it("shows the finished chapters on sight when the board is filtered to one", async () => {
+    window.history.replaceState({}, "", "/?chapter=old-brew");
+    const user = userEvent.setup();
+    mountWith(withClosedChapter());
+
+    // Otherwise the row the board is currently narrowed to would be hidden inside the fold.
+    await user.click(await screen.findByRole("button", { name: /Filter by chapter/ }));
+    expect(screen.getByRole("button", { name: /earlier/ })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("menuitem", { name: /Old Brew/ })).toHaveAttribute("aria-current", "true");
   });
 
   it("keeps the chapter filter alongside a people filter", async () => {

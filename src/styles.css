@@ -2914,6 +2914,39 @@ textarea:hover { border-color: var(--border-bright); }
   text-transform: uppercase;
 }
 /*
+ * The group of finished chapters folds, so its label is the control that folds it. It keeps
+ * the size and weight of the labels either side of it - this is still the heading of a group
+ * rather than a button competing with the chapters under it - and earns a count and a caret
+ * for saying how much is behind the fold.
+ */
+.chapter-group-fold { display: grid; gap: 1px; }
+.chapter-group-label.as-toggle {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  padding: 6px 10px 4px;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-align: left;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.chapter-group-label.as-toggle:hover { color: var(--muted); background: var(--surface-soft); }
+.chapter-group-count,
+.chapter-group-caret { letter-spacing: normal; }
+/* At the 8px of the labels around it the caret is a speck, and it is the only thing saying
+ * this row can be opened at all. It gets the size it needs to be read as a direction. */
+.chapter-group-caret { justify-self: start; font-size: 10px; line-height: 1; }
+@media (pointer: coarse) {
+  .chapter-group-label.as-toggle { min-height: 34px; }
+}
+/*
  * A row is the filter plus, on any chapter that is not the current one, a way to make it so.
  * The action stays quiet until the row is hovered or focused, so the list still reads as a
  * list - except on a touch device, where there is no hover to reveal it with.
