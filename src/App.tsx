@@ -500,6 +500,10 @@ export function App() {
           setChaptersEnabled,
           setEstimatesEnabled: (enabled) =>
             performSettings(() => mutate(`/api/projects/${board.project.id}`, "PATCH", { estimatesEnabled: enabled })),
+          setDiscordWebhook: (webhook) =>
+            performSettings(() => mutate(`/api/projects/${board.project.id}`, "PATCH", { discordWebhook: webhook })),
+          setRecapOnClose: (enabled) =>
+            performSettings(() => mutate(`/api/projects/${board.project.id}`, "PATCH", { recapOnClose: enabled })),
           setGithubRepo: (repo) => performSettings(() => mutate(`/api/projects/${board.project.id}`, "PATCH", { githubRepo: repo })),
           setGithubToken: (token) => performSettings(() => mutate(`/api/projects/${board.project.id}`, "PATCH", { githubToken: token })),
           archive: () => archiveProject(board.project.id),

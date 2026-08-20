@@ -655,7 +655,7 @@ export function getBoard(
 ): BoardWorkspace | null {
   const project = row(
     database,
-    "SELECT id, name, slug, description, chapters_enabled, estimates_enabled, github_repo, github_token FROM projects WHERE id = ?",
+    "SELECT id, name, slug, description, chapters_enabled, estimates_enabled, github_repo, github_token, discord_webhook, recap_on_close FROM projects WHERE id = ?",
     projectId,
   );
   if (!project) return null;
@@ -678,6 +678,9 @@ export function getBoard(
       // whether one is held so settings can say "set" without saying what.
       githubTokenSet: String(project.github_token ?? "") !== "",
       estimatesEnabled: Number(project.estimates_enabled ?? 0) === 1,
+      // The webhook itself stays on the server; the interface only needs to know one is held.
+      discordWebhookSet: String(project.discord_webhook ?? "") !== "",
+      recapOnClose: Number(project.recap_on_close ?? 1) === 1,
     },
     projects: listProjectsForUser(database, user),
     categories: categoriesForProject(database, projectId),
@@ -1162,7 +1165,7 @@ function requireCoherentDates(startsOn: string | null, endsOn: string | null): v
   }
 }
 
-function publicChapter(database: DatabaseSync, value: StoredChapter, members: Member[]): Chapter {
+export function publicChapter(database: DatabaseSync, value: StoredChapter, members: Member[]): Chapter {
   const currentCreator = members.find((member) => member.email.toLowerCase() === value.createdBy.toLowerCase());
   const historicalCreator = currentCreator ?? findUserByEmail(database, value.createdBy);
   return {
@@ -1374,6 +1377,37 @@ export function setEstimatesEnabled(database: DatabaseSync, projectId: string, e
 }
 
 export function estimatesEnabled(database: DatabaseSync, projectId: string): boolean {
-  const project = projectById(database, projectId);
+  // Asked for directly rather than through projectById, which selects only the project's
+  // identity: a gate read through it was always answered "off" whatever the column said.
+  const project = row(database, "SELECT estimates_enabled FROM projects WHERE id = ?", projectId);
   return Number(project?.estimates_enabled ?? 0) === 1;
+}
+
+/* ---------- where a recap goes ---------- */
+
+export type RecapConfig = { webhook: string; onClose: boolean };
+
+export function projectRecapConfig(database: DatabaseSync, projectId: string): RecapConfig {
+  const project = row(database, "SELECT discord_webhook, recap_on_close FROM projects WHERE id = ?", projectId);
+  return {
+    webhook: String(project?.discord_webhook ?? ""),
+    onClose: Number(project?.recap_on_close ?? 1) === 1,
+  };
+}
+
+/** Written only for what the caller actually sent, so saving one never clears the other. */
+export function setProjectRecap(
+  database: DatabaseSync,
+  projectId: string,
+  input: { webhook?: string; onClose?: boolean },
+): void {
+  const now = new Date().toISOString();
+  if (input.webhook !== undefined) {
+    database.prepare("UPDATE projects SET discord_webhook = ?, updated_at = ? WHERE id = ?").run(input.webhook, now, projectId);
+  }
+  if (input.onClose !== undefined) {
+    database
+      .prepare("UPDATE projects SET recap_on_close = ?, updated_at = ? WHERE id = ?")
+      .run(input.onClose ? 1 : 0, now, projectId);
+  }
 }

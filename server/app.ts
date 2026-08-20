@@ -4,6 +4,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { dirname, extname, join, normalize } from "node:path";
 import { z, ZodError } from "zod";
 import { FIELD_TYPES, PAGE_STATUSES, type PageGithubLink, type PageStatus, type User } from "../shared/types";
+import { buildRecap, discordPoster, postRecap, recapMessages, type DiscordPoster } from "./recap";
 import { forgetOpenPullRequests, githubApiFetcher, listOpenPullRequests, normalizeRepo, parseGithubReference, syncProjectGithub, verifyRepoAccess, type GithubFetcher } from "./github";
 import { createProject, createWizardSimulatorProject, openDatabase } from "./database";
 import {
@@ -56,6 +57,9 @@ import {
   clearGithubStatus,
   closeChapter,
   nextChapterAfter,
+  projectRecapConfig,
+  setProjectRecap,
+  publicChapter,
   setEstimatesEnabled,
   estimatesEnabled,
 } from "./repository";
@@ -107,6 +111,8 @@ type Options = {
   githubPollMs?: number;
   /** Stands in for the GitHub API in tests. */
   githubFetcher?: GithubFetcher;
+  /** Stands in for Discord in tests. */
+  discordPoster?: DiscordPoster;
 };
 
 type RequestContext = {
@@ -203,6 +209,8 @@ const projectUpdateSchema = z
     name: z.string().trim().min(2).max(80).optional(),
     description: z.string().trim().max(2000).optional(),
     chaptersEnabled: z.boolean().optional(),
+    discordWebhook: z.string().trim().max(500).optional(),
+    recapOnClose: z.boolean().optional(),
     githubRepo: z.string().trim().max(200).optional(),
     githubToken: z.string().trim().max(300).optional(),
     estimatesEnabled: z.boolean().optional(),
@@ -214,7 +222,9 @@ const projectUpdateSchema = z
       input.chaptersEnabled !== undefined ||
       input.githubRepo !== undefined ||
       input.githubToken !== undefined ||
-      input.estimatesEnabled !== undefined,
+      input.estimatesEnabled !== undefined ||
+      input.discordWebhook !== undefined ||
+      input.recapOnClose !== undefined,
     { message: "Nothing to update" },
   );
 const chapterState = z.enum(["planned", "open", "closed"]);
@@ -375,6 +385,44 @@ export function createGrimoireServer(options: Options) {
     },
     onChanged: (projectId: string) => broadcast(projectId, "work", null),
   };
+  /**
+   * The facts about one chapter, gathered once.
+   *
+   * Served and posted from the same call on purpose: a payload an agent reads to write the
+   * story has to be the payload the plain message was built from, or the two accounts of a
+   * sprint drift apart.
+   */
+  function recapFor(projectId: string, slug: string) {
+    const project = projectById(database, projectId);
+    if (!project) return null;
+    const projectSlug = String(project.slug);
+    const chapters = chapterStore.list(projectSlug);
+    const chapter = chapters.find((candidate) => candidate.slug === slug);
+    if (!chapter) return null;
+    const members = membersForProject(database, projectId);
+    // Everything closed before this one, which is what an average is taken across.
+    const previous = chapters.filter(
+      (candidate) => candidate.slug !== slug && candidate.closedAt !== null && candidate.closedAt < (chapter.closedAt ?? "9999"),
+    );
+    return buildRecap(
+      chapter,
+      previous,
+      pageStore.list(projectSlug),
+      members,
+      publicChapter(database, chapter, members),
+    );
+  }
+
+  /** Posts a chapter's recap, and says plainly why it did not when it did not. */
+  async function sendRecap(projectId: string, slug: string): Promise<{ sent: number; failed: number } | "no_webhook" | "not_found"> {
+    const config = projectRecapConfig(database, projectId);
+    if (!config.webhook) return "no_webhook";
+    const recap = recapFor(projectId, slug);
+    if (!recap) return "not_found";
+    const messages = recapMessages(recap, estimatesEnabled(database, projectId));
+    return postRecap(options.discordPoster ?? discordPoster, config.webhook, messages);
+  }
+
   async function runGithubSync(projectId: string): Promise<void> {
     try {
       await syncProjectGithub(githubDeps, projectId);
@@ -696,6 +744,30 @@ export function createGrimoireServer(options: Options) {
       return;
     }
 
+    const recapMatch = url.pathname.match(/^\/api\/chapters\/([^/]+)\/recap$/);
+    if (method === "GET" && recapMatch) {
+      const user = requireUser(context);
+      const projectId = requireProject(context, user);
+      requireChaptersEnabled(projectId);
+      const recap = recapFor(projectId, recapMatch[1]);
+      if (!recap) throw new HttpError(404, "Chapter not found");
+      json(response, 200, { recap });
+      return;
+    }
+
+    if (method === "POST" && recapMatch) {
+      const user = requireUser(context);
+      if (user.role !== "owner") throw new HttpError(403, "Only the owner can post a recap");
+      const projectId = requireProject(context, user);
+      requireChaptersEnabled(projectId);
+      await readJson(request);
+      const result = await sendRecap(projectId, recapMatch[1]);
+      if (result === "not_found") throw new HttpError(404, "Chapter not found");
+      if (result === "no_webhook") throw new HttpError(400, "This project has no Discord webhook to post to");
+      json(response, 200, result);
+      return;
+    }
+
     if (method === "POST" && url.pathname === "/api/github/verify") {
       const user = requireUser(context);
       if (user.role !== "owner") throw new HttpError(403, "Only the owner can check the GitHub connection");
@@ -816,6 +888,22 @@ export function createGrimoireServer(options: Options) {
         }
       }
 
+      if (input.discordWebhook !== undefined) {
+        // The log records that a destination changed, never what it is.
+        const had = projectRecapConfig(database, projectId).webhook !== "";
+        setProjectRecap(database, projectId, { webhook: input.discordWebhook });
+        const has = input.discordWebhook !== "";
+        if (had !== has) {
+          changes.push({ field: "discord webhook", from: had ? "set" : null, to: has ? "set" : null });
+        }
+      }
+      if (input.recapOnClose !== undefined) {
+        const was = projectRecapConfig(database, projectId).onClose;
+        if (was !== input.recapOnClose) {
+          setProjectRecap(database, projectId, { onClose: input.recapOnClose });
+          changes.push({ field: "recap on close", from: was ? "on" : "off", to: input.recapOnClose ? "on" : "off" });
+        }
+      }
       if (input.githubRepo !== undefined) {
         const previousRepo = projectGithubConfig(database, projectId).repo;
         const nextRepo = normalizeRepo(input.githubRepo);
@@ -853,6 +941,8 @@ export function createGrimoireServer(options: Options) {
           description: String(projectById(database, projectId)?.description ?? ""),
           chaptersEnabled: chaptersEnabled(database, projectId),
           estimatesEnabled: estimatesEnabled(database, projectId),
+          discordWebhookSet: projectRecapConfig(database, projectId).webhook !== "",
+          recapOnClose: projectRecapConfig(database, projectId).onClose,
           githubRepo: githubAfter.repo,
           githubTokenSet: githubAfter.token !== "",
         },
@@ -1237,6 +1327,14 @@ export function createGrimoireServer(options: Options) {
       });
       json(response, 200, { chapter: result.chapter, carried: result.carried });
       broadcast(projectId, "work", requestClientId(request));
+      /*
+       * The recap goes out after the answer, not before it: a Discord outage must never be
+       * the reason a chapter fails to close. Whatever happens to the post, the close already
+       * happened and the board already knows.
+       */
+      if (projectRecapConfig(database, projectId).onClose) {
+        void sendRecap(projectId, slug).catch((error) => console.error("recap post failed", error));
+      }
       return;
     }
 

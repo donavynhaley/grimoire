@@ -10,6 +10,8 @@ export function boardFixture(): BoardWorkspace {
       githubRepo: "",
       githubTokenSet: false,
       estimatesEnabled: false,
+      discordWebhookSet: false,
+      recapOnClose: true,
     },
     projects: [
       {

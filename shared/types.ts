@@ -167,6 +167,36 @@ export type Chapter = {
  * counted by whichever chapter it was actually finished in. Nothing here is a forecast -
  * the product refuses to estimate on anyone's behalf - it only adds up what happened.
  */
+/**
+ * What a chapter delivered, said as facts for something else to narrate.
+ *
+ * Served as well as posted: the plain Discord message is built from exactly this, so an
+ * agent that wants to write the story reads the same numbers rather than a second version
+ * of them.
+ */
+export type ChapterRecap = {
+  chapter: Chapter;
+  delivered: number;
+  deliveredEstimate: number;
+  carriedPages: number;
+  carriedEstimate: number;
+  carriedTo: string | null;
+  /** The mean of what earlier chapters delivered, or null when there is nothing to compare. */
+  averageDelivered: number | null;
+  averageDeliveredEstimate: number | null;
+  byPerson: Array<{
+    memberId: string;
+    name: string;
+    shipped: number;
+    shippedEstimate: number;
+    inFlight: number;
+    titles: string[];
+  }>;
+  unassignedDelivered: number;
+  stillOpen: { ready: number; inProgress: number; review: number };
+  project: { done: number; backlog: number; total: number };
+};
+
 export type ChapterVelocity = {
   slug: string;
   /** Both readings of what was delivered: the count of pages, and what they were estimated at. */
@@ -254,6 +284,10 @@ export type BoardWorkspace = {
     githubTokenSet: boolean;
     /** Off unless this project asked for estimates. When false, no page carries one. */
     estimatesEnabled: boolean;
+    /** Whether a Discord webhook is held for recaps; the URL itself never leaves the server. */
+    discordWebhookSet: boolean;
+    /** Whether closing a chapter posts its recap without being asked. */
+    recapOnClose: boolean;
   };
   projects: ProjectSummary[];
   categories: ProjectCategory[];
