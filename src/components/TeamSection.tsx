@@ -77,9 +77,11 @@ export function TeamSection({ currentUser, members, online, busy, onCreateInvite
       </div>
       {isOwner && (
         <>
-          {/* Roles are account-wide by design, so the button's reach is named where it lives. */}
+          {/* Roles are account-wide by design, so the button's reach is named where it lives -
+              including the half of it that is not granted, which is the half people assume. */}
           <p className="settings-summary role-reach-note">
-            Making someone an owner grants owner powers on every project, not just this one.
+            Making someone an owner grants owner powers on every project they are on, not just this
+            one. It does not add them to any project.
           </p>
           <div className="invite-box">
             <div><span className="field-label">Invite someone</span><p>One person can use this link. Creating another revokes this one. It expires after seven days.</p></div>

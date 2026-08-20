@@ -208,7 +208,9 @@ Deleting one, or withdrawing a choice from a list, clears the values it left beh
 
 An owner can promote another member to owner, or demote one, from the Team section of settings.
 The role decides who can reshape the project — its name, categories, chapters, fields, agent access, and membership — while everyone can work on pages and ideas.
-Roles are account-wide by design, and the Team section says so where the button lives: making someone an owner grants owner powers on every project, not just the one on screen.
+Roles are account-wide by design, and the Team section says so where the button lives: making someone an owner grants owner powers on every project they are on, not just the one on screen.
+The role is the power, never the reach. Promoting somebody adds them to nothing: an owner lists, opens, renames, archives and restores only the projects they have been put on, and the project picker offers exactly those.
+The account that creates a project is written in as its owning member, and that is the one membership no removal may delete, so a project is never left with nobody who can reach it.
 Changing your own role is refused: the one case worth allowing is a sole owner demoting themselves, which leaves nobody who can ever promote anyone again.
 
 ## Agent access

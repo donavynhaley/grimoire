@@ -56,18 +56,16 @@ export function userCount(database: DatabaseSync): number {
   return Number(row(database, "SELECT COUNT(*) AS count FROM users")?.count ?? 0);
 }
 
+/** Where somebody lands with no project named: the first one they were put on. */
 export function defaultProjectIdForUser(database: DatabaseSync, user: User): string | null {
-  const value =
-    user.role === "owner"
-      ? row(database, "SELECT id AS project_id FROM projects WHERE archived_at IS NULL ORDER BY created_at LIMIT 1")
-      : row(
-        database,
-        `SELECT project_members.project_id FROM project_members
-         JOIN projects ON projects.id = project_members.project_id
-         WHERE project_members.user_id = ? AND projects.archived_at IS NULL
-         ORDER BY project_members.created_at LIMIT 1`,
-        user.id,
-      );
+  const value = row(
+    database,
+    `SELECT project_members.project_id FROM project_members
+     JOIN projects ON projects.id = project_members.project_id
+     WHERE project_members.user_id = ? AND projects.archived_at IS NULL
+     ORDER BY project_members.created_at LIMIT 1`,
+    user.id,
+  );
   return value ? String(value.project_id) : null;
 }
 
@@ -111,10 +109,17 @@ export function advanceSeenCursor(database: DatabaseSync, projectId: string, use
     .run(projectId, userId, sequence, new Date().toISOString());
 }
 
+/**
+ * Whether this person is on that project at all.
+ *
+ * Membership is the reach; the account-wide role is only the power carried inside it. An
+ * owner may do more than a member wherever the two of them both stand, but being an owner
+ * is not a standing invitation to every project on the installation - somebody has to have
+ * put them on it. Insisting on that costs an owner nothing they should have had, because
+ * the account that creates a project is written in as its owning member, and that is the
+ * one membership row no removal is allowed to delete.
+ */
 export function userCanAccessProject(database: DatabaseSync, user: User, projectId: string): boolean {
-  if (user.role === "owner") {
-    return Boolean(row(database, "SELECT 1 AS ok FROM projects WHERE id = ? AND archived_at IS NULL", projectId));
-  }
   return Boolean(
     row(
       database,
@@ -127,18 +132,34 @@ export function userCanAccessProject(database: DatabaseSync, user: User, project
   );
 }
 
+/**
+ * Membership alone, with no opinion about whether the project is archived.
+ *
+ * Restoring is the one thing worth doing to a project that is already archived, and the
+ * check above deliberately refuses those. This answers the narrower question that route
+ * actually has: was this ever their project?
+ */
+export function userIsProjectMember(database: DatabaseSync, user: User, projectId: string): boolean {
+  return Boolean(
+    row(
+      database,
+      "SELECT 1 AS ok FROM project_members WHERE project_id = ? AND user_id = ?",
+      projectId,
+      user.id,
+    ),
+  );
+}
+
+/** The projects this person is on. The picker offers exactly these, for everyone. */
 export function listProjectsForUser(database: DatabaseSync, user: User): ProjectSummary[] {
-  const values =
-    user.role === "owner"
-      ? rows(database, "SELECT id, name, description FROM projects WHERE archived_at IS NULL ORDER BY created_at")
-      : rows(
-        database,
-        `SELECT projects.id, projects.name, projects.description FROM project_members
-         JOIN projects ON projects.id = project_members.project_id
-         WHERE project_members.user_id = ? AND projects.archived_at IS NULL
-         ORDER BY project_members.created_at`,
-        user.id,
-      );
+  const values = rows(
+    database,
+    `SELECT projects.id, projects.name, projects.description FROM project_members
+     JOIN projects ON projects.id = project_members.project_id
+     WHERE project_members.user_id = ? AND projects.archived_at IS NULL
+     ORDER BY project_members.created_at`,
+    user.id,
+  );
   return values.map((value) => ({
     id: String(value.id),
     name: String(value.name),
@@ -173,10 +194,21 @@ export function archiveProject(database: DatabaseSync, projectId: string): Archi
 }
 
 /** Archiving was a one-way door until this list existed; it feeds the owner's restore surface. */
-export function listArchivedProjects(database: DatabaseSync): ArchivedProject[] {
+/**
+ * The archived projects this person is on, newest first.
+ *
+ * Archiving only sets `archived_at`, so the membership rows outlive it and still say whose
+ * project this was. A restore list drawn without them would name every project the
+ * installation has ever archived to anyone holding the owner role.
+ */
+export function listArchivedProjects(database: DatabaseSync, user: User): ArchivedProject[] {
   return rows(
     database,
-    "SELECT id, name, archived_at FROM projects WHERE archived_at IS NOT NULL ORDER BY archived_at DESC",
+    `SELECT projects.id, projects.name, projects.archived_at FROM project_members
+     JOIN projects ON projects.id = project_members.project_id
+     WHERE project_members.user_id = ? AND projects.archived_at IS NOT NULL
+     ORDER BY projects.archived_at DESC`,
+    user.id,
   ).map((value) => ({
     id: String(value.id),
     name: String(value.name),

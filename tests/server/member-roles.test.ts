@@ -129,6 +129,95 @@ describe("member roles", () => {
     expect(event?.changes).toEqual([{ field: "role", from: "member", to: "owner" }]);
   });
 
+  /*
+   * The role says what somebody may do; membership says where. Promoting Maren used to hand
+   * her the whole installation, because every project query took "owner" as a reason to skip
+   * the membership join - so a second owner saw, read, renamed and could archive projects
+   * nobody had ever put her on.
+   */
+  describe("an owner still only reaches the projects they are on", () => {
+    /** Promotes Maren, makes a project she is not on, and leaves her signed in. */
+    async function promotedMemberAndAProjectSheIsNotOn(server: TestServer) {
+      await bootstrap(server);
+      await registerMember(server);
+      await login(server, ownerAccount);
+      const maren = (await members(server)).find((member) => member.email === MEMBER.email)!;
+      await setRole(server, maren.id, "owner");
+      const hidden = await server.request<{ project: { id: string } }>("/api/projects", {
+        method: "POST",
+        body: JSON.stringify({ name: "Secret Roadmap" }),
+      });
+      await login(server, MEMBER);
+      return hidden.body.project.id;
+    }
+
+    it("leaves it out of the project list she picks from", async () => {
+      const server = await startTestServer();
+      await promotedMemberAndAProjectSheIsNotOn(server);
+
+      const listed = await server.request<{ projects: { name: string }[] }>("/api/projects");
+      expect(listed.body.projects.map((project) => project.name)).toEqual(["Wizard Simulator"]);
+      // The board carries the same list, and it is the one the picker actually renders.
+      const workspace = await server.request<{ projects: { name: string }[] }>("/api/board");
+      expect(workspace.body.projects.map((project) => project.name)).toEqual(["Wizard Simulator"]);
+    });
+
+    it("refuses to read, rename or archive it, as though it were not there", async () => {
+      const server = await startTestServer();
+      const hidden = await promotedMemberAndAProjectSheIsNotOn(server);
+
+      // 404 rather than 403: a project she is not on is not hers to be told about.
+      const read = await server.request("/api/board", { headers: { "x-grimoire-project": hidden } });
+      expect(read.response.status).toBe(404);
+      const renamed = await server.request(`/api/projects/${hidden}`, {
+        method: "PATCH",
+        body: JSON.stringify({ name: "Pwned" }),
+      });
+      expect(renamed.response.status).toBe(404);
+      const archived = await server.request(`/api/projects/${hidden}`, { method: "DELETE" });
+      expect(archived.response.status).toBe(404);
+    });
+
+    it("keeps her owner powers on the project she is on", async () => {
+      const server = await startTestServer();
+      await promotedMemberAndAProjectSheIsNotOn(server);
+
+      // The narrowing is about reach, not power: nothing she could already do is taken away.
+      const created = await server.request("/api/categories", {
+        method: "POST",
+        body: JSON.stringify({ name: "Payments", color: "#8bb9c9" }),
+      });
+      expect(created.response.status).toBe(201);
+      expect((await server.request<{ project: { name: string } }>("/api/board")).body.project.name)
+        .toBe("Wizard Simulator");
+    });
+
+    it("leaves someone else's archived project off her restore list, and refuses the restore", async () => {
+      const server = await startTestServer();
+      const hidden = await promotedMemberAndAProjectSheIsNotOn(server);
+      await login(server, ownerAccount);
+      await server.request(`/api/projects/${hidden}`, { method: "DELETE" });
+      await login(server, MEMBER);
+
+      const archived = await server.request<{ projects: { id: string }[] }>("/api/projects/archived");
+      expect(archived.body.projects.map((project) => project.id)).not.toContain(hidden);
+      const restored = await server.request(`/api/projects/${hidden}/restore`, { method: "POST" });
+      expect(restored.response.status).toBe(404);
+    });
+
+    it("still lets the owner who made it see and restore it", async () => {
+      const server = await startTestServer();
+      const hidden = await promotedMemberAndAProjectSheIsNotOn(server);
+      await login(server, ownerAccount);
+      await server.request(`/api/projects/${hidden}`, { method: "DELETE" });
+
+      const archived = await server.request<{ projects: { id: string }[] }>("/api/projects/archived");
+      expect(archived.body.projects.map((project) => project.id)).toContain(hidden);
+      const restored = await server.request(`/api/projects/${hidden}/restore`, { method: "POST" });
+      expect(restored.response.status).toBe(200);
+    });
+  });
+
   it("is closed to an agent token, whatever its scope", async () => {
     const server = await startTestServer();
     await bootstrap(server);

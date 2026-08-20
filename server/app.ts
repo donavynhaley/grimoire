@@ -51,6 +51,7 @@ import {
   updateChapter,
   updateField,
   userCanAccessProject,
+  userIsProjectMember,
   userCount,
   projectGithubConfig,
   setProjectGithub,
@@ -837,6 +838,7 @@ export function createGrimoireServer(options: Options) {
     if (method === "PATCH" && projectMatch) {
       const user = requireUser(context);
       if (user.role !== "owner") throw new HttpError(403, "Only the owner can change project settings");
+      requireProjectMembership(user, projectMatch[1]);
       const input = projectUpdateSchema.parse(await readJson(request));
       const projectId = projectMatch[1];
       const before = projectById(database, projectId);
@@ -962,7 +964,7 @@ export function createGrimoireServer(options: Options) {
     if (method === "GET" && url.pathname === "/api/projects/archived") {
       const user = requireUser(context);
       if (user.role !== "owner") throw new HttpError(403, "Only the owner can see archived projects");
-      json(response, 200, { projects: listArchivedProjects(database) });
+      json(response, 200, { projects: listArchivedProjects(database, user) });
       return;
     }
 
@@ -970,6 +972,10 @@ export function createGrimoireServer(options: Options) {
     if (method === "POST" && projectRestoreMatch) {
       const user = requireUser(context);
       if (user.role !== "owner") throw new HttpError(403, "Only the owner can restore projects");
+      // Archived, so membership is asked for on its own - the live-project check refuses these.
+      if (!userIsProjectMember(database, user, projectRestoreMatch[1])) {
+        throw new HttpError(404, "Archived project not found");
+      }
       await readJson(request);
       const restoredName = projectById(database, projectRestoreMatch[1])?.name;
       if (!restoreProject(database, projectRestoreMatch[1])) {
@@ -990,6 +996,7 @@ export function createGrimoireServer(options: Options) {
     if (method === "DELETE" && projectMatch) {
       const user = requireUser(context);
       if (user.role !== "owner") throw new HttpError(403, "Only the owner can archive projects");
+      requireProjectMembership(user, projectMatch[1]);
       await readJson(request);
       const archivedName = projectById(database, projectMatch[1])?.name;
       const result = archiveProject(database, projectMatch[1]);
@@ -1850,6 +1857,21 @@ export function createGrimoireServer(options: Options) {
     if (!email) return null;
     const stored = findUserByEmail(database, email);
     return stored ? String(stored.name) : null;
+  }
+
+  /**
+   * Gates a route that names its project in the URL rather than the header.
+   *
+   * `requireProject` covers everything that works on "the project I am looking at". These
+   * few name one outright - rename it, archive it, restore it - and the owner check beside
+   * them asks only what this account may do, never which projects it may do it to. Without
+   * this an owner could reconfigure or archive a project nobody ever put them on.
+   *
+   * It answers 404 rather than 403, so a project someone is not on is indistinguishable
+   * from one that does not exist.
+   */
+  function requireProjectMembership(user: User, projectId: string): void {
+    if (!userCanAccessProject(database, user, projectId)) throw new HttpError(404, "Project not found");
   }
 
   function requireProject(context: RequestContext, user: User): string {
