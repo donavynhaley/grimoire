@@ -268,6 +268,24 @@ If positions are duplicated after an interrupted external edit, Grimoire uses cr
 Idea promotion writes the new Backlog page before archiving the source idea.
 The archived idea retains the created page UUID as a durable backlink.
 
+## Bulk import
+
+Seeding a project with hundreds of pages through the API would spend the write rate limit and, worse, could half-land: the strict schema means one rejected file fails the whole board, so a partial import is the outcome that must never happen.
+The sanctioned path is therefore offline — write the page files directly with the server stopped, then start it.
+
+`ops/import-sample.mjs` is that path for the sample Notion migration.
+It reads the project's own categories and field definitions out of SQLite, resolves every row against them, serializes each page, and re-parses the result under the same rules the board loads with.
+Only when every row survives does `--apply` write a single file; without it the script reports and writes nothing.
+
+Its map has three sections, differing only in where their pages land: `backlog_pages` go to Backlog with no chapter, since Backlog means accepted but unscheduled and a chapter is a sprint; `as_is_pages` keep the column they had and take the `--chapter` flag; `done_pages` land in Done under the sprint that delivered them, each row naming its own chapter because history spans many.
+A per-row `chapter` beats the flag, and a `completed_at` may be supplied where the source system records no completion time — an explicitly-stated proxy orders the Done history, where the import timestamp would make every page identical.
+
+Existing page files are parsed before anything is planned, so an import into an already-broken board refuses rather than adding to the pile, and positions continue from the pages each column already holds.
+Each imported body opens with `Imported from Notion task <id>`, which is also the marker a rerun skips on, so the script is safe to run twice.
+
+Ops scripts stay dependency-free, so the serializer and parser there mirror `server/markdown-files.ts` rather than importing it.
+`tests/server/import-team.example.test.ts` is what keeps the copies honest: it loads what the script writes through the real `MarkdownPageStore` and the real board route, so a format drift fails the suite instead of a board.
+
 ## Activity log
 
 Every change made through Grimoire appends one row to `audit_events`.
