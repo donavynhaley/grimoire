@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
-import type { BoardWorkspace, Page } from "../../shared/types";
+import { BODY_MAX_LENGTH, type BoardWorkspace, type Page } from "../../shared/types";
 import { bootstrap, ownerAccount, startTestServer } from "./test-server";
 
 const directories: string[] = [];
@@ -331,3 +331,42 @@ describe("page board", () => {
     migratedDatabase.close();
   });
 });
+
+describe("body length", () => {
+  /**
+   * The limit catches a paste going wrong; it does not say what a body is for. The sample
+   * history import arrived carrying thirteen specifications past the old 20,000, so this pins
+   * the ceiling against a quiet revert: a body longer than the number used to be must still be
+   * stored and served whole.
+   */
+  it("stores a body far longer than the old twenty-thousand limit", async () => {
+    const server = await startTestServer();
+    await bootstrap(server);
+    // Trimmed here because the schema trims too, and a trailing space would make the
+    // round-trip look like it lost a character.
+    const body = "A specification that ran long. ".repeat(1_000).trim();
+    expect(body.length).toBeGreaterThan(20_000);
+    expect(body.length).toBeLessThanOrEqual(BODY_MAX_LENGTH);
+
+    const created = await server.request<{ page: Page }>("/api/pages", {
+      method: "POST",
+      body: JSON.stringify({ title: "A page with a very long body", description: body }),
+    });
+
+    expect(created.response.status).toBe(201);
+    expect(created.body.page.description).toHaveLength(body.length);
+  });
+
+  it("still refuses a body past the ceiling", async () => {
+    const server = await startTestServer();
+    await bootstrap(server);
+
+    const { response } = await server.request("/api/pages", {
+      method: "POST",
+      body: JSON.stringify({ title: "Too much", description: "x".repeat(BODY_MAX_LENGTH + 1) }),
+    });
+
+    expect(response.status).toBe(400);
+  });
+});
+

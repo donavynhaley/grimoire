@@ -16,6 +16,15 @@ import {
   resolveStatus,
 } from "./resolve.js";
 
+/**
+ * How long a body may be, mirroring `BODY_MAX_LENGTH` in the server's shared/types.ts.
+ *
+ * Duplicated rather than imported because this package ships to npm on its own and takes no
+ * dependency on the application source. The server is the one that enforces it; this copy only
+ * saves an agent a round trip to be told the same thing. They must move together.
+ */
+const BODY_MAX_LENGTH = 50_000;
+
 /** What a field patch looks like coming from an agent. `null` clears one. */
 const fieldPatch = z
   .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
@@ -189,7 +198,7 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
         "otherwise, which is usually right: Up Next is meant to stay small.",
       inputSchema: {
         title: z.string().min(1).max(240).describe("The page title."),
-        notes: z.string().max(20_000).optional().describe("Markdown notes for the body."),
+        notes: z.string().max(BODY_MAX_LENGTH).optional().describe("Markdown notes for the body."),
         column: z
           .string()
           .optional()
@@ -239,7 +248,7 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
         title: z.string().min(1).max(240).optional().describe("A new title. Requires expectedTitle."),
         notes: z
           .string()
-          .max(20_000)
+          .max(BODY_MAX_LENGTH)
           .optional()
           .describe("New Markdown notes, replacing the whole body. Requires expectedNotes."),
         expectedTitle: z
@@ -249,7 +258,7 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
           .describe("The title you read before deciding to rewrite it, verbatim from grimoire_read_page."),
         expectedNotes: z
           .string()
-          .max(20_000)
+          .max(BODY_MAX_LENGTH)
           .optional()
           .describe("The notes you read before deciding to rewrite them, verbatim from grimoire_read_page."),
         column: z.string().optional().describe("Move it to another column."),
@@ -352,7 +361,7 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
         "can promote an idea into work, which is the point of keeping the two apart.",
       inputSchema: {
         title: z.string().min(1).max(240).describe("The idea, in a sentence."),
-        notes: z.string().max(20_000).optional().describe("Markdown notes."),
+        notes: z.string().max(BODY_MAX_LENGTH).optional().describe("Markdown notes."),
       },
     },
     async ({ title, notes }) => {
