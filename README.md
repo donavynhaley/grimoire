@@ -149,8 +149,10 @@ Everything in settings saves as it is edited — on blur or Enter — and the di
 General holds the project's name and its optional one-sentence description; categories and fields can be reordered; each chapter carries an editable intent line, the honest replacement for a sprint goal.
 Members can open settings too and read every section an owner can reshape — the mutation controls, agent access, and the danger zone stay owner-only.
 Archiving a project offers the same eight-second undo a page gets, and the Danger zone lists every archived project with a restore action, so archiving is no longer a one-way door.
-The owner can create single-use invitation links from the Team section.
-Only the newest unused invitation remains valid, and invitation links expire after seven days.
+An owner brings people onto a project from the Team section, in one of two ways.
+Somebody who already has an account is added by their email address, and joins as a member of that project — nothing is sent, and the project is simply there the next time they look.
+Somebody who does not yet have an account gets a single-use invitation link instead; only the newest unused invitation remains valid, and links expire after seven days.
+The two are separate because an invitation only ever creates an account and refuses an address that already has one, so it can never be the way an existing teammate joins a second project.
 The owner can also remove members from the Team section, which revokes their sessions and live connections and clears their page assignments without erasing their authorship history.
 
 Accounts, sessions, invitations, project membership, and the activity log are stored in a local SQLite database.
@@ -214,6 +216,7 @@ That reaches the project it was granted on and nothing else: it adds nobody to a
 Changing your own role is refused: the one case worth allowing is a project's sole owner demoting themselves, which leaves nobody who can ever promote anyone again.
 
 **Admin** belongs to the installation, and there is exactly one — whoever set it up.
+The Team section marks them with an `admin` badge beside their name, separately from whatever role they hold on the project being looked at.
 The admin reaches every project and can reshape any of them, which is what keeps an installation from being stranded behind an owner who has gone quiet. No route grants the role and none takes it away: the admin cannot be demoted or removed from a project by anybody, including a project's own owner.
 Nobody else is account-wide anything. Everyone else earns what they can do per project.
 

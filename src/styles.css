@@ -2172,6 +2172,22 @@ textarea:hover { border-color: var(--border-bright); }
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
+/*
+ * The installation's admin, said beside the name. It takes the quiet treatment rather than
+ * the accent: it is there to be found once, not to rank the team down the page.
+ */
+.member-admin {
+  padding: 2px 6px;
+  flex: none;
+  color: var(--muted);
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
 /* Page fields: definitions in settings, values on a page, and a chip on the tile. */
 .field-intro { margin: 0 0 4px; }
 .field-manager { display: flex; flex-direction: column; gap: 10px; }
@@ -2248,6 +2264,24 @@ textarea:hover { border-color: var(--border-bright); }
 
 .invite-box p { margin: 6px 0 0; color: var(--muted); font-size: 8px; }
 .invite-link { grid-column: 1 / -1; gap: 8px; }
+/* The address and its action read as one control, the way the invite link beside it does. */
+.member-add { display: flex; gap: 6px; align-items: center; }
+.member-add input {
+  min-width: 0;
+  width: 22ch;
+  padding: 7px 9px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 10px;
+}
+.member-add input:focus { border-color: var(--border-bright); outline: none; }
+@media (max-width: 620px) {
+  .member-add { grid-column: 1 / -1; }
+  .member-add input { width: 100%; flex: 1; }
+}
 
 .account-identity {
   display: flex;

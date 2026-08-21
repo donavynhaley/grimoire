@@ -34,6 +34,7 @@ import {
   advanceSeenCursor,
   initializeSeenCursor,
   listArchivedProjects,
+  addProjectMember,
   membersForProject,
   projectById,
   projectSlug,
@@ -279,6 +280,8 @@ const ideaUpdateSchema = ideaSchema.partial().extend({
 });
 
 const memberRoleSchema = z.object({ role: z.enum(["owner", "member"]) }).strict();
+/** Naming an account outright, because the alternative is listing everyone to choose from. */
+const memberAddSchema = z.object({ email: z.string().trim().email().max(320) }).strict();
 
 const searchSchema = z.object({
   q: z.string().trim().min(1).max(240),
@@ -1361,6 +1364,31 @@ export function createGrimoireServer(options: Options) {
         changes: released > 0 ? [{ field: "pages released", from: null, to: String(released) }] : [],
       });
       json(response, 200, { ok: true, released });
+      broadcast(projectId, "work", requestClientId(request));
+      return;
+    }
+
+    if (method === "POST" && url.pathname === "/api/members") {
+      const user = requireUser(context);
+      const projectId = requireProjectOwner(context, user, "Only the project owner can add people");
+      const input = memberAddSchema.parse(await readJson(request));
+      const result = addProjectMember(database, projectId, input.email);
+      /*
+       * Saying which of the two went wrong tells an owner whether an account exists at that
+       * address. On an installation nobody can register on without an invitation, and to a
+       * caller who already owns a project here, that is not a fact worth withholding - and
+       * withholding it would leave a typo and an existing member looking identical.
+       */
+      if (result === "no_account") throw new HttpError(404, "Nobody here uses that email address");
+      if (result === "already_there") throw new HttpError(409, "They are already on this project");
+      audit(context, {
+        projectId,
+        entityType: "member",
+        entityId: result.added.id,
+        entityTitle: result.added.name,
+        action: "joined",
+      });
+      json(response, 201, { members: membersForProject(database, projectId).map(withAvatar) });
       broadcast(projectId, "work", requestClientId(request));
       return;
     }

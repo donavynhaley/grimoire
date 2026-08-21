@@ -333,6 +333,8 @@ export function App() {
     return `${location.origin}${location.pathname}?invite=${encodeURIComponent(result.code)}`;
   };
 
+  const addMember = (email: string) => performSettings(() => mutate("/api/members", "POST", { email }));
+
   const removeMember = (id: string) => performSettings(() => mutate(`/api/members/${id}`, "DELETE"));
 
   const changeMemberRole = (id: string, role: ProjectRole) =>
@@ -478,6 +480,7 @@ export function App() {
         onRemoveAvatar={removeAvatar}
         onArchive={archivePage}
         onCreate={createPage}
+        onAddMember={addMember}
         onCreateInvite={createInvite}
         onCreateIdea={createIdea}
         online={online}
