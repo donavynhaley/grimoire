@@ -32,9 +32,34 @@ function check(name, condition, detail = "") {
 
 const { createGrimoireServer } = await import(`${ROOT}/server/app.ts`);
 
+/**
+ * GitHub, stubbed. The poller's only seam on the outside world is a fetcher, so the link can
+ * be exercised end to end without a real pull request existing anywhere.
+ */
+const pullRequests = {
+  "wizards/simulator#12": {
+    number: 12,
+    title: "Hold the circle",
+    html_url: "https://github.com/wizards/simulator/pull/12",
+    state: "open",
+    draft: false,
+    merged_at: null,
+  },
+};
+const githubFetcher = async (path) => {
+  const pull = path.match(/^\/repos\/([^/]+\/[^/]+)\/pulls\/(\d+)$/);
+  if (!pull) return { status: 404, body: null };
+  const answer = pullRequests[`${pull[1]}#${pull[2]}`];
+  return answer ? { status: 200, body: answer } : { status: 404, body: null };
+};
+
 const app = createGrimoireServer({
   databasePath: join(directory, "grimoire.sqlite"),
   production: false,
+  githubFetcher,
+  // A fresh link resolves before the PATCH answers, so the checks never need the timer -
+  // and a timer running underneath them would only race what they assert.
+  githubPollMs: 0,
 });
 await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
 const port = app.server.address().port;
@@ -353,6 +378,44 @@ try {
   check("create_idea succeeds", !idea.isError, idea.text);
   const ideaList = await callTool("grimoire_list_ideas");
   check("the idea is listed", ideaList.text.includes("Familiars could learn habits"), ideaList.text);
+
+  // ------------------------------------------------------------ tying a page to a pull request
+  console.log("\nTying a page to the work that delivers it");
+  await api(`/api/projects/${inGrimoire.body.project.id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ githubRepo: "wizards/simulator", githubToken: "ghp_secret" }),
+  });
+
+  const toLink = await callTool("grimoire_create_page", { title: "Hold the circle", column: "In progress" });
+  const toLinkId = toLink.text.match(/id: (\S+)/)?.[1];
+  const linked = await callTool("grimoire_update_page", { page: toLinkId, github: "#12" });
+  check("a pull request can be linked through the tool", !linked.isError, linked.text);
+  check("and the reply names the pull request", linked.text.includes("PR #12"), linked.text);
+
+  // The point of the real field over a line in the notes: the board follows the code.
+  const afterLink = await api("/api/board");
+  const linkedPage = afterLink.body.pages.find((candidate) => candidate.id === toLinkId);
+  check("Grimoire stored a real link, not text", linkedPage?.github?.number === 12, JSON.stringify(linkedPage?.github));
+  check("an open pull request moved the page to Review", linkedPage?.status === "review", String(linkedPage?.status));
+
+  // An agent that cannot see an existing link would either link it twice or paste a URL
+  // into the notes, so reading it back is as much the feature as writing it.
+  const readLinked = await callTool("grimoire_read_page", { page: toLinkId });
+  check("read_page shows the link and its state", /PR #12.*open/.test(readLinked.text), readLinked.text);
+  const boardLinked = await callTool("grimoire_board");
+  check("the board shows it too", boardLinked.text.includes("PR #12"), boardLinked.text);
+
+  const badLink = await callTool("grimoire_update_page", { page: toLinkId, github: "not a pull request!!" });
+  check("something unreadable as a reference is refused", badLink.isError, badLink.text);
+
+  const unlinked = await callTool("grimoire_update_page", { page: toLinkId, github: null });
+  check("passing null unlinks", !unlinked.isError, unlinked.text);
+  const afterUnlink = await api("/api/board");
+  check(
+    "and the link is really gone",
+    !afterUnlink.body.pages.find((candidate) => candidate.id === toLinkId)?.github,
+    JSON.stringify(afterUnlink.body.pages.find((candidate) => candidate.id === toLinkId)?.github),
+  );
 
   // ------------------------------------------------------------ the never-list, through the tools
   console.log("\nWhat the agent cannot do, proven against the server");

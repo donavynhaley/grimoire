@@ -60,7 +60,7 @@ Build it first with `npm install && npm run build` in this directory.
 | `grimoire_search` | Searches titles and note bodies across every column, the backlog, the idea garden, completed work, and archived pages |
 | `grimoire_read_page` | One page's title and complete notes, exactly as stored - the values to pass as `expectedTitle` / `expectedNotes` when rewriting |
 | `grimoire_create_page` | Adds a unit of work |
-| `grimoire_update_page` | Edits an existing page |
+| `grimoire_update_page` | Edits an existing page, including the GitHub work it is tied to |
 | `grimoire_move_page` | Moves a page between columns |
 | `grimoire_list_ideas` | Reads the idea garden |
 | `grimoire_create_idea` | Captures a possibility without committing to it |
@@ -74,6 +74,23 @@ A field can be named by its key or by the label a person reads, and a choice fie
 Anything else is refused with the real options listed.
 `fields` is a patch: naming one field leaves every other one alone, which matters because an agent rarely knows what the rest of them hold. `null` clears one.
 A page is named by its id or its exact title - a partial title is refused with the close matches listed, because these tools rewrite bodies and a half-remembered word must never silently land on whichever page happens to contain it.
+
+## Tying a page to the work that delivers it
+
+`grimoire_update_page` takes a `github` argument: a pull request URL, `#123`, a branch URL, or a branch name.
+`null` unlinks.
+A URL naming another repository is kept, so a page may point across repositories; the bare forms lean on the project's configured one.
+
+This is where a pull request belongs, rather than in a line of the notes.
+A real link is tracked: Grimoire caches what GitHub last said about it, shows it on the page, and moves the page along the two edges the automation owns - into **Review** when the pull request opens, and into **Done** once it merges.
+Both fire on the transition and never merely because the state still holds, so a hand that pulls a page back out of Review keeps it there.
+A draft pull request moves nothing.
+A link written into the notes instead does none of this, and goes stale the moment the pull request does anything.
+
+`grimoire_board` and `grimoire_read_page` both show an existing link and its last known state, so an agent can tell a linked page from an unlinked one before deciding to write.
+
+Linking is a property of the page, so it sits on the agent's side of the line.
+The automation moving a merged page into Done is GitHub's edge, recorded against the actor `GitHub` - not an agent making the one move that is reserved for a person.
 
 ## What an agent cannot do
 
@@ -103,7 +120,7 @@ npm run verify
 ```
 
 Starts a real Grimoire, issues a real credential through the real route, and then speaks MCP over stdio to the built server, checking the effects landed.
-It covers the handshake and the tool list, resolving names to identifiers, creating, editing, moving and searching, attribution reaching the activity log, refusals that list the real options, a rewrite without an expectation being refused, a stale expectation being refused and then landing after a re-read, a partial title being refused rather than guessed, the routes no credential may reach, revocation taking effect immediately, a read-scoped credential being offered only the reading tools, and an archived project suspending its credentials.
+It covers the handshake and the tool list, resolving names to identifiers, creating, editing, moving and searching, attribution reaching the activity log, refusals that list the real options, a rewrite without an expectation being refused, a stale expectation being refused and then landing after a re-read, a partial title being refused rather than guessed, tying a page to a pull request and reading the link back off the board, an unreadable reference being refused and `null` unlinking, the routes no credential may reach, revocation taking effect immediately, a read-scoped credential being offered only the reading tools, and an archived project suspending its credentials.
 CI runs it on every push, after the main suite.
 
 ## Rate limiting

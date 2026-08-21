@@ -57,7 +57,7 @@ export type ServerOptions = {
 export function createServer(client: GrimoireClient, options: ServerOptions = {}): McpServer {
   const writable = options.scope !== "read";
   const server = new McpServer(
-    { name: "grimoire", version: "0.1.0" },
+    { name: "grimoire", version: "0.2.0" },
     {
       instructions:
         "Grimoire is a small collaborative work board. A unit of work is a page, and pages sit " +
@@ -67,7 +67,11 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
         (writable
           ? "A project may also define its own fields - a priority, an estimate, whatever it " +
             "tracks - and you can fill those in on any page. You can create and edit pages and " +
-            "ideas, and place a page into an existing chapter or take it out of one. You cannot " +
+            "ideas, and place a page into an existing chapter or take it out of one. When a page " +
+            "is delivered by a pull request, tie the two together with grimoire_update_page's " +
+            "github argument rather than writing the link into the notes: Grimoire tracks it from " +
+            "there, and the page moves itself into Review when the pull request opens and into " +
+            "Done when it merges. You cannot " +
             "archive anything, promote an idea, create or rename fields, or create, rename, open " +
             "or close chapters - and categories, membership and the project's settings are closed " +
             "too. Those are deliberately left to a person. Before rewriting a page's title or " +
@@ -267,6 +271,17 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
         assignee: z.string().optional().describe("A member's name or email, \"me\", or \"nobody\"."),
         blockedBy: z.array(z.string()).max(20).optional().describe("Replaces the blocker list."),
         fields: fieldPatch.optional(),
+        github: z
+          .string()
+          .max(400)
+          .nullable()
+          .optional()
+          .describe(
+            "The GitHub work this page is tied to: a pull request URL, \"#123\", a branch URL, " +
+              "or a branch name. Pass null to unlink. Grimoire then tracks it - the page moves " +
+              "itself to Review when the pull request opens and to Done when it merges, so " +
+              "linking is usually better than moving the page by hand.",
+          ),
       },
     },
     async (input) => {
@@ -316,6 +331,10 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
         if (input.blockedBy !== undefined) body.blockedBy = resolveBlockers(board, input.blockedBy);
         // A patch, so naming one field leaves the rest of them alone.
         if (input.fields !== undefined) body.fields = resolveFields(board, input.fields);
+        // Passed through as written rather than parsed here: the server owns what reads as a
+        // pull request, and a second opinion in this package would drift from it. `null`
+        // survives the round trip because unlinking has to stay expressible.
+        if (input.github !== undefined) body.github = input.github;
 
         if (Object.keys(body).length === 0) return text("Nothing to change - nothing was given.");
 
@@ -394,6 +413,27 @@ function firstLine(value: string): string {
   return line.length > 160 ? `${line.slice(0, 159)}…` : line;
 }
 
+/**
+ * A page's GitHub link, if it has one.
+ *
+ * Reading this matters as much as writing it: an agent that cannot see a page is already
+ * linked will either link it a second time or fall back to pasting the URL into the notes,
+ * which is the habit the field exists to replace. The URL is worth the room on one page and
+ * not on a board of them, so the caller says which it wants.
+ */
+function githubSummary(page: Page, options: { url?: boolean } = {}): string | null {
+  const link = page.github;
+  if (!link) return null;
+  const named = link.kind === "pr" ? `PR #${link.number}` : `branch ${link.name}`;
+  const where = link.repo ? ` in ${link.repo}` : "";
+  const status = page.githubStatus;
+  if (!status || status.state === "unchecked") return `github: ${named}${where}`;
+  // A branch link adopts whichever pull request has it as its head, so name the one it found.
+  const adopted = link.kind === "branch" && status.prNumber ? ` (PR #${status.prNumber})` : "";
+  const url = options.url && status.prUrl ? ` ${status.prUrl}` : "";
+  return `github: ${named}${where}${adopted} - ${status.state}${url}`;
+}
+
 function describePage(board: Board, page: Page): string {
   const parts = [`column: ${columnLabel(page.status)}`];
   const category = categoryName(board, page.category);
@@ -403,6 +443,8 @@ function describePage(board: Board, page: Page): string {
   if (page.assigneeName) parts.push(`assignee: ${page.assigneeName}`);
   if (page.blockedBy.length > 0) parts.push(`blocked by ${page.blockedBy.length}`);
   parts.push(...fieldSummary(board, page.fields));
+  const github = githubSummary(page, { url: true });
+  if (github) parts.push(github);
   return `${parts.join(" · ")}\nid: ${page.id}`;
 }
 
@@ -451,6 +493,8 @@ function renderBoard(board: Board): string {
       if (page.assigneeName) bits.push(page.assigneeName);
       if (page.blockedBy.length > 0) bits.push(`blocked by ${page.blockedBy.length}`);
       bits.push(...fieldSummary(board, page.fields));
+      const github = githubSummary(page);
+      if (github) bits.push(github);
       sections.push(`  - ${page.title}${bits.length ? ` · ${bits.join(" · ")}` : ""}`);
       sections.push(`    id: ${page.id}`);
     }
