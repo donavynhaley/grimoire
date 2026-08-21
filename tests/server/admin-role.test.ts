@@ -264,6 +264,57 @@ describe("reconciling an installation that predates the split", () => {
     expect(roleOf(beta, first)).toBe("member");
   });
 
+  /*
+   * The reconciliation drops and recreates `users`, with the foreign key guard lifted so the
+   * swap is allowed at all. Sessions, invitations and every activity event point at that
+   * table, so a careless rebuild would sign the whole team out and orphan the history rather
+   * than fix a role.
+   */
+  it("keeps sessions, invitations and history attached across the rebuild", async () => {
+    const { directory, first, alpha } = await legacyDatabase();
+    const path = join(directory, "grimoire.sqlite");
+
+    // A live session, a pending invitation and a logged event, all pointing at `users`.
+    let database = new DatabaseSync(path);
+    database.exec(`CREATE TABLE sessions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token_hash TEXT NOT NULL UNIQUE,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE invites (
+      id TEXT PRIMARY KEY,
+      code_hash TEXT NOT NULL UNIQUE,
+      created_by TEXT NOT NULL REFERENCES users(id),
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );`);
+    database
+      .prepare("INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)")
+      .run(randomUUID(), first, "a-token-hash", "2099-01-01T00:00:00.000Z", "2026-05-01T00:00:00.000Z");
+    database
+      .prepare("INSERT INTO invites (id, code_hash, created_by, expires_at, created_at) VALUES (?, ?, ?, ?, ?)")
+      .run(randomUUID(), "an-invite-hash", first, "2099-01-01T00:00:00.000Z", "2026-05-01T00:00:00.000Z");
+    database.close();
+
+    await (await startTestServer(directory)).close();
+
+    database = new DatabaseSync(path);
+    // Nothing was orphaned, and the guard the migration runs before committing agrees.
+    expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+    const sessions = database
+      .prepare("SELECT user_id FROM sessions")
+      .all() as Array<{ user_id: string }>;
+    expect(sessions.map((session) => session.user_id)).toEqual([first]);
+    expect(database.prepare("SELECT COUNT(*) AS count FROM invites").get()).toMatchObject({ count: 1 });
+    // And the row every one of them points at is the reconciled admin, not a fresh account.
+    expect(database.prepare("SELECT role FROM users WHERE id = ?").get(first)).toMatchObject({ role: "admin" });
+    expect(database.prepare("SELECT COUNT(*) AS count FROM project_members WHERE project_id = ?").get(alpha))
+      .toMatchObject({ count: 2 });
+    database.close();
+  });
+
   it("leaves the reconciled roles alone on every later start", async () => {
     const { directory, alpha, second } = await legacyDatabase();
     await (await startTestServer(directory)).close();

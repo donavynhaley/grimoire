@@ -369,6 +369,11 @@ function adoptAdminRole(database: DatabaseSync): void {
          WHERE earliest.project_id = project_members.project_id
        ) THEN 'owner' ELSE 'member' END`,
     );
+    // Sessions, invitations and the whole activity log point at `users`, and the swap above
+    // drops it with the guard lifted. Checking before the commit is what stops a bad rebuild
+    // from being the thing that signs everybody out.
+    const violations = database.prepare("PRAGMA foreign_key_check").all();
+    if (violations.length > 0) throw new Error("Rebuilding users would break a foreign key");
     database.exec("COMMIT");
   } catch (error) {
     database.exec("ROLLBACK");
