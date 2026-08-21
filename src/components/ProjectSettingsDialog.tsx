@@ -75,6 +75,7 @@ type Props = {
   categoryActions: CategoryActions;
   chapterActions: ChapterActions;
   fieldActions: FieldActions;
+  onAddMember: (email: string) => Promise<void>;
   onCreateInvite: () => Promise<string>;
   onChangeMemberRole: (id: string, role: ProjectRole) => Promise<void>;
   onRemoveMember: (id: string) => Promise<void>;
@@ -111,6 +112,7 @@ export function ProjectSettingsDialog({
   categoryActions,
   chapterActions,
   fieldActions,
+  onAddMember,
   onCreateInvite,
   onChangeMemberRole,
   onRemoveMember,
@@ -207,6 +209,7 @@ export function ProjectSettingsDialog({
               isOwner={isOwner}
               members={members}
               onChangeMemberRole={onChangeMemberRole}
+              onAddMember={onAddMember}
               onCreateInvite={onCreateInvite}
               onRemoveMember={onRemoveMember}
               online={online}

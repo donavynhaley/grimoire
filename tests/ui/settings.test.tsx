@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "../../src/App";
@@ -124,6 +124,41 @@ describe("the one settings surface", () => {
     await user.click(within(settings).getByRole("button", { name: "Categories" }));
     expect(within(settings).getByText("Design")).toBeInTheDocument();
     expect(within(settings).queryByRole("button", { name: /Delete Design/ })).toBeNull();
+  });
+
+  /*
+   * The one account that reaches every project read as an ordinary owner, because the role
+   * column is about this project and nothing anywhere said otherwise.
+   */
+  it("names the installation's admin beside their name, without disturbing the project role", async () => {
+    const user = userEvent.setup();
+    mountWith();
+
+    const settings = await openSettings(user);
+    await user.click(within(settings).getByRole("button", { name: "Team" }));
+
+    // Donavyn is the admin of the installation and the owner of this project: both are said.
+    const donavyn = within(settings).getByText("owner@example.com").closest(".team-member")!;
+    expect(within(donavyn as HTMLElement).getByText("admin")).toBeInTheDocument();
+    expect(within(donavyn as HTMLElement).getByText("owner")).toBeInTheDocument();
+    // Maren is neither, and gains no badge from standing next to one.
+    const maren = within(settings).getByText("maren@example.com").closest(".team-member")!;
+    expect(within(maren as HTMLElement).queryByText("admin")).toBeNull();
+  });
+
+  it("adds somebody who already has an account, which an invitation cannot do", async () => {
+    const user = userEvent.setup();
+    const calls = mountWith();
+
+    const settings = await openSettings(user);
+    await user.click(within(settings).getByRole("button", { name: "Team" }));
+    await user.type(within(settings).getByLabelText("Email address"), "alan@example.com");
+    await user.click(within(settings).getByRole("button", { name: "add" }));
+
+    await waitFor(() => expect(calls.find((call) => call.url === "/api/members")).toMatchObject({
+      method: "POST",
+      body: { email: "alan@example.com" },
+    }));
   });
 
   it("reorders a field with the position the server already stored", async () => {

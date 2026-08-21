@@ -236,3 +236,97 @@ describe("member roles", () => {
     expect(attempt.status).toBe(403);
   });
 });
+
+/*
+ * An invitation only ever made an account, and refused an address that already had one, so
+ * two people could share an installation and never share a second project. It went unnoticed
+ * while owning anything meant reaching everything.
+ */
+describe("adding someone who already has an account", () => {
+  /** Maren registered into Wizard Simulator; the admin makes a second project without her. */
+  async function twoProjects(server: TestServer) {
+    await bootstrap(server);
+    await registerMember(server);
+    await login(server, ownerAccount);
+    const second = await server.request<{ project: { id: string } }>("/api/projects", {
+      method: "POST",
+      body: JSON.stringify({ name: "Familiar Tycoon" }),
+    });
+    return second.body.project.id;
+  }
+
+  const add = (server: TestServer, email: string, projectId: string) =>
+    server.request<{ members: Member[] }>("/api/members", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+      headers: { "x-grimoire-project": projectId },
+    });
+
+  it("puts them on the project as a member, and they can reach it", async () => {
+    const server = await startTestServer();
+    const second = await twoProjects(server);
+
+    // Before: the project may as well not exist to her.
+    await login(server, MEMBER);
+    expect((await server.request("/api/board", { headers: { "x-grimoire-project": second } })).response.status)
+      .toBe(404);
+
+    await login(server, ownerAccount);
+    const added = await add(server, MEMBER.email, second);
+    expect(added.response.status).toBe(201);
+    expect(added.body.members.find((member) => member.email === MEMBER.email)?.projectRole).toBe("member");
+
+    await login(server, MEMBER);
+    const board = await server.request<{ viewerIsOwner: boolean; project: { name: string } }>("/api/board", {
+      headers: { "x-grimoire-project": second },
+    });
+    expect(board.response.status).toBe(200);
+    expect(board.body.project.name).toBe("Familiar Tycoon");
+    // Added, not promoted: the two are separate decisions, made from the same place.
+    expect(board.body.viewerIsOwner).toBe(false);
+    expect((await server.request<{ projects: { name: string }[] }>("/api/projects")).body.projects
+      .map((project) => project.name).sort()).toEqual(["Familiar Tycoon", "Wizard Simulator"]);
+  });
+
+  it("says which of the two went wrong, rather than failing the same way twice", async () => {
+    const server = await startTestServer();
+    const second = await twoProjects(server);
+
+    const typo = await add(server, "maren@exmaple.com", second);
+    expect(typo.response.status).toBe(404);
+    expect(typo.body).toMatchObject({ error: "Nobody here uses that email address" });
+
+    expect((await add(server, MEMBER.email, second)).response.status).toBe(201);
+    const again = await add(server, MEMBER.email, second);
+    expect(again.response.status).toBe(409);
+    expect(again.body).toMatchObject({ error: "They are already on this project" });
+  });
+
+  it("is closed to a member of the project, and to anyone not on it at all", async () => {
+    const server = await startTestServer();
+    const second = await twoProjects(server);
+    const third = await server.request<{ project: { id: string } }>("/api/projects", {
+      method: "POST",
+      body: JSON.stringify({ name: "Potion Delivery" }),
+    });
+    await add(server, MEMBER.email, second);
+
+    await login(server, MEMBER);
+    // On the project but not its owner: refused.
+    expect((await add(server, ownerAccount.email, second)).response.status).toBe(403);
+    // Not on the project at all: it is not hers to be told about.
+    expect((await add(server, ownerAccount.email, third.body.project.id)).response.status).toBe(404);
+  });
+
+  it("records the joining in the project's own history", async () => {
+    const server = await startTestServer();
+    const second = await twoProjects(server);
+    await add(server, MEMBER.email, second);
+
+    const { body } = await server.request<AuditPage>("/api/activity", {
+      headers: { "x-grimoire-project": second },
+    });
+    const event = body.events.find((candidate) => candidate.entityType === "member");
+    expect(event).toMatchObject({ action: "joined", entityTitle: "Maren" });
+  });
+});

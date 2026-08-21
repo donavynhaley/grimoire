@@ -60,6 +60,7 @@ type Props = {
   onCreate: (input: CapturePageInput) => Promise<void>;
   onUpdate: (id: string, input: Record<string, unknown>) => Promise<void>;
   onArchive: (id: string) => Promise<void>;
+  onAddMember: (email: string) => Promise<void>;
   onCreateInvite: () => Promise<string>;
   onCreateIdea: (input: { title: string }) => Promise<void>;
   onLoadActivity: (options: { entityId?: string; before?: number; limit?: number }) => Promise<AuditPage>;
@@ -79,7 +80,7 @@ type Props = {
   onViewChange: (view: "work" | "ideas") => Promise<void>;
 };
 
-export function Board({ away, board, busy, categoryActions, chapterActions, fieldActions, ideas, online, projectActions, projectSettingsActions, revision, view, onCreate, onUpdate, onArchive, onCreateInvite, onCreateIdea, onChangeAvatar, onChangeName, onChangePassword, onLoadActivity, onLogout, onMoveBacklogToNext, onPromoteIdea, onRemoveAvatar, onChangeMemberRole, onRemoveMember, onRestorePage, onSurfaceError, onUpdateIdea, onViewChange }: Props) {
+export function Board({ away, board, busy, categoryActions, chapterActions, fieldActions, ideas, online, projectActions, projectSettingsActions, revision, view, onCreate, onUpdate, onArchive, onAddMember, onCreateInvite, onCreateIdea, onChangeAvatar, onChangeName, onChangePassword, onLoadActivity, onLogout, onMoveBacklogToNext, onPromoteIdea, onRemoveAvatar, onChangeMemberRole, onRemoveMember, onRestorePage, onSurfaceError, onUpdateIdea, onViewChange }: Props) {
   const [addingTo, setAddingTo] = useState<PageStatus | null>(null);
   const [columnTitle, setColumnTitle] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -943,6 +944,7 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
           members={board.members}
           onChangeMemberRole={onChangeMemberRole}
           onClose={() => setSettingsSection(null)}
+          onAddMember={onAddMember}
           onCreateInvite={onCreateInvite}
           online={online}
           onRemoveMember={onRemoveMember}

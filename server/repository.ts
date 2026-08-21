@@ -1049,6 +1049,36 @@ export function projectById(database: DatabaseSync, projectId: string): Row | un
   return row(database, "SELECT id, name, slug, description FROM projects WHERE id = ?", projectId);
 }
 
+export type AddProjectMemberResult = { added: User } | "no_account" | "already_there";
+
+/**
+ * Puts somebody who already has an account onto another project.
+ *
+ * An invitation only ever made an account, and refused an email that already had one, so
+ * there was no way to work with a colleague on a second project: they could be on the one
+ * they registered through and on nothing else. That went unnoticed while owning anything
+ * meant reaching everything, and became the obvious hole the moment membership was the reach.
+ *
+ * They join as a member. An owner promotes from the same place afterwards if that is what
+ * was meant - which keeps this one action about access and nothing else.
+ */
+export function addProjectMember(
+  database: DatabaseSync,
+  projectId: string,
+  email: string,
+): AddProjectMemberResult {
+  const found = findUserByEmail(database, email);
+  if (!found) return "no_account";
+  const invited = publicUser(found);
+  if (row(database, "SELECT 1 AS ok FROM project_members WHERE project_id = ? AND user_id = ?", projectId, invited.id)) {
+    return "already_there";
+  }
+  database
+    .prepare("INSERT INTO project_members (project_id, user_id, role, created_at) VALUES (?, ?, 'member', ?)")
+    .run(projectId, invited.id, new Date().toISOString());
+  return { added: invited };
+}
+
 export function membersForProject(database: DatabaseSync, projectId: string): Member[] {
   return rows(
     database,
