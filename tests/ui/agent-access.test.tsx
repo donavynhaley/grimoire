@@ -141,6 +141,8 @@ describe("agent access", () => {
       board: {
         ...board,
         currentUser: { ...board.currentUser, role: "member" },
+        // Owning the project is what draws the owner surfaces, not the account beside it.
+        viewerIsOwner: false,
         members: board.members.map((member) =>
           member.id === board.currentUser.id ? { ...member, role: "member" as const, projectRole: "member" as const } : member,
         ),

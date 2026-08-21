@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Drawer } from "./Drawer";
-import type { ArchivedProject, Page, Chapter, ChapterVelocity, Member, ProjectCategory, ProjectField, User, UserRole } from "../../shared/types";
+import type { ArchivedProject, Page, Chapter, ChapterVelocity, Member, ProjectCategory, ProjectField, User, ProjectRole } from "../../shared/types";
 import { archivedProjects, mutate, verifyGithub, type GithubVerification } from "../api/client";
 import { Growing } from "./Growing";
 import { CategoriesSection, type CategoryActions } from "./CategoriesSection";
@@ -76,7 +76,7 @@ type Props = {
   chapterActions: ChapterActions;
   fieldActions: FieldActions;
   onCreateInvite: () => Promise<string>;
-  onChangeMemberRole: (id: string, role: UserRole) => Promise<void>;
+  onChangeMemberRole: (id: string, role: ProjectRole) => Promise<void>;
   onRemoveMember: (id: string) => Promise<void>;
   onSetPageChapter: (id: string, chapter: string | null) => Promise<void>;
   onSectionChange: (section: SettingsSection) => void;
@@ -204,6 +204,7 @@ export function ProjectSettingsDialog({
             <TeamSection
               busy={busy}
               currentUser={currentUser}
+              isOwner={isOwner}
               members={members}
               onChangeMemberRole={onChangeMemberRole}
               onCreateInvite={onCreateInvite}

@@ -112,6 +112,7 @@ describe("the one settings surface", () => {
       board: {
         ...board,
         currentUser: { ...board.members[1] },
+        viewerIsOwner: false,
       },
     });
 

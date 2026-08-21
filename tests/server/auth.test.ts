@@ -11,7 +11,7 @@ describe("authentication", () => {
 
     const created = await bootstrap(server);
     expect(created.response.status).toBe(201);
-    expect(created.body.user).toMatchObject({ name: "Donavyn", role: "owner" });
+    expect(created.body.user).toMatchObject({ name: "Donavyn", role: "admin" });
 
     const duplicate = await server.request("/api/auth/bootstrap", {
       method: "POST",
@@ -137,8 +137,9 @@ describe("authentication", () => {
       }),
     });
     const memberId = registration.body.user.id;
-    const memberBoard = await server.request<{ members: Array<{ id: string; role: string }> }>("/api/board");
-    const ownerId = memberBoard.body.members.find((member) => member.role === "owner")!.id;
+    const memberBoard = await server.request<{ members: Array<{ id: string; projectRole: string }> }>("/api/board");
+    // Owning the project is a project role now; the account beside it says only "admin".
+    const ownerId = memberBoard.body.members.find((member) => member.projectRole === "owner")!.id;
 
     const forbidden = await server.request(`/api/members/${ownerId}`, { method: "DELETE" });
     expect(forbidden.response.status).toBe(403);
@@ -182,6 +183,6 @@ describe("authentication", () => {
       body: JSON.stringify({ email: "frankie@example.com", password: "another secure wizard password" }),
     });
     expect(removedLogin.response.status).toBe(401);
-    expect(owner.body.user.role).toBe("owner");
+    expect(owner.body.user.role).toBe("admin");
   });
 });

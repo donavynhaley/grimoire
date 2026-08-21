@@ -39,14 +39,16 @@ export function boardFixture(): BoardWorkspace {
       id: "00000000-0000-4000-8000-000000000010",
       name: "Donavyn",
       email: "owner@example.com",
-      role: "owner",
+      role: "admin",
     },
+    // The fixture's reader owns the project on screen, which is what draws the owner controls.
+    viewerIsOwner: true,
     members: [
       {
         id: "00000000-0000-4000-8000-000000000010",
         name: "Donavyn",
         email: "owner@example.com",
-        role: "owner",
+        role: "admin",
         projectRole: "owner",
       },
       {

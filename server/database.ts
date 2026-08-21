@@ -236,6 +236,7 @@ function migrate(database: DatabaseSync): void {
 
   widenAuditEntityTypes(database);
   widenFieldTypes(database);
+  adoptAdminRole(database);
 
   const inviteColumns = tableColumns(database, "invites");
   if (!inviteColumns.includes("project_id")) {
@@ -317,6 +318,66 @@ function widenFieldTypes(database: DatabaseSync): void {
   }
 }
 
+/**
+ * Splits the old account-wide `owner` into an installation admin and per-project owners.
+ *
+ * The account role used to be both the power somebody had and the set of projects they had
+ * it in, so promoting a second owner handed them the whole installation. It now says only
+ * what somebody is on the installation, and there is exactly one of those.
+ *
+ * Two things are settled here, once, on the way past:
+ *
+ * - The first account becomes the `admin` - whoever set the installation up, which is the
+ *   only account that can be identified without being told. Every other account becomes a
+ *   plain member, which takes away nothing their project rows do not already grant.
+ * - Each project's creator is confirmed as its owner, and everybody else on it is reduced
+ *   to a member. Under the old model a project owner row was never granted per project: the
+ *   promotion wrote `role` across every row a user had, so every non-creator owner row on
+ *   disk is spillage from that write rather than a decision anybody made about that project.
+ *   Reducing them is what makes the remaining owner rows mean something again.
+ *
+ * It runs once, gated on the constraint it also widens, because re-running it every startup
+ * would reinstate a creator the admin had deliberately demoted.
+ */
+function adoptAdminRole(database: DatabaseSync): void {
+  const existing = database
+    .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'users'")
+    .get() as { sql?: string } | undefined;
+  if (!existing?.sql || existing.sql.includes("'admin'")) return;
+
+  // A pragma is a no-op inside a transaction, so the guard is lifted around the whole swap.
+  database.exec("PRAGMA foreign_keys = OFF");
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    database.exec(usersTableNamed("users_rebuild"));
+    database.exec(
+      `INSERT INTO users_rebuild (id, name, email, password_hash, role, created_at)
+       SELECT id, name, email, password_hash,
+         CASE WHEN id = (SELECT id FROM users ORDER BY created_at, id LIMIT 1)
+           THEN 'admin' ELSE 'member' END,
+         created_at
+       FROM users`,
+    );
+    database.exec("DROP TABLE users");
+    database.exec("ALTER TABLE users_rebuild RENAME TO users");
+
+    // The creator is the earliest membership row: it is written inside the same transaction
+    // that writes the project, so nobody else can hold an earlier one.
+    database.exec(
+      `UPDATE project_members SET role = CASE WHEN created_at = (
+         SELECT MIN(created_at) FROM project_members AS earliest
+         WHERE earliest.project_id = project_members.project_id
+       ) THEN 'owner' ELSE 'member' END`,
+    );
+    database.exec("COMMIT");
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  } finally {
+    database.exec("PRAGMA foreign_keys = ON");
+  }
+}
+
 function widenAuditEntityTypes(database: DatabaseSync): void {
   const existing = database
     .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'audit_events'")
@@ -388,15 +449,24 @@ function tableColumns(database: DatabaseSync, table: string): string[] {
   );
 }
 
-const schema = `
-CREATE TABLE IF NOT EXISTS users (
+/**
+ * Named, because the account role changed shape and SQLite cannot alter a CHECK in place:
+ * the migration below rebuilds this table, and both it and the schema must be one definition
+ * or the rebuilt table would drift from the created one.
+ */
+function usersTableNamed(name: string): string {
+  return `CREATE TABLE IF NOT EXISTS ${name} (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE COLLATE NOCASE,
   password_hash TEXT NOT NULL,
-  role TEXT NOT NULL CHECK (role IN ('owner', 'member')),
+  role TEXT NOT NULL CHECK (role IN ('admin', 'member')),
   created_at TEXT NOT NULL
-);
+);`;
+}
+
+const schema = `
+${usersTableNamed("users")}
 
 CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,

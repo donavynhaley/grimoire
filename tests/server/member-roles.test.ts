@@ -52,10 +52,11 @@ describe("member roles", () => {
     const maren = (await members(server)).find((member) => member.email === MEMBER.email)!;
     const promoted = await setRole(server, maren.id, "owner");
     expect(promoted.response.status).toBe(200);
-    // Both roles move together, so the board never shows a member who can restructure it.
+    // The project role is the one that moved. The account beside it is untouched, because
+    // owning this project is not a fact about her account.
     const listed = promoted.body.members.find((member) => member.id === maren.id)!;
-    expect(listed.role).toBe("owner");
     expect(listed.projectRole).toBe("owner");
+    expect(listed.role).toBe("member");
 
     await login(server, MEMBER);
     const allowed = await server.request("/api/categories", {
@@ -105,7 +106,7 @@ describe("member roles", () => {
 
     const attempt = await setRole(server, owner.id, "member");
     expect(attempt.response.status).toBe(409);
-    expect((await members(server))[0].role).toBe("owner");
+    expect((await members(server))[0].projectRole).toBe("owner");
   });
 
   it("answers 404 for someone who is not a member of this project", async () => {

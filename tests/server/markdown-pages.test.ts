@@ -115,7 +115,7 @@ describe("MarkdownPageStore", () => {
     const timestamp = "2026-08-03T12:00:00.000Z";
     database
       .prepare("INSERT INTO users (id, name, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?, ?)")
-      .run(userId, "Donavyn", "owner@example.com", "unused", "owner", timestamp);
+      .run(userId, "Donavyn", "owner@example.com", "unused", "admin", timestamp);
     database
       .prepare("INSERT INTO projects (id, name, slug, created_at, updated_at) VALUES (?, ?, ?, ?, ?)")
       .run(projectId, "Wizard Simulator", "wizard-simulator", timestamp, timestamp);
