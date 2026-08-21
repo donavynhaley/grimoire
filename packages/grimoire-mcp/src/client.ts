@@ -17,6 +17,25 @@ export type ProjectField = {
   showOnTile: boolean;
 };
 
+/**
+ * The GitHub work a page is tied to. Mirrors `PageGithubLink` in the server's shared/types.ts,
+ * duplicated for the same reason the body limit is: this package ships to npm on its own and
+ * takes no dependency on the application source. They must move together.
+ */
+export type PageGithubLink =
+  | { kind: "pr"; number: number; repo?: string }
+  | { kind: "branch"; name: string; repo?: string };
+
+/** What GitHub last said about a linked page, cached server-side between polls. */
+export type PageGithubStatus = {
+  state: "open" | "draft" | "merged" | "closed" | "missing" | "unchecked";
+  /** Present once a pull request exists, including one adopted for a branch link. */
+  prNumber: number | null;
+  prTitle: string | null;
+  prUrl: string | null;
+  checkedAt: string | null;
+};
+
 export type Page = {
   id: string;
   title: string;
@@ -34,6 +53,14 @@ export type Page = {
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
+  /**
+   * The GitHub work this page is tied to, or null. Optional rather than required because a
+   * Grimoire older than the feature serves neither key, and a client that ships separately
+   * from the server it talks to has to keep reading one.
+   */
+  github?: PageGithubLink | null;
+  /** What GitHub last said about that link; null when the page has none. */
+  githubStatus?: PageGithubStatus | null;
 };
 
 export type Board = {
