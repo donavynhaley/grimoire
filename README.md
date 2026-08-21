@@ -140,8 +140,8 @@ Ideas do not have assignees or work statuses because they are not work yet.
 
 ## Collaboration
 
-The first person to open a new Grimoire installation creates the owner account.
-The first-run form prefills `owner@example.com` as the owner email, while still allowing it to be edited before setup.
+The first person to open a new Grimoire installation creates the admin account — the installation's one admin, and the owner of the project it starts with.
+The first-run form prefills `owner@example.com` as the admin email, while still allowing it to be edited before setup.
 The project menu is a switcher: the projects, each with its one-line description, a collapsed "New project" field, and "Project settings".
 Project settings is one dialog with a section rail — General, Categories, Page fields, Chapters, Team, Agent access, and a Danger zone — and the open section travels in the URL as `?settings=<section>`, so a reload or a shared link lands exactly where the reader was.
 The header's `team` button is a shortcut into the same dialog, landed on its Team section.
@@ -206,10 +206,20 @@ Deleting one, or withdrawing a choice from a list, clears the values it left beh
 
 ## Team and roles
 
-An owner can promote another member to owner, or demote one, from the Team section of settings.
-The role decides who can reshape the project — its name, categories, chapters, fields, agent access, and membership — while everyone can work on pages and ideas.
-Roles are account-wide by design, and the Team section says so where the button lives: making someone an owner grants owner powers on every project, not just the one on screen.
-Changing your own role is refused: the one case worth allowing is a sole owner demoting themselves, which leaves nobody who can ever promote anyone again.
+There are two roles, and they answer different questions.
+
+**Owner** belongs to a project. Whoever creates a project owns it, and an owner decides its shape — its name, categories, chapters, fields, agent access, and membership — while everyone on it can work on pages and ideas.
+An owner can promote another member of that project to owner, or demote one, from the Team section of settings.
+That reaches the project it was granted on and nothing else: it adds nobody to any other project, and it cannot be taken away from somewhere it was never given. Being an owner somewhere is not a reason to be shown a project you are not on, and the project picker offers exactly the projects you are on.
+Changing your own role is refused: the one case worth allowing is a project's sole owner demoting themselves, which leaves nobody who can ever promote anyone again.
+
+**Admin** belongs to the installation, and there is exactly one — whoever set it up.
+The admin reaches every project and can reshape any of them, which is what keeps an installation from being stranded behind an owner who has gone quiet. No route grants the role and none takes it away: the admin cannot be demoted or removed from a project by anybody, including a project's own owner.
+Nobody else is account-wide anything. Everyone else earns what they can do per project.
+
+The account that creates a project is written in as its owning member, and that is the one membership no removal may delete, so a project is never left with nobody who can reach it.
+
+An installation created before these were separate is reconciled once on the first start after upgrading: the first account becomes the admin, every other account becomes a plain member, and each project is handed to whoever created it. Owner rows on projects somebody did not create are dropped, because the old promotion wrote the role across every membership a person held rather than the one project it was granted on.
 
 ## Agent access
 

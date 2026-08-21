@@ -33,6 +33,7 @@ describe("page board", () => {
       "project",
       "projects",
       "velocity",
+      "viewerIsOwner",
     ]);
     // A project that never asked for chapters carries none, so the board draws no trace of them.
     expect(workspace.project.chaptersEnabled).toBe(false);

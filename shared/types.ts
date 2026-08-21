@@ -1,10 +1,25 @@
-export type UserRole = "owner" | "member";
+/**
+ * What somebody is on the installation, which is a different question from what they are
+ * on any one project.
+ *
+ * There is exactly one `admin`: whoever set the installation up. It is the role nothing
+ * grants and nothing takes away - no route issues it, no demotion removes it - so there is
+ * always one account that cannot be locked out of its own instance. Everybody else is a
+ * plain `member` here and earns their powers per project, below.
+ */
+export type AccountRole = "admin" | "member";
+
+/**
+ * What somebody is on one project. Whoever creates a project owns it, and an owner may
+ * reshape it: its name, categories, chapters, fields, agent access and membership.
+ */
+export type ProjectRole = "owner" | "member";
 
 export type User = {
   id: string;
   name: string;
   email: string;
-  role: UserRole;
+  role: AccountRole;
   avatarUrl?: string | null;
 };
 
@@ -15,11 +30,11 @@ export type SessionState =
 
 export type Member = User & {
   /**
-   * Mirrors the account-wide `role` on purpose. Owner powers are not per-project - promoting
-   * someone here grants them everywhere - and the two are kept in lockstep so the board never
-   * shows a member who can in fact restructure it. See `setMemberRole` in the repository.
+   * What they are on the project being looked at, and the only role that decides whether
+   * they may reshape it. Promoting somebody here reaches this project and no other, which
+   * is why it no longer mirrors the account-wide `role` beside it.
    */
-  projectRole: UserRole;
+  projectRole: ProjectRole;
 };
 
 export const PAGE_STATUSES = ["backlog", "ready", "in_progress", "review", "done"] as const;
@@ -312,6 +327,14 @@ export type BoardWorkspace = {
   /** One entry per chapter, empty when either chapters or estimates are off. */
   velocity: ChapterVelocity[];
   currentUser: User;
+  /**
+   * Whether the person reading may reshape *this* project - owning it, or being the admin.
+   *
+   * The server settles it rather than the client, because the client would have to know the
+   * whole rule to ask the question, and a client that guesses it wrong draws controls whose
+   * every use is refused.
+   */
+  viewerIsOwner: boolean;
   members: Member[];
   pages: Page[];
 };

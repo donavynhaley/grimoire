@@ -76,7 +76,11 @@ function awayEvent(overrides: Partial<AuditEvent>): AuditEvent {
 
 function memberView(board: BoardWorkspace): BoardWorkspace {
   const member = board.members[1];
-  return { ...board, currentUser: { id: member.id, name: member.name, email: member.email, role: member.role } };
+  return {
+    ...board,
+    currentUser: { id: member.id, name: member.name, email: member.email, role: member.role },
+    viewerIsOwner: false,
+  };
 }
 
 describe("while you were away - quiet signals", () => {

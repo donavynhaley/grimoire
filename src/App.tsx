@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import type { AwayState, BoardWorkspace, FieldType, PageStatus, IdeaState, IdeaWorkspace, SessionState, User, UserRole } from "../shared/types";
+import type { AwayState, BoardWorkspace, FieldType, PageStatus, IdeaState, IdeaWorkspace, SessionState, User, ProjectRole } from "../shared/types";
 import { activity as loadActivity, ApiError, away as loadAway, board as loadBoard, editConflict, ideas as loadIdeas, liveEventsUrl, markSeen, mutate, request, session, setActiveProjectId, uploadAvatar } from "./api/client";
 import { AuthScreen } from "./components/AuthScreen";
 import { Board } from "./components/Board";
@@ -335,7 +335,7 @@ export function App() {
 
   const removeMember = (id: string) => performSettings(() => mutate(`/api/members/${id}`, "DELETE"));
 
-  const changeMemberRole = (id: string, role: UserRole) =>
+  const changeMemberRole = (id: string, role: ProjectRole) =>
     performSettings(() => mutate(`/api/members/${id}`, "PATCH", { role }));
 
   const changePassword = async (currentPassword: string, newPassword: string) => {

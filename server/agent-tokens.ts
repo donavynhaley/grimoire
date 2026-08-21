@@ -165,7 +165,9 @@ export function agentForToken(database: DatabaseSync, secret: string): AgentIden
       id: String(row.user_id),
       name: String(row.owner_name),
       email: String(row.owner_email),
-      role: row.owner_role === "owner" ? "owner" : "member",
+      // The account role, which is the admin or nothing at all. A token acts as whoever
+      // issued it, and what it may reshape is settled per project by the routes themselves.
+      role: row.owner_role === "admin" ? "admin" : "member",
     },
   };
 }

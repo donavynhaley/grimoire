@@ -1,5 +1,5 @@
 import { type FormEvent, Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { type AuditPage, type AwayState, type BoardWorkspace, type Page, type PageStatus, type IdeaState, type IdeaWorkspace, type UserRole } from "../../shared/types";
+import { type AuditPage, type AwayState, type BoardWorkspace, type Page, type PageStatus, type IdeaState, type IdeaWorkspace, type ProjectRole } from "../../shared/types";
 import { AccountDialog } from "./AccountDialog";
 import { ActivityDialog } from "./ActivityDialog";
 import { Avatar } from "./Avatar";
@@ -70,7 +70,7 @@ type Props = {
   onLogout: () => Promise<void>;
   onMoveBacklogToNext: (id: string) => Promise<void>;
   onPromoteIdea: (id: string) => Promise<void>;
-  onChangeMemberRole: (id: string, role: UserRole) => Promise<void>;
+  onChangeMemberRole: (id: string, role: ProjectRole) => Promise<void>;
   onRemoveMember: (id: string) => Promise<void>;
   onRestorePage: (id: string) => Promise<void>;
   /** Puts a board-surface failure on the global banner; dialog failures stay in the dialog. */
@@ -121,13 +121,13 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
   const [awayDismissed, setAwayDismissed] = useState(false);
   // Pages the reader has opened this visit; their dots have been answered.
   const [openedUnseen, setOpenedUnseen] = useState<ReadonlySet<string>>(() => new Set());
-  const isOwner = board.currentUser.role === "owner";
+  const isOwner = board.viewerIsOwner;
 
   // Which settings section is open lives in the URL, so a reload - or the remount a project
   // switch causes - reopens exactly where the reader was, and a link can point at a section.
   const [settingsSection, setSettingsSection] = useState<SettingsSection | null>(() => {
     const requested = new URLSearchParams(location.search).get("settings");
-    return (settingsSectionsFor(board.currentUser.role === "owner") as readonly string[]).includes(requested ?? "")
+    return (settingsSectionsFor(board.viewerIsOwner) as readonly string[]).includes(requested ?? "")
       ? (requested as SettingsSection)
       : null;
   });
@@ -550,7 +550,7 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
             actions={projectActions}
             activityBadge={unseenCount}
             busy={busy}
-            isOwner={board.currentUser.role === "owner"}
+            isOwner={board.viewerIsOwner}
             onOpenActivity={isOwner ? () => { setActivityOpen(true); setActivityVisited(true); } : undefined}
             onOpenSettings={() => setSettingsSection("general")}
             onOpenTeam={() => setSettingsSection("team")}

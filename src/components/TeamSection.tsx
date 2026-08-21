@@ -1,24 +1,29 @@
 import { useState } from "react";
-import type { Member, User, UserRole } from "../../shared/types";
+import type { Member, User, ProjectRole } from "../../shared/types";
 import { Avatar } from "./Avatar";
 import { Growing } from "./Growing";
 import type { SettingsRun } from "./use-settings-action";
 
 type Props = {
   currentUser: User;
+  /**
+   * Whether the reader owns the project on screen. It arrives as a prop because the account
+   * beside it no longer answers the question: owning a project is a fact about that project,
+   * and the server is the only thing that knows it.
+   */
+  isOwner: boolean;
   members: Member[];
   online: ReadonlySet<string>;
   busy: boolean;
   onCreateInvite: () => Promise<string>;
-  onChangeMemberRole: (id: string, role: UserRole) => Promise<void>;
+  onChangeMemberRole: (id: string, role: ProjectRole) => Promise<void>;
   onRemoveMember: (id: string) => Promise<void>;
   run: SettingsRun;
 };
 
-export function TeamSection({ currentUser, members, online, busy, onCreateInvite, onChangeMemberRole, onRemoveMember, run }: Props) {
+export function TeamSection({ currentUser, isOwner, members, online, busy, onCreateInvite, onChangeMemberRole, onRemoveMember, run }: Props) {
   const [invite, setInvite] = useState("");
   const [removingId, setRemovingId] = useState<string | null>(null);
-  const isOwner = currentUser.role === "owner";
 
   /**
    * Promotion is one button rather than a confirm, because it is reversible by the same
@@ -77,9 +82,11 @@ export function TeamSection({ currentUser, members, online, busy, onCreateInvite
       </div>
       {isOwner && (
         <>
-          {/* Roles are account-wide by design, so the button's reach is named where it lives. */}
+          {/* The reach is named where the button lives, because the reach is the part people
+              assume - and what they assume is bigger than what this grants. */}
           <p className="settings-summary role-reach-note">
-            Making someone an owner grants owner powers on every project, not just this one.
+            An owner can reshape this project. The role reaches this project only: it grants nothing
+            anywhere else, and adds them to nothing.
           </p>
           <div className="invite-box">
             <div><span className="field-label">Invite someone</span><p>One person can use this link. Creating another revokes this one. It expires after seven days.</p></div>

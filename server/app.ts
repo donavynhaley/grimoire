@@ -51,6 +51,8 @@ import {
   updateChapter,
   updateField,
   userCanAccessProject,
+  userOwnsProject,
+  userIsProjectMember,
   userCount,
   projectGithubConfig,
   setProjectGithub,
@@ -553,8 +555,11 @@ export function createGrimoireServer(options: Options) {
       const userId = randomUUID();
       const now = new Date().toISOString();
       const passwordHash = await hashPassword(input.password);
+      // The one admin this installation ever has: whoever stood it up. Nothing grants the
+      // role afterwards and nothing takes it away, which is what makes it the account that
+      // can never be locked out of its own instance.
       database
-        .prepare("INSERT INTO users (id, name, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, 'owner', ?)")
+        .prepare("INSERT INTO users (id, name, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, 'admin', ?)")
         .run(userId, input.name, input.email, passwordHash, now);
       let projectId: string;
       try {
@@ -757,8 +762,7 @@ export function createGrimoireServer(options: Options) {
 
     if (method === "POST" && recapMatch) {
       const user = requireUser(context);
-      if (user.role !== "owner") throw new HttpError(403, "Only the owner can post a recap");
-      const projectId = requireProject(context, user);
+      const projectId = requireProjectOwner(context, user, "Only the owner can post a recap");
       requireChaptersEnabled(projectId);
       await readJson(request);
       const result = await sendRecap(projectId, recapMatch[1]);
@@ -770,8 +774,7 @@ export function createGrimoireServer(options: Options) {
 
     if (method === "POST" && url.pathname === "/api/github/verify") {
       const user = requireUser(context);
-      if (user.role !== "owner") throw new HttpError(403, "Only the owner can check the GitHub connection");
-      const projectId = requireProject(context, user);
+      const projectId = requireProjectOwner(context, user, "Only the owner can check the GitHub connection");
       await readJson(request);
       const config = projectGithubConfig(database, projectId);
       const verdict = await verifyRepoAccess(options.githubFetcher ?? githubApiFetcher, config.repo, config.token);
@@ -791,8 +794,7 @@ export function createGrimoireServer(options: Options) {
 
     if (method === "POST" && url.pathname === "/api/invites") {
       const user = requireUser(context);
-      if (user.role !== "owner") throw new HttpError(403, "Only the project owner can create invitations");
-      const projectId = requireProject(context, user);
+      const projectId = requireProjectOwner(context, user, "Only the project owner can create invitations");
       await readJson(request);
       const code = createOpaqueToken();
       const now = new Date();
@@ -825,7 +827,9 @@ export function createGrimoireServer(options: Options) {
 
     if (method === "POST" && url.pathname === "/api/projects") {
       const user = requireUser(context);
-      if (user.role !== "owner") throw new HttpError(403, "Only the owner can create projects");
+      // Anyone signed in may start a project, and `createProject` writes them in as its
+      // owner. Reserving this for a single account is what left ownership nowhere to live
+      // but the installation: there was nobody else a project could belong to.
       const input = projectSchema.parse(await readJson(request));
       const projectId = createProject(database, user.id, input.name);
       audit(context, { projectId, entityType: "project", entityId: projectId, entityTitle: input.name, action: "created" });
@@ -836,7 +840,10 @@ export function createGrimoireServer(options: Options) {
     const projectMatch = url.pathname.match(/^\/api\/projects\/([^/]+)$/);
     if (method === "PATCH" && projectMatch) {
       const user = requireUser(context);
-      if (user.role !== "owner") throw new HttpError(403, "Only the owner can change project settings");
+      requireProjectMembership(user, projectMatch[1]);
+      if (!userOwnsProject(database, user, projectMatch[1])) {
+        throw new HttpError(403, "Only the owner can change project settings");
+      }
       const input = projectUpdateSchema.parse(await readJson(request));
       const projectId = projectMatch[1];
       const before = projectById(database, projectId);
@@ -961,15 +968,20 @@ export function createGrimoireServer(options: Options) {
     // only clears `archived_at`: the pages never left the disk, so nothing else moves.
     if (method === "GET" && url.pathname === "/api/projects/archived") {
       const user = requireUser(context);
-      if (user.role !== "owner") throw new HttpError(403, "Only the owner can see archived projects");
-      json(response, 200, { projects: listArchivedProjects(database) });
+      // Exactly the projects the next route would let them restore, so the list never offers
+      // a button that is going to be refused.
+      json(response, 200, { projects: listArchivedProjects(database, user) });
       return;
     }
 
     const projectRestoreMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/restore$/);
     if (method === "POST" && projectRestoreMatch) {
       const user = requireUser(context);
-      if (user.role !== "owner") throw new HttpError(403, "Only the owner can restore projects");
+      // Ownership is read off the membership row, which outlives archiving - so this is asked
+      // directly rather than through the live-project check, which refuses anything archived.
+      if (!userOwnsProject(database, user, projectRestoreMatch[1])) {
+        throw new HttpError(404, "Archived project not found");
+      }
       await readJson(request);
       const restoredName = projectById(database, projectRestoreMatch[1])?.name;
       if (!restoreProject(database, projectRestoreMatch[1])) {
@@ -989,7 +1001,10 @@ export function createGrimoireServer(options: Options) {
 
     if (method === "DELETE" && projectMatch) {
       const user = requireUser(context);
-      if (user.role !== "owner") throw new HttpError(403, "Only the owner can archive projects");
+      requireProjectMembership(user, projectMatch[1]);
+      if (!userOwnsProject(database, user, projectMatch[1])) {
+        throw new HttpError(403, "Only the owner can archive projects");
+      }
       await readJson(request);
       const archivedName = projectById(database, projectMatch[1])?.name;
       const result = archiveProject(database, projectMatch[1]);
@@ -1012,15 +1027,14 @@ export function createGrimoireServer(options: Options) {
     // token would make revocation meaningless.
     if (method === "GET" && url.pathname === "/api/agent-tokens") {
       const user = requireUser(context);
-      if (user.role !== "owner") throw new HttpError(403, "Only the owner can manage agent access");
-      json(response, 200, { tokens: listAgentTokens(database, requireProject(context, user)) });
+      const listing = requireProjectOwner(context, user, "Only the owner can manage agent access");
+      json(response, 200, { tokens: listAgentTokens(database, listing) });
       return;
     }
 
     if (method === "POST" && url.pathname === "/api/agent-tokens") {
       const user = requireUser(context);
-      if (user.role !== "owner") throw new HttpError(403, "Only the owner can manage agent access");
-      const projectId = requireProject(context, user);
+      const projectId = requireProjectOwner(context, user, "Only the owner can manage agent access");
       const input = agentTokenCreateSchema.parse(await readJson(request));
       const issued = issueAgentToken(database, {
         projectId,
@@ -1049,8 +1063,7 @@ export function createGrimoireServer(options: Options) {
     const agentTokenMatch = url.pathname.match(/^\/api\/agent-tokens\/([^/]+)$/);
     if (method === "DELETE" && agentTokenMatch) {
       const user = requireUser(context);
-      if (user.role !== "owner") throw new HttpError(403, "Only the owner can manage agent access");
-      const projectId = requireProject(context, user);
+      const projectId = requireProjectOwner(context, user, "Only the owner can manage agent access");
       const revoked = listAgentTokens(database, projectId).find((token) => token.id === agentTokenMatch[1]);
       if (!revokeAgentToken(database, projectId, agentTokenMatch[1])) {
         throw new HttpError(404, "Agent token not found");
@@ -1069,8 +1082,7 @@ export function createGrimoireServer(options: Options) {
 
     if (method === "POST" && url.pathname === "/api/categories") {
       const user = requireUser(context);
-      if (user.role !== "owner") throw new HttpError(403, "Only the owner can manage categories");
-      const projectId = requireProject(context, user);
+      const projectId = requireProjectOwner(context, user, "Only the owner can manage categories");
       const input = categoryCreateSchema.parse(await readJson(request));
       const result = createCategory(database, projectId, input);
       if (result === "invalid_name") throw new HttpError(400, "The category needs a name with letters or numbers");
@@ -1090,8 +1102,7 @@ export function createGrimoireServer(options: Options) {
     const categoryMatch = url.pathname.match(/^\/api\/categories\/([^/]+)$/);
     if (method === "PATCH" && categoryMatch) {
       const user = requireUser(context);
-      if (user.role !== "owner") throw new HttpError(403, "Only the owner can manage categories");
-      const projectId = requireProject(context, user);
+      const projectId = requireProjectOwner(context, user, "Only the owner can manage categories");
       const input = categoryUpdateSchema.parse(await readJson(request));
       const previous = categoriesForProject(database, projectId).find((value) => value.slug === categoryMatch[1]);
       const category = updateCategory(database, projectId, categoryMatch[1], input);
@@ -1119,8 +1130,7 @@ export function createGrimoireServer(options: Options) {
 
     if (method === "DELETE" && categoryMatch) {
       const user = requireUser(context);
-      if (user.role !== "owner") throw new HttpError(403, "Only the owner can manage categories");
-      const projectId = requireProject(context, user);
+      const projectId = requireProjectOwner(context, user, "Only the owner can manage categories");
       const removed = categoriesForProject(database, projectId).find((value) => value.slug === categoryMatch[1]);
       if (!deleteCategory(database, pageStore, projectId, categoryMatch[1])) {
         throw new HttpError(404, "Category not found");
@@ -1142,8 +1152,7 @@ export function createGrimoireServer(options: Options) {
     // decides which exist, so these are owner-only and outside the agent allow list.
     if (method === "POST" && url.pathname === "/api/fields") {
       const user = requireUser(context);
-      if (user.role !== "owner") throw new HttpError(403, "Only an owner can manage fields");
-      const projectId = requireProject(context, user);
+      const projectId = requireProjectOwner(context, user, "Only an owner can manage fields");
       const input = fieldCreateSchema.parse(await readJson(request));
       const result = createField(database, projectId, input);
       if (result === "invalid_label") throw new HttpError(400, "The field needs a name with letters or numbers");
@@ -1165,8 +1174,7 @@ export function createGrimoireServer(options: Options) {
     const fieldMatch = url.pathname.match(/^\/api\/fields\/([^/]+)$/);
     if (method === "PATCH" && fieldMatch) {
       const user = requireUser(context);
-      if (user.role !== "owner") throw new HttpError(403, "Only an owner can manage fields");
-      const projectId = requireProject(context, user);
+      const projectId = requireProjectOwner(context, user, "Only an owner can manage fields");
       const input = fieldUpdateSchema.parse(await readJson(request));
       const before = fieldsForProject(database, projectId).find((field) => field.key === fieldMatch[1]);
       const result = updateField(database, pageStore, projectId, fieldMatch[1], input);
@@ -1202,8 +1210,7 @@ export function createGrimoireServer(options: Options) {
 
     if (method === "DELETE" && fieldMatch) {
       const user = requireUser(context);
-      if (user.role !== "owner") throw new HttpError(403, "Only an owner can manage fields");
-      const projectId = requireProject(context, user);
+      const projectId = requireProjectOwner(context, user, "Only an owner can manage fields");
       const removed = fieldsForProject(database, projectId).find((field) => field.key === fieldMatch[1]);
       const cleared = deleteField(database, pageStore, projectId, fieldMatch[1]);
       if (cleared === null) throw new HttpError(404, "Field not found");
@@ -1222,8 +1229,7 @@ export function createGrimoireServer(options: Options) {
 
     if (method === "POST" && url.pathname === "/api/chapters") {
       const user = requireUser(context);
-      if (user.role !== "owner") throw new HttpError(403, "Only the owner can manage chapters");
-      const projectId = requireProject(context, user);
+      const projectId = requireProjectOwner(context, user, "Only the owner can manage chapters");
       requireChaptersEnabled(projectId);
       const input = chapterCreateSchema.parse(await readJson(request));
       const result = createChapter(database, chapterStore, projectId, user.id, input);
@@ -1247,8 +1253,7 @@ export function createGrimoireServer(options: Options) {
     const chapterMatch = url.pathname.match(/^\/api\/chapters\/([^/]+)$/);
     if (method === "PATCH" && chapterMatch) {
       const user = requireUser(context);
-      if (user.role !== "owner") throw new HttpError(403, "Only the owner can manage chapters");
-      const projectId = requireProject(context, user);
+      const projectId = requireProjectOwner(context, user, "Only the owner can manage chapters");
       requireChaptersEnabled(projectId);
       const input = chapterUpdateSchema.parse(await readJson(request));
       const before = chaptersForProject(database, chapterStore, projectId)
@@ -1276,8 +1281,7 @@ export function createGrimoireServer(options: Options) {
     const chapterCloseMatch = url.pathname.match(/^\/api\/chapters\/([^/]+)\/close$/);
     if (method === "POST" && chapterCloseMatch) {
       const user = requireUser(context);
-      if (user.role !== "owner") throw new HttpError(403, "Only the owner can manage chapters");
-      const projectId = requireProject(context, user);
+      const projectId = requireProjectOwner(context, user, "Only the owner can manage chapters");
       requireChaptersEnabled(projectId);
       const input = chapterCloseSchema.parse(await readJson(request));
       const slug = chapterCloseMatch[1];
@@ -1340,8 +1344,7 @@ export function createGrimoireServer(options: Options) {
 
     if (method === "DELETE" && chapterMatch) {
       const user = requireUser(context);
-      if (user.role !== "owner") throw new HttpError(403, "Only the owner can manage chapters");
-      const projectId = requireProject(context, user);
+      const projectId = requireProjectOwner(context, user, "Only the owner can manage chapters");
       requireChaptersEnabled(projectId);
       const removed = chaptersForProject(database, chapterStore, projectId)
         .find((chapter) => chapter.slug === chapterMatch[1]);
@@ -1365,16 +1368,17 @@ export function createGrimoireServer(options: Options) {
     const memberMatch = url.pathname.match(/^\/api\/members\/([^/]+)$/);
     if (method === "PATCH" && memberMatch) {
       const user = requireUser(context);
-      if (user.role !== "owner") throw new HttpError(403, "Only an owner can change roles");
-      const projectId = requireProject(context, user);
+      const projectId = requireProjectOwner(context, user, "Only an owner can change roles");
       const input = memberRoleSchema.parse(await readJson(request));
       // Changing your own role is refused rather than guarded, because the only case worth
-      // allowing is the one that locks the instance: a sole owner demoting themselves leaves
-      // nobody who can ever promote anyone again. A second owner exists to be asked.
+      // allowing is the one that strands the project: its sole owner demoting themselves
+      // leaves nobody who can ever promote anyone again. A second owner exists to be asked.
       if (memberMatch[1] === user.id) throw new HttpError(409, "Ask another owner to change your own role");
       const member = membersForProject(database, projectId).find((value) => value.id === memberMatch[1]);
       const result = setMemberRole(database, projectId, memberMatch[1], input.role);
       if (result === "not_found") throw new HttpError(404, "Member not found");
+      // The admin is the installation's, not this project's, so no project role may replace it.
+      if (result === "admin") throw new HttpError(409, "The admin's role cannot be changed");
       if (result === "updated" && member) {
         audit(context, {
           projectId,
@@ -1382,8 +1386,8 @@ export function createGrimoireServer(options: Options) {
           entityId: memberMatch[1],
           entityTitle: member.name,
           action: "updated",
-          // The membership row is what this project's log speaks for, so the `from` is the
-          // project role - even though the two are kept in lockstep by the write itself.
+          // The membership row is the only thing that moved, and it is what this project's
+          // log speaks for, so it is the role the entry reports from and to.
           changes: [{ field: "role", from: member.projectRole, to: input.role }],
         });
       }
@@ -1394,12 +1398,12 @@ export function createGrimoireServer(options: Options) {
 
     if (method === "DELETE" && memberMatch) {
       const user = requireUser(context);
-      if (user.role !== "owner") throw new HttpError(403, "Only the project owner can remove members");
       await readJson(request);
-      const projectId = requireProject(context, user);
+      const projectId = requireProjectOwner(context, user, "Only the project owner can remove members");
       const removedMember = membersForProject(database, projectId).find((value) => value.id === memberMatch[1]);
       const result = removeProjectMember(database, pageStore, projectId, memberMatch[1]);
       if (result === "owner") throw new HttpError(409, "The project owner cannot be removed");
+      if (result === "admin") throw new HttpError(409, "The admin cannot be removed");
       if (result === "not_found") throw new HttpError(404, "Member not found");
       audit(context, {
         projectId,
@@ -1450,7 +1454,7 @@ export function createGrimoireServer(options: Options) {
       if (entity && !/^[0-9a-z-]{1,64}$/i.test(entity)) throw new HttpError(400, "Invalid activity filter");
       // The project-wide history is the owner's tool; per-entity history stays
       // available to every member because the page dialog shows it inline.
-      if (!entity && user.role !== "owner") {
+      if (!entity && !userOwnsProject(database, user, projectId)) {
         throw new HttpError(403, "Only the project owner can open the project history");
       }
       const page = listAuditEvents(database, projectId, {
@@ -1850,6 +1854,34 @@ export function createGrimoireServer(options: Options) {
     if (!email) return null;
     const stored = findUserByEmail(database, email);
     return stored ? String(stored.name) : null;
+  }
+
+  /**
+   * Gates a route that names its project in the URL rather than the header.
+   *
+   * `requireProject` covers everything that works on "the project I am looking at". These
+   * few name one outright - rename it, archive it, restore it - so without this they would
+   * act on a project nobody ever put the caller on.
+   *
+   * It answers 404 rather than 403, so a project someone is not on is indistinguishable
+   * from one that does not exist.
+   */
+  function requireProjectMembership(user: User, projectId: string): void {
+    if (!userCanAccessProject(database, user, projectId)) throw new HttpError(404, "Project not found");
+  }
+
+  /**
+   * Resolves the project being worked on and refuses anyone who may not reshape it.
+   *
+   * The two questions used to be asked in the wrong order and against the wrong thing: the
+   * role was checked first, on the account, before anyone had established which project was
+   * even being talked about. Reading the project first is what makes the answer specific to
+   * it, which is the whole of this change.
+   */
+  function requireProjectOwner(context: RequestContext, user: User, refusal: string): string {
+    const projectId = requireProject(context, user);
+    if (!userOwnsProject(database, user, projectId)) throw new HttpError(403, refusal);
+    return projectId;
   }
 
   function requireProject(context: RequestContext, user: User): string {

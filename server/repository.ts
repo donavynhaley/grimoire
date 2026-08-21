@@ -20,7 +20,8 @@ import { fieldHasOptions,
   type ProjectField,
   type ProjectSummary,
   type User,
-  type UserRole,
+  type AccountRole,
+  type ProjectRole,
 } from "../shared/types";
 import { MarkdownPageStore, type StoredPage } from "./markdown-pages";
 import { isCalendarDay, MarkdownChapterStore, type StoredChapter } from "./markdown-chapters";
@@ -56,18 +57,27 @@ export function userCount(database: DatabaseSync): number {
   return Number(row(database, "SELECT COUNT(*) AS count FROM users")?.count ?? 0);
 }
 
+/**
+ * Where somebody lands with no project named: the first one they were put on.
+ *
+ * The admin falls back to the oldest project on the installation, so an admin who happens
+ * to be on none of them still has somewhere to land - the login gate refuses an account
+ * with no project at all, and the one account that can never be locked out must not be
+ * the one that trips it.
+ */
 export function defaultProjectIdForUser(database: DatabaseSync, user: User): string | null {
   const value =
-    user.role === "owner"
+    row(
+      database,
+      `SELECT project_members.project_id FROM project_members
+       JOIN projects ON projects.id = project_members.project_id
+       WHERE project_members.user_id = ? AND projects.archived_at IS NULL
+       ORDER BY project_members.created_at LIMIT 1`,
+      user.id,
+    ) ??
+    (user.role === "admin"
       ? row(database, "SELECT id AS project_id FROM projects WHERE archived_at IS NULL ORDER BY created_at LIMIT 1")
-      : row(
-        database,
-        `SELECT project_members.project_id FROM project_members
-         JOIN projects ON projects.id = project_members.project_id
-         WHERE project_members.user_id = ? AND projects.archived_at IS NULL
-         ORDER BY project_members.created_at LIMIT 1`,
-        user.id,
-      );
+      : undefined);
   return value ? String(value.project_id) : null;
 }
 
@@ -111,8 +121,20 @@ export function advanceSeenCursor(database: DatabaseSync, projectId: string, use
     .run(projectId, userId, sequence, new Date().toISOString());
 }
 
+/**
+ * Whether this person is on that project at all.
+ *
+ * Membership is the reach. Owning a project says what somebody may do once they are on it,
+ * never which projects they are on: being an owner somewhere is not a standing invitation
+ * to every project on the installation, and somebody has to have put them on it. Nothing is
+ * lost by insisting on that, because the account that creates a project is written in as its
+ * owning member and that is the one membership row no removal may delete.
+ *
+ * The admin is the deliberate exception, and the only one - an installation needs an account
+ * that cannot be shut out of it.
+ */
 export function userCanAccessProject(database: DatabaseSync, user: User, projectId: string): boolean {
-  if (user.role === "owner") {
+  if (user.role === "admin") {
     return Boolean(row(database, "SELECT 1 AS ok FROM projects WHERE id = ? AND archived_at IS NULL", projectId));
   }
   return Boolean(
@@ -127,9 +149,50 @@ export function userCanAccessProject(database: DatabaseSync, user: User, project
   );
 }
 
+/**
+ * Whether this person may reshape that project - its name, categories, chapters, fields,
+ * agent access and membership.
+ *
+ * Two ways to be true, and they answer different questions. The project's own `owner` row
+ * is the ordinary one: whoever created it holds it, and an owner may grant it to somebody
+ * else on that project and nowhere else. The admin passes everywhere, which is the whole
+ * point of there being one - an installation always has somebody who can reach into a
+ * project whose owner has gone quiet.
+ */
+export function userOwnsProject(database: DatabaseSync, user: User, projectId: string): boolean {
+  if (user.role === "admin") return true;
+  return Boolean(
+    row(
+      database,
+      "SELECT 1 AS ok FROM project_members WHERE project_id = ? AND user_id = ? AND role = 'owner'",
+      projectId,
+      user.id,
+    ),
+  );
+}
+
+/**
+ * Membership alone, with no opinion about whether the project is archived.
+ *
+ * Restoring is the one thing worth doing to a project that is already archived, and the
+ * check above deliberately refuses those. This answers the narrower question that route
+ * actually has: was this ever their project?
+ */
+export function userIsProjectMember(database: DatabaseSync, user: User, projectId: string): boolean {
+  return Boolean(
+    row(
+      database,
+      "SELECT 1 AS ok FROM project_members WHERE project_id = ? AND user_id = ?",
+      projectId,
+      user.id,
+    ),
+  );
+}
+
+/** The projects this person is on - every one of them, for the admin. The picker offers these. */
 export function listProjectsForUser(database: DatabaseSync, user: User): ProjectSummary[] {
   const values =
-    user.role === "owner"
+    user.role === "admin"
       ? rows(database, "SELECT id, name, description FROM projects WHERE archived_at IS NULL ORDER BY created_at")
       : rows(
         database,
@@ -173,10 +236,28 @@ export function archiveProject(database: DatabaseSync, projectId: string): Archi
 }
 
 /** Archiving was a one-way door until this list existed; it feeds the owner's restore surface. */
-export function listArchivedProjects(database: DatabaseSync): ArchivedProject[] {
-  return rows(
-    database,
-    "SELECT id, name, archived_at FROM projects WHERE archived_at IS NOT NULL ORDER BY archived_at DESC",
+/**
+ * The archived projects this person is on, newest first.
+ *
+ * Archiving only sets `archived_at`, so the membership rows outlive it and still say whose
+ * project this was. A restore list drawn without them would name every project the
+ * installation has ever archived to anyone holding the owner role.
+ */
+export function listArchivedProjects(database: DatabaseSync, user: User): ArchivedProject[] {
+  return (user.role === "admin"
+    ? rows(
+      database,
+      "SELECT id, name, archived_at FROM projects WHERE archived_at IS NOT NULL ORDER BY archived_at DESC",
+    )
+    : rows(
+      database,
+      `SELECT projects.id, projects.name, projects.archived_at FROM project_members
+       JOIN projects ON projects.id = project_members.project_id
+       WHERE project_members.user_id = ? AND project_members.role = 'owner'
+         AND projects.archived_at IS NOT NULL
+       ORDER BY projects.archived_at DESC`,
+      user.id,
+    )
   ).map((value) => ({
     id: String(value.id),
     name: String(value.name),
@@ -691,6 +772,7 @@ export function getBoard(
       ? chapterStore.list(String(project.slug)).map((chapter) => publicChapter(database, chapter, members))
       : [],
     currentUser: user,
+    viewerIsOwner: userOwnsProject(database, user, projectId),
     members,
     pages: pages.map((page) => publicPage(database, page, members, githubStatuses)),
     // Chapters and estimates are separate gates, and velocity is the place they meet: it is
@@ -982,42 +1064,42 @@ export function membersForProject(database: DatabaseSync, projectId: string): Me
   );
 }
 
-export type SetMemberRoleResult = "updated" | "not_found" | "unchanged";
+export type SetMemberRoleResult = "updated" | "not_found" | "unchanged" | "admin";
 
 /**
- * Promotes or demotes a member, after the invitation that first let them in.
+ * Promotes or demotes somebody on one project.
  *
- * A role was fixed at registration until now, which meant a second owner could only exist by
- * editing the database by hand. Every owner gate in the product reads the account-wide role,
- * so that is what changes here, and the project membership is brought along with it: leaving
- * the two disagreeing would show someone as a member on a board they can in fact restructure.
+ * This grants the project, and only the project. It used to write the account-wide role and
+ * then copy it across every membership row the person held, so promoting a second owner
+ * handed them the whole installation and demoting them in one project took away a project
+ * they had created themselves.
  *
- * Every project they belong to is updated, because the power being granted is not per-project
- * either. Saying otherwise on one board and not another would be the same lie in a smaller place.
+ * The admin is refused rather than guarded: it is an installation role, so there is no
+ * project promotion that could grant it and none that should be able to take it back.
  */
 export function setMemberRole(
   database: DatabaseSync,
   projectId: string,
   memberId: string,
-  role: UserRole,
+  role: ProjectRole,
 ): SetMemberRoleResult {
   const member = membersForProject(database, projectId).find((candidate) => candidate.id === memberId);
   if (!member) return "not_found";
-  if (member.role === role && member.projectRole === role) return "unchanged";
+  // The admin is not a project role and cannot be handed out or taken back by one.
+  if (member.role === "admin") return "admin";
+  if (member.projectRole === role) return "unchanged";
 
-  database.exec("BEGIN IMMEDIATE");
-  try {
-    database.prepare("UPDATE users SET role = ? WHERE id = ?").run(role, memberId);
-    database.prepare("UPDATE project_members SET role = ? WHERE user_id = ?").run(role, memberId);
-    database.exec("COMMIT");
-  } catch (error) {
-    database.exec("ROLLBACK");
-    throw error;
-  }
+  // Scoped to this project, and to `project_members` alone. Writing the account role too -
+  // and worse, writing it across every membership row the person had - is what made one
+  // promotion reach every project they were on, and what let a demotion in somebody else's
+  // project strip them of the project they created themselves.
+  database
+    .prepare("UPDATE project_members SET role = ? WHERE project_id = ? AND user_id = ?")
+    .run(role, projectId, memberId);
   return "updated";
 }
 
-export type RemoveMemberResult = "removed" | "not_found" | "owner";
+export type RemoveMemberResult = "removed" | "not_found" | "owner" | "admin";
 
 export function removeProjectMember(
   database: DatabaseSync,
@@ -1029,6 +1111,8 @@ export function removeProjectMember(
   const member = membersForProject(database, projectId).find((candidate) => candidate.id === memberId);
   if (!project || !member) return "not_found";
   if (member.projectRole === "owner") return "owner";
+  // The installation's admin is not a member a project owner gets to remove.
+  if (member.role === "admin") return "admin";
 
   const now = new Date().toISOString();
   pageStore.list(String(project.slug)).forEach((page) => {
