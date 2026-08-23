@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FieldValue, PageFields as PageFieldValues, ProjectField } from "../../shared/types";
 import { Growing } from "./Growing";
 
@@ -135,12 +135,23 @@ export function PageFieldsEditor({ fields, values, onUpdate }: Props) {
   );
 }
 
+/** The popover's own chrome — input, padding, the actions row — which is not list space. */
+const MARGIN_AND_INPUT = 108;
+/** Below this the list is too short to be worth reading, so it scrolls instead of shrinking. */
+const MIN_LIST = 96;
+
 /**
  * A choice found by typing rather than read from a wall of buttons.
  *
  * A plain choice field shows every option at once, which is right up to about the point a
  * team's option list outgrows the rail. This one rests as its value, and opens into the same
  * search-and-pick the blocker finder uses: type a little, tap the answer.
+ *
+ * The search opens over the rail rather than inside it. Growing the row would push every
+ * property below it down the panel the moment somebody reached for this one, and put a
+ * different control under the pointer that had just clicked - so the row keeps the height it
+ * rests at, and the search is a layer on top of it. It is a popover entering rather than a
+ * section unfolding, which is the case the height rule leaves to CSS.
  */
 function SearchableChoice({ field, onSet, value }: {
   field: ProjectField;
@@ -149,6 +160,16 @@ function SearchableChoice({ field, onSet, value }: {
 }) {
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState("");
+  /**
+   * Which way the search opens, and how tall its list may be.
+   *
+   * Fields sit wherever the project ordered them, so the last row of a long rail has no room
+   * beneath it — and a popover that opens downward from there is half off the panel. Measured
+   * once on opening: it drops upward when that is the roomier side, and the list is capped to
+   * whatever room the chosen side actually has.
+   */
+  const [placement, setPlacement] = useState<{ up: boolean; room: number }>({ up: false, room: 0 });
+  const rootRef = useRef<HTMLDivElement>(null);
   const normalized = query.trim().toLowerCase();
   const matches = field.options.filter((option) => option.toLowerCase().includes(normalized)).slice(0, 8);
 
@@ -157,64 +178,92 @@ function SearchableChoice({ field, onSet, value }: {
     setQuery("");
   };
 
-  if (!searching) {
-    return (
+  const open = () => {
+    const rect = rootRef.current?.getBoundingClientRect();
+    if (rect) {
+      const below = window.innerHeight - rect.bottom;
+      const above = rect.top;
+      const up = below < above;
+      setPlacement({ up, room: (up ? above : below) - MARGIN_AND_INPUT });
+    }
+    setSearching(true);
+  };
+
+  // Clicking anywhere else is the ordinary way out of a popover, and the one people reach for
+  // before they find the cancel it covers.
+  useEffect(() => {
+    if (!searching) return;
+    const closeOnOutside = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) close();
+    };
+    document.addEventListener("mousedown", closeOnOutside);
+    return () => document.removeEventListener("mousedown", closeOnOutside);
+  }, [searching]);
+
+  return (
+    <div className="field-search-anchor" ref={rootRef}>
       <div className="rail-value">
         <span className="rail-current">{fieldValueText(field, value)}</span>
         <button
+          aria-expanded={searching}
+          aria-haspopup="dialog"
           aria-label={`Change ${field.label}`}
           className="rail-change"
-          onClick={() => setSearching(true)}
+          onClick={() => (searching ? close() : open())}
           type="button"
         >change</button>
       </div>
-    );
-  }
-
-  return (
-    <div className="dependency-search">
-      <label>
-        <span className="sr-only">{`Find a ${field.label} option`}</span>
-        <input
-          aria-label={`Find a ${field.label} option`}
-          autoFocus
-          onChange={(event) => setQuery(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && matches.length > 0) {
-              event.preventDefault();
-              onSet(matches[0]);
-              close();
-              return;
-            }
-            if (event.key !== "Escape") return;
-            // Leaving the search must not also close the whole page.
-            event.stopPropagation();
-            close();
-          }}
-          placeholder="Type to search options..."
-          type="search"
-          value={query}
-        />
-      </label>
-      <div className="dependency-results">
-        {matches.map((option) => (
-          <button
-            aria-label={`Set ${field.label} to ${option}`}
-            key={option}
-            onClick={() => { onSet(option); close(); }}
-            type="button"
-          >
-            <span>{option === value ? <strong>{option} ✓</strong> : <strong>{option}</strong>}</span>
-          </button>
-        ))}
-        {matches.length === 0 && <p>No matching options.</p>}
-      </div>
-      <div>
-        {value !== undefined && (
-          <button className="text-button" onClick={() => { onSet(null); close(); }} type="button">clear</button>
-        )}
-        <button className="text-button" onClick={close} type="button">cancel</button>
-      </div>
+      {searching && (
+        <div
+          aria-label={`Choose a ${field.label}`}
+          className={placement.up ? "field-search-popover drop-up" : "field-search-popover"}
+          role="dialog"
+          style={{ "--field-search-room": `${Math.max(placement.room, MIN_LIST)}px` } as React.CSSProperties}
+        >
+          <label>
+            <span className="sr-only">{`Find a ${field.label} option`}</span>
+            <input
+              aria-label={`Find a ${field.label} option`}
+              autoFocus
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && matches.length > 0) {
+                  event.preventDefault();
+                  onSet(matches[0]);
+                  close();
+                  return;
+                }
+                if (event.key !== "Escape") return;
+                // Leaving the search must not also close the whole page.
+                event.stopPropagation();
+                close();
+              }}
+              placeholder="Type to search options..."
+              type="search"
+              value={query}
+            />
+          </label>
+          <div className="dependency-results">
+            {matches.map((option) => (
+              <button
+                aria-label={`Set ${field.label} to ${option}`}
+                key={option}
+                onClick={() => { onSet(option); close(); }}
+                type="button"
+              >
+                <span>{option === value ? <strong>{option} ✓</strong> : <strong>{option}</strong>}</span>
+              </button>
+            ))}
+            {matches.length === 0 && <p>No matching options.</p>}
+          </div>
+          <div className="field-search-actions">
+            {value !== undefined && (
+              <button className="text-button" onClick={() => { onSet(null); close(); }} type="button">clear</button>
+            )}
+            <button className="text-button" onClick={close} type="button">cancel</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

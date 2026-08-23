@@ -189,6 +189,49 @@ describe("page fields", () => {
     );
   });
 
+  it("opens the search over the rail, leaving the row it belongs to where it was", async () => {
+    const user = userEvent.setup();
+    const board = { ...boardFixture(), fields: [region, estimate] };
+    mountWith(board);
+
+    await user.click(await screen.findByText(board.pages[1].title));
+    const rail = screen.getByLabelText("Page properties");
+
+    await user.click(screen.getByRole("button", { name: "Change Region" }));
+    const popover = screen.getByRole("dialog", { name: "Choose a Region" });
+    expect(popover).toBeInTheDocument();
+
+    // The row it came from is still rendered underneath rather than swapped out for the
+    // search, which is what lets it keep its height while the search sits over the rail.
+    const resting = within(rail).getByRole("button", { name: "Change Region" });
+    expect(resting).toBeInTheDocument();
+    expect(popover.contains(resting)).toBe(false);
+    // Siblings under one anchor: the search is a layer beside the row, not inside it.
+    expect(popover.parentElement).toBe(resting.closest(".rail-value")?.parentElement);
+    // The property below it is untouched, so nothing was pushed down the panel.
+    expect(within(rail).getByRole("button", { name: "Change Estimate" })).toBeInTheDocument();
+
+    // And it closes back onto that same row without choosing anything.
+    await user.click(within(popover).getByRole("button", { name: "cancel" }));
+    expect(screen.queryByRole("dialog", { name: "Choose a Region" })).not.toBeInTheDocument();
+    expect(within(rail).getByRole("button", { name: "Change Region" })).toBeInTheDocument();
+  });
+
+  it("closes the search when the reader clicks away from it", async () => {
+    const user = userEvent.setup();
+    const board = { ...boardFixture(), fields: [region] };
+    mountWith(board);
+
+    await user.click(await screen.findByText(board.pages[1].title));
+    await user.click(screen.getByRole("button", { name: "Change Region" }));
+    expect(screen.getByRole("dialog", { name: "Choose a Region" })).toBeInTheDocument();
+
+    // Clicking elsewhere is the way out people reach for before they find the cancel.
+    await user.click(screen.getByLabelText("Page properties"));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Choose a Region" })).not.toBeInTheDocument());
+  });
+
   it("filters a searchable choice's capture picker by typing", async () => {
     const user = userEvent.setup();
     const board = { ...boardFixture(), fields: [region] };
