@@ -2146,6 +2146,8 @@ textarea:hover { border-color: var(--border-bright); }
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+/* It takes focus only so a keyboard can scroll it, so it says so quietly. */
+.notes-field.fill .notes-view:focus-visible { outline: 1px solid var(--border-bright); outline-offset: -1px; }
 .notes-field.fill textarea {
   min-height: 0;
   height: 100%;

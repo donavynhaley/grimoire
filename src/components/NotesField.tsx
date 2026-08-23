@@ -202,7 +202,21 @@ export function NotesField({ label, editLabel, addImageLabel = "Add an image", n
       value={value}
     />
   ) : (
-    <div className="notes-view" onClick={startEditing} ref={viewRef}>
+    /*
+     * In fill mode the resting notes are their own scrolling box, and a box that scrolls
+     * has to be reachable without a mouse: notes longer than the panel would otherwise
+     * strand everything past the first screenful for anyone on a keyboard. Focusable and
+     * named, it is a region someone can tab to and arrow through; the `edit` button above
+     * stays the way in, so this never has to pretend to be a control.
+     */
+    <div
+      aria-label={fill ? label : undefined}
+      className="notes-view"
+      onClick={startEditing}
+      ref={viewRef}
+      role={fill ? "region" : undefined}
+      tabIndex={fill ? 0 : undefined}
+    >
       {value.trim() ? <MarkdownView markdown={value} /> : <p className="notes-placeholder">{placeholder}</p>}
     </div>
   );
