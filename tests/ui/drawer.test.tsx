@@ -146,3 +146,63 @@ describe("the drawer shell", () => {
     }
   });
 });
+
+/**
+ * Which shell each kind of device gets.
+ *
+ * The stub above answers every query the same way, which is all the tests above need and
+ * exactly what cannot check the question being asked. This one answers the real query
+ * against a real screen: comma-separated branches, each an `and` of the conditions in it,
+ * which is enough of a media-query engine for the one query the shell owns.
+ */
+function stubScreen({ width, coarse }: { width: number; coarse: boolean }) {
+  const answer = (query: string) =>
+    query.split(",").some((branch) =>
+      branch.split(" and ").every((condition) => {
+        const maxWidth = condition.match(/max-width:\s*(\d+)px/);
+        if (maxWidth) return width <= Number(maxWidth[1]);
+        if (/pointer:\s*coarse/.test(condition)) return coarse;
+        return false;
+      }));
+
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: (query: string) => ({
+      matches: answer(query),
+      media: query,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }),
+  });
+  return () => Reflect.deleteProperty(window, "matchMedia");
+}
+
+describe("which shell a screen gets", () => {
+  const sheet = true;
+  const dialog = false;
+  const screens: Array<[string, { width: number; coarse: boolean }, boolean]> = [
+    ["a phone", { width: 412, coarse: true }, sheet],
+    ["a phone held sideways", { width: 932, coarse: true }, sheet],
+    ["a tablet in portrait", { width: 820, coarse: true }, sheet],
+    ["a narrow desktop window", { width: 560, coarse: false }, sheet],
+    // A blunt pointer on a screen this size is a finger on a large panel, not a phone.
+    ["a touchscreen laptop", { width: 1512, coarse: true }, dialog],
+    ["a 4K monitor with a touch panel", { width: 3840, coarse: true }, dialog],
+    ["an ordinary desktop", { width: 1512, coarse: false }, dialog],
+  ];
+
+  for (const [name, screen_, expected] of screens) {
+    it(`gives ${name} the ${expected ? "sheet" : "centred dialog"}`, () => {
+      const restore = stubScreen(screen_);
+      try {
+        open();
+        const panel = screen.getByRole("dialog", { name: "Edit page" });
+        if (expected) expect(panel).toHaveClass("drawer-sheet");
+        else expect(panel).not.toHaveClass("drawer-sheet");
+      } finally {
+        restore();
+      }
+    });
+  }
+});

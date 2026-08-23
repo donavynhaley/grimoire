@@ -32,6 +32,29 @@ html {
   font-size: clamp(16px, 11px + 0.3125vw, 20px);
 }
 
+/*
+ * Scrollbars, said once for everything that scrolls.
+ *
+ * Left alone, Chromium draws its desktop scrollbar - a light 15px track with a stepper arrow
+ * at each end - down the side of every column, which is wider than the category chip beside
+ * it and the loudest thing on the board. Firefox draws something thin and dark and the two
+ * looked like different applications. The standard properties are what both engines read
+ * now; the WebKit pseudo-elements below say the same thing for the versions that do not, and
+ * are ignored wherever the standard ones apply.
+ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-bright) transparent;
+}
+
+::-webkit-scrollbar { width: 0.5rem; height: 0.5rem; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--faint); }
+::-webkit-scrollbar-corner { background: transparent; }
+/* The stepper arrows are the rest of the bulk, and nothing here is scrolled a line at a time. */
+::-webkit-scrollbar-button { display: none; }
+
 html,
 body,
 #root { min-width: 20rem; min-height: 100%; margin: 0; }
@@ -3622,10 +3645,13 @@ textarea:hover { border-color: var(--border-bright); }
  * other dialogs by half again, and taller than their shared cap, leaving just
  * enough backdrop to say the board is still behind it.
  */
-.page-editor {
-  width: min(78rem, 100%);
-  max-height: min(64rem, calc(100vh - 3rem));
-}
+/*
+ * The height is scoped away from the sheet on purpose. These rules sit after the drawer's,
+ * so an unscoped `max-height` would win over `.drawer-sheet { max-height: none }` and cap a
+ * full-screen sheet into a slab floating at the bottom of the phone.
+ */
+.page-editor { width: min(78rem, 100%); }
+.page-editor:not(.drawer-sheet) { max-height: min(64rem, calc(100vh - 3rem)); }
 
 .page-editor-split {
   display: grid;
