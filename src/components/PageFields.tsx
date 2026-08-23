@@ -180,9 +180,13 @@ function SearchableChoice({ field, onSet, value }: {
 
   const open = () => {
     const rect = rootRef.current?.getBoundingClientRect();
+    // The rail scrolls once a project carries more properties than the panel is tall, and
+    // a popover measured against the window would then open straight through its edge. The
+    // box that clips it is the box it has to fit inside.
+    const frame = rootRef.current?.closest(".page-rail")?.getBoundingClientRect();
     if (rect) {
-      const below = window.innerHeight - rect.bottom;
-      const above = rect.top;
+      const below = (frame?.bottom ?? window.innerHeight) - rect.bottom;
+      const above = rect.top - (frame?.top ?? 0);
       const up = below < above;
       setPlacement({ up, room: (up ? above : below) - MARGIN_AND_INPUT });
     }
