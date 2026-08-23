@@ -423,8 +423,10 @@ export function App() {
 
   const createField = (input: { label: string; type: FieldType; options?: string[]; showOnTile?: boolean }) =>
     performSettings(() => mutate("/api/fields", "POST", input));
-  const updateField = (key: string, input: { label?: string; options?: string[]; showOnTile?: boolean; position?: number }) =>
-    performSettings(() => mutate(`/api/fields/${key}`, "PATCH", input));
+  const updateField = (
+    key: string,
+    input: { label?: string; type?: FieldType; options?: string[]; showOnTile?: boolean; position?: number },
+  ) => performSettings(() => mutate(`/api/fields/${key}`, "PATCH", input));
   const deleteField = (key: string) => performSettings(() => mutate(`/api/fields/${key}`, "DELETE"));
 
   const createChapter = (input: { name: string; startsOn?: string | null; endsOn?: string | null }) =>

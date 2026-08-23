@@ -98,6 +98,67 @@ describe("custom page fields", () => {
       expect(refused.response.status).toBe(400);
     });
 
+    it("swaps a choice field between its two presentations without touching a stored value", async () => {
+      const server = await startTestServer();
+      await bootstrap(server);
+      const field = await priority(server);
+      const made = await createPage(server, { title: "Ship it", fields: { priority: "p1" } });
+      expect(made.response.status).toBe(201);
+
+      const swapped = await server.request<{ field: ProjectField; cleared: number }>(`/api/fields/${field.key}`, {
+        method: "PATCH",
+        body: JSON.stringify({ type: "search-select" }),
+      });
+      expect(swapped.response.status).toBe(200);
+      expect(swapped.body.field.type).toBe("search-select");
+      expect(swapped.body.field.options).toEqual(["p0", "p1", "p2", "p3"]);
+      // The point of allowing this one swap: nothing already written is disturbed by it.
+      expect(swapped.body.cleared).toBe(0);
+      expect(pageFile(server)).toContain("p1");
+      expect((await board(server)).pages[0].fields).toEqual({ priority: "p1" });
+
+      // And back again, because which one reads better is a judgement a team may revisit.
+      const back = await server.request<{ field: ProjectField }>(`/api/fields/${field.key}`, {
+        method: "PATCH",
+        body: JSON.stringify({ type: "select" }),
+      });
+      expect(back.body.field.type).toBe("select");
+      expect((await board(server)).pages[0].fields).toEqual({ priority: "p1" });
+    });
+
+    it("refuses every other type change, because the stored values would not survive it", async () => {
+      const server = await startTestServer();
+      await bootstrap(server);
+      const field = await priority(server);
+      await createPage(server, { title: "Ship it", fields: { priority: "p1" } });
+
+      for (const type of ["text", "number", "date", "checkbox"]) {
+        const refused = await server.request(`/api/fields/${field.key}`, {
+          method: "PATCH",
+          body: JSON.stringify({ type }),
+        });
+        expect(refused.response.status).toBe(400);
+      }
+      expect((await board(server)).fields[0].type).toBe("select");
+      expect((await board(server)).pages[0].fields).toEqual({ priority: "p1" });
+    });
+
+    it("records the swap in the audit trail, so a changed control has a reason on it", async () => {
+      const server = await startTestServer();
+      await bootstrap(server);
+      const field = await priority(server);
+      await server.request(`/api/fields/${field.key}`, {
+        method: "PATCH",
+        body: JSON.stringify({ type: "search-select" }),
+      });
+
+      const activity = await server.request<AuditPage>("/api/activity");
+      const entry = activity.body.events.find(
+        (event) => event.entityType === "field" && event.action === "updated",
+      );
+      expect(entry?.changes).toContainEqual({ field: "type", from: "select", to: "search-select" });
+    });
+
     it("is owner-only, because deciding what the project records is restructuring it", async () => {
       const server = await startTestServer();
       await bootstrap(server);

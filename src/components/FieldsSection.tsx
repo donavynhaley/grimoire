@@ -5,7 +5,10 @@ import type { SettingsRun } from "./use-settings-action";
 
 export type FieldActions = {
   create: (input: { label: string; type: FieldType; options?: string[]; showOnTile?: boolean }) => Promise<void>;
-  update: (key: string, input: { label?: string; options?: string[]; showOnTile?: boolean; position?: number }) => Promise<void>;
+  update: (
+    key: string,
+    input: { label?: string; type?: FieldType; options?: string[]; showOnTile?: boolean; position?: number },
+  ) => Promise<void>;
   remove: (key: string) => Promise<void>;
 };
 
@@ -39,6 +42,16 @@ const TYPE_HINTS: Record<FieldType, string> = {
   date: "A day, like 2026-08-16.",
   checkbox: "Yes or no.",
 };
+
+/**
+ * The other way a choice field can ask.
+ *
+ * Which one a project wants is a fact about how long its option list grew, and that is learned
+ * after the field exists — so this is a swap, not a decision made once at creation.
+ */
+function otherChoiceType(type: FieldType): FieldType {
+  return type === "search-select" ? "select" : "search-select";
+}
 
 function optionsToText(options: string[]): string {
   return options.join(", ");
@@ -172,8 +185,23 @@ export function FieldsSection({ estimatesEnabled, onSetEstimatesEnabled, fields,
                 onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); saveLabel(field); } }}
                 value={labelDrafts[field.key] ?? field.label}
               />
-              {/* The type is fixed once values exist under it, so it reads rather than edits. */}
-              <span className="field-type">{TYPE_LABELS[field.type]}</span>
+              {/* The type is fixed once values exist under it, except between the two choice
+                  kinds, where nothing stored changes and only the control does. */}
+              {fieldHasOptions(field.type) ? (
+                <button
+                  aria-label={`Show ${field.label} as ${TYPE_LABELS[otherChoiceType(field.type)]}`}
+                  className="field-type as-toggle"
+                  disabled={busy}
+                  onClick={() => void run(
+                    () => actions.update(field.key, { type: otherChoiceType(field.type) }),
+                    "The field could not be changed",
+                  )}
+                  title={TYPE_HINTS[otherChoiceType(field.type)]}
+                  type="button"
+                >{TYPE_LABELS[field.type]}</button>
+              ) : (
+                <span className="field-type">{TYPE_LABELS[field.type]}</span>
+              )}
               <label className="settings-toggle compact">
                 <input
                   aria-label={`Show ${field.label} on tiles`}

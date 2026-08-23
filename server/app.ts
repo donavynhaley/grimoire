@@ -263,9 +263,12 @@ const fieldCreateSchema = z.object({
   options: z.array(z.string().trim().min(1).max(40)).max(24).optional(),
   showOnTile: z.boolean().optional(),
 });
-/** The type is absent on purpose: changing it would invalidate every value already stored. */
+/**
+ * The type is here only so a choice field can change how it asks. Every other type change is
+ * still refused - `updateField` settles which pairings are safe, since it is the one that
+ * knows what the stored values would have to survive.
+ */
 const fieldUpdateSchema = fieldCreateSchema
-  .omit({ type: true })
   .partial()
   .extend({ position: z.number().int().min(0).optional() });
 const ideaState = z.enum(["inbox", "shortlist", "parked"]);
@@ -1183,9 +1186,13 @@ export function createGrimoireServer(options: Options) {
       const result = updateField(database, pageStore, projectId, fieldMatch[1], input);
       if (result === "not_found") throw new HttpError(404, "Field not found");
       if (result === "needs_options") throw new HttpError(400, "A choice field needs at least one option");
+      if (result === "type_locked") {
+        throw new HttpError(400, "A field can only change type between the two kinds of choice");
+      }
       const edits = before
         ? [
           ...(before.label === result.field.label ? [] : [{ field: "name", from: before.label, to: result.field.label }]),
+          ...(before.type === result.field.type ? [] : [{ field: "type", from: before.type, to: result.field.type }]),
           ...(before.options.join(", ") === result.field.options.join(", ")
             ? []
             : [{ field: "options", from: before.options.join(", "), to: result.field.options.join(", ") }]),

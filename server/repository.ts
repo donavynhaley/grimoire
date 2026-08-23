@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import { fieldHasOptions,
+  fieldTypeSwapAllowed,
   type ChapterVelocity,
   type PageGithubLink,
   type PageGithubStatus,
@@ -419,41 +420,56 @@ export function createField(database: DatabaseSync, projectId: string, input: Fi
   return { field: { key, label: input.label, type: input.type, options, position, showOnTile } };
 }
 
-export type UpdateFieldResult = { field: ProjectField; cleared: number } | "not_found" | "needs_options";
+export type UpdateFieldResult =
+  | { field: ProjectField; cleared: number }
+  | "not_found"
+  | "needs_options"
+  | "type_locked";
 
 /**
- * Edits a definition, but never its type.
+ * Edits a definition, including the one type change that costs nothing.
  *
- * A type change would invalidate every value already stored under it, and the honest repair
- * for that is the one a person can already do: delete the field and define the one they meant.
+ * Changing a field's type would ordinarily invalidate every value already stored under it, and
+ * the honest repair for that is the one a person can already do: delete the field and define
+ * the one they meant. Swapping between the two choice types is not that change. They share an
+ * option list and a validator, so no stored value moves and none is reinterpreted - only the
+ * control the page draws does. A team learns which one it wanted by watching its option list
+ * grow, which is after the field exists, so refusing the swap meant deleting a field to get a
+ * different button. Every other pairing is still refused, here rather than at the route, so
+ * nothing reaches the table on a caller's word about what is safe.
  */
 export function updateField(
   database: DatabaseSync,
   pageStore: MarkdownPageStore,
   projectId: string,
   key: string,
-  input: { label?: string; options?: string[]; showOnTile?: boolean; position?: number },
+  input: { label?: string; type?: FieldType; options?: string[]; showOnTile?: boolean; position?: number },
 ): UpdateFieldResult {
   const project = projectById(database, projectId);
   const current = fieldsForProject(database, projectId).find((field) => field.key === key);
   if (!project || !current) return "not_found";
-  const options = input.options === undefined ? current.options : normalizeOptions(current.type, input.options);
+  const type = input.type ?? current.type;
+  if (!fieldTypeSwapAllowed(current.type, type)) return "type_locked";
+  const options = input.options === undefined ? current.options : normalizeOptions(type, input.options);
   if (options === null) return "needs_options";
 
   const label = input.label ?? current.label;
   const showOnTile = input.showOnTile ?? current.showOnTile;
   const position = input.position ?? current.position;
   database
-    .prepare("UPDATE project_fields SET label = ?, options = ?, show_on_tile = ?, position = ? WHERE project_id = ? AND key = ?")
-    .run(label, JSON.stringify(options), showOnTile ? 1 : 0, position, projectId, key);
+    .prepare(
+      `UPDATE project_fields SET label = ?, type = ?, options = ?, show_on_tile = ?, position = ?
+       WHERE project_id = ? AND key = ?`,
+    )
+    .run(label, type, JSON.stringify(options), showOnTile ? 1 : 0, position, projectId, key);
 
   // A value whose option was just withdrawn cannot stay: the next write touching that page
   // would be refused for holding something the field no longer offers, and the person
   // making that write would have had nothing to do with the withdrawal.
-  const cleared = fieldHasOptions(current.type)
+  const cleared = fieldHasOptions(type)
     ? clearFieldValues(pageStore, String(project.slug), key, (value) => typeof value === "string" && options.includes(value))
     : 0;
-  return { field: { key, label, type: current.type, options, position, showOnTile }, cleared };
+  return { field: { key, label, type, options, position, showOnTile }, cleared };
 }
 
 /** Returns how many pages lost a value, or null when there was no such field. */
