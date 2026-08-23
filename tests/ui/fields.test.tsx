@@ -328,6 +328,39 @@ describe("page fields", () => {
     });
   });
 
+  it("swaps a choice field to searchable once its option list has outgrown the buttons", async () => {
+    const user = userEvent.setup();
+    const calls = mountWith({ ...boardFixture(), fields: [priority] });
+
+    // Which presentation a project wants is learned from watching the list grow, so the type
+    // reads as the label it always was until it is clicked.
+    const dialog = await openFields(user);
+    await user.click(within(dialog).getByRole("button", { name: "Show Priority as searchable choice" }));
+
+    expect(calls).toContainEqual({
+      url: "/api/fields/priority",
+      method: "PATCH",
+      body: { type: "search-select" },
+    });
+  });
+
+  it("swaps a searchable choice back to buttons, and leaves every other type alone", async () => {
+    const user = userEvent.setup();
+    const calls = mountWith({ ...boardFixture(), fields: [region, estimate] });
+
+    const dialog = await openFields(user);
+    await user.click(within(dialog).getByRole("button", { name: "Show Region as choice" }));
+    expect(calls).toContainEqual({
+      url: "/api/fields/region",
+      method: "PATCH",
+      body: { type: "select" },
+    });
+
+    // A number has nothing safe to become, so its type is still only a label.
+    expect(within(dialog).queryByRole("button", { name: /Show Estimate as/ })).toBeNull();
+    expect(within(dialog).getByText("number", { selector: "span.field-type" })).toBeInTheDocument();
+  });
+
   it("will not add a choice field with no options to choose from", async () => {
     const user = userEvent.setup();
     mountWith(boardFixture());

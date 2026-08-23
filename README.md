@@ -202,6 +202,10 @@ A project can give its pages extra properties of its own — a priority, an esti
 Fields are defined in Project settings in five shapes: text, a number, a choice from a fixed list, a day, or yes/no.
 Grimoire names none of them, and nothing here is counted, added up, or rolled over: a number field is a number someone wrote down.
 
+A choice offers itself two ways, and a field can be switched between them at any time by clicking its type in settings.
+As buttons it shows every option at once, which is right until the list outgrows the rail; as a searchable choice it rests as its value and opens into a box you type into.
+Nothing stored moves either way — they share an option list and a validator, and only the control changes — which is why this is the one type change allowed at all. Every other one is still refused, because the values written under a field were written to satisfy the type it had.
+
 A field can be marked to show on board tiles, so a project can carry more than it puts on the board.
 Renaming a field leaves every value alone.
 Deleting one, or withdrawing a choice from a list, clears the values it left behind and says how many, rather than leaving pages holding an answer the project no longer offers.

@@ -2376,6 +2376,20 @@ textarea:hover { border-color: var(--border-bright); }
   text-transform: uppercase;
   white-space: nowrap;
 }
+/* A choice field's type is the one that can be swapped, so it reads as the same quiet label
+   until it is worth reaching for. */
+.field-type.as-toggle {
+  border: 1px solid transparent;
+  border-radius: 0.3125rem;
+  padding: 0.125rem 0.3125rem;
+  background: none;
+  cursor: pointer;
+}
+.field-type.as-toggle:hover:not(:disabled) { color: var(--muted); background: var(--surface-soft); border-color: var(--line); }
+.field-type.as-toggle:disabled { cursor: default; }
+@media (pointer: coarse) {
+  .field-type.as-toggle { min-height: 1.75rem; }
+}
 .field-warning { margin: 0; color: var(--red); }
 .field-options { display: flex; flex-direction: column; gap: 0.25rem; padding-left: 0.125rem; }
 .field-options input { width: 100%; }

@@ -112,6 +112,20 @@ export function fieldHasOptions(type: FieldType): boolean {
   return type === "select" || type === "search-select";
 }
 
+/**
+ * Whether a field may be changed from one type to another without touching what pages hold.
+ *
+ * A type change is refused in general, because the values already written under a field were
+ * written to satisfy the old type and nothing can honestly reinterpret them. The two choice
+ * types are the exception the rule never meant to catch: they validate identically against the
+ * same option list, so every stored value is still exactly as valid afterwards. All that moves
+ * is how the field asks - a wall of buttons, or a box you type into - and which of those reads
+ * better is a question about how long the list got, not about the data.
+ */
+export function fieldTypeSwapAllowed(from: FieldType, to: FieldType): boolean {
+  return from === to || (fieldHasOptions(from) && fieldHasOptions(to));
+}
+
 export type ProjectField = {
   /** Stable across renames, and what a page's `fields` record is keyed by. */
   key: string;
