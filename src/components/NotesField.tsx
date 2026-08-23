@@ -3,9 +3,11 @@ import Markdown, { type Components, type ExtraProps } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { imageUrl, uploadImage } from "../api/client";
 import { Growing } from "./Growing";
+import { rehypeSourceOffsets, sourceOffsetFromPoint } from "./markdown-source-offsets";
 import { remarkObsidianEmbeds } from "./obsidian-embeds";
 
 const REMARK_PLUGINS = [remarkGfm, remarkObsidianEmbeds];
+const REHYPE_PLUGINS = [rehypeSourceOffsets];
 
 function ExternalLink({ node: _node, ...props }: React.ComponentProps<"a"> & ExtraProps) {
   return <a {...props} onClick={(event) => event.stopPropagation()} rel="noreferrer" target="_blank" />;
@@ -41,7 +43,7 @@ const MARKDOWN_COMPONENTS: Components = { a: ExternalLink, img: EmbeddedImage };
 export function MarkdownView({ markdown }: { markdown: string }) {
   return (
     <div className="markdown-body">
-      <Markdown components={MARKDOWN_COMPONENTS} remarkPlugins={REMARK_PLUGINS}>{markdown}</Markdown>
+      <Markdown components={MARKDOWN_COMPONENTS} rehypePlugins={REHYPE_PLUGINS} remarkPlugins={REMARK_PLUGINS}>{markdown}</Markdown>
     </div>
   );
 }
@@ -62,12 +64,16 @@ type Props = {
 /**
  * Notes field that rests as rendered Markdown and edits as the plain textarea.
  *
- * Clicking anywhere in the rendered view opens the editor with the caret at the
- * end; the `edit` button does the same for keyboard and screen-reader use, and
- * links stay real links in both worlds. Leaving the textarea for another control
- * returns to the rendered view, but switching to another application does not,
- * so going to fetch a screenshot never closes the editor. The parent owns the
- * value and its autosave, so switching modes never touches unsaved text.
+ * Clicking in the rendered view opens the editor with the caret on the words
+ * that were clicked, found through the source offsets the renderer stamps on
+ * every element; the `edit` button opens it with the caret at the end for
+ * keyboard and screen-reader use, and links stay real links in both worlds.
+ * The editor opens no smaller than the rendered notes it replaces, so entering
+ * it never pulls the rest of the panel up under the pointer. Leaving the
+ * textarea for another control returns to the rendered view, but switching to
+ * another application does not, so going to fetch a screenshot never closes the
+ * editor. The parent owns the value and its autosave, so switching modes never
+ * touches unsaved text.
  *
  * Pasting or dropping an image uploads it and embeds `![[name]]`, exactly the
  * reference Obsidian would create. Drops are accepted by the whole field in both
@@ -83,6 +89,9 @@ export function NotesField({ label, editLabel, addImageLabel = "Add an image", n
   const dragDepth = useRef(0);
   const imagePicker = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const viewRef = useRef<HTMLDivElement | null>(null);
+  const caretRef = useRef<number | null>(null);
+  const [restingHeight, setRestingHeight] = useState<number | null>(null);
   const valueRef = useRef(value);
   valueRef.current = value;
 
@@ -91,12 +100,30 @@ export function NotesField({ label, editLabel, addImageLabel = "Add an image", n
     const textarea = textareaRef.current;
     if (!textarea) return;
     textarea.focus();
-    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    const caret = Math.min(caretRef.current ?? textarea.value.length, textarea.value.length);
+    caretRef.current = null;
+    textarea.setSelectionRange(caret, caret);
+    scrollCaretIntoView(textarea, caret);
   }, [editing]);
+
+  /**
+   * The editor opens at least as tall as the rendered notes it replaces:
+   * a textarea sized only by its rows would shrink under long notes and drag
+   * everything below up into the click. Measured here, at the moment of the
+   * swap, because this is the last render the resting view exists in.
+   */
+  const openEditor = (caret: number | null = null) => {
+    caretRef.current = caret;
+    const resting = viewRef.current?.offsetHeight ?? 0;
+    setRestingHeight(resting > 0 ? resting : null);
+    setEditing(true);
+  };
 
   const startEditing = (event: React.MouseEvent) => {
     if ((event.target as HTMLElement).closest("a")) return;
-    setEditing(true);
+    const view = viewRef.current;
+    const caret = view ? sourceOffsetFromPoint(view, valueRef.current, event.clientX, event.clientY) : null;
+    openEditor(caret);
   };
 
   const insertAtSelection = (text: string) => {
@@ -162,7 +189,7 @@ export function NotesField({ label, editLabel, addImageLabel = "Add an image", n
         const files = collectFiles(event.dataTransfer?.files);
         if (!hasImage(files)) return;
         event.preventDefault();
-        if (!editing) setEditing(true);
+        if (!editing) openEditor();
         void importImages(files);
       }}
     >
@@ -196,7 +223,7 @@ export function NotesField({ label, editLabel, addImageLabel = "Add an image", n
               // The same input has to accept the same picture twice in a row.
               event.target.value = "";
               if (!hasImage(files)) return;
-              if (!editing) setEditing(true);
+              if (!editing) openEditor();
               void importImages(files);
             }}
             multiple
@@ -205,7 +232,7 @@ export function NotesField({ label, editLabel, addImageLabel = "Add an image", n
             type="file"
           />
           {!editing && (
-            <button aria-label={editLabel} className="text-button" onClick={() => setEditing(true)} type="button">
+            <button aria-label={editLabel} className="text-button" onClick={() => openEditor()} type="button">
               edit
             </button>
           )}
@@ -234,14 +261,30 @@ export function NotesField({ label, editLabel, addImageLabel = "Add an image", n
             placeholder={placeholder}
             ref={textareaRef}
             rows={rows}
+            style={restingHeight ? { minHeight: restingHeight } : undefined}
             value={value}
           />
         ) : (
-          <div className="notes-view" onClick={startEditing}>
+          <div className="notes-view" onClick={startEditing} ref={viewRef}>
             {value.trim() ? <MarkdownView markdown={value} /> : <p className="notes-placeholder">{placeholder}</p>}
           </div>
         )}
       </Growing>
     </div>
   );
+}
+
+/**
+ * Long notes overflow the editor, and a caret placed by a click must not land
+ * below the fold. Soft wrapping makes the physical line unknowable from here,
+ * so the newline count stands in for it: exact for the common case, and off by
+ * only the wrapped lines above the caret when a paragraph runs long.
+ */
+function scrollCaretIntoView(textarea: HTMLTextAreaElement, caret: number): void {
+  if (textarea.scrollHeight <= textarea.clientHeight) return;
+  const line = textarea.value.slice(0, caret).split("\n").length - 1;
+  const lineHeight = Number.parseFloat(getComputedStyle(textarea).lineHeight) || 21;
+  const target = line * lineHeight;
+  if (target >= textarea.scrollTop && target <= textarea.scrollTop + textarea.clientHeight - lineHeight) return;
+  textarea.scrollTop = Math.max(0, target - textarea.clientHeight / 2);
 }

@@ -373,6 +373,89 @@ describe("NotesField growth", () => {
   });
 });
 
+/**
+ * jsdom lays nothing out, so the caret-under-the-pointer API is supplied here:
+ * what is under test is the mapping from a rendered text node back to the
+ * Markdown source it was drawn from, which is arithmetic over the stamped
+ * offsets rather than geometry.
+ */
+describe("NotesField click-to-caret", () => {
+  function stubCaretAt(node: Node, offset: number) {
+    const range = document.createRange();
+    range.setStart(node, offset);
+    Object.defineProperty(document, "caretRangeFromPoint", {
+      configurable: true,
+      value: () => range,
+      writable: true,
+    });
+    onTestFinished(() => { Reflect.deleteProperty(document, "caretRangeFromPoint"); });
+  }
+
+  it("stamps rendered elements with the source span they came from", () => {
+    const { container } = renderNotes("# Goal\n\nSome **bold** words");
+
+    expect(container.querySelector("h1")).toHaveAttribute("data-sourcepos", "0-6");
+    expect(container.querySelector("p")).toHaveAttribute("data-sourcepos", "8-27");
+  });
+
+  it("opens the editor with the caret on the words that were clicked", async () => {
+    const { container } = renderNotes("Some **bold** words");
+    const paragraph = container.querySelector("p")!;
+    stubCaretAt(paragraph.lastChild!, 3);
+
+    await userEvent.click(screen.getByText(/words/));
+
+    const textarea = screen.getByRole("textbox", { name: "Notes" }) as HTMLTextAreaElement;
+    // " words" starts at source offset 13; three characters in lands inside "words".
+    expect(textarea.selectionStart).toBe(16);
+    expect(textarea.selectionEnd).toBe(16);
+  });
+
+  it("lands inside the syntax when the click was on formatted text", async () => {
+    const { container } = renderNotes("Some **bold** words");
+    stubCaretAt(container.querySelector("strong")!.firstChild!, 2);
+
+    await userEvent.click(screen.getByText("bold"));
+
+    const textarea = screen.getByRole("textbox", { name: "Notes" }) as HTMLTextAreaElement;
+    expect(textarea.selectionStart).toBe(9);
+  });
+
+  it("keeps the caret at the end when the click cannot be placed", async () => {
+    renderNotes("Some **bold** words");
+
+    await userEvent.click(screen.getByText(/words/));
+
+    const textarea = screen.getByRole("textbox", { name: "Notes" }) as HTMLTextAreaElement;
+    expect(textarea.selectionStart).toBe(textarea.value.length);
+  });
+});
+
+describe("NotesField editor size", () => {
+  it("opens the editor no smaller than the rendered notes it replaces", async () => {
+    Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
+      configurable: true,
+      get(this: HTMLElement) { return this.classList.contains("notes-view") ? 320 : 0; },
+    });
+    onTestFinished(() => { Reflect.deleteProperty(HTMLElement.prototype, "offsetHeight"); });
+    renderNotes("A long rendered document.");
+
+    await userEvent.click(screen.getByText("A long rendered document."));
+
+    const textarea = screen.getByRole("textbox", { name: "Notes" });
+    expect(textarea.style.minHeight).toBe("320px");
+  });
+
+  it("leaves the rows sizing alone when the resting view was never measured", async () => {
+    renderNotes("Short note.");
+
+    await userEvent.click(screen.getByText("Short note."));
+
+    const textarea = screen.getByRole("textbox", { name: "Notes" });
+    expect(textarea.style.minHeight).toBe("");
+  });
+});
+
 describe("plainTextFromMarkdown", () => {
   it("strips the syntax that would clutter a page tile", () => {
     const markdown = "# Goal\n\n- Use **bold** words\n- See the [docs](https://example.com)\n\n> quoted `code` and *soft* text";
