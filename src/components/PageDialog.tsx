@@ -70,6 +70,18 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
    * in, for a section most visits never read.
    */
   const [showingHistory, setShowingHistory] = useState(false);
+  /*
+   * Finished chapters fold away here for the same reason they do in the board's picker: they
+   * accumulate for the life of the project, and a project a year in offers a page fifteen
+   * buttons of which one is live. The fold opens on sight when this page belongs to a closed
+   * chapter, because otherwise the row would show no selection and the reason would be hidden.
+   */
+  const inClosedChapter = chapters.some(
+    (chapter) => chapter.state === "closed" && chapter.slug === page.chapter,
+  );
+  const [showingClosedChapters, setShowingClosedChapters] = useState(inClosedChapter);
+  const liveChapters = chapters.filter((chapter) => chapter.state !== "closed");
+  const closedChapters = chapters.filter((chapter) => chapter.state === "closed");
   const [findingBlocker, setFindingBlocker] = useState(false);
   const [blockerQuery, setBlockerQuery] = useState("");
   const updateRef = useRef(onUpdate);
@@ -85,11 +97,17 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
     save: (input) => updateRef.current(input),
   });
 
+  // Opening a different page starts every fold where it would have started on first sight,
+  // so reaching into the earlier chapters for one page is not a choice the next page inherits.
   useEffect(() => {
     setFindingBlocker(false);
     setBlockerQuery("");
     setChangingCategory(false);
     setShowingHistory(false);
+    setShowingClosedChapters(inClosedChapter);
+    // `inClosedChapter` is read for the page being opened, not tracked: a page moved into a
+    // closed chapter from the open fold must not re-run this and fold it away underneath.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page.id]);
 
   const blockers = page.blockedBy
@@ -203,7 +221,7 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
           </div>
 
           {chapters.length > 0 && (
-            <div className="rail-row">
+            <Growing className="rail-row">
               <span className="field-label">Chapter</span>
               <div className="choice-grid chapter-choices">
                 <button
@@ -214,20 +232,32 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
                 >
                   none
                 </button>
-                {chapters.map((chapter) => (
-                  <button
-                    aria-label={`Place in ${chapter.name}`}
-                    className={page.chapter === chapter.slug ? "choice active" : "choice"}
-                    key={chapter.slug}
-                    onClick={() => onUpdate({ chapter: chapter.slug })}
-                    type="button"
-                  >
-                    {chapter.name}
-                    {chapter.state === "open" && <span className="choice-note">open</span>}
-                  </button>
+                {liveChapters.map((chapter) => (
+                  <ChapterChoice chapter={chapter} key={chapter.slug} onUpdate={onUpdate} page={page} />
                 ))}
               </div>
-            </div>
+              {closedChapters.length > 0 && (
+                <>
+                  <button
+                    aria-expanded={showingClosedChapters}
+                    className="chapter-group-label as-toggle in-rail"
+                    onClick={() => setShowingClosedChapters((showing) => !showing)}
+                    type="button"
+                  >
+                    <span>earlier</span>
+                    <span className="chapter-group-count">{closedChapters.length}</span>
+                    <span aria-hidden="true" className="chapter-group-caret">{showingClosedChapters ? "▾" : "▸"}</span>
+                  </button>
+                  {showingClosedChapters && (
+                    <div className="choice-grid chapter-choices">
+                      {closedChapters.map((chapter) => (
+                        <ChapterChoice chapter={chapter} key={chapter.slug} onUpdate={onUpdate} page={page} />
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </Growing>
           )}
 
           <Growing className="rail-row">
@@ -336,6 +366,30 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
         </div>
       </div>
     </Drawer>
+  );
+}
+
+/**
+ * One chapter this page could be placed in.
+ *
+ * Shared by the live chapters and the folded ones so a chapter reads and behaves identically
+ * either side of the fold: what is hidden is a group, never a different kind of control.
+ */
+function ChapterChoice({ chapter, onUpdate, page }: {
+  chapter: Chapter;
+  onUpdate: (input: Record<string, unknown>) => Promise<void>;
+  page: Page;
+}) {
+  return (
+    <button
+      aria-label={`Place in ${chapter.name}`}
+      className={page.chapter === chapter.slug ? "choice active" : "choice"}
+      onClick={() => onUpdate({ chapter: chapter.slug })}
+      type="button"
+    >
+      {chapter.name}
+      {chapter.state === "open" && <span className="choice-note">open</span>}
+    </button>
   );
 }
 

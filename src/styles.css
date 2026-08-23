@@ -3161,6 +3161,9 @@ textarea:hover { border-color: var(--border-bright); }
   cursor: pointer;
 }
 .chapter-group-label.as-toggle:hover { color: var(--muted); background: var(--surface-soft); }
+/* The same fold in a page's property rail, where there is no panel padding to sit inside and
+   the row above it is a grid of choices rather than a menu. */
+.chapter-group-label.as-toggle.in-rail { margin: 0.25rem 0 0; padding: 0.25rem 0.25rem 0.1875rem; }
 .chapter-group-count,
 .chapter-group-caret { letter-spacing: normal; }
 /* At the 0.5rem of the labels around it the caret is a speck, and it is the only thing saying

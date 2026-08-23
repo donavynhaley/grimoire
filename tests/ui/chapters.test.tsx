@@ -215,6 +215,57 @@ describe("chapters on the board", () => {
     expect(screen.queryByRole("menuitem", { name: /Old Brew/ })).toBeNull();
   });
 
+  it("folds the finished chapters away on a page too, where they are just as many buttons", async () => {
+    const user = userEvent.setup();
+    mountWith(withClosedChapter());
+
+    await user.click(await screen.findByText("Inside the chapter", { exact: true }));
+    const dialog = await screen.findByRole("dialog", { name: "Edit page" });
+
+    // The live chapters are one click; the finished one is behind its own count.
+    expect(within(dialog).getByRole("button", { name: /Place in Second Brew/ })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: /Place in Old Brew/ })).toBeNull();
+
+    const fold = within(dialog).getByRole("button", { name: /earlier/ });
+    expect(fold).toHaveAttribute("aria-expanded", "false");
+    expect(fold).toHaveTextContent("1");
+
+    await user.click(fold);
+    expect(within(dialog).getByRole("button", { name: /Place in Old Brew/ })).toBeInTheDocument();
+  });
+
+  it("opens the fold on sight when the page it is showing belongs to a finished chapter", async () => {
+    window.history.replaceState({}, "", "/?chapter=old-brew");
+    const user = userEvent.setup();
+    const board = withClosedChapter();
+    mountWith({
+      ...board,
+      pages: board.pages.map((page) =>
+        page.id === "page-in" ? { ...page, chapter: "old-brew" } : page),
+    });
+
+    // Otherwise the chapter the page is actually in would be hidden, and the field would
+    // read as though nothing had been chosen.
+    await user.click(await screen.findByText("Inside the chapter", { exact: true }));
+    const dialog = await screen.findByRole("dialog", { name: "Edit page" });
+    expect(within(dialog).getByRole("button", { name: /earlier/ })).toHaveAttribute("aria-expanded", "true");
+    expect(within(dialog).getByRole("button", { name: /Place in Old Brew/ })).toHaveClass("choice active");
+  });
+
+  it("places a page in a finished chapter from inside the fold", async () => {
+    const user = userEvent.setup();
+    const calls = mountWith(withClosedChapter());
+
+    await user.click(await screen.findByText("Inside the chapter", { exact: true }));
+    const dialog = await screen.findByRole("dialog", { name: "Edit page" });
+    await user.click(within(dialog).getByRole("button", { name: /earlier/ }));
+    await user.click(within(dialog).getByRole("button", { name: /Place in Old Brew/ }));
+
+    await waitFor(() => expect(calls.some((call) =>
+      call.url === "/api/pages/page-in" &&
+      (call.body as { chapter?: string }).chapter === "old-brew")).toBe(true));
+  });
+
   it("shows the finished chapters on sight when the board is filtered to one", async () => {
     window.history.replaceState({}, "", "/?chapter=old-brew");
     const user = userEvent.setup();
