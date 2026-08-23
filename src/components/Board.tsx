@@ -9,6 +9,8 @@ import { PageDialog } from "./PageDialog";
 import { type CategoryActions } from "./CategoriesSection";
 import { type FieldActions } from "./FieldsSection";
 import { PageFieldChips } from "./PageFields";
+import { PageFilters } from "./PageFilters";
+import { decodeFacets, encodeFacets, facetPredicate, type FacetContext, type FacetSelection } from "./page-facets";
 import { type ChapterActions } from "./ChaptersSection";
 import { type ChapterFilter, ChapterPicker, NO_CHAPTER } from "./ChapterPicker";
 import { chapterWhen } from "./chapter-dates";
@@ -160,6 +162,21 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
   const [people, setPeople] = useState<Set<string>>(
     () => new Set((initialParams.get("people") ?? "").split(",").filter(Boolean)),
   );
+  const [facets, setFacets] = useState<FacetSelection>(() => decodeFacets(initialParams.get("filters")));
+  /**
+   * The clock the "last changed" buckets are read against, taken once per board rather than per
+   * render, so a page cannot cross from "today" into "this week" between two paints of the same
+   * list. A refetch is a new board and a fresh reading, which is often enough.
+   */
+  const facetContext = useMemo<FacetContext>(
+    () => ({
+      categories: board.categories,
+      fields: board.fields,
+      estimatesEnabled: board.project.estimatesEnabled,
+      now: new Date(),
+    }),
+    [board.categories, board.fields, board.pages, board.project.estimatesEnabled],
+  );
   const chaptersOn = board.project.chaptersEnabled;
   /**
    * With no chapter named in the URL the board opens on the one that is open, so arriving
@@ -232,7 +249,14 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
   );
   const chapterName = (slug: string | null) =>
     slug === null ? "no chapter" : chaptersBySlug.get(slug)?.name ?? slug;
-  const filteredPages = useMemo(
+  /**
+   * The board as the bar's own controls leave it, before the filter panel has its say.
+   *
+   * The panel counts against this rather than the finished list, because a facet count answers
+   * "how many pages would I have if I ticked this" - it has to see the pages its own section is
+   * currently hiding, while still respecting the chapter, the people, and the search.
+   */
+  const pagesBeforeFacets = useMemo(
     () => board.pages.filter((page) => {
       if (chapter === NO_CHAPTER && page.chapter !== null) return false;
       if (chapter !== null && chapter !== NO_CHAPTER && page.chapter !== chapter) return false;
@@ -241,6 +265,11 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
       return true;
     }),
     [board.pages, categoriesBySlug, chapter, chaptersBySlug, normalizedQuery, people],
+  );
+  const matchesFacets = useMemo(() => facetPredicate(facets, facetContext), [facetContext, facets]);
+  const filteredPages = useMemo(
+    () => pagesBeforeFacets.filter(matchesFacets),
+    [matchesFacets, pagesBeforeFacets],
   );
   const activeCount = filteredPages.filter((page) => page.status === "ready" || page.status === "in_progress" || page.status === "review").length;
   const backlogPages = board.pages.filter((page) => page.status === "backlog");
@@ -325,7 +354,12 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
     if (view !== "ideas") void onViewChange("ideas");
   };
 
-  const updateUrl = (nextQuery: string, nextPeople: Set<string>, nextChapter: ChapterFilter) => {
+  const updateUrl = (
+    nextQuery: string,
+    nextPeople: Set<string>,
+    nextChapter: ChapterFilter,
+    nextFacets: FacetSelection = facets,
+  ) => {
     const params = new URLSearchParams(location.search);
     params.delete("focus");
     if (nextQuery.trim()) params.set("q", nextQuery.trim());
@@ -334,7 +368,15 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
     else params.delete("people");
     if (nextChapter) params.set("chapter", nextChapter);
     else params.delete("chapter");
+    const encoded = encodeFacets(nextFacets);
+    if (encoded) params.set("filters", encoded);
+    else params.delete("filters");
     history.replaceState({}, "", `${location.pathname}${params.size ? `?${params}` : ""}`);
+  };
+
+  const changeFacets = (next: FacetSelection) => {
+    setFacets(next);
+    updateUrl(query, people, chapter, next);
   };
 
   const changeQuery = (value: string) => {
@@ -666,6 +708,13 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
             <span className="sr-only">Search pages</span>
             <input aria-label="Search pages" name="pageSearch" onChange={(event) => changeQuery(event.target.value)} placeholder="Search pages..." type="search" value={query} />
           </label>
+          {/* Everything else a page can be narrowed by, next to the people it can be narrowed to. */}
+          <PageFilters
+            context={facetContext}
+            onChange={changeFacets}
+            pages={pagesBeforeFacets}
+            selection={facets}
+          />
           <div className="people-filters">
             <button aria-pressed={people.has("unassigned")} className={people.has("unassigned") ? "active" : ""} onClick={() => togglePerson("unassigned")} type="button">unassigned</button>
             {board.members.map((member) => {
