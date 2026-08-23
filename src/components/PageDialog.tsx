@@ -58,6 +58,15 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
   };
   const [confirmArchive, setConfirmArchive] = useState(false);
   /**
+   * Which half of the page is on screen when there is only room for one.
+   *
+   * At a desk both halves stand side by side and this is never read: the stylesheet shows
+   * the switch, and honours the choice, only below the width the split needs. Narrower
+   * than that the alternative was one long scroll, and a page that has to be scrolled is
+   * a page you cannot see.
+   */
+  const [pane, setPane] = useState<"notes" | "details">("notes");
+  /**
    * Category is the only attribute long enough to be worth folding: ten choices against four
    * or five everywhere else, and it is usually set once at capture time with `#` and rarely
    * revisited. Column, assignee, and chapter stay one click, because those are the ones
@@ -104,6 +113,7 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
     setBlockerQuery("");
     setChangingCategory(false);
     setShowingHistory(false);
+    setPane("notes");
     setShowingClosedChapters(inClosedChapter);
     // `inClosedChapter` is read for the page being opened, not tracked: a page moved into a
     // closed chapter from the open fold must not re-run this and fold it away underneath.
@@ -148,22 +158,36 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
         <button aria-label="Close page" className="icon-button" onClick={() => void close()} type="button">×</button>
       </header>
 
-      <div className="page-editor-split">
+      {/*
+        The switch between the two halves. It is hidden by the stylesheet wherever they fit
+        side by side, so the control exists only where there is a choice to make - and the
+        breakpoint stays written once, in the sheet, rather than copied into a media query
+        listener here.
+      */}
+      <div aria-label="Page halves" className="page-editor-panes" role="group">
+        <button aria-pressed={pane === "notes"} className="pane-tab" onClick={() => setPane("notes")} type="button">Notes</button>
+        <button aria-pressed={pane === "details"} className="pane-tab" onClick={() => setPane("details")} type="button">Details</button>
+      </div>
+
+      <div className="page-editor-split" data-pane={pane}>
         <div className="page-editor-main">
           <div className="record-form">
             <label><span>Title</span><input name="title" onChange={(event) => editor.setTitle(event.target.value)} value={editor.title} /></label>
-            <NotesField
-              editLabel="Edit notes"
-              label="Notes"
-              name="description"
-              onChange={editor.setDescription}
-              placeholder="Add only the context someone needs to act..."
-              rows={10}
-              textareaLabel="Notes"
-              value={editor.description}
-            />
-            <EditorState editor={editor} who={otherEditor} />
           </div>
+
+          {/* The notes take whatever height the column has left over, and are the only
+              thing on this panel allowed to scroll. */}
+          <NotesField
+            editLabel="Edit notes"
+            fill
+            label="Notes"
+            name="description"
+            onChange={editor.setDescription}
+            placeholder="Add only the context someone needs to act..."
+            rows={10}
+            textareaLabel="Notes"
+            value={editor.description}
+          />
 
           <GithubLink github={page.github} onUpdate={onUpdate} repo={githubRepo} status={page.githubStatus} />
 
@@ -173,13 +197,6 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
             onToggle={() => setShowingHistory((showing) => !showing)}
             open={showingHistory}
           />
-
-          <footer className="dialog-footer">
-            <span>created by {page.createdByName}</span>
-            {confirmArchive ? (
-              <div className="archive-confirm"><span>archive this page?</span><button className="danger-button" onClick={onArchive} type="button">yes, archive</button><button className="text-button" onClick={() => setConfirmArchive(false)} type="button">cancel</button></div>
-            ) : <button className="text-button danger-text" onClick={() => setConfirmArchive(true)} type="button">archive page</button>}
-          </footer>
         </div>
 
         {/* Properties sit beside the writing rather than under it, ordered by how often
@@ -365,6 +382,17 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
           </Growing>
         </div>
       </div>
+
+      {/* The autosave line and the archive stand under both halves rather than inside the
+          writing, so a refused save is still in sight from the details. */}
+      <EditorState editor={editor} who={otherEditor} />
+
+      <footer className="dialog-footer">
+        <span>created by {page.createdByName}</span>
+        {confirmArchive ? (
+          <div className="archive-confirm"><span>archive this page?</span><button className="danger-button" onClick={onArchive} type="button">yes, archive</button><button className="text-button" onClick={() => setConfirmArchive(false)} type="button">cancel</button></div>
+        ) : <button className="text-button danger-text" onClick={() => setConfirmArchive(true)} type="button">archive page</button>}
+      </footer>
     </Drawer>
   );
 }

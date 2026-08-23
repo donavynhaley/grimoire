@@ -57,6 +57,15 @@ type Props = {
   textareaLabel: string;
   placeholder: string;
   rows: number;
+  /**
+   * Fills the height it is handed instead of growing with what is in it.
+   *
+   * The page editor is a frame rather than a document: nothing on it scrolls except the
+   * notes, and the notes only do so because they are the one thing that can be longer
+   * than the panel. In that mode the resting view and the textarea are the same box, so
+   * there is no size to travel between and no height wrapper to travel it.
+   */
+  fill?: boolean;
   value: string;
   onChange: (value: string) => void;
 };
@@ -81,7 +90,7 @@ type Props = {
  * token holds the caret position while the upload runs, so typing during the
  * upload never misplaces the embed.
  */
-export function NotesField({ label, editLabel, addImageLabel = "Add an image", name, textareaLabel, placeholder, rows, value, onChange }: Props) {
+export function NotesField({ label, editLabel, addImageLabel = "Add an image", name, textareaLabel, placeholder, rows, fill = false, value, onChange }: Props) {
   const [editing, setEditing] = useState(false);
   const [pendingUploads, setPendingUploads] = useState(0);
   const [uploadFailed, setUploadFailed] = useState(false);
@@ -167,9 +176,54 @@ export function NotesField({ label, editLabel, addImageLabel = "Add an image", n
   const hasImage = (files: File[]) => files.some((file) => file.type.startsWith("image/"));
   const draggingFiles = (transfer: DataTransfer | null) => Boolean(transfer?.types.includes("Files"));
 
+  const body = editing ? (
+    <textarea
+      aria-label={textareaLabel}
+      name={name}
+      onBlur={() => {
+        if (document.hasFocus()) setEditing(false);
+      }}
+      onChange={(event) => onChange(event.target.value)}
+      onKeyDown={(event) => {
+        if (event.key !== "Escape") return;
+        event.stopPropagation();
+        setEditing(false);
+      }}
+      onPaste={(event) => {
+        const files = collectFiles(event.clipboardData?.files);
+        if (!hasImage(files)) return;
+        event.preventDefault();
+        void importImages(files);
+      }}
+      placeholder={placeholder}
+      ref={textareaRef}
+      rows={rows}
+      style={!fill && restingHeight ? { minHeight: restingHeight } : undefined}
+      value={value}
+    />
+  ) : (
+    /*
+     * In fill mode the resting notes are their own scrolling box, and a box that scrolls
+     * has to be reachable without a mouse: notes longer than the panel would otherwise
+     * strand everything past the first screenful for anyone on a keyboard. Focusable and
+     * named, it is a region someone can tab to and arrow through; the `edit` button above
+     * stays the way in, so this never has to pretend to be a control.
+     */
+    <div
+      aria-label={fill ? label : undefined}
+      className="notes-view"
+      onClick={startEditing}
+      ref={viewRef}
+      role={fill ? "region" : undefined}
+      tabIndex={fill ? 0 : undefined}
+    >
+      {value.trim() ? <MarkdownView markdown={value} /> : <p className="notes-placeholder">{placeholder}</p>}
+    </div>
+  );
+
   return (
     <div
-      className={dropActive ? "notes-field drop-active" : "notes-field"}
+      className={["notes-field", fill && "fill", dropActive && "drop-active"].filter(Boolean).join(" ")}
       onDragEnter={(event) => {
         if (!draggingFiles(event.dataTransfer)) return;
         dragDepth.current += 1;
@@ -238,38 +292,10 @@ export function NotesField({ label, editLabel, addImageLabel = "Add an image", n
           )}
         </span>
       </div>
-      <Growing className="notes-body">
-        {editing ? (
-          <textarea
-            aria-label={textareaLabel}
-            name={name}
-            onBlur={() => {
-              if (document.hasFocus()) setEditing(false);
-            }}
-            onChange={(event) => onChange(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key !== "Escape") return;
-              event.stopPropagation();
-              setEditing(false);
-            }}
-            onPaste={(event) => {
-              const files = collectFiles(event.clipboardData?.files);
-              if (!hasImage(files)) return;
-              event.preventDefault();
-              void importImages(files);
-            }}
-            placeholder={placeholder}
-            ref={textareaRef}
-            rows={rows}
-            style={restingHeight ? { minHeight: restingHeight } : undefined}
-            value={value}
-          />
-        ) : (
-          <div className="notes-view" onClick={startEditing} ref={viewRef}>
-            {value.trim() ? <MarkdownView markdown={value} /> : <p className="notes-placeholder">{placeholder}</p>}
-          </div>
-        )}
-      </Growing>
+      {/* Only a box that can change size needs to travel between them. */}
+      {fill
+        ? <div className="notes-body">{body}</div>
+        : <Growing className="notes-body">{body}</Growing>}
     </div>
   );
 }

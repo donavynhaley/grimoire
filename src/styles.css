@@ -2131,6 +2131,29 @@ textarea:hover { border-color: var(--border-bright); }
 .notes-field.drop-active .notes-view,
 .notes-field.drop-active textarea { background: var(--accent-soft); border-color: var(--accent); }
 
+/*
+ * Notes that fill the height they are handed instead of growing with what is in them.
+ *
+ * On the page editor the notes are the one thing that can be longer than the panel, so
+ * they are the one thing that scrolls: the field takes whatever the column has left, and
+ * the resting view and the textarea are the same box - which is also why the field needs
+ * no height animation between them.
+ */
+.notes-field.fill { grid-template-rows: auto minmax(0, 1fr); }
+.notes-field.fill .notes-body { min-height: 0; }
+.notes-field.fill .notes-view {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* It takes focus only so a keyboard can scroll it, so it says so quietly. */
+.notes-field.fill .notes-view:focus-visible { outline: 1px solid var(--border-bright); outline-offset: -1px; }
+.notes-field.fill textarea {
+  min-height: 0;
+  height: 100%;
+  resize: none;
+}
+
 .markdown-body { font-size: 0.8125rem; line-height: 1.6; overflow-wrap: break-word; }
 .markdown-body > :first-child { margin-top: 0; }
 .markdown-body > :last-child { margin-bottom: 0; }
@@ -3796,39 +3819,126 @@ textarea:hover { border-color: var(--border-bright); }
 .chapter-close-choices button:hover:not(:disabled) { color: var(--text); }
 .chapter-close-choices button:first-child { color: var(--accent); }
 
-/* Page editor: writing on the left, properties beside it --------------- */
+/* Page editor: one screen, and only the writing scrolls ----------------- */
 
 /*
- * The page dialog holds a lot now - notes, custom fields, chapters, blockers,
- * history - so it takes most of the room a desktop screen has: wider than the
- * other dialogs by half again, and taller than their shared cap, leaving just
- * enough backdrop to say the board is still behind it.
- */
-/*
+ * The page dialog is a frame rather than a document.
+ *
+ * It holds a lot - notes, custom fields, chapters, blockers, history - and every one of
+ * them used to lengthen the same scroll, so opening a page meant scrolling it to find out
+ * what was on it. The panel now stands at a fixed height and never scrolls itself: the
+ * header, the switch, the autosave line and the footer keep their places, the properties
+ * take the width they need, and the notes take everything left over. What is on the page
+ * is what is on the screen.
+ *
  * The height is scoped away from the sheet on purpose. These rules sit after the drawer's,
- * so an unscoped `max-height` would win over `.drawer-sheet { max-height: none }` and cap a
+ * so an unscoped height would win over `.drawer-sheet { max-height: none }` and cap a
  * full-screen sheet into a slab floating at the bottom of the phone.
  */
-.page-editor { width: min(78rem, 100%); }
-.page-editor:not(.drawer-sheet) { max-height: min(64rem, calc(100vh - 3rem)); }
+.page-editor {
+  display: flex;
+  width: min(78rem, 100%);
+  flex-direction: column;
+  overflow: hidden;
+}
+.page-editor:not(.drawer-sheet) { height: min(64rem, calc(100dvh - 3rem)); max-height: none; }
+
+/* The furniture holds its size; only the split in the middle gives and takes. */
+.page-editor > .dialog-header,
+.page-editor > .page-editor-panes,
+.page-editor > .autosave-state,
+.page-editor > .conflict-bar,
+.page-editor > .dialog-footer { flex: none; }
+.page-editor > .dialog-header { margin-bottom: 1.125rem; }
+/* The line answers for the notes above it, so it keeps to their edge rather than the panel's. */
+.page-editor > .autosave-state { margin-top: 0.75rem; align-self: flex-end; }
+.page-editor > .dialog-footer { margin-top: 0.875rem; }
+
+/*
+ * The switch between the two halves, for the widths that can hold only one of them.
+ *
+ * The stylesheet is what shows and hides it, so the width the split actually needs is
+ * written once - here - instead of being copied into a media query listener in the panel.
+ */
+.page-editor-panes {
+  display: none;
+  margin-bottom: 0.875rem;
+  padding: 0.1875rem;
+  gap: 0.1875rem;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+.pane-tab {
+  min-height: 2.125rem;
+  flex: 1 1 0;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 0.375rem;
+  font: inherit;
+  font-size: 0.5625rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.pane-tab:hover { color: var(--text); }
+.pane-tab[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); }
 
 .page-editor-split {
   display: grid;
+  min-height: 0;
+  flex: 1 1 auto;
   grid-template-columns: minmax(0, 1fr) 20rem;
   gap: 2rem;
-  align-items: start;
 }
-.page-editor-main { min-width: 0; }
+
+/*
+ * The writing column: the title and the ledger keep their height, the notes take the rest.
+ *
+ * The notes keep a floor as well as a ceiling. A short window - a laptop with a browser
+ * chrome-heavy setup, a phone turned on its side - has less height than the fixed parts
+ * want, and without a floor the writing is what gets squeezed to a line: the one thing on
+ * the panel nobody opened it without. Below that floor the column takes the overflow and
+ * scrolls, which is a smaller concession than a page whose notes have vanished.
+ */
+.page-editor-main {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  gap: 0.875rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.page-editor-main > * { flex: none; }
+.page-editor-main > .notes-field { min-height: 8rem; flex: 1 1 auto; }
+.page-editor-main > .dialog-section { margin-top: 0; }
+/*
+ * History opens by taking room from the notes, because that is the only room the panel has
+ * to give. The list is capped and scrolls so a busy page cannot push the writing off it.
+ */
+.page-editor .page-history ol { max-height: 11rem; overflow-y: auto; }
+/*
+ * The picker sits at the foot of a panel that cannot scroll, so it opens upward over the
+ * notes rather than downward through the edge.
+ */
+.page-editor-main .github-panel { top: auto; bottom: calc(100% + 0.375rem); }
 
 /*
  * The rail holds the attributes, ordered by how often someone reaches for them, so the
- * column your eye reads down is only the page itself.
+ * column your eye reads down is only the page itself. It scrolls on its own when a project
+ * carries more properties than the panel is tall, which is what keeps the panel's own
+ * height a promise rather than a hope.
  */
 .page-rail {
   display: grid;
   min-width: 0;
+  min-height: 0;
   padding-left: 1.375rem;
   align-content: start;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border-left: 1px solid var(--border);
 }
 .rail-row {
@@ -3919,23 +4029,24 @@ textarea:hover { border-color: var(--border-bright); }
 .page-rail .dependency-results button { padding: 0.4375rem 0.5rem; }
 .page-rail .add-dependency { font-size: 0.5625rem; }
 
-/* The rail is a column beside the writing until there is no room for one. */
+/*
+ * Narrower than the split, the two halves take turns instead of stacking.
+ *
+ * Stacked, the properties added their whole height to the panel and the page went back to
+ * being a scroll - the one thing this surface is meant not to be. Taking turns keeps both
+ * halves the full height of the panel and one tap apart from each other.
+ */
 @media (max-width: 900px) {
+  .page-editor-panes { display: flex; }
   .page-editor-split { grid-template-columns: minmax(0, 1fr); gap: 0; }
-  .page-rail {
-    margin-top: 1.375rem;
-    padding-top: 1.25rem;
-    padding-left: 0;
-    border-top: 1px solid var(--border);
-    border-left: 0;
-  }
+  .page-editor-split[data-pane="notes"] .page-rail,
+  .page-editor-split[data-pane="details"] .page-editor-main { display: none; }
+  .page-rail { padding-left: 0; border-left: 0; }
 }
 
 /*
- * On a phone the sheet reads the way the page does: title, then notes, then the details
- * underneath. The board's tap-to-move slots carry the quick column change, so the rail no
- * longer has to fight the writing for the top of the sheet - it only has to be pleasant
- * once the reader scrolls to it, which is what the two-across choices are for.
+ * On a phone each half is the whole screen, so the properties have the room to sit two
+ * across rather than as a column of full-width buttons.
  */
 @media (max-width: 620px) {
   .page-rail .choice-grid { display: flex; flex-wrap: wrap; gap: 0.375rem; }

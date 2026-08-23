@@ -71,9 +71,12 @@ test.describe("grimoire in one hand", () => {
     await page.getByRole("button", { name: /^Open Chart the leyline drift/ }).tap();
     const sheet = page.locator(".drawer-sheet");
     await expect(sheet).toBeVisible();
-    // The sheet reads the way the page does: the writing first, the details reachable below.
+    // The sheet opens on the writing, and the details are the other half of the switch
+    // rather than a scroll below it - the sheet itself is one screen and does not move.
     await expect(sheet.getByRole("button", { name: "Edit notes" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Move to Done" })).toBeAttached();
+    await sheet.getByRole("button", { name: "Details" }).tap();
+    await expect(page.getByRole("button", { name: "Move to Done" })).toBeVisible();
+    await sheet.getByRole("button", { name: "Notes" }).tap();
 
     // The rise animation runs on the sheet itself, so the sheet is what has to settle
     // before anything inside it can be aimed at.
