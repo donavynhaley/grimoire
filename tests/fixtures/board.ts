@@ -80,6 +80,7 @@ export function boardFixture(): BoardWorkspace {
         estimate: null,
         github: null,
         githubStatus: null,
+    openThreads: 0,
       },
       {
         id: "00000000-0000-4000-8000-000000000021",
@@ -101,6 +102,7 @@ export function boardFixture(): BoardWorkspace {
         estimate: null,
         github: null,
         githubStatus: null,
+    openThreads: 0,
       },
     ],
   };

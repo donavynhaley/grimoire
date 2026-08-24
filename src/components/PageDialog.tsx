@@ -6,6 +6,7 @@ import {
   type Page,
   type PageStatus,
   type Chapter,
+  type DiscussionThread,
   type Member,
   type ProjectCategory,
   type ProjectField,
@@ -16,6 +17,7 @@ import { EditorState, otherEditorName } from "./EditorState";
 import { Growing } from "./Growing";
 import { NotesField } from "./NotesField";
 import { describeChange, describeEvent, relativeLabel } from "./activity-copy";
+import { DiscussionSection } from "./DiscussionSection";
 import { Drawer } from "./Drawer";
 import { GithubLink } from "./GithubLink";
 import { useContentEditor } from "./use-content-editor";
@@ -47,9 +49,14 @@ type Props = {
   onArchive: () => Promise<void>;
   onClose: () => void;
   onLoadActivity: (options: { entityId?: string; limit?: number }) => Promise<AuditPage>;
+  /** The conversation on this page, and the three things anyone can do to it. */
+  onLoadDiscussion: (pageId: string) => Promise<{ threads: DiscussionThread[] }>;
+  onAsk: (pageId: string, body: string) => Promise<void>;
+  onReply: (pageId: string, threadId: string, body: string) => Promise<void>;
+  onSetAnswered: (pageId: string, threadId: string, answered: boolean) => Promise<void>;
 };
 
-export function PageDialog({ page, pages, categories, chapters, estimatesEnabled, fields, currentUserId, githubRepo, members, revision, onUpdate, onArchive, onClose, onLoadActivity }: Props) {
+export function PageDialog({ page, pages, categories, chapters, estimatesEnabled, fields, currentUserId, githubRepo, members, revision, onUpdate, onArchive, onClose, onLoadActivity, onLoadDiscussion, onAsk, onReply, onSetAnswered }: Props) {
   const categoryColor = (slug: string | null) =>
     slug ? categories.find((category) => category.slug === slug)?.color : undefined;
   const swatchStyle = (slug: string | null) => {
@@ -145,6 +152,7 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
   });
 
   const history = usePageHistory(page.id, revision, onLoadActivity);
+  const { threads, reload: reloadDiscussion } = usePageDiscussion(page.id, revision, onLoadDiscussion);
   const otherEditor = otherEditorName(history, currentUserId);
 
   const close = async () => {
@@ -190,6 +198,24 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
           />
 
           <GithubLink github={page.github} onUpdate={onUpdate} repo={githubRepo} status={page.githubStatus} />
+
+          {/*
+            The order the page is read in: the notes are the brief, the discussion is the
+            conversation about it, and the history is the trail underneath. Discussion sits
+            above history and never inside it - one is authored and addressed to somebody,
+            the other is derived and belongs to nobody.
+          */}
+          <DiscussionSection
+            currentUserId={currentUserId}
+            members={members}
+            onAsk={async (body) => { await onAsk(page.id, body); await reloadDiscussion(); }}
+            onReply={async (threadId, body) => { await onReply(page.id, threadId, body); await reloadDiscussion(); }}
+            onSetAnswered={async (threadId, answered) => {
+              await onSetAnswered(page.id, threadId, answered);
+              await reloadDiscussion();
+            }}
+            threads={threads}
+          />
 
           <PageHistory
             events={history}
@@ -450,6 +476,39 @@ function usePageHistory(
   }, [pageId, load, revision]);
 
   return loaded?.pageId === pageId ? loaded.events : null;
+}
+
+/**
+ * Loads the conversation on one page.
+ *
+ * Kept beside the page it belongs to for the same reason the history is: a refetch triggered
+ * by an autosave should leave the threads in place rather than blanking them mid-read, while
+ * switching pages must never show the previous page's conversation for a frame.
+ *
+ * `reload` is what a post calls once the write has landed, so the list reflects the server's
+ * answer rather than a guess assembled on the client.
+ */
+function usePageDiscussion(
+  pageId: string,
+  revision: number,
+  load: (pageId: string) => Promise<{ threads: DiscussionThread[] }>,
+): { threads: DiscussionThread[] | null; reload: () => Promise<void> } {
+  const [loaded, setLoaded] = useState<{ pageId: string; threads: DiscussionThread[] } | null>(null);
+  const [reloads, setReloads] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    load(pageId)
+      .then((result) => { if (alive) setLoaded({ pageId, threads: result.threads }); })
+      // Silent, like the history: this is context beside an editor that still works.
+      .catch(() => { if (alive) setLoaded({ pageId, threads: [] }); });
+    return () => { alive = false; };
+  }, [pageId, load, revision, reloads]);
+
+  return {
+    threads: loaded?.pageId === pageId ? loaded.threads : null,
+    reload: async () => { setReloads((count) => count + 1); },
+  };
 }
 
 /**

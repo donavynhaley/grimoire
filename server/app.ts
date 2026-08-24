@@ -3,7 +3,14 @@ import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { dirname, extname, join, normalize } from "node:path";
 import { z, ZodError } from "zod";
-import { BODY_MAX_LENGTH, FIELD_TYPES, PAGE_STATUSES, type PageGithubLink, type PageStatus, type User } from "../shared/types";
+import { BODY_MAX_LENGTH, DISCUSSION_BODY_MAX_LENGTH, FIELD_TYPES, PAGE_STATUSES, type PageGithubLink, type PageStatus, type User } from "../shared/types";
+import {
+  findThread,
+  listDiscussion,
+  openThread,
+  replyToThread,
+  setThreadAnswered,
+} from "./discussion";
 import { buildRecap, discordPoster, postRecap, recapMessages, type DiscordPoster } from "./recap";
 import { forgetOpenPullRequests, githubApiFetcher, listOpenPullRequests, normalizeRepo, parseGithubReference, syncProjectGithub, verifyRepoAccess, type GithubFetcher } from "./github";
 import { createProject, createWizardSimulatorProject, openDatabase } from "./database";
@@ -98,6 +105,7 @@ import { CHAPTER_STATE_LABELS,
   listAuditEvents,
   listUnseenEvents,
   recordAuditEvent,
+  summarize,
   type PageLabels,
   type RecordAuditInput,
 } from "./audit";
@@ -300,8 +308,15 @@ const ALREADY_OPEN_MESSAGE = "Another chapter is already open. Close it before o
 /** Omitting the sequence means "advance to whatever is newest right now". */
 const seenSchema = z.object({ sequence: z.number().int().min(0).optional() }).strict();
 
+const discussionBodySchema = z
+  .object({ body: z.string().trim().min(1).max(DISCUSSION_BODY_MAX_LENGTH) })
+  .strict();
+const discussionAnswerSchema = z.object({ answered: z.boolean() }).strict();
+
 const AGENT_PAGE_PATH = /^\/api\/pages\/[^/]+$/;
 const AGENT_IDEA_PATH = /^\/api\/ideas\/[^/]+$/;
+const AGENT_DISCUSSION_PATH = /^\/api\/pages\/[^/]+\/discussion$/;
+const AGENT_REPLY_PATH = /^\/api\/pages\/[^/]+\/discussion\/[^/]+\/replies$/;
 
 /**
  * Whether an agent token may use a route at all, and whether doing so is a write.
@@ -327,6 +342,9 @@ function agentMayReach(method: string, pathname: string): "read" | "write" | nul
     // pulling the whole board is what an agent had to do before, and on a large project that
     // is most of a megabyte to answer a question about one title.
     if (AGENT_PAGE_PATH.test(pathname)) return "read";
+    // Reading the discussion is how an agent finds out what it was asked, which is the point
+    // of letting it write there at all.
+    if (AGENT_DISCUSSION_PATH.test(pathname)) return "read";
     // The activity log is owner-only, and the route enforces that against the person the
     // token acts as. A token therefore never reads more than its issuer already could.
     if (pathname === "/api/activity") return "read";
@@ -334,6 +352,17 @@ function agentMayReach(method: string, pathname: string): "read" | "write" | nul
   }
   if (method === "POST" && (pathname === "/api/pages" || pathname === "/api/ideas")) return "write";
   if (method === "PATCH" && (AGENT_PAGE_PATH.test(pathname) || AGENT_IDEA_PATH.test(pathname))) return "write";
+  /*
+   * Opening a thread and replying to one are the two writes an agent is most obviously good
+   * for: reporting what it did, and answering when asked. Both are additions to a page that a
+   * person can read and argue with, which is exactly the shape of write agents are trusted
+   * with everywhere else here.
+   *
+   * Marking a thread answered is absent by design, and so is anything that would edit or
+   * delete what was said. An agent that could close the question it raised could report its
+   * own work settled, and the one judgement a discussion carries would stop meaning anything.
+   */
+  if (method === "POST" && (AGENT_DISCUSSION_PATH.test(pathname) || AGENT_REPLY_PATH.test(pathname))) return "write";
   return null;
 }
 
@@ -1680,6 +1709,110 @@ export function createGrimoireServer(options: Options) {
       if (!page) throw new HttpError(404, "Archived page not found");
       audit(context, { projectId, entityType: "page", entityId: page.id, entityTitle: page.title, action: "restored" });
       json(response, 200, { page });
+      broadcast(projectId, "work", requestClientId(request));
+      return;
+    }
+
+    /*
+     * The conversation beside a page.
+     *
+     * Separate from the history on purpose: history is derived and belongs to nobody, while a
+     * thread is addressed to somebody and is finished only once it has been answered. Reading
+     * is open to every member, exactly as the per-page history is.
+     */
+    const discussionMatch = url.pathname.match(/^\/api\/pages\/([^/]+)\/discussion$/);
+    if (method === "GET" && discussionMatch) {
+      const user = requireUser(context);
+      const projectId = requireProject(context, user);
+      const page = findPage(database, pageStore, projectId, discussionMatch[1]);
+      if (!page) throw new HttpError(404, "Page not found");
+      json(response, 200, { threads: listDiscussion(database, projectId, page.id) });
+      return;
+    }
+
+    if (method === "POST" && discussionMatch) {
+      const user = requireUser(context);
+      const projectId = requireProject(context, user);
+      const page = findPage(database, pageStore, projectId, discussionMatch[1]);
+      if (!page) throw new HttpError(404, "Page not found");
+      const { body } = discussionBodySchema.parse(await readJson(request));
+      const thread = openThread(
+        database,
+        projectId,
+        page.id,
+        { id: user.id, name: user.name, agentTokenId: agentTokenId(context) },
+        body,
+      );
+      audit(context, {
+        projectId,
+        entityType: "page",
+        entityId: page.id,
+        entityTitle: page.title,
+        action: "asked",
+        changes: [{ field: "said", from: null, to: summarize(body) }],
+      });
+      json(response, 201, { thread });
+      broadcast(projectId, "work", requestClientId(request));
+      return;
+    }
+
+    const replyMatch = url.pathname.match(/^\/api\/pages\/([^/]+)\/discussion\/([^/]+)\/replies$/);
+    if (method === "POST" && replyMatch) {
+      const user = requireUser(context);
+      const projectId = requireProject(context, user);
+      const page = findPage(database, pageStore, projectId, replyMatch[1]);
+      if (!page) throw new HttpError(404, "Page not found");
+      const { body } = discussionBodySchema.parse(await readJson(request));
+      const thread = replyToThread(
+        database,
+        projectId,
+        page.id,
+        replyMatch[2],
+        { id: user.id, name: user.name, agentTokenId: agentTokenId(context) },
+        body,
+      );
+      if (thread === "no_thread") throw new HttpError(404, "Thread not found");
+      audit(context, {
+        projectId,
+        entityType: "page",
+        entityId: page.id,
+        entityTitle: page.title,
+        action: "replied",
+        changes: [{ field: "said", from: null, to: summarize(body) }],
+      });
+      json(response, 201, { thread });
+      broadcast(projectId, "work", requestClientId(request));
+      return;
+    }
+
+    /*
+     * Closing a thread is a judgement that a question has been answered, which is a person's
+     * call - agentMayReach refuses this route to every credential, whatever its scope. An
+     * agent that could close its own thread could mark its own work reviewed.
+     */
+    const answeredMatch = url.pathname.match(/^\/api\/pages\/([^/]+)\/discussion\/([^/]+)\/answered$/);
+    if (method === "POST" && answeredMatch) {
+      const user = requireUser(context);
+      const projectId = requireProject(context, user);
+      const page = findPage(database, pageStore, projectId, answeredMatch[1]);
+      if (!page) throw new HttpError(404, "Page not found");
+      const { answered } = discussionAnswerSchema.parse(await readJson(request));
+      const result = setThreadAnswered(database, projectId, page.id, answeredMatch[2], answered, user.id);
+      if (result === "no_thread") throw new HttpError(404, "Thread not found");
+      // Asking for the state it already holds is a no-op rather than a second log line.
+      if (result !== "unchanged") {
+        audit(context, {
+          projectId,
+          entityType: "page",
+          entityId: page.id,
+          entityTitle: page.title,
+          action: answered ? "answered" : "reopened",
+          changes: [{ field: "question", from: null, to: summarize(result.body) }],
+        });
+      }
+      json(response, 200, {
+        thread: result === "unchanged" ? findThread(database, projectId, page.id, answeredMatch[2]) : result,
+      });
       broadcast(projectId, "work", requestClientId(request));
       return;
     }

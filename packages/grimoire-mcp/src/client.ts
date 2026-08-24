@@ -37,6 +37,8 @@ export type PageGithubStatus = {
 };
 
 export type Page = {
+  /** How many threads on this page are still waiting for an answer. */
+  openThreads?: number;
   id: string;
   title: string;
   description: string;
@@ -61,6 +63,28 @@ export type Page = {
   github?: PageGithubLink | null;
   /** What GitHub last said about that link; null when the page has none. */
   githubStatus?: PageGithubStatus | null;
+};
+
+export type DiscussionMessage = {
+  id: string;
+  authorId: string | null;
+  authorName: string;
+  /** The agent that wrote this on its issuer's behalf, or null for a person. */
+  agentName: string | null;
+  body: string;
+  createdAt: string;
+};
+
+/**
+ * A question and what came back.
+ *
+ * answeredAt is the whole state a thread has, and only a person may set it - an agent that
+ * could close the question it raised could report its own work settled.
+ */
+export type DiscussionThread = DiscussionMessage & {
+  replies: DiscussionMessage[];
+  answeredAt: string | null;
+  answeredByName: string | null;
 };
 
 export type Board = {
@@ -192,6 +216,31 @@ export class GrimoireClient {
   /** One page, without dragging the whole board across to read a single title. */
   page(id: string): Promise<{ page: Page }> {
     return this.request<{ page: Page }>(`/api/pages/${encodeURIComponent(id)}`);
+  }
+
+  /**
+   * The conversation on a page, which is where an agent reports and is answered.
+   *
+   * Separate from the page itself on purpose: notes are the brief and belong to whoever wrote
+   * them, and an agent rewriting them to say what it did would destroy the thing it was asked
+   * to work from.
+   */
+  discussion(pageId: string): Promise<{ threads: DiscussionThread[] }> {
+    return this.request<{ threads: DiscussionThread[] }>(`/api/pages/${encodeURIComponent(pageId)}/discussion`);
+  }
+
+  openThread(pageId: string, body: string): Promise<{ thread: DiscussionThread }> {
+    return this.request<{ thread: DiscussionThread }>(`/api/pages/${encodeURIComponent(pageId)}/discussion`, {
+      method: "POST",
+      body: JSON.stringify({ body }),
+    });
+  }
+
+  replyToThread(pageId: string, threadId: string, body: string): Promise<{ thread: DiscussionThread }> {
+    return this.request<{ thread: DiscussionThread }>(
+      `/api/pages/${encodeURIComponent(pageId)}/discussion/${encodeURIComponent(threadId)}/replies`,
+      { method: "POST", body: JSON.stringify({ body }) },
+    );
   }
 
   search(query: string, limit?: number): Promise<SearchResults> {

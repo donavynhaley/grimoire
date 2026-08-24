@@ -175,6 +175,32 @@ Teammates with the project open are ringed in green on the people filter bar and
 Presence is deliberately absent from the header, where it would mostly report the signed-in person back to themselves.
 It follows the live connection itself, so it clears as soon as someone closes the tab or loses their network.
 
+## Discussion
+
+Every page carries a discussion, and it is not the same thing as its history.
+
+The history is derived: the system wrote it, it is about the page, and it belongs to nobody.
+A discussion message is authored, is addressed to somebody, and is finished only once it has been answered.
+Putting them in one list would bury a question under the column moves around it, and whose turn it is - the one thing a question has to say - is the one thing a merged list cannot show.
+So discussion sits in its own section between the notes and the history, as raised blocks on the surface a board tile is made of, while the history below stays flat, muted, and folded.
+
+A message with no parent opens a **thread**; every other message answers one.
+There is no third level: one indent is enough for a team talking about one page, and a second turns a thread into a tree nobody scans.
+
+A thread has exactly one piece of state - **open**, or **answered** - and that state is what keeps the surface small.
+Answered threads fold behind a count, so a page with forty messages on it still shows the two that are live.
+Nothing is deleted to get there, and reopening a thread costs one click and leaves a line in the history.
+
+Whose turn it is is derived rather than assigned: a thread nobody has replied to is waiting on whoever was asked, and one that has been replied to is back with the person who asked.
+Only a thread whose turn is yours takes the accent edge and says `waiting on you`.
+Replying does not close anything, because saying something and having said enough are different claims and only the second is a thread's state.
+
+A board tile shows how many threads on a page are still open, and shows nothing at all when none are.
+
+Discussion lives in SQLite beside the activity log rather than in the page's Markdown.
+A page file is portable and editable outside Grimoire, and a conversation folded into its body would be rewritten by the first external editor that touched it.
+That is the same choice the activity log already makes, and it has the same consequence: discussion is visible in Grimoire and nowhere else, including inside an Obsidian vault.
+
 ## While you were away
 
 Opening a project after time away starts with a digest strip above the board: at most five human sentences describing what teammates changed, with the changes about you - new assignments and blockers that resolved - always first.
@@ -239,6 +265,9 @@ Nothing is ever assigned to an agent, because an assignee is the person responsi
 An agent never appears in the people filter, the Team section, or presence, because presence follows an open connection and an agent holds none.
 
 An agent may create and edit pages and ideas, place a page into an existing chapter, and read the board, search, and its issuer's activity log.
+It may also read the discussion on any page and write in it, which is how an agent is meant to report: what it did, what it found, and what it needs decided go into a thread rather than into the notes, because the notes are the brief a person wrote for the work and rewriting them destroys what the agent was working from.
+An open thread is how an agent asks a person something and is seen to be waiting.
+It may never mark a thread answered - that judgement is a person's, and an agent that could close the question it raised could report its own work settled.
 It may never archive, restore, promote an idea, manage chapters or categories, invite or remove anyone, change the project, or touch an account.
 The rule is that an agent adds and refines, and only a person destroys or restructures, which keeps a mistaken or runaway agent a mess rather than a catastrophe.
 A credential can also be issued read-only, its writes are rate limited so a loop stays interruptible, and revoking it stops the agent immediately while leaving everything it already wrote correctly attributed.

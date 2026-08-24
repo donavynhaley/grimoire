@@ -100,6 +100,8 @@ function stubFetch(
     if (url.startsWith("/api/activity")) return response(activity);
     // The away lookup and cursor advance fire on every load; answering them here
     // keeps the ordered mock aligned with the responses each test actually queues.
+    // The page dialog reads its discussion the same way it reads its history, on every open.
+    if (/^\/api\/pages\/[^/]+\/discussion/.test(url)) return response({ threads: [] });
     if (url.startsWith("/api/away")) return response(awayValue);
     if (url.startsWith("/api/seen")) return response({ ok: true });
     return mock(input, init);

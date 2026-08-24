@@ -317,6 +317,30 @@ Because the log is written by the API, edits made directly to the Markdown files
 The log is append-only, is never pruned, and is scoped to one project on both read and write.
 Reads page backwards through a monotonic sequence number rather than a timestamp, which keeps paging stable when several events share a millisecond.
 
+## Discussion
+
+Threads live in `page_discussion` in SQLite, not in the page's Markdown.
+
+A page file is portable and is edited outside Grimoire, so a conversation folded into its body would be rewritten by the first external editor that touched it.
+This is the same boundary the activity log draws, and it carries the same cost: discussion does not travel with the Markdown, and does not appear in an Obsidian vault.
+
+One table holds both halves of a thread.
+A row with a null `parent_id` opens a thread; every other row answers one, pointing at the root through `parent_id` with `ON DELETE CASCADE`.
+There is no third level, and nothing enforces one beyond the fact that no route accepts a parent that is itself a reply.
+
+`answered_at` and `answered_by` are set only on root rows and are the whole state a thread has.
+Nothing is edited and nothing is deleted: reopening writes null back, and both transitions append to the activity log under their own actions, so the record still says what happened.
+
+The author is stored twice on purpose.
+`author_id` references the account, and reads prefer the live account name so renaming yourself stays consistent across everything you ever said; `author_name` is the snapshot that keeps a removed author's messages readable.
+`agent_token_id` names the credential that wrote a message, exactly as `audit_events` does, because a token is a delegation and the person stays the author.
+
+Open-thread counts reach the board through one grouped query per project rather than one per page, and a single page read counts for itself instead of reporting zero.
+The count is on `Page` rather than in the Markdown, which is why `publicPage` takes the project it belongs to.
+
+`awaitingReplyFrom` derives whose turn it is instead of storing it: a thread nobody has replied to waits on the page's assignee, and one that has been replied to waits on whoever asked.
+An unassigned page waits on nobody and says so, rather than picking a person to bother.
+
 ## Search
 
 `GET /api/search` answers for one whole project rather than for one workspace.

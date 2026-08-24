@@ -5,6 +5,7 @@ import type {
   AuditPage,
   AwayState,
   BoardWorkspace,
+  DiscussionThread,
   EditConflict,
   IdeaWorkspace,
   SearchResults,
@@ -72,6 +73,43 @@ export function activity(options: { entityId?: string; before?: number; limit?: 
   if (options.before !== undefined) params.set("before", String(options.before));
   if (options.limit !== undefined) params.set("limit", String(options.limit));
   return request<AuditPage>(`/api/activity${params.size ? `?${params}` : ""}`);
+}
+
+/**
+ * The conversation on one page.
+ *
+ * Separate from `activity` because they are separate things: the activity log records what
+ * happened to a page, and this is what people said about it. Fetching them together would
+ * only make the caller pull them apart again.
+ */
+export function discussion(pageId: string): Promise<{ threads: DiscussionThread[] }> {
+  return request<{ threads: DiscussionThread[] }>(`/api/pages/${pageId}/discussion`);
+}
+
+export function openThread(pageId: string, body: string): Promise<{ thread: DiscussionThread }> {
+  return request<{ thread: DiscussionThread }>(`/api/pages/${pageId}/discussion`, {
+    method: "POST",
+    body: JSON.stringify({ body }),
+  });
+}
+
+export function replyToThread(pageId: string, threadId: string, body: string): Promise<{ thread: DiscussionThread }> {
+  return request<{ thread: DiscussionThread }>(`/api/pages/${pageId}/discussion/${threadId}/replies`, {
+    method: "POST",
+    body: JSON.stringify({ body }),
+  });
+}
+
+/** Closing a thread, or opening it back up. Refused for an agent credential, by design. */
+export function setThreadAnswered(
+  pageId: string,
+  threadId: string,
+  answered: boolean,
+): Promise<{ thread: DiscussionThread }> {
+  return request<{ thread: DiscussionThread }>(`/api/pages/${pageId}/discussion/${threadId}/answered`, {
+    method: "POST",
+    body: JSON.stringify({ answered }),
+  });
 }
 
 /** Searches the whole project - every column, the idea garden, and archived pages. */
