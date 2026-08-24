@@ -1,0 +1,32 @@
+# A throwaway Grimoire on port 8099, for looking at a change with data in front of it.
+#
+# Separate from compose.yaml so it can never be mistaken for the real deployment: its own
+# port, its own data directory, and no restart policy. `scripts/demo.sh` builds it, seeds it
+# with a team, a board and a conversation, and hands back a URL.
+#
+# Everything it writes lives in ./demo-data, which is not tracked. Delete the directory to
+# start over.
+services:
+  grimoire-demo:
+    build: .
+    container_name: grimoire-demo
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 8080
+      GRIMOIRE_DATABASE: /app/data/grimoire.sqlite
+      GRIMOIRE_PAGES_DIRECTORY: /app/data/pages
+    ports:
+      - "8099:8080"
+    volumes:
+      - ./demo-data:/app/data
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:8080/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 3s
