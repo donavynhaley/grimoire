@@ -115,6 +115,56 @@ export function openThreadCount(database: DatabaseSync, projectId: string, pageI
   return Number(value?.open ?? 0);
 }
 
+/**
+ * How much of a page's conversation this person has not read yet.
+ *
+ * Counted per person and never shared: this answers "is there something here for me", which is
+ * the only question the control in the panel header is asking. Your own messages never count -
+ * you have read what you wrote - and a page you have never opened counts everything on it.
+ *
+ * One query for the whole board rather than one per tile, for the same reason the open-thread
+ * counts are gathered that way.
+ */
+export function unseenCounts(database: DatabaseSync, projectId: string, userId: string): Map<string, number> {
+  const values = database
+    .prepare(
+      `SELECT page_discussion.page_id AS page_id, COUNT(*) AS unseen
+       FROM page_discussion
+       LEFT JOIN discussion_seen
+         ON discussion_seen.project_id = page_discussion.project_id
+        AND discussion_seen.page_id = page_discussion.page_id
+        AND discussion_seen.user_id = ?
+       WHERE page_discussion.project_id = ?
+         AND (page_discussion.author_id IS NULL OR page_discussion.author_id != ?)
+         AND (discussion_seen.seen_at IS NULL OR page_discussion.created_at > discussion_seen.seen_at)
+       GROUP BY page_discussion.page_id`,
+    )
+    .all(userId, projectId, userId) as Row[];
+  return new Map(values.map((value) => [String(value.page_id), Number(value.unseen)]));
+}
+
+/** The same count for one page, for a read that did not gather the whole board. */
+export function unseenCount(database: DatabaseSync, projectId: string, pageId: string, userId: string): number {
+  return unseenCounts(database, projectId, userId).get(pageId) ?? 0;
+}
+
+/**
+ * Marks a page's conversation read up to now.
+ *
+ * Written when somebody opens the column, which is the only moment they can be said to have
+ * looked. Anything posted after this instant is unseen again, including while they are still
+ * looking at it - the next open settles that, and a count that flickers is better than one
+ * that lies.
+ */
+export function markSeen(database: DatabaseSync, projectId: string, pageId: string, userId: string): void {
+  database
+    .prepare(
+      `INSERT INTO discussion_seen (project_id, user_id, page_id, seen_at) VALUES (?, ?, ?, ?)
+       ON CONFLICT (project_id, user_id, page_id) DO UPDATE SET seen_at = excluded.seen_at`,
+    )
+    .run(projectId, userId, pageId, new Date().toISOString());
+}
+
 export type WriteAuthor = {
   id: string;
   name: string;

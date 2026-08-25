@@ -67,6 +67,13 @@ async function registerMember(server: TestServer) {
   });
 }
 
+async function loginMember(server: TestServer) {
+  await server.request("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email: MEMBER.email, password: MEMBER.password }),
+  });
+}
+
 async function loginOwner(server: TestServer) {
   await server.request("/api/auth/login", {
     method: "POST",
@@ -323,6 +330,105 @@ describe("page discussion", () => {
       const refused = await asAgent(server, secret, `/api/pages/${page.id}/discussion`, {
         method: "POST",
         body: JSON.stringify({ body: "Anything at all." }),
+      });
+      expect(refused.response.status).toBe(403);
+    });
+  });
+
+  describe("what has not been read", () => {
+    function seen(server: TestServer, pageId: string) {
+      return server.request<{ ok: boolean }>(`/api/pages/${pageId}/discussion/seen`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+    }
+
+    async function unseenFor(server: TestServer, pageId: string): Promise<number> {
+      const board = await server.request<BoardWorkspace>("/api/board");
+      return board.body.pages.find((value) => value.id === pageId)?.unseenMessages ?? -1;
+    }
+
+    it("does not count what you wrote yourself", async () => {
+      const server = await startTestServer();
+      await bootstrap(server);
+      const page = await makePage(server);
+      await ask(server, page.id, "Something I said.");
+
+      expect(await unseenFor(server, page.id)).toBe(0);
+    });
+
+    it("counts everything on a page you have never opened", async () => {
+      const server = await startTestServer();
+      await bootstrap(server);
+      const page = await makePage(server);
+      const thread = (await ask(server, page.id, "Whose clock?")).body.thread;
+      await reply(server, page.id, thread.id, "Device time.");
+
+      await registerMember(server);
+      // Maren has never looked at this page, so the question and its reply are both new to her.
+      expect(await unseenFor(server, page.id)).toBe(2);
+    });
+
+    it("clears once the conversation has been opened, and counts again after that", async () => {
+      const server = await startTestServer();
+      await bootstrap(server);
+      const page = await makePage(server);
+      const thread = (await ask(server, page.id, "Whose clock?")).body.thread;
+
+      await registerMember(server);
+      expect(await unseenFor(server, page.id)).toBe(1);
+      expect((await seen(server, page.id)).response.status).toBe(200);
+      expect(await unseenFor(server, page.id)).toBe(0);
+
+      await loginOwner(server);
+      await reply(server, page.id, thread.id, "Device time for display.");
+
+      await loginMember(server);
+      // Only what arrived after she looked.
+      expect(await unseenFor(server, page.id)).toBe(1);
+    });
+
+    it("is private to each person", async () => {
+      const server = await startTestServer();
+      await bootstrap(server);
+      const page = await makePage(server);
+      await ask(server, page.id, "Whose clock?");
+
+      await registerMember(server);
+      await seen(server, page.id);
+      expect(await unseenFor(server, page.id)).toBe(0);
+
+      await loginOwner(server);
+      // Donavyn wrote it, so it was never unread for him - and Maren reading it changed
+      // nothing about his own count either way.
+      expect(await unseenFor(server, page.id)).toBe(0);
+
+      await loginMember(server);
+      await loginOwner(server);
+      const secondPage = await makePage(server, "Another page");
+      await loginMember(server);
+      await ask(server, secondPage.id, "And this one?");
+      await loginOwner(server);
+      expect(await unseenFor(server, secondPage.id)).toBe(1);
+      await loginMember(server);
+      expect(await unseenFor(server, secondPage.id)).toBe(0);
+    });
+
+    it("answers 404 for a page that is not there", async () => {
+      const server = await startTestServer();
+      await bootstrap(server);
+      expect((await seen(server, "nope")).response.status).toBe(404);
+    });
+
+    it("is closed to an agent, which has no attention to spend", async () => {
+      const server = await startTestServer();
+      await bootstrap(server);
+      const page = await makePage(server);
+      const secret = await issueAgent(server);
+
+      const refused = await asAgent(server, secret, `/api/pages/${page.id}/discussion/seen`, {
+        method: "POST",
+        body: JSON.stringify({}),
       });
       expect(refused.response.status).toBe(403);
     });

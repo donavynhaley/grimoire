@@ -101,19 +101,29 @@ describe("the discussion on a page", () => {
     expect(column?.parentElement).toBe(document.querySelector(".page-editor-split"));
   });
 
-  it("opens itself when a page has something waiting, and stays shut when it does not", async () => {
+  it("stays folded away until it is asked for, however much is waiting", async () => {
+    const board = boardFixture();
+    board.pages[1].openThreads = 4;
+    board.pages[1].unseenMessages = 4;
+    mountWith([
+      thread({ authorId: THEM, authorName: "Maren", body: "Whose clock?" }),
+      thread({ authorId: THEM, authorName: "Maren", body: "And the other thing?" }),
+    ], board);
+    await openPage(board);
+
+    // A page opens on its writing. Deciding for the reader that they came for the
+    // conversation would cost them the wider notes column every time they did not.
+    expect(document.querySelector(".page-editor-split")).toHaveAttribute("data-discussion", "closed");
+  });
+
+  it("sits past the properties, so the page and its attributes stay together", async () => {
     const board = boardFixture();
     mountWith([thread({ authorId: THEM, authorName: "Maren", body: "Whose clock?" })], board);
     await openPage(board);
-    expect(document.querySelector(".page-editor-split")).toHaveAttribute("data-discussion", "open");
 
-    cleanup();
-    const quiet = boardFixture();
-    quiet.pages.forEach((page) => { page.openThreads = 0; });
-    mountWith([], quiet);
-    await openPage(quiet);
-    // A page nobody has said anything about keeps the two columns it always had.
-    expect(document.querySelector(".page-editor-split")).toHaveAttribute("data-discussion", "closed");
+    const columns = [...(document.querySelector(".page-editor-split") as HTMLElement).children];
+    const classes = columns.map((column) => column.className.split(" ")[0]);
+    expect(classes).toEqual(["page-editor-main", "page-rail", "page-discussion-column"]);
   });
 
   it("folds away and comes back from the header, without the writing column changing shape", async () => {
@@ -123,18 +133,54 @@ describe("the discussion on a page", () => {
 
     const split = document.querySelector(".page-editor-split") as HTMLElement;
     const toggle = document.querySelector(".discussion-toggle") as HTMLElement;
-    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
 
     await user.click(toggle);
-    expect(split).toHaveAttribute("data-discussion", "closed");
-    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    expect(split).toHaveAttribute("data-discussion", "open");
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
     // The control is in the header either way, so nothing appears in the notes to replace it.
     expect(document.querySelector(".page-editor-main .discussion-toggle")).toBeNull();
     // Closed, the column is still in the grid so the widths can travel rather than jump.
     expect(document.querySelector(".page-discussion-column")).toBeTruthy();
 
     await user.click(toggle);
-    expect(split).toHaveAttribute("data-discussion", "open");
+    expect(split).toHaveAttribute("data-discussion", "closed");
+  });
+
+  it("counts what has not been read, and says nothing when there is nothing", async () => {
+    const board = boardFixture();
+    board.pages[1].unseenMessages = 3;
+    // Resolved-ness is a different question, and not the one this number answers.
+    board.pages[1].openThreads = 0;
+    mountWith([], board);
+    await openPage(board);
+
+    const toggle = document.querySelector(".discussion-toggle") as HTMLElement;
+    expect(within(toggle).getByText("3")).toBeTruthy();
+    expect(within(toggle).getByLabelText("3 unread")).toBeTruthy();
+
+    cleanup();
+    const read = boardFixture();
+    read.pages.forEach((page) => { page.unseenMessages = 0; page.openThreads = 5; });
+    mountWith([], read);
+    await openPage(read);
+    // Five open threads you have already read are not news.
+    expect(document.querySelector(".discussion-unseen")).toBeNull();
+  });
+
+  it("marks the conversation read when the column is opened, and not before", async () => {
+    const board = boardFixture();
+    board.pages[1].unseenMessages = 2;
+    const calls = mountWith([thread({ authorId: THEM, authorName: "Maren", body: "Whose clock?" })], board);
+    const user = await openPage(board);
+
+    // Opening the page is not reading the conversation.
+    expect(calls.filter((call) => call.url.includes("/discussion/seen"))).toHaveLength(0);
+
+    await user.click(document.querySelector(".discussion-toggle") as HTMLElement);
+    const seen = calls.filter((call) => call.url.includes("/discussion/seen"));
+    expect(seen).toHaveLength(1);
+    expect(seen[0].method).toBe("POST");
   });
 
   it("says the word and the count in exactly one place", async () => {
@@ -148,8 +194,9 @@ describe("the discussion on a page", () => {
     // The header control is the label, the count, and the way in and out. A heading inside
     // the column would be a second thing saying the same words and a second way to close it.
     const toggle = document.querySelector(".discussion-toggle") as HTMLElement;
-    expect(within(toggle).getByText("2 open")).toBeTruthy();
-    expect(within(section()).queryByText("2 open")).toBeNull();
+    expect(within(toggle).getByText("Discussion")).toBeTruthy();
+    // A heading inside the column would be a second thing saying the same word and a second
+    // way to close it.
     expect(within(section()).queryByText(/^Discussion$/)).toBeNull();
   });
 
@@ -201,8 +248,6 @@ describe("the discussion on a page", () => {
     const user = await openPage(board);
 
     const discussion = section();
-    // The count is said once, on the control in the header that opens and closes the column.
-    expect(within(document.querySelector(".discussion-toggle") as HTMLElement).getByText("1 open")).toBeTruthy();
     // The answered one is out of the way until it is asked for - that is what keeps this short.
     expect(within(discussion).queryByText("Settled a while ago")).toBeNull();
 

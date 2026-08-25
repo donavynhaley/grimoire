@@ -54,9 +54,11 @@ type Props = {
   onAsk: (pageId: string, body: string) => Promise<void>;
   onReply: (pageId: string, threadId: string, body: string) => Promise<void>;
   onSetAnswered: (pageId: string, threadId: string, answered: boolean) => Promise<void>;
+  /** Called the moment the conversation is actually looked at, and only then. */
+  onSeeDiscussion: (pageId: string) => Promise<void>;
 };
 
-export function PageDialog({ page, pages, categories, chapters, estimatesEnabled, fields, currentUserId, githubRepo, members, revision, onUpdate, onArchive, onClose, onLoadActivity, onLoadDiscussion, onAsk, onReply, onSetAnswered }: Props) {
+export function PageDialog({ page, pages, categories, chapters, estimatesEnabled, fields, currentUserId, githubRepo, members, revision, onUpdate, onArchive, onClose, onLoadActivity, onLoadDiscussion, onAsk, onReply, onSetAnswered, onSeeDiscussion }: Props) {
   const categoryColor = (slug: string | null) =>
     slug ? categories.find((category) => category.slug === slug)?.color : undefined;
   const swatchStyle = (slug: string | null) => {
@@ -131,6 +133,7 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
     setShowingHistory(false);
     setPane("notes");
     setDiscussionOpen(null);
+    marked.current = null;
     setShowingClosedChapters(inClosedChapter);
     // `inClosedChapter` is read for the page being opened, not tracked: a page moved into a
     // closed chapter from the open fold must not re-run this and fold it away underneath.
@@ -164,18 +167,36 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
   const history = usePageHistory(page.id, revision, onLoadActivity);
   const { threads, reload: reloadDiscussion } = usePageDiscussion(page.id, revision, onLoadDiscussion);
   /*
-   * The count comes from the page rather than the threads so the tab carries it before the
-   * conversation has finished loading, and keeps carrying it while the panel is closed.
+   * What the control counts is what has not been read, not what is unresolved.
+   *
+   * An open thread you have already read is not news; a reply to a question you asked is,
+   * even though it closed nothing. The number is there to say "there is something here for
+   * you", and unread is the only count that answers that. It comes from the page rather than
+   * the loaded threads so it is there before the conversation has finished arriving.
    */
-  const openThreadCount = threads
-    ? threads.filter((thread) => thread.answeredAt === null).length
-    : page.openThreads;
+  const unseenCount = page.unseenMessages;
   /*
-   * Open when something is actually waiting, not merely when something was once said. A page
-   * whose questions have all been answered has nothing to show but the sentence saying so,
-   * and it should look like the page it looked like before anyone asked.
+   * Folded away until somebody asks for it.
+   *
+   * A page opens on its writing. Deciding for the reader that a conversation is what they came
+   * for costs them the wider notes column every time they were only here to read the page, and
+   * the control in the header says plainly enough when there is something waiting.
    */
-  const showingDiscussion = discussionOpen ?? openThreadCount > 0;
+  const showingDiscussion = discussionOpen ?? false;
+
+  /*
+   * Opening the column is what counts as having read it.
+   *
+   * Once per page: a second mark would follow its own board refresh round and round. Anything
+   * posted while the column is open is unread again on the next visit, which is a count that
+   * flickers rather than one that lies.
+   */
+  const marked = useRef<string | null>(null);
+  useEffect(() => {
+    if (!showingDiscussion || marked.current === page.id) return;
+    marked.current = page.id;
+    void onSeeDiscussion(page.id);
+  }, [showingDiscussion, page.id, onSeeDiscussion]);
   const otherEditor = otherEditorName(history, currentUserId);
 
   const close = async () => {
@@ -198,7 +219,9 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
           type="button"
         >
           <span className="field-label">Discussion</span>
-          {openThreadCount > 0 && <span className="discussion-open">{openThreadCount} open</span>}
+          {unseenCount > 0 && (
+            <span aria-label={`${unseenCount} unread`} className="discussion-unseen">{unseenCount}</span>
+          )}
         </button>
         <button aria-label="Close page" className="icon-button" onClick={() => void close()} type="button">×</button>
       </header>
@@ -212,7 +235,7 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
       <div aria-label="Page halves" className="page-editor-panes" role="group">
         <button aria-pressed={pane === "notes"} className="pane-tab" onClick={() => setPane("notes")} type="button">Notes</button>
         <button aria-pressed={pane === "discussion"} className="pane-tab" onClick={() => setPane("discussion")} type="button">
-          Discussion{openThreadCount > 0 ? ` · ${openThreadCount}` : ""}
+          Discussion{unseenCount > 0 ? ` · ${unseenCount}` : ""}
         </button>
         <button aria-pressed={pane === "details"} className="pane-tab" onClick={() => setPane("details")} type="button">Details</button>
       </div>
@@ -244,34 +267,6 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
             members={members}
             onToggle={() => setShowingHistory((showing) => !showing)}
             open={showingHistory}
-          />
-        </div>
-
-        {/*
-          The conversation gets a column rather than a slot under the notes.
-          A discussion has no length anybody can predict, and the writing column already
-          spends its height on the notes; sharing it meant capping the threads at a few
-          hundred pixels and scrolling them inside a column that was itself scrolling. Its
-          own column has the panel's full height to spend and needs no cap at all.
-
-          It stays mounted while closed so the split's widths can travel rather than jump,
-          and goes inert so nothing inside a zero-width column can still be tabbed into.
-        */}
-        <div
-          aria-label="Discussion"
-          className="page-discussion-column"
-          inert={!showingDiscussion && pane !== "discussion"}
-        >
-          <DiscussionSection
-            currentUserId={currentUserId}
-            members={members}
-            onAsk={async (body) => { await onAsk(page.id, body); await reloadDiscussion(); }}
-            onReply={async (threadId, body) => { await onReply(page.id, threadId, body); await reloadDiscussion(); }}
-            onSetAnswered={async (threadId, answered) => {
-              await onSetAnswered(page.id, threadId, answered);
-              await reloadDiscussion();
-            }}
-            threads={threads}
           />
         </div>
 
@@ -456,6 +451,39 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
               <button aria-label="Add blocking page" className="add-dependency" onClick={() => setFindingBlocker(true)} type="button">+ add blocking page</button>
             )}
           </Growing>
+        </div>
+
+        {/*
+          The conversation gets a column of its own, past the notes and the properties.
+          A discussion has no length anybody can predict, and the writing column already
+          spends its height on the notes; sharing it meant capping the threads at a few
+          hundred pixels and scrolling them inside a column that was itself scrolling. Its
+          own column has the panel's full height to spend and needs no cap at all.
+
+          It sits after the rail because the notes and the properties are the page - one is
+          what it says, the other is what it is - and a conversation about the page should not
+          come between them. It also means the only track that ever changes width is the last
+          one, so nothing to its left moves when it opens.
+
+          It stays mounted while closed so the split's widths can travel rather than jump,
+          and goes inert so nothing inside a zero-width column can still be tabbed into.
+        */}
+        <div
+          aria-label="Discussion"
+          className="page-discussion-column"
+          inert={!showingDiscussion && pane !== "discussion"}
+        >
+          <DiscussionSection
+            currentUserId={currentUserId}
+            members={members}
+            onAsk={async (body) => { await onAsk(page.id, body); await reloadDiscussion(); }}
+            onReply={async (threadId, body) => { await onReply(page.id, threadId, body); await reloadDiscussion(); }}
+            onSetAnswered={async (threadId, answered) => {
+              await onSetAnswered(page.id, threadId, answered);
+              await reloadDiscussion();
+            }}
+            threads={threads}
+          />
         </div>
       </div>
 

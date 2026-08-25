@@ -338,6 +338,11 @@ The author is stored twice on purpose.
 Open-thread counts reach the board through one grouped query per project rather than one per page, and a single page read counts for itself instead of reporting zero.
 The count is on `Page` rather than in the Markdown, which is why `publicPage` takes the project it belongs to.
 
+How much of a conversation somebody has not read lives in `discussion_seen`, one row per person per page, holding the moment they last opened it.
+A page with no row has never been opened by that person, so everything on it is unread; their own messages never count.
+It is a timestamp rather than a sequence because it is scoped to one page rather than to the whole project's log, and a message already carries the moment it was written.
+The counts reach the board through one grouped query per project, the same way the open-thread counts do, and the marker is written only when the column is actually opened - an agent cannot write one at all, because it has no attention to spend.
+
 `awaitingReplyFrom` derives whose turn it is instead of storing it: a thread nobody has replied to waits on the page's assignee, and one that has been replied to waits on whoever asked.
 An unassigned page waits on nobody and says so, rather than picking a person to bother.
 

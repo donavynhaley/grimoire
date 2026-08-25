@@ -182,7 +182,14 @@ Every page carries a discussion, and it is not the same thing as its history.
 The history is derived: the system wrote it, it is about the page, and it belongs to nobody.
 A discussion message is authored, is addressed to somebody, and is finished only once it has been answered.
 Putting them in one list would bury a question under the column moves around it, and whose turn it is - the one thing a question has to say - is the one thing a merged list cannot show.
-So discussion sits in its own section between the notes and the history, as raised blocks on the surface a board tile is made of, while the history below stays flat, muted, and folded.
+So discussion gets a column of its own, past the notes and the properties.
+The notes and the properties stay together because they are the page - one is what it says, the other is what it is - and a conversation about the page should not come between them.
+Being the last of the three columns also means it is the only one that ever changes width, so nothing to its left moves when it opens.
+
+The column is folded away until somebody asks for it, and it travels to its width rather than appearing at it.
+A page opens on its writing: deciding for the reader that they came for the conversation would cost them the wider notes column every time they did not.
+Threads inside it need no card or border, because the column is what tells them apart from the history in the writing column; a thread is a name, a time, and what was said, ruled off from the next one.
+Reply and answered are revealed on hover, so a page carrying nine open threads is nine questions rather than nine questions and eighteen buttons.
 
 A message with no parent opens a **thread**; every other message answers one.
 There is no third level: one indent is enough for a team talking about one page, and a second turns a thread into a tree nobody scans.
@@ -196,6 +203,11 @@ Only a thread whose turn is yours takes the accent edge and says `waiting on you
 Replying does not close anything, because saying something and having said enough are different claims and only the second is a thread's state.
 
 A board tile shows how many threads on a page are still open, and shows nothing at all when none are.
+
+The control that opens the column counts something different: **how many messages you have not read.**
+An open thread you have already read is not news, and a reply to a question you asked is, even though it closed nothing - so the number that decides whether to look now is the unread one, and resolved-ness is left to the tile.
+Your own writing never counts, a page you have never opened counts everything on it, and opening the column is what marks it read.
+Like every other seen marker here it is private: it moves your count and nobody else's, and tells nobody how caught up you are.
 
 Discussion lives in SQLite beside the activity log rather than in the page's Markdown.
 A page file is portable and editable outside Grimoire, and a conversation folded into its body would be rewritten by the first external editor that touched it.

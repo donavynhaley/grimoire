@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { AwayState, BoardWorkspace, FieldType, PageStatus, IdeaState, IdeaWorkspace, SessionState, User, ProjectRole } from "../shared/types";
-import { activity as loadActivity, ApiError, away as loadAway, board as loadBoard, discussion as loadDiscussion, editConflict, ideas as loadIdeas, liveEventsUrl, markSeen, mutate, openThread, replyToThread, request, session, setActiveProjectId, setThreadAnswered, uploadAvatar } from "./api/client";
+import { activity as loadActivity, ApiError, away as loadAway, board as loadBoard, discussion as loadDiscussion, editConflict, ideas as loadIdeas, liveEventsUrl, markDiscussionSeen, markSeen, mutate, openThread, replyToThread, request, session, setActiveProjectId, setThreadAnswered, uploadAvatar } from "./api/client";
 import { AuthScreen } from "./components/AuthScreen";
 import { Board } from "./components/Board";
 import type { CapturePageInput } from "./components/QuickCapture";
@@ -245,6 +245,19 @@ export function App() {
     perform(() => replyToThread(pageId, threadId, body)).then(() => undefined);
   const answerOnPage = (pageId: string, threadId: string, answered: boolean) =>
     perform(() => setThreadAnswered(pageId, threadId, answered)).then(() => undefined);
+  /*
+   * Reading is not a change anyone else can see, so it does not go through `perform` and its
+   * error banner - a failed read marker is worth nothing to report. The board is refreshed
+   * anyway, because the count on the control is carried on the page.
+   */
+  const seeDiscussion = async (pageId: string) => {
+    try {
+      await markDiscussionSeen(pageId);
+      await refreshBoard();
+    } catch {
+      // The count stays where it was until the next visit, which is the harmless failure.
+    }
+  };
 
   const archivePage = async (id: string) => {
     const title = board?.pages.find((page) => page.id === id)?.title ?? "page";
@@ -504,6 +517,7 @@ export function App() {
         onAsk={askOnPage}
         onReply={replyOnPage}
         onSetAnswered={answerOnPage}
+        onSeeDiscussion={seeDiscussion}
         onLogout={logout}
         onMoveBacklogToNext={moveBacklogToNext}
         revision={revision}

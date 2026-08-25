@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import { openThreadCount, openThreadCounts } from "./discussion";
+import { openThreadCount, openThreadCounts, unseenCount, unseenCounts } from "./discussion";
 import { fieldHasOptions,
   fieldTypeSwapAllowed,
   type ChapterVelocity,
@@ -765,6 +765,7 @@ export function getBoard(
   const estimatesOn = Number(project.estimates_enabled ?? 0) === 1;
   const githubStatuses = githubStatusesForProject(database, projectId);
   const openThreads = openThreadCounts(database, projectId);
+  const unseen = unseenCounts(database, projectId, user.id);
 
   return {
     project: {
@@ -792,7 +793,7 @@ export function getBoard(
     currentUser: user,
     viewerIsOwner: userOwnsProject(database, user, projectId),
     members,
-    pages: pages.map((page) => publicPage(database, projectId, page, members, githubStatuses, openThreads)),
+    pages: pages.map((page) => publicPage(database, projectId, page, members, githubStatuses, openThreads, { id: user.id, unseen })),
     // Chapters and estimates are separate gates, and velocity is the place they meet: it is
     // an estimate summed per chapter, so it needs both to mean anything.
     velocity: enabled && estimatesOn
@@ -1201,6 +1202,8 @@ function publicPage(
    * read on its own counts for itself instead, so it is never quietly wrong.
    */
   openThreads?: Map<string, number>,
+  /** Whose unread count this is. Absent where a read is not on anyone's behalf. */
+  reader?: { id: string; unseen?: Map<string, number> },
 ): Page {
   const assignee = value.assignee
     ? members.find((member) => member.email.toLowerCase() === value.assignee?.toLowerCase())
@@ -1234,6 +1237,11 @@ function publicPage(
     openThreads: openThreads
       ? openThreads.get(value.id) ?? 0
       : openThreadCount(database, projectId, value.id),
+    unseenMessages: reader
+      ? reader.unseen
+        ? reader.unseen.get(value.id) ?? 0
+        : unseenCount(database, projectId, value.id, reader.id)
+      : 0,
   };
 }
 

@@ -319,6 +319,13 @@ export type Page = {
    * nothing at all for it.
    */
   openThreads: number;
+  /**
+   * How many messages on this page the person reading it has not seen yet.
+   *
+   * Private to them, and never their own writing. Zero for a page whose conversation they
+   * have already opened, and everything on it for a page they never have.
+   */
+  unseenMessages: number;
 };
 
 /**

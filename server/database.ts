@@ -571,6 +571,24 @@ CREATE TABLE IF NOT EXISTS page_discussion (
   answered_by TEXT REFERENCES users(id)
 );
 
+/*
+ * How far each person has read the conversation on each page.
+ *
+ * The same shape as seen_cursors and for the same reason: it is private, it is per person,
+ * and nobody can see how caught up anybody else is. A page with no row here has never been
+ * opened by that person, so everything on it is unseen.
+ *
+ * Time rather than a sequence, because this is scoped to one page rather than to the whole
+ * project's log, and a message carries the moment it was written already.
+ */
+CREATE TABLE IF NOT EXISTS discussion_seen (
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  page_id TEXT NOT NULL,
+  seen_at TEXT NOT NULL,
+  PRIMARY KEY (project_id, user_id, page_id)
+);
+
 CREATE TABLE IF NOT EXISTS github_link_status (
   project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   page_id TEXT NOT NULL,

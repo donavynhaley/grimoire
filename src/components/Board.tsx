@@ -70,6 +70,7 @@ type Props = {
   onAsk: (pageId: string, body: string) => Promise<void>;
   onReply: (pageId: string, threadId: string, body: string) => Promise<void>;
   onSetAnswered: (pageId: string, threadId: string, answered: boolean) => Promise<void>;
+  onSeeDiscussion: (pageId: string) => Promise<void>;
   onChangeAvatar: (file: File) => Promise<void>;
   onChangeName: (name: string) => Promise<void>;
   onChangePassword: (currentPassword: string, newPassword: string) => Promise<void>;
@@ -86,7 +87,7 @@ type Props = {
   onViewChange: (view: "work" | "ideas") => Promise<void>;
 };
 
-export function Board({ away, board, busy, categoryActions, chapterActions, fieldActions, ideas, online, projectActions, projectSettingsActions, revision, view, onCreate, onUpdate, onArchive, onAddMember, onCreateInvite, onCreateIdea, onChangeAvatar, onChangeName, onChangePassword, onLoadActivity, onLoadDiscussion, onAsk, onReply, onSetAnswered, onLogout, onMoveBacklogToNext, onPromoteIdea, onRemoveAvatar, onChangeMemberRole, onRemoveMember, onRestorePage, onSurfaceError, onUpdateIdea, onViewChange }: Props) {
+export function Board({ away, board, busy, categoryActions, chapterActions, fieldActions, ideas, online, projectActions, projectSettingsActions, revision, view, onCreate, onUpdate, onArchive, onAddMember, onCreateInvite, onCreateIdea, onChangeAvatar, onChangeName, onChangePassword, onLoadActivity, onLoadDiscussion, onAsk, onReply, onSetAnswered, onSeeDiscussion, onLogout, onMoveBacklogToNext, onPromoteIdea, onRemoveAvatar, onChangeMemberRole, onRemoveMember, onRestorePage, onSurfaceError, onUpdateIdea, onViewChange }: Props) {
   const [addingTo, setAddingTo] = useState<PageStatus | null>(null);
   const [columnTitle, setColumnTitle] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -950,6 +951,7 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
           onAsk={onAsk}
           onReply={onReply}
           onSetAnswered={onSetAnswered}
+          onSeeDiscussion={onSeeDiscussion}
           onUpdate={(input) => onUpdate(selectedPage.id, input)}
         />
       )}

@@ -112,6 +112,16 @@ export function setThreadAnswered(
   });
 }
 
+/**
+ * Marks a page's conversation read up to now, for the person asking.
+ *
+ * Private to them: it moves their own unread count and nobody else's, and tells nobody how
+ * caught up they are.
+ */
+export function markDiscussionSeen(pageId: string): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(`/api/pages/${pageId}/discussion/seen`, { method: "POST", body: "{}" });
+}
+
 /** Searches the whole project - every column, the idea garden, and archived pages. */
 export function search(query: string, signal?: AbortSignal): Promise<SearchResults> {
   return request<SearchResults>(`/api/search?q=${encodeURIComponent(query)}`, { signal });

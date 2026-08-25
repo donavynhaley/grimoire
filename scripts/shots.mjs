@@ -36,22 +36,28 @@ async function shot(name, { width, height = 900, run }) {
   await context.close();
 }
 
-const openPage = (title) => async (page) => {
+const openPage = (title, { discussion = false } = {}) => async (page) => {
   await page.getByText(title, { exact: false }).first().click();
   await page.waitForSelector(".page-editor", { timeout: 10000 });
-  await page.waitForTimeout(700);
+  await page.waitForTimeout(500);
+  // The conversation is folded away until it is asked for, so a plate of it has to ask.
+  if (discussion) {
+    await page.locator(".discussion-toggle").click();
+    await page.waitForTimeout(600);
+  }
 };
 
 console.log("capturing:");
 await shot("01-board", { width: 1600, run: async (page) => { await page.waitForTimeout(600); } });
-await shot("02-heavy-1600", { width: 1600, run: openPage("cut-over runbook") });
-await shot("03-heavy-1280", { width: 1280, run: openPage("cut-over runbook") });
-await shot("04-quiet-1600", { width: 1600, run: openPage("preserve set order") });
+// The unread count, on a page whose conversation this person has not opened.
+await shot("08-unseen-1600", { width: 1600, run: openPage("swap a logged meal") });
+await shot("02-heavy-1600", { width: 1600, run: openPage("cut-over runbook", { discussion: true }) });
+await shot("03-heavy-1280", { width: 1280, run: openPage("cut-over runbook", { discussion: true }) });
+await shot("04-quiet-1600", { width: 1600, run: openPage("preserve set order", { discussion: true }) });
 await shot("05-closed-1600", {
   width: 1600,
   run: async (page) => {
     await openPage("cut-over runbook")(page);
-    await page.locator(".discussion-toggle").click();
     await page.waitForTimeout(500);
   },
 });
@@ -66,7 +72,7 @@ await shot("06-narrow-880", {
 await shot("07-answered-open", {
   width: 1600,
   run: async (page) => {
-    await openPage("cut-over runbook")(page);
+    await openPage("cut-over runbook", { discussion: true })(page);
     await page.locator(".discussion-fold").click();
     await page.waitForTimeout(500);
   },

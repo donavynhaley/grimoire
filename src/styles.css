@@ -3886,29 +3886,35 @@ textarea:hover { border-color: var(--border-bright); }
 .pane-tab[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); }
 
 /*
- * Three tracks: the writing, the conversation, and the properties.
+ * Three tracks: the writing, the properties, and the conversation.
  *
- * The middle one is nothing until there is something to say, and travels to its width rather
- * than appearing at it. Grid track lists interpolate when the count matches, which is why the
- * closed state names a zero track instead of dropping it - a two-track list and a three-track
- * list cannot animate between each other, they can only snap.
+ * The notes and the properties stay together at the left, because they are the page - one is
+ * what it says and the other is what it is. The conversation is about the page rather than
+ * part of it, so it sits past them both and is the only track that ever changes width.
+ *
+ * It travels to that width rather than appearing at it. Track lists interpolate only when the
+ * count and the track types both match, which is why the closed state names a zero track of
+ * the same shape instead of dropping it: `minmax(0, 0rem)` animates to `minmax(0, 24rem)`,
+ * while a bare `0rem` against a `minmax()` can only snap.
+ *
+ * The spacing between columns is each column's own margin rather than the grid's gap. A gap
+ * applies between every pair of tracks at once, so a closed column would hold two rem of
+ * nothing open at the panel's right edge; a margin belongs to the column and leaves with it.
  */
 .page-editor-split {
   display: grid;
   min-height: 0;
   flex: 1 1 auto;
-  grid-template-columns: minmax(0, 1fr) 0rem 20rem;
-  gap: 2rem;
+  grid-template-columns: minmax(0, 1fr) 20rem minmax(0, 0rem);
+  gap: 0;
   transition: grid-template-columns 190ms cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 /*
  * The writing keeps the larger share. The conversation is read in short lines and the notes
  * are not, so a track wide enough to hold a question comfortably is as much as it should take.
+ * The figure covers the column's own margin, border and padding as well as its text.
  */
-.page-editor-split[data-discussion="open"] { grid-template-columns: minmax(0, 1fr) minmax(0, 22rem) 20rem; }
-/* The gap would otherwise hold a two-rem hole open where the closed column is not. */
-.page-editor-split[data-discussion="closed"] { column-gap: 0; }
-.page-editor-split[data-discussion="closed"] > .page-editor-main { margin-right: 2rem; }
+.page-editor-split[data-discussion="open"] { grid-template-columns: minmax(0, 1fr) 20rem minmax(0, 24rem); }
 @media (prefers-reduced-motion: reduce) {
   .page-editor-split { transition: none; }
 }
@@ -3955,6 +3961,8 @@ textarea:hover { border-color: var(--border-bright); }
   display: grid;
   min-width: 0;
   min-height: 0;
+  /* The grid has no gap any more, so each column brings its own separation. */
+  margin-left: 2rem;
   padding-left: 1.375rem;
   align-content: start;
   overflow-y: auto;
@@ -4064,7 +4072,8 @@ textarea:hover { border-color: var(--border-bright); }
    */
   .page-editor-split,
   .page-editor-split[data-discussion="open"] { grid-template-columns: minmax(0, 1fr); gap: 0; transition: none; }
-  .page-editor-split[data-discussion="closed"] > .page-editor-main { margin-right: 0; }
+  .page-editor-split > .page-rail,
+  .page-editor-split[data-discussion="open"] > .page-discussion-column { margin-left: 0; }
   .page-editor-split[data-pane="notes"] > .page-rail,
   .page-editor-split[data-pane="notes"] > .page-discussion-column,
   .page-editor-split[data-pane="discussion"] > .page-editor-main,
@@ -4075,6 +4084,7 @@ textarea:hover { border-color: var(--border-bright); }
   .page-editor-split[data-pane="discussion"] > .page-discussion-column,
   .page-editor-split[data-discussion="closed"][data-pane="discussion"] > .page-discussion-column {
     display: grid;
+    margin-left: 0;
     padding-left: 0;
     border-left: 0;
   }
@@ -4114,6 +4124,25 @@ textarea:hover { border-color: var(--border-bright); }
   gap: 0.625rem;
 }
 .discussion-open { color: var(--accent); font-size: 0.5rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
+/*
+ * How much of this conversation you have not read.
+ *
+ * A count rather than a dot, because "three" and "eleven" are different decisions about
+ * whether to open it now. It is absent at zero: a page you are caught up on says nothing.
+ */
+.discussion-unseen {
+  display: inline-grid;
+  min-width: 1.0625rem;
+  height: 1.0625rem;
+  padding: 0 0.25rem;
+  place-items: center;
+  color: #182016;
+  background: var(--accent);
+  border-radius: 62.4375rem;
+  font-size: 0.4375rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
 
 /* The one thing in the column allowed to scroll, and the only thing that needs to. */
 .discussion-threads {
@@ -4256,12 +4285,19 @@ textarea:hover { border-color: var(--border-bright); }
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  padding-left: 1.375rem;
-  border-left: 1px solid var(--border);
-}
-.page-editor-split[data-discussion="closed"] > .page-discussion-column {
+  /* Everything that separates it from the rail leaves with it, and travels on the way out. */
+  margin-left: 0;
   padding-left: 0;
-  border-left: 0;
+  border-left: 0 solid var(--border);
+  transition: margin-left 190ms cubic-bezier(0.2, 0.7, 0.2, 1), padding-left 190ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.page-editor-split[data-discussion="open"] > .page-discussion-column {
+  margin-left: 2rem;
+  padding-left: 1.375rem;
+  border-left-width: 1px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-discussion-column { transition: none; }
 }
 
 /*

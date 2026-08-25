@@ -7,6 +7,7 @@ import { BODY_MAX_LENGTH, DISCUSSION_BODY_MAX_LENGTH, FIELD_TYPES, PAGE_STATUSES
 import {
   findThread,
   listDiscussion,
+  markSeen as markDiscussionSeen,
   openThread,
   replyToThread,
   setThreadAnswered,
@@ -363,6 +364,7 @@ function agentMayReach(method: string, pathname: string): "read" | "write" | nul
    * own work settled, and the one judgement a discussion carries would stop meaning anything.
    */
   if (method === "POST" && (AGENT_DISCUSSION_PATH.test(pathname) || AGENT_REPLY_PATH.test(pathname))) return "write";
+  // Marking a conversation read is a claim about a person's attention, and an agent has none.
   return null;
 }
 
@@ -1753,6 +1755,25 @@ export function createGrimoireServer(options: Options) {
       });
       json(response, 201, { thread });
       broadcast(projectId, "work", requestClientId(request));
+      return;
+    }
+
+    /*
+     * "I have looked at this."
+     *
+     * Written when somebody opens the column, which is the only moment they can be said to
+     * have read it. Private to them, like every other seen marker here: nobody learns how
+     * caught up anybody else is.
+     */
+    const seenMatch = url.pathname.match(/^\/api\/pages\/([^/]+)\/discussion\/seen$/);
+    if (method === "POST" && seenMatch) {
+      const user = requireUser(context);
+      const projectId = requireProject(context, user);
+      const page = findPage(database, pageStore, projectId, seenMatch[1]);
+      if (!page) throw new HttpError(404, "Page not found");
+      await readJson(request);
+      markDiscussionSeen(database, projectId, page.id, user.id);
+      json(response, 200, { ok: true });
       return;
     }
 
