@@ -75,7 +75,8 @@ async function waitForHealth() {
  *
  * `discussion` is the interesting part: each thread says who opened it, what came back, and
  * whether anyone considered it settled. Between them they cover every state the section can
- * be in - waiting on you, waiting on them, answered and folded away, and written by an agent.
+ * be in - open, answered and folded away, written by an agent, and addressed to somebody by
+ * name with an @.
  */
 const PAGES = [
   {
@@ -168,7 +169,7 @@ const PAGES = [
     discussion: [
       {
         by: "alan",
-        body: "Nobody owns this yet - I'd like it before we cut the launch build. Can you take it or should it wait?",
+        body: "@Donavyn nobody owns this yet - I'd like it before we cut the launch build. Can you take it, or should it wait?",
       },
     ],
   },
@@ -193,7 +194,7 @@ const PAGES = [
       { by: "alan", body: "Rate limits on the new account are lower by default - do we need a quota increase before the window?" },
       { agent: true, body: "Ran the runbook against dev end to end. Step 7 assumes the migration has already run; it has not, at that point. Worth reordering." },
       { by: "donavyn", body: "Do we announce the maintenance window, or is the downtime short enough not to?", answeredBy: "donavyn", replies: [{ by: "alan", body: "Announce it. Two minutes unannounced is worse than ten announced." }] },
-      { by: "alan", body: "Last one: who has the domain registrar credentials? I don't, and DNS is the last step." },
+      { by: "alan", body: "@Donavyn last one: who has the domain registrar credentials? I don't, and DNS is the last step." },
     ],
   },
   {

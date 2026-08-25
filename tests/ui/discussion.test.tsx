@@ -35,6 +35,7 @@ function message(authorId: string, authorName: string, body: string, agentName: 
     agentName,
     body,
     createdAt: new Date().toISOString(),
+    mentions: [] as string[],
   };
 }
 
@@ -344,6 +345,102 @@ describe("the discussion on a page", () => {
     const posted = calls.find((call) => call.url.includes("/answered"));
     expect(posted?.url).toContain("/discussion/t-open/answered");
     expect(posted?.body).toEqual({ answered: true });
+  });
+
+
+  it("lights up your own name and leaves everyone else's quiet", async () => {
+    const board = boardFixture();
+    mountWith([
+      thread({
+        authorId: THEM,
+        authorName: "Maren",
+        body: "@Donavyn can you take this? @Maren has Saturday.",
+        mentions: [ME, THEM],
+      } as Partial<DiscussionThread> & { body: string; authorId: string; authorName: string }),
+    ], board);
+    await openPage(board);
+
+    const marks = [...document.querySelectorAll(".mention")];
+    expect(marks.map((mark) => mark.textContent)).toEqual(["@Donavyn", "@Maren"]);
+    // Yours is filled; somebody else's is only there so the sentence reads as addressed.
+    expect(marks[0].className).toContain("you");
+    expect(marks[1].className).not.toContain("you");
+  });
+
+  it("leaves a name nobody resolved as plain text", async () => {
+    const board = boardFixture();
+    mountWith([
+      thread({ authorId: THEM, authorName: "Maren", body: "@Nobody is on this project.", mentions: [] }),
+    ], board);
+    await openPage(board);
+
+    expect(document.querySelector(".mention")).toBeNull();
+    expect(within(section()).getByText("@Nobody is on this project.")).toBeTruthy();
+  });
+
+  it("offers the people on the project once an @ is typed, and writes the one chosen", async () => {
+    const board = boardFixture();
+    const calls = mountWith([], board);
+    const user = await openPage(board);
+
+    const field = screen.getByLabelText("Start a thread");
+    expect(document.querySelector(".mention-picker")).toBeNull();
+
+    await user.type(field, "over to @Mar");
+    const picker = document.querySelector(".mention-picker") as HTMLElement;
+    expect(picker).toBeTruthy();
+    expect(within(picker).getByRole("option", { name: /Maren/ })).toBeTruthy();
+
+    // Enter belongs to the picker while it is open; it would otherwise post half a name.
+    await user.keyboard("{Enter}");
+    expect(calls.filter((call) => call.url.endsWith("/discussion"))).toHaveLength(0);
+    expect((field as HTMLTextAreaElement).value).toBe("over to @Maren ");
+    expect(document.querySelector(".mention-picker")).toBeNull();
+  });
+
+  it("closes the picker on escape without giving up what was typed", async () => {
+    const board = boardFixture();
+    mountWith([], board);
+    const user = await openPage(board);
+
+    const field = screen.getByLabelText("Start a thread");
+    await user.type(field, "ask @Mar");
+    expect(document.querySelector(".mention-picker")).toBeTruthy();
+
+    await user.keyboard("{Escape}");
+    expect(document.querySelector(".mention-picker")).toBeNull();
+    expect((field as HTMLTextAreaElement).value).toBe("ask @Mar");
+  });
+
+  it("does not open the picker for an address", async () => {
+    const board = boardFixture();
+    mountWith([], board);
+    const user = await openPage(board);
+
+    await user.type(screen.getByLabelText("Start a thread"), "mail maren@example");
+    expect(document.querySelector(".mention-picker")).toBeNull();
+  });
+
+  it("says on the switch when something unread named you", async () => {
+    const board = boardFixture();
+    board.pages[1].unseenMessages = 3;
+    board.pages[1].unseenMentions = 1;
+    mountWith([], board);
+    await openPage(board, { discussion: false });
+
+    const badge = document.querySelector(".discussion-unseen") as HTMLElement;
+    // One badge, two states: the number is what is new, the accent is that it is about you.
+    expect(badge.textContent).toBe("3");
+    expect(badge.className).toContain("named");
+    expect(within(aside()).getByLabelText("3 unread, 1 naming you")).toBeTruthy();
+
+    cleanup();
+    const quiet = boardFixture();
+    quiet.pages[1].unseenMessages = 3;
+    quiet.pages[1].unseenMentions = 0;
+    mountWith([], quiet);
+    await openPage(quiet, { discussion: false });
+    expect((document.querySelector(".discussion-unseen") as HTMLElement).className).not.toContain("named");
   });
 
   it("says plainly when nothing has been asked", async () => {

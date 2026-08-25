@@ -338,6 +338,11 @@ The author is stored twice on purpose.
 Open-thread counts reach the board through one grouped query per project rather than one per page, and a single page read counts for itself instead of reporting zero.
 The count is on `Page` rather than in the Markdown, which is why `publicPage` takes the project it belongs to.
 
+Who a message named lives in `discussion_mentions`, one row per message per person, written once when the message is written.
+Names are matched against the project's members rather than parsed as a token, longest name first, because a name has spaces in it and no pattern decides on its own where `@Maren Voss said` stops being a name.
+The `@` has to start a word and the name has to end on one, so an address is not a mention and `@Alanis` is not `@Alan`.
+Storing ids rather than re-reading the text on every load is what keeps a mention pointing at the same person after a rename, and is what a relay to another system would need: a name means nothing to Discord and an account id can be mapped to one.
+
 How much of a conversation somebody has not read lives in `discussion_seen`, one row per person per page, holding the moment they last opened it.
 A page with no row has never been opened by that person, so everything on it is unread; their own messages never count.
 It is a timestamp rather than a sequence because it is scoped to one page rather than to the whole project's log, and a message already carries the moment it was written.

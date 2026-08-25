@@ -176,6 +176,7 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
    * the loaded threads so it is there before the conversation has finished arriving.
    */
   const unseenCount = page.unseenMessages;
+  const namedCount = page.unseenMentions;
   const showingDiscussion = aside === "discussion";
 
   /*
@@ -226,7 +227,7 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
           onClick={() => { setPane("aside"); setAside("discussion"); }}
           type="button"
         >
-          Discussion{unseenCount > 0 ? ` · ${unseenCount}` : ""}
+          Discussion{unseenCount > 0 ? ` · ${unseenCount}` : ""}{namedCount > 0 ? " @" : ""}
         </button>
       </div>
 
@@ -285,14 +286,24 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
               type="button"
             >
               Discussion
+              {/*
+                One badge, two states. Something new here is worth a quiet number; somebody
+                writing your name is worth the accent, because they meant you specifically.
+              */}
               {unseenCount > 0 && (
-                <span aria-label={`${unseenCount} unread`} className="discussion-unseen">{unseenCount}</span>
+                <span
+                  aria-label={namedCount > 0 ? `${unseenCount} unread, ${namedCount} naming you` : `${unseenCount} unread`}
+                  className={namedCount > 0 ? "discussion-unseen named" : "discussion-unseen"}
+                >
+                  {unseenCount}
+                </span>
               )}
             </button>
           </div>
 
           {aside === "discussion" ? (
             <DiscussionSection
+              currentUserId={currentUserId}
               members={members}
               onAsk={async (body) => { await onAsk(page.id, body); await reloadDiscussion(); }}
               onReply={async (threadId, body) => { await onReply(page.id, threadId, body); await reloadDiscussion(); }}

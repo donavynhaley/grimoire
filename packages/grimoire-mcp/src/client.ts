@@ -73,6 +73,8 @@ export type DiscussionMessage = {
   agentName: string | null;
   body: string;
   createdAt: string;
+  /** The people this message named with an @, as account ids. */
+  mentions?: string[];
 };
 
 /**

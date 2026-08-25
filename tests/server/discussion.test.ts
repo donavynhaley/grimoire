@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AgentToken, AuditPage, BoardWorkspace, DiscussionThread, Page } from "../../shared/types";
+import { parseMentions } from "../../server/discussion";
 import { bootstrap, ownerAccount, startTestServer } from "./test-server";
 
 type TestServer = Awaited<ReturnType<typeof startTestServer>>;
@@ -331,6 +332,118 @@ describe("page discussion", () => {
         body: JSON.stringify({ body: "Anything at all." }),
       });
       expect(refused.response.status).toBe(403);
+    });
+  });
+
+  describe("naming somebody", () => {
+    const TEAM = [
+      { id: "u-alan", name: "Alan" },
+      { id: "u-maren", name: "Maren Voss" },
+      { id: "u-alanis", name: "Alanis" },
+    ];
+
+    it("finds a name that was named", () => {
+      expect(parseMentions("@Alan can you look?", TEAM)).toEqual(["u-alan"]);
+      expect(parseMentions("ask @Alan about it", TEAM)).toEqual(["u-alan"]);
+      expect(parseMentions("ask @Alan.", TEAM)).toEqual(["u-alan"]);
+    });
+
+    it("reads a name with a space in it as one name", () => {
+      // Longest first, so this is Maren Voss rather than Maren with a stray surname after it.
+      expect(parseMentions("@Maren Voss and nobody else", TEAM)).toEqual(["u-maren"]);
+    });
+
+    it("does not mistake a longer name for a shorter one", () => {
+      expect(parseMentions("@Alanis wrote this", TEAM)).toEqual(["u-alanis"]);
+    });
+
+    it("ignores an address and a name nobody has", () => {
+      expect(parseMentions("mail alan@example.com about it", TEAM)).toEqual([]);
+      expect(parseMentions("@Nobody is on this project", TEAM)).toEqual([]);
+    });
+
+    it("names somebody once however many times they are written", () => {
+      expect(parseMentions("@Alan and @Alan again", TEAM)).toEqual(["u-alan"]);
+    });
+
+    it("does not care about case", () => {
+      expect(parseMentions("@alan", TEAM)).toEqual(["u-alan"]);
+    });
+  });
+
+  describe("mentions on a message", () => {
+    it("records who was named, and says so on the way back", async () => {
+      const server = await startTestServer();
+      await bootstrap(server);
+      await registerMember(server);
+      await loginOwner(server);
+      const page = await makePage(server);
+
+      const asked = await ask(server, page.id, "@Maren does this need a migration?");
+      expect(asked.body.thread.mentions).toHaveLength(1);
+
+      const threads = (await read(server, page.id)).body.threads;
+      expect(threads[0].mentions).toEqual(asked.body.thread.mentions);
+      // The text keeps what was typed; only who was meant is stored beside it.
+      expect(threads[0].body).toBe("@Maren does this need a migration?");
+    });
+
+    it("counts a mention as unread news of its own", async () => {
+      const server = await startTestServer();
+      await bootstrap(server);
+      await registerMember(server);
+      await loginOwner(server);
+      const page = await makePage(server);
+      await ask(server, page.id, "Nobody in particular.");
+      await ask(server, page.id, "@Maren this one is for you.");
+
+      await loginMember(server);
+      const board = await server.request<BoardWorkspace>("/api/board");
+      const seen = board.body.pages.find((value) => value.id === page.id);
+      // Two unread, one of which named her.
+      expect(seen?.unseenMessages).toBe(2);
+      expect(seen?.unseenMentions).toBe(1);
+    });
+
+    it("never counts you naming yourself", async () => {
+      const server = await startTestServer();
+      await bootstrap(server);
+      const page = await makePage(server);
+      await ask(server, page.id, "@Donavyn talking to myself.");
+
+      const board = await server.request<BoardWorkspace>("/api/board");
+      const seen = board.body.pages.find((value) => value.id === page.id);
+      expect(seen?.unseenMentions).toBe(0);
+    });
+
+    it("clears with everything else once the conversation has been read", async () => {
+      const server = await startTestServer();
+      await bootstrap(server);
+      await registerMember(server);
+      await loginOwner(server);
+      const page = await makePage(server);
+      await ask(server, page.id, "@Maren over to you.");
+
+      await loginMember(server);
+      await server.request(`/api/pages/${page.id}/discussion/seen`, { method: "POST", body: JSON.stringify({}) });
+      const board = await server.request<BoardWorkspace>("/api/board");
+      expect(board.body.pages.find((value) => value.id === page.id)?.unseenMentions).toBe(0);
+    });
+
+    it("lets an agent name somebody too", async () => {
+      const server = await startTestServer();
+      await bootstrap(server);
+      await registerMember(server);
+      await loginOwner(server);
+      const page = await makePage(server);
+      const secret = await issueAgent(server);
+
+      const posted = await asAgent(server, secret, `/api/pages/${page.id}/discussion`, {
+        method: "POST",
+        body: JSON.stringify({ body: "@Maren the migration ran; nothing needed from you." }),
+      });
+      expect(posted.response.status).toBe(201);
+      expect(posted.body.thread.mentions).toHaveLength(1);
     });
   });
 

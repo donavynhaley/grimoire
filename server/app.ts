@@ -9,6 +9,7 @@ import {
   listDiscussion,
   markSeen as markDiscussionSeen,
   openThread,
+  parseMentions,
   replyToThread,
   setThreadAnswered,
 } from "./discussion";
@@ -1738,12 +1739,15 @@ export function createGrimoireServer(options: Options) {
       const page = findPage(database, pageStore, projectId, discussionMatch[1]);
       if (!page) throw new HttpError(404, "Page not found");
       const { body } = discussionBodySchema.parse(await readJson(request));
+      // Resolved here, against the people actually on this project, so a name that belongs to
+      // nobody stays plain text rather than becoming a mention of somebody else.
       const thread = openThread(
         database,
         projectId,
         page.id,
         { id: user.id, name: user.name, agentTokenId: agentTokenId(context) },
         body,
+        parseMentions(body, membersForProject(database, projectId)),
       );
       audit(context, {
         projectId,
@@ -1791,6 +1795,7 @@ export function createGrimoireServer(options: Options) {
         replyMatch[2],
         { id: user.id, name: user.name, agentTokenId: agentTokenId(context) },
         body,
+        parseMentions(body, membersForProject(database, projectId)),
       );
       if (thread === "no_thread") throw new HttpError(404, "Thread not found");
       audit(context, {

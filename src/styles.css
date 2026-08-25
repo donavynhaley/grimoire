@@ -4275,3 +4275,81 @@ textarea:hover { border-color: var(--border-bright); }
   font-weight: 800;
   white-space: nowrap;
 }
+
+/*
+ * Somebody's name, written into a message.
+ *
+ * Quiet for anybody else's name - it is only there so the sentence reads as addressed - and
+ * filled when it is yours, because that is the moment this is worth noticing. This is the one
+ * place the conversation says anything is about you, and it says it because a person typed it
+ * rather than because a rule worked it out.
+ */
+.mention {
+  color: var(--accent);
+  font-weight: 700;
+}
+.mention.you {
+  padding: 0.0625rem 0.25rem;
+  margin: 0 -0.0625rem;
+  color: #182016;
+  background: var(--accent);
+  border-radius: 0.25rem;
+}
+
+/* Something new is a quiet number; somebody naming you earns the accent. */
+.discussion-unseen {
+  color: var(--muted);
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+}
+.discussion-unseen.named {
+  color: #182016;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/*
+ * Picking a name while writing one.
+ *
+ * It sits above the field rather than below it, because the field is at the foot of the
+ * column and there is nothing below it to open into.
+ */
+.discussion-composer { position: relative; }
+.mention-picker {
+  position: absolute;
+  bottom: calc(100% + 0.3125rem);
+  left: 0;
+  right: 0;
+  z-index: 6;
+  display: grid;
+  margin: 0;
+  padding: 0.25rem;
+  gap: 0.125rem;
+  list-style: none;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-bright);
+  border-radius: 0.5rem;
+  box-shadow: 0 1rem 2rem rgb(0 0 0 / 55%);
+  animation: capture-tools-in 140ms ease-out;
+}
+.mention-option {
+  display: flex;
+  width: 100%;
+  min-height: 1.875rem;
+  padding: 0 0.5rem;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 0.375rem;
+  font: inherit;
+  font-size: 0.6875rem;
+  text-align: left;
+  cursor: pointer;
+}
+.mention-option.on,
+.mention-option:hover { color: var(--accent); background: var(--accent-soft); }
+@media (prefers-reduced-motion: reduce) {
+  .mention-picker { animation: none; }
+}

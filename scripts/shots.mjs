@@ -51,6 +51,17 @@ console.log("capturing:");
 await shot("01-board", { width: 1600, run: async (page) => { await page.waitForTimeout(600); } });
 // The unread count, on a page whose conversation this person has not opened.
 await shot("08-unseen-1600", { width: 1600, run: openPage("swap a logged meal") });
+// A message addressed to the person reading it, and the picker that writes one.
+await shot("09-mention-1600", { width: 1600, run: openPage("measure LCP", { discussion: true }) });
+await shot("10-picker-1600", {
+  width: 1600,
+  run: async (page) => {
+    await openPage("measure LCP", { discussion: true })(page);
+    await page.locator(".discussion-composer textarea").first().click();
+    await page.keyboard.type("thanks @Al");
+    await page.waitForTimeout(400);
+  },
+});
 await shot("02-heavy-1600", { width: 1600, run: openPage("cut-over runbook", { discussion: true }) });
 await shot("03-heavy-1280", { width: 1280, run: openPage("cut-over runbook", { discussion: true }) });
 await shot("04-quiet-1600", { width: 1600, run: openPage("preserve set order", { discussion: true }) });

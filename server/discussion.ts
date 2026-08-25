@@ -18,6 +18,36 @@ import type { DiscussionMessage, DiscussionThread } from "../shared/types";
 
 type Row = Record<string, string | number | null>;
 
+/** Somebody who can be named in a message. */
+export type Mentionable = { id: string; name: string };
+
+/**
+ * Who a message named.
+ *
+ * Matched against the people on the project rather than parsed as a token, because a name has
+ * spaces in it and no amount of regex decides where "@Maren Voss said" stops being a name.
+ * Longest names go first, so naming "@Maren Voss" is not read as naming "@Maren" and leaving
+ * a stray surname behind.
+ *
+ * The `@` has to start a word and the name has to end on one, so an email address is not a
+ * mention and "@Alanis" is not "@Alan".
+ */
+export function parseMentions(body: string, members: Mentionable[]): string[] {
+  const found = new Set<string>();
+  let remaining = body;
+  const byLength = [...members].sort((left, right) => right.name.length - left.name.length);
+  for (const member of byLength) {
+    const escaped = member.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = new RegExp(`(^|[^\\w@])@${escaped}(?![\\w'-])`, "gi");
+    if (pattern.test(remaining)) {
+      found.add(member.id);
+      // Struck out so a shorter name inside this one cannot match the same words again.
+      remaining = remaining.replace(new RegExp(`(^|[^\\w@])@${escaped}(?![\\w'-])`, "gi"), "$1");
+    }
+  }
+  return [...found];
+}
+
 /** Who wrote something, resolved the way the activity log resolves it. */
 function message(value: Row): DiscussionMessage {
   return {
@@ -32,13 +62,16 @@ function message(value: Row): DiscussionMessage {
     agentName: value.agent_name === null || value.agent_name === undefined ? null : String(value.agent_name),
     body: String(value.body),
     createdAt: String(value.created_at),
+    mentions: value.mentions ? String(value.mentions).split(",") : [],
   };
 }
 
 const SELECT_MESSAGES = `SELECT page_discussion.*,
          authors.name AS current_author_name,
          answerers.name AS answered_by_name,
-         agent_tokens.name AS agent_name
+         agent_tokens.name AS agent_name,
+         (SELECT group_concat(user_id) FROM discussion_mentions
+           WHERE discussion_mentions.message_id = page_discussion.id) AS mentions
   FROM page_discussion
   LEFT JOIN users AS authors ON authors.id = page_discussion.author_id
   LEFT JOIN users AS answerers ON answerers.id = page_discussion.answered_by
@@ -165,6 +198,46 @@ export function markSeen(database: DatabaseSync, projectId: string, pageId: stri
     .run(projectId, userId, pageId, new Date().toISOString());
 }
 
+/**
+ * The same unread count, narrowed to the messages that named you.
+ *
+ * A subset of `unseenCounts` by construction: it walks the same rows and keeps the ones with
+ * a mention row pointing at this person.
+ */
+export function unseenMentionCounts(database: DatabaseSync, projectId: string, userId: string): Map<string, number> {
+  const values = database
+    .prepare(
+      `SELECT page_discussion.page_id AS page_id, COUNT(*) AS unseen
+       FROM page_discussion
+       JOIN discussion_mentions
+         ON discussion_mentions.message_id = page_discussion.id
+        AND discussion_mentions.user_id = ?
+       LEFT JOIN discussion_seen
+         ON discussion_seen.project_id = page_discussion.project_id
+        AND discussion_seen.page_id = page_discussion.page_id
+        AND discussion_seen.user_id = ?
+       WHERE page_discussion.project_id = ?
+         AND (page_discussion.author_id IS NULL OR page_discussion.author_id != ?)
+         AND (discussion_seen.seen_at IS NULL OR page_discussion.created_at > discussion_seen.seen_at)
+       GROUP BY page_discussion.page_id`,
+    )
+    .all(userId, userId, projectId, userId) as Row[];
+  return new Map(values.map((value) => [String(value.page_id), Number(value.unseen)]));
+}
+
+/** The same count for one page. */
+export function unseenMentionCount(database: DatabaseSync, projectId: string, pageId: string, userId: string): number {
+  return unseenMentionCounts(database, projectId, userId).get(pageId) ?? 0;
+}
+
+/** Records who a message named, once, at the moment it is written. */
+function saveMentions(database: DatabaseSync, messageId: string, mentions: string[]): void {
+  const insert = database.prepare(
+    "INSERT OR IGNORE INTO discussion_mentions (message_id, user_id) VALUES (?, ?)",
+  );
+  for (const userId of mentions) insert.run(messageId, userId);
+}
+
 export type WriteAuthor = {
   id: string;
   name: string;
@@ -179,6 +252,7 @@ export function openThread(
   pageId: string,
   author: WriteAuthor,
   body: string,
+  mentions: string[] = [],
 ): DiscussionThread {
   const id = randomUUID();
   database
@@ -187,6 +261,7 @@ export function openThread(
        VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?)`,
     )
     .run(id, projectId, pageId, author.id, author.name, author.agentTokenId ?? null, body, new Date().toISOString());
+  saveMentions(database, id, mentions);
   return findThread(database, projectId, pageId, id) as DiscussionThread;
 }
 
@@ -206,16 +281,18 @@ export function replyToThread(
   threadId: string,
   author: WriteAuthor,
   body: string,
+  mentions: string[] = [],
 ): ReplyResult {
   const thread = findThread(database, projectId, pageId, threadId);
   if (!thread) return "no_thread";
+  const id = randomUUID();
   database
     .prepare(
       `INSERT INTO page_discussion (id, project_id, page_id, parent_id, author_id, author_name, agent_token_id, body, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
-      randomUUID(),
+      id,
       projectId,
       pageId,
       threadId,
@@ -225,6 +302,7 @@ export function replyToThread(
       body,
       new Date().toISOString(),
     );
+  saveMentions(database, id, mentions);
   return findThread(database, projectId, pageId, threadId) as DiscussionThread;
 }
 

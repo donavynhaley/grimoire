@@ -326,6 +326,13 @@ export type Page = {
    * have already opened, and everything on it for a page they never have.
    */
   unseenMessages: number;
+  /**
+   * How many of those unseen messages named you.
+   *
+   * Always a subset of `unseenMessages`. Somebody writing on a page is news; somebody writing
+   * your name is a different kind of news, and the interface says so differently.
+   */
+  unseenMentions: number;
 };
 
 /**
@@ -345,6 +352,14 @@ export type DiscussionMessage = {
   agentName: string | null;
   body: string;
   createdAt: string;
+  /**
+   * The people this message named with an `@`, as account ids.
+   *
+   * Resolved when it was written rather than re-read out of the text, so being renamed does
+   * not change who a message was addressed to. The text keeps whatever was typed: a body is a
+   * quote, and quotes are not rewritten.
+   */
+  mentions: string[];
 };
 
 /**

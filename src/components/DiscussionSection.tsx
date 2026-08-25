@@ -4,6 +4,7 @@ import { DISCUSSION_BODY_MAX_LENGTH } from "../../shared/types";
 import { Avatar } from "./Avatar";
 import { Growing } from "./Growing";
 import { relativeLabel } from "./activity-copy";
+import { withMentions } from "./mention-text";
 
 /**
  * The conversation on a page, in a column of its own beside the writing.
@@ -30,12 +31,14 @@ import { relativeLabel } from "./activity-copy";
 type Props = {
   threads: DiscussionThread[] | null;
   members: Member[];
+  /** Only so your own name can light up when somebody writes it. */
+  currentUserId: string;
   onAsk: (body: string) => Promise<void>;
   onReply: (threadId: string, body: string) => Promise<void>;
   onSetAnswered: (threadId: string, answered: boolean) => Promise<void>;
 };
 
-export function DiscussionSection({ threads, members, onAsk, onReply, onSetAnswered }: Props) {
+export function DiscussionSection({ threads, members, currentUserId, onAsk, onReply, onSetAnswered }: Props) {
   const [showingAnswered, setShowingAnswered] = useState(false);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
 
@@ -60,6 +63,7 @@ export function DiscussionSection({ threads, members, onAsk, onReply, onSetAnswe
           <div className="discussion-threads">
             {shown.map((thread) => (
               <Thread
+                currentUserId={currentUserId}
                 key={thread.id}
                 members={members}
                 onReply={(body) => onReply(thread.id, body)}
@@ -87,14 +91,15 @@ export function DiscussionSection({ threads, members, onAsk, onReply, onSetAnswe
           </div>
         )}
 
-      <Composer label="Start a thread" onSubmit={onAsk} placeholder="Say something about this page..." />
+      <Composer label="Start a thread" members={members} onSubmit={onAsk} placeholder="Say something about this page..." />
     </div>
   );
 }
 
-function Thread({ thread, members, replying, onReply, onReplyingChange, onSetAnswered }: {
+function Thread({ thread, members, currentUserId, replying, onReply, onReplyingChange, onSetAnswered }: {
   thread: DiscussionThread;
   members: Member[];
+  currentUserId: string;
   replying: boolean;
   onReply: (body: string) => Promise<void>;
   onReplyingChange: (active: boolean) => void;
@@ -122,12 +127,20 @@ function Thread({ thread, members, replying, onReply, onReplyingChange, onSetAns
             </button>
           </span>
         )}
+        currentUserId={currentUserId}
         members={members}
         message={thread}
         now={now}
       />
       {thread.replies.map((message) => (
-        <Message key={message.id} members={members} message={message} now={now} reply />
+        <Message
+          currentUserId={currentUserId}
+          key={message.id}
+          members={members}
+          message={message}
+          now={now}
+          reply
+        />
       ))}
       {answered && (
         <p className="thread-settled">
@@ -135,15 +148,16 @@ function Thread({ thread, members, replying, onReply, onReplyingChange, onSetAns
         </p>
       )}
       {replying && (
-        <Composer autoFocus label="Reply" onCancel={() => onReplyingChange(false)} onSubmit={onReply} placeholder="Reply..." reply />
+        <Composer autoFocus label="Reply" members={members} onCancel={() => onReplyingChange(false)} onSubmit={onReply} placeholder="Reply..." reply />
       )}
     </Growing>
   );
 }
 
-function Message({ message, members, now, action, reply }: {
+function Message({ message, members, currentUserId, now, action, reply }: {
   message: DiscussionMessage;
   members: Member[];
+  currentUserId: string;
   now: Date;
   action?: React.ReactNode;
   reply?: boolean;
@@ -159,7 +173,7 @@ function Message({ message, members, now, action, reply }: {
         <time dateTime={message.createdAt}>{relativeLabel(message.createdAt, now)}</time>
         {action}
       </div>
-      <p className="message-body">{message.body}</p>
+      <p className="message-body">{withMentions(message.body, message.mentions, members, currentUserId)}</p>
     </div>
   );
 }
@@ -172,17 +186,77 @@ function Message({ message, members, now, action, reply }: {
  * than they meant to. Enter sends and shift-enter breaks the line, which is what everyone
  * expects from a field that looks like this.
  */
-function Composer({ onSubmit, onCancel, placeholder, label, reply, autoFocus }: {
+function Composer({ onSubmit, onCancel, placeholder, label, members, reply, autoFocus }: {
   onSubmit: (body: string) => Promise<void>;
   onCancel?: () => void;
   placeholder: string;
   label: string;
+  members: Member[];
   reply?: boolean;
   autoFocus?: boolean;
 }) {
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const field = useRef<HTMLTextAreaElement>(null);
+  /*
+   * The half-written name under the caret, if there is one.
+   *
+   * Only ever looked for behind the caret and only back to the `@` that started it, so typing
+   * an address does not open a picker and moving the caret elsewhere closes one.
+   */
+  const [naming, setNaming] = useState<{ query: string; at: number } | null>(null);
+  const [highlighted, setHighlighted] = useState(0);
+  /*
+   * A half-written name the picker has been told to leave alone.
+   *
+   * Escape cannot simply close it: the caret is still sitting behind the same `@Mar`, and the
+   * next key would derive it all over again. Remembering which one was dismissed keeps it shut
+   * until the writing moves on.
+   */
+  const [dismissed, setDismissed] = useState<string | null>(null);
+
+  const matches = naming
+    ? members
+      .filter((member) => member.name.toLowerCase().startsWith(naming.query.toLowerCase()))
+      .slice(0, 6)
+    : [];
+
+  const readCaret = (element: HTMLTextAreaElement) => {
+    const caret = element.selectionStart ?? 0;
+    const before = element.value.slice(0, caret);
+    // A name runs from the last `@` to the caret, and only if that `@` starts a word.
+    const match = before.match(/(?:^|[^\w@])@([\w'-]*(?: [\w'-]*)?)$/);
+    if (!match) {
+      setNaming(null);
+      setDismissed(null);
+      return;
+    }
+    const at = caret - match[1].length - 1;
+    const key = `${at}:${match[1]}`;
+    if (key === dismissed) {
+      setNaming(null);
+      return;
+    }
+    setDismissed(null);
+    setNaming({ query: match[1], at });
+    setHighlighted(0);
+  };
+
+  const choose = (member: Member) => {
+    const element = field.current;
+    if (!element || !naming) return;
+    const caret = element.selectionStart ?? 0;
+    const next = `${value.slice(0, naming.at)}@${member.name} ${value.slice(caret)}`;
+    setValue(next);
+    setNaming(null);
+    setDismissed(null);
+    // Put the caret after the name that was just written, not back at the end of everything.
+    const to = naming.at + member.name.length + 2;
+    requestAnimationFrame(() => {
+      element.focus();
+      element.setSelectionRange(to, to);
+    });
+  };
 
   useEffect(() => {
     const element = field.current;
@@ -242,19 +316,68 @@ function Composer({ onSubmit, onCancel, placeholder, label, reply, autoFocus }: 
       <textarea
         aria-label={label}
         maxLength={DISCUSSION_BODY_MAX_LENGTH}
-        onChange={(event) => setValue(event.target.value)}
+        onChange={(event) => { setValue(event.target.value); readCaret(event.target); }}
         onKeyDown={(event) => {
+          /*
+           * While a name is being picked those keys belong to the picker. Enter especially:
+           * it would otherwise post a message with half a name in it.
+           */
+          if (matches.length > 0) {
+            if (event.key === "ArrowDown") {
+              event.preventDefault();
+              setHighlighted((index) => (index + 1) % matches.length);
+              return;
+            }
+            if (event.key === "ArrowUp") {
+              event.preventDefault();
+              setHighlighted((index) => (index - 1 + matches.length) % matches.length);
+              return;
+            }
+            if (event.key === "Enter" || event.key === "Tab") {
+              event.preventDefault();
+              choose(matches[highlighted]);
+              return;
+            }
+            if (event.key === "Escape") {
+              event.preventDefault();
+              setDismissed(`${naming?.at}:${naming?.query}`);
+              setNaming(null);
+              return;
+            }
+          }
           if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
             void send();
           }
           if (event.key === "Escape" && onCancel) onCancel();
         }}
+        onKeyUp={(event) => readCaret(event.currentTarget)}
+        onBlur={() => setNaming(null)}
         placeholder={placeholder}
         ref={field}
         rows={1}
         value={value}
       />
+      {matches.length > 0 && (
+        <ul className="mention-picker" role="listbox">
+          {matches.map((member, index) => (
+            <li key={member.id}>
+              <button
+                aria-selected={index === highlighted}
+                className={index === highlighted ? "mention-option on" : "mention-option"}
+                // The field blurs before a click lands, which would close the picker first.
+                onMouseDown={(event) => { event.preventDefault(); choose(member); }}
+                role="option"
+                type="button"
+              >
+                <Avatar avatarUrl={member.avatarUrl} className="avatar tiny" name={member.name} />
+                {member.name}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
       <div className="composer-tools">
         {onCancel && <button className="text-button" onClick={onCancel} type="button">cancel</button>}
         <button className="text-button composer-send" disabled={!value.trim() || busy} onClick={() => void send()} type="button">

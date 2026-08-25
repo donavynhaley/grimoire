@@ -197,16 +197,22 @@ A thread has exactly one piece of state - **open**, or **answered** - and that s
 Answered threads fold behind a count, so a page with forty messages on it still shows the two that are live.
 Nothing is deleted to get there, and reopening a thread costs one click and leaves a line in the history.
 
+Writing `@` and somebody's name addresses them.
+The people on the project are offered as the name is typed, and choosing one writes it into the message; who was meant is resolved once, when the message is written, and stored as an account id beside it.
+The text keeps whatever was typed, because a body is a quote and quotes are not rewritten - but being renamed never changes who a message was addressed to, and an id is also what a relay to somewhere else would need, since `@Alan` means nothing to Discord and an account can be mapped to one.
+Your own name is filled in where it appears; everybody else's is only marked enough to read as addressed.
+
 It is a discussion and nothing more.
 Nothing here works out whose turn it is or marks a thread as owing somebody an answer: two people talking about one page do not need to be told who should speak next, and saying so on every other thread turns reading a page into being chased.
 Replying does not close anything either, because saying something and having said enough are different claims and only the second is a thread's state.
 
 A board tile shows how many threads on a page are still open, and shows nothing at all when none are.
 
-The switch that turns to it counts something different: **how many messages you have not read.**
+The switch that turns to it counts something different: **how many messages you have not read**, and says whether any of them named you.
 An open thread you have already read is not news, and a reply to a question you asked is, even though it closed nothing - so the number that decides whether to look now is the unread one, and resolved-ness is left to the tile.
 Your own writing never counts, a page you have never opened counts everything on it, and turning the column to the conversation is what marks it read.
 Like every other seen marker here it is private: it moves your count and nobody else's, and tells nobody how caught up you are.
+The number is what is new; the accent on it is that some of it was addressed to you.
 
 Discussion lives in SQLite beside the activity log rather than in the page's Markdown.
 A page file is portable and editable outside Grimoire, and a conversation folded into its body would be rewritten by the first external editor that touched it.

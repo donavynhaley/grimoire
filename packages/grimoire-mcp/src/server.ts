@@ -208,7 +208,7 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
       title: "Read the discussion on a page",
       description:
         "Everything people have said about one page, thread by thread, with what is still " +
-        "open and what has been answered. Read this before you start work on a page and " +
+        "open and what has been answered, and who each message named with an @. Read this before you start work on a page and " +
         "again before you report on it: an open thread is a question somebody is waiting on " +
         "you for, and it will not appear in the page's notes. Answer one with " +
         "grimoire_reply_in_discussion.",
@@ -460,7 +460,12 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
           .trim()
           .min(1)
           .max(4000)
-          .describe("What you want to say. Plain prose; one message, not a transcript."),
+          .describe(
+            "What you want to say. Plain prose; one message, not a transcript. Write @ and " +
+              "somebody's name, exactly as grimoire_board gives it, to address them - Grimoire " +
+              "resolves it and tells them it was for them. Use it when you need a particular " +
+              "person, not on every message.",
+          ),
       },
     },
     async ({ page, body }) => {
@@ -491,7 +496,12 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
       inputSchema: {
         page: z.string().min(1).describe("The page id, or its exact title."),
         thread: z.string().min(1).describe("The thread id, from grimoire_read_discussion."),
-        body: z.string().trim().min(1).max(4000).describe("Your answer."),
+        body: z
+          .string()
+          .trim()
+          .min(1)
+          .max(4000)
+          .describe("Your answer. @ and a member's name addresses them, as in a new thread."),
       },
     },
     async ({ page, thread, body }) => {

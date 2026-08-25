@@ -581,6 +581,20 @@ CREATE TABLE IF NOT EXISTS page_discussion (
  * Time rather than a sequence, because this is scoped to one page rather than to the whole
  * project's log, and a message carries the moment it was written already.
  */
+/*
+ * Who a message named.
+ *
+ * Resolved once, when it is written, and stored as ids rather than re-read out of the text on
+ * every load. A name in a body is a quote and never changes; who was meant by it is a fact
+ * about an account, and an account can be renamed. Ids are also what a relay to somewhere else
+ * will need, because "@Alan" means nothing to Discord and a user id can be mapped to one.
+ */
+CREATE TABLE IF NOT EXISTS discussion_mentions (
+  message_id TEXT NOT NULL REFERENCES page_discussion(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  PRIMARY KEY (message_id, user_id)
+);
+
 CREATE TABLE IF NOT EXISTS discussion_seen (
   project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -604,5 +618,6 @@ CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token_hash);
 CREATE INDEX IF NOT EXISTS idx_cards_board ON cards(project_id, status, position) WHERE archived_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_discussion_page ON page_discussion(project_id, page_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_discussion_open ON page_discussion(project_id, page_id) WHERE parent_id IS NULL AND answered_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_discussion_mentions_user ON discussion_mentions(user_id);
 ${auditEventsIndexes}
 `;
