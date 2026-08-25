@@ -85,6 +85,58 @@ function section() {
 }
 
 describe("the discussion on a page", () => {
+  it("gets a column of its own rather than a slot under the notes", async () => {
+    const board = boardFixture();
+    mountWith([thread({ authorId: THEM, authorName: "Maren", body: "Whose clock?" })], board);
+    await openPage(board);
+
+    const writing = document.querySelector(".page-editor-main");
+    const column = document.querySelector(".page-discussion-column");
+    const discussion = section();
+    // A sibling of the writing column, not a child of it. This is the whole fix: sharing the
+    // writing column's height meant capping the threads and scrolling them inside a scroller.
+    expect(column).toBeTruthy();
+    expect(writing?.contains(discussion)).toBe(false);
+    expect(column?.contains(discussion)).toBe(true);
+    expect(column?.parentElement).toBe(document.querySelector(".page-editor-split"));
+  });
+
+  it("opens itself when a page has something waiting, and stays shut when it does not", async () => {
+    const board = boardFixture();
+    mountWith([thread({ authorId: THEM, authorName: "Maren", body: "Whose clock?" })], board);
+    await openPage(board);
+    expect(document.querySelector(".page-editor-split")).toHaveAttribute("data-discussion", "open");
+
+    cleanup();
+    const quiet = boardFixture();
+    quiet.pages.forEach((page) => { page.openThreads = 0; });
+    mountWith([], quiet);
+    await openPage(quiet);
+    // A page nobody has said anything about keeps the two columns it always had.
+    expect(document.querySelector(".page-editor-split")).toHaveAttribute("data-discussion", "closed");
+  });
+
+  it("folds away and comes back from the header, without the writing column changing shape", async () => {
+    const board = boardFixture();
+    mountWith([thread({ authorId: THEM, authorName: "Maren", body: "Whose clock?" })], board);
+    const user = await openPage(board);
+
+    const split = document.querySelector(".page-editor-split") as HTMLElement;
+    const toggle = document.querySelector(".discussion-toggle") as HTMLElement;
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(toggle);
+    expect(split).toHaveAttribute("data-discussion", "closed");
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    // The control is in the header either way, so nothing appears in the notes to replace it.
+    expect(document.querySelector(".page-editor-main .discussion-toggle")).toBeNull();
+    // Closed, the column is still in the grid so the widths can travel rather than jump.
+    expect(document.querySelector(".page-discussion-column")).toBeTruthy();
+
+    await user.click(toggle);
+    expect(split).toHaveAttribute("data-discussion", "open");
+  });
+
   it("sits beside the history rather than inside it", async () => {
     const board = boardFixture();
     mountWith([thread({ authorId: THEM, authorName: "Maren", body: "Whose clock?" })], board);

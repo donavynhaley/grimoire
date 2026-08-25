@@ -26,41 +26,43 @@ type Props = {
   onAsk: (body: string) => Promise<void>;
   onReply: (threadId: string, body: string) => Promise<void>;
   onSetAnswered: (threadId: string, answered: boolean) => Promise<void>;
+  /** Folds the column away for this visit. The next page decides for itself again. */
+  onClose: () => void;
 };
 
-export function DiscussionSection({ threads, members, currentUserId, onAsk, onReply, onSetAnswered }: Props) {
+export function DiscussionSection({ threads, members, currentUserId, onAsk, onReply, onSetAnswered, onClose }: Props) {
   const [showingAnswered, setShowingAnswered] = useState(false);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
 
   const open = (threads ?? []).filter((thread) => thread.answeredAt === null);
   const answered = (threads ?? []).filter((thread) => thread.answeredAt !== null);
+  const shown = showingAnswered ? [...open, ...answered] : open;
 
   /*
-   * The header is always present, so the section never appears or disappears under the
-   * notes as a page is read. What changes is only the count beside it.
+   * A column, not a section: the head and the composer hold their height and the threads take
+   * everything left over. That is what lets the list run as long as the conversation does
+   * without a cap, and it is the whole reason this moved out from under the notes.
    */
   return (
-    <Growing className="dialog-section page-discussion">
+    <div className="page-discussion">
       <div className="discussion-head">
         <span className="field-label">Discussion</span>
         {open.length > 0 && <span className="discussion-open">{open.length} open</span>}
-        {answered.length > 0 && (
-          <button
-            aria-expanded={showingAnswered}
-            className="text-button discussion-fold"
-            onClick={() => setShowingAnswered((showing) => !showing)}
-            type="button"
-          >
-            {answered.length} answered{showingAnswered ? " · hide" : " · show"}
-          </button>
-        )}
+        <button
+          aria-label="Close discussion"
+          className="text-button discussion-close"
+          onClick={onClose}
+          type="button"
+        >
+          hide
+        </button>
       </div>
 
       {threads === null
         ? <p className="empty-dependencies">Reading the discussion...</p>
         : (
           <div className="discussion-threads">
-            {open.map((thread) => (
+            {shown.map((thread) => (
               <Thread
                 currentUserId={currentUserId}
                 key={thread.id}
@@ -72,28 +74,26 @@ export function DiscussionSection({ threads, members, currentUserId, onAsk, onRe
                 thread={thread}
               />
             ))}
-            {showingAnswered && answered.map((thread) => (
-              <Thread
-                currentUserId={currentUserId}
-                key={thread.id}
-                members={members}
-                onReply={(body) => onReply(thread.id, body)}
-                onReplyingChange={(active) => setReplyingTo(active ? thread.id : null)}
-                onSetAnswered={(answer) => onSetAnswered(thread.id, answer)}
-                replying={replyingTo === thread.id}
-                thread={thread}
-              />
-            ))}
-            {open.length === 0 && (!showingAnswered || answered.length === 0) && (
+            {shown.length === 0 && (
               <p className="empty-dependencies">
                 {answered.length > 0 ? "Nothing is waiting on anyone." : "Nothing has been asked here yet."}
               </p>
+            )}
+            {answered.length > 0 && (
+              <button
+                aria-expanded={showingAnswered}
+                className="text-button discussion-fold"
+                onClick={() => setShowingAnswered((showing) => !showing)}
+                type="button"
+              >
+                {showingAnswered ? `hide ${answered.length} answered` : `show ${answered.length} answered`}
+              </button>
             )}
           </div>
         )}
 
       <Composer label="Start a thread" onSubmit={onAsk} placeholder="Ask something about this page..." />
-    </Growing>
+    </div>
   );
 }
 

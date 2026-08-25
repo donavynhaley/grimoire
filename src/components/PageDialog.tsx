@@ -72,7 +72,16 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
    * than that the alternative was one long scroll, and a page that has to be scrolled is
    * a page you cannot see.
    */
-  const [pane, setPane] = useState<"notes" | "details">("notes");
+  const [pane, setPane] = useState<"notes" | "discussion" | "details">("notes");
+  /**
+   * Whether the conversation has the panel open beside the writing.
+   *
+   * Null until the threads arrive, and then it answers itself: a page somebody has asked
+   * something about opens with the conversation already there, and a page nobody has said
+   * anything about keeps the two columns it has always had. Closing it is a choice for this
+   * visit, not a setting - the next page decides again from its own threads.
+   */
+  const [discussionOpen, setDiscussionOpen] = useState<boolean | null>(null);
   /**
    * Category is the only attribute long enough to be worth folding: ten choices against four
    * or five everywhere else, and it is usually set once at capture time with `#` and rarely
@@ -121,6 +130,7 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
     setChangingCategory(false);
     setShowingHistory(false);
     setPane("notes");
+    setDiscussionOpen(null);
     setShowingClosedChapters(inClosedChapter);
     // `inClosedChapter` is read for the page being opened, not tracked: a page moved into a
     // closed chapter from the open fold must not re-run this and fold it away underneath.
@@ -153,6 +163,15 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
 
   const history = usePageHistory(page.id, revision, onLoadActivity);
   const { threads, reload: reloadDiscussion } = usePageDiscussion(page.id, revision, onLoadDiscussion);
+  /*
+   * The count comes from the page rather than the threads so the tab carries it before the
+   * conversation has finished loading, and keeps carrying it while the panel is closed.
+   */
+  const openThreadCount = threads
+    ? threads.filter((thread) => thread.answeredAt === null).length
+    : page.openThreads;
+  // Unanswered by default: a page with a question waiting opens with it in view.
+  const showingDiscussion = discussionOpen ?? (threads === null ? page.openThreads > 0 : threads.length > 0);
   const otherEditor = otherEditorName(history, currentUserId);
 
   const close = async () => {
@@ -163,6 +182,20 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
     <Drawer className="dialog-panel page-editor" labelledBy="dialog-panel-title" onClose={close}>
       <header className="dialog-header">
         <div><p className="eyebrow">page details</p><h2 id="dialog-panel-title">Edit page</h2></div>
+        {/*
+          Always here, whichever way the column is folded, so nothing appears or disappears in
+          the writing column as the conversation opens and closes. It carries the count, which
+          is also how a page says it has something waiting before you have opened anything.
+        */}
+        <button
+          aria-pressed={showingDiscussion}
+          className="text-button discussion-toggle"
+          onClick={() => setDiscussionOpen(!showingDiscussion)}
+          type="button"
+        >
+          <span className="field-label">Discussion</span>
+          {openThreadCount > 0 && <span className="discussion-open">{openThreadCount} open</span>}
+        </button>
         <button aria-label="Close page" className="icon-button" onClick={() => void close()} type="button">×</button>
       </header>
 
@@ -174,10 +207,13 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
       */}
       <div aria-label="Page halves" className="page-editor-panes" role="group">
         <button aria-pressed={pane === "notes"} className="pane-tab" onClick={() => setPane("notes")} type="button">Notes</button>
+        <button aria-pressed={pane === "discussion"} className="pane-tab" onClick={() => setPane("discussion")} type="button">
+          Discussion{openThreadCount > 0 ? ` · ${openThreadCount}` : ""}
+        </button>
         <button aria-pressed={pane === "details"} className="pane-tab" onClick={() => setPane("details")} type="button">Details</button>
       </div>
 
-      <div className="page-editor-split" data-pane={pane}>
+      <div className="page-editor-split" data-discussion={showingDiscussion ? "open" : "closed"} data-pane={pane}>
         <div className="page-editor-main">
           <div className="record-form">
             <label><span>Title</span><input name="title" onChange={(event) => editor.setTitle(event.target.value)} value={editor.title} /></label>
@@ -199,29 +235,40 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
 
           <GithubLink github={page.github} onUpdate={onUpdate} repo={githubRepo} status={page.githubStatus} />
 
-          {/*
-            The order the page is read in: the notes are the brief, the discussion is the
-            conversation about it, and the history is the trail underneath. Discussion sits
-            above history and never inside it - one is authored and addressed to somebody,
-            the other is derived and belongs to nobody.
-          */}
+          <PageHistory
+            events={history}
+            members={members}
+            onToggle={() => setShowingHistory((showing) => !showing)}
+            open={showingHistory}
+          />
+        </div>
+
+        {/*
+          The conversation gets a column rather than a slot under the notes.
+          A discussion has no length anybody can predict, and the writing column already
+          spends its height on the notes; sharing it meant capping the threads at a few
+          hundred pixels and scrolling them inside a column that was itself scrolling. Its
+          own column has the panel's full height to spend and needs no cap at all.
+
+          It stays mounted while closed so the split's widths can travel rather than jump,
+          and goes inert so nothing inside a zero-width column can still be tabbed into.
+        */}
+        <div
+          aria-label="Discussion"
+          className="page-discussion-column"
+          inert={!showingDiscussion && pane !== "discussion"}
+        >
           <DiscussionSection
             currentUserId={currentUserId}
             members={members}
             onAsk={async (body) => { await onAsk(page.id, body); await reloadDiscussion(); }}
+            onClose={() => setDiscussionOpen(false)}
             onReply={async (threadId, body) => { await onReply(page.id, threadId, body); await reloadDiscussion(); }}
             onSetAnswered={async (threadId, answered) => {
               await onSetAnswered(page.id, threadId, answered);
               await reloadDiscussion();
             }}
             threads={threads}
-          />
-
-          <PageHistory
-            events={history}
-            members={members}
-            onToggle={() => setShowingHistory((showing) => !showing)}
-            open={showingHistory}
           />
         </div>
 

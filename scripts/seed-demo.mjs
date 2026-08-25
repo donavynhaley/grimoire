@@ -173,6 +173,30 @@ const PAGES = [
     ],
   },
   {
+    // The page that broke the first design. Nine threads is more than any real page should
+    // carry, which is exactly why it is here: if the column reads at nine it reads at three.
+    title: "PLATFORM: 'launch' - cut-over runbook for the production account",
+    status: "in_progress",
+    category: "production",
+    estimate: 13,
+    assignee: "donavyn",
+    description:
+      "Everything that has to happen in order on the day, and who is holding each step.\n\n" +
+      "- DNS last, after the health checks pass\n" +
+      "- Rollback is a DNS revert, not a redeploy\n",
+    discussion: [
+      { by: "alan", body: "Are we cutting over on the Friday or the Saturday? I can only cover Saturday." },
+      { by: "donavyn", body: "Do we need the read replica up before the cut-over, or can it lag?", replies: [{ by: "alan", body: "It can lag. Nothing reads from it on day one." }] },
+      { agent: true, body: "The five CDK blockers are down to two: the OpenSearch domain policy and the ACM cert in us-east-1. Both are mine unless you want them." },
+      { by: "alan", body: "Who owns the status page during the window? I'd rather it wasn't whoever is doing the cut-over." },
+      { by: "donavyn", body: "Should the old account stay warm for a week, or do we tear it down once DNS has settled?", answeredBy: "alan", replies: [{ by: "alan", body: "Warm for a week. It costs almost nothing and it is the only real rollback we have." }] },
+      { by: "alan", body: "Rate limits on the new account are lower by default - do we need a quota increase before the window?" },
+      { agent: true, body: "Ran the runbook against dev end to end. Step 7 assumes the migration has already run; it has not, at that point. Worth reordering." },
+      { by: "donavyn", body: "Do we announce the maintenance window, or is the downtime short enough not to?", answeredBy: "donavyn", replies: [{ by: "alan", body: "Announce it. Two minutes unannounced is worse than ten announced." }] },
+      { by: "alan", body: "Last one: who has the domain registrar credentials? I don't, and DNS is the last step." },
+    ],
+  },
+  {
     title: "IDENTITY: 'onboarding' - resend the verification email",
     status: "backlog",
     category: "code",
