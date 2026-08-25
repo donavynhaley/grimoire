@@ -181,7 +181,7 @@ Every page carries a discussion, and it is not the same thing as its history.
 
 The history is derived: the system wrote it, it is about the page, and it belongs to nobody.
 A discussion message is authored, is addressed to somebody, and is finished only once it has been answered.
-Putting them in one list would bury a question under the column moves around it, and whose turn it is - the one thing a question has to say - is the one thing a merged list cannot show.
+Putting them in one list would bury what somebody said under the column moves around it, and leave a page with a conversation on it reading like a changelog.
 So discussion takes turns with the page's properties in the second column, rather than adding a third.
 Nobody weighs an estimate and answers a question in the same breath, and giving the two of them one column between them is what keeps the writing column exactly the width it has always been.
 A switch at the top of that column says which of them is showing, and it starts on the properties: a page opens on what it is, not on what was said about it.
@@ -197,9 +197,9 @@ A thread has exactly one piece of state - **open**, or **answered** - and that s
 Answered threads fold behind a count, so a page with forty messages on it still shows the two that are live.
 Nothing is deleted to get there, and reopening a thread costs one click and leaves a line in the history.
 
-Whose turn it is is derived rather than assigned: a thread nobody has replied to is waiting on whoever was asked, and one that has been replied to is back with the person who asked.
-Only a thread whose turn is yours takes the accent edge and says `waiting on you`.
-Replying does not close anything, because saying something and having said enough are different claims and only the second is a thread's state.
+It is a discussion and nothing more.
+Nothing here works out whose turn it is or marks a thread as owing somebody an answer: two people talking about one page do not need to be told who should speak next, and saying so on every other thread turns reading a page into being chased.
+Replying does not close anything either, because saying something and having said enough are different claims and only the second is a thread's state.
 
 A board tile shows how many threads on a page are still open, and shows nothing at all when none are.
 

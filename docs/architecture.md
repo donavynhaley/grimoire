@@ -343,8 +343,6 @@ A page with no row has never been opened by that person, so everything on it is 
 It is a timestamp rather than a sequence because it is scoped to one page rather than to the whole project's log, and a message already carries the moment it was written.
 The counts reach the board through one grouped query per project, the same way the open-thread counts do, and the marker is written only when the second column is actually turned to the conversation - an agent cannot write one at all, because it has no attention to spend.
 
-`awaitingReplyFrom` derives whose turn it is instead of storing it: a thread nobody has replied to waits on the page's assignee, and one that has been replied to waits on whoever asked.
-An unassigned page waits on nobody and says so, rather than picking a person to bother.
 
 ## Search
 

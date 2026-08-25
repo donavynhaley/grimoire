@@ -293,7 +293,6 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
 
           {aside === "discussion" ? (
             <DiscussionSection
-              currentUserId={currentUserId}
               members={members}
               onAsk={async (body) => { await onAsk(page.id, body); await reloadDiscussion(); }}
               onReply={async (threadId, body) => { await onReply(page.id, threadId, body); await reloadDiscussion(); }}

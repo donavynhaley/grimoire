@@ -253,17 +253,3 @@ export function setThreadAnswered(
     .run(answered ? new Date().toISOString() : null, answered ? userId : null, threadId);
   return findThread(database, projectId, pageId, threadId) as DiscussionThread;
 }
-
-/**
- * Who is waiting on an open thread, for the relay that has to name somebody.
- *
- * The rule is that the turn belongs to whoever did not speak last: a thread nobody has replied
- * to is waiting on the page's assignee, and one that has been replied to is waiting on whoever
- * asked. An unassigned page with an unanswered question is waiting on nobody, and says so by
- * returning null rather than picking a person to bother.
- */
-export function awaitingReplyFrom(thread: DiscussionThread, assigneeId: string | null): string | null {
-  const last = thread.replies.at(-1) ?? thread;
-  if (last.authorId === thread.authorId) return assigneeId === thread.authorId ? null : assigneeId;
-  return thread.authorId;
-}

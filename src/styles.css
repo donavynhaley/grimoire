@@ -3897,7 +3897,7 @@ textarea:hover { border-color: var(--border-bright); }
   display: grid;
   min-height: 0;
   flex: 1 1 auto;
-  grid-template-columns: minmax(0, 1fr) 20rem;
+  grid-template-columns: minmax(0, 1fr) 25rem;
   gap: 0;
 }
 
@@ -3976,6 +3976,21 @@ textarea:hover { border-color: var(--border-bright); }
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+/*
+ * One property per row, ruled off from the next.
+ *
+ * The first and last rows drop the padding and the rule they would otherwise put against the
+ * top and bottom of the column, so the list sits flush inside it rather than floating with a
+ * half-row of air at each end.
+ */
+.rail-row {
+  display: grid;
+  padding: 0.875rem 0;
+  gap: 0.5625rem;
+  border-bottom: 1px solid var(--border);
+}
+.rail-row:first-child { padding-top: 0; }
+.rail-row:last-child { padding-bottom: 0; border-bottom: 0; }
 .page-rail .choice-grid { gap: 0.3125rem; }
 .page-rail .choice {
   min-height: 1.75rem;
@@ -4151,7 +4166,7 @@ textarea:hover { border-color: var(--border-bright); }
   margin-top: 0.375rem;
   padding: 0.375rem 0;
   justify-self: start;
-  font-size: 0.5rem;
+  font-size: 0.5625rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -4164,12 +4179,12 @@ textarea:hover { border-color: var(--border-bright); }
  * now, so the card was doing nothing but drawing seven boxes down a narrow panel. What is
  * left is the reading: a name, a time, and what was said.
  */
-.discussion-thread { padding: 0.125rem 0 0.625rem; }
-.discussion-thread + .discussion-thread { border-top: 1px solid var(--border); padding-top: 0.75rem; }
+.discussion-thread { padding: 0.125rem 0 0.75rem; }
+.discussion-thread + .discussion-thread { border-top: 1px solid var(--border); padding-top: 0.875rem; }
 /* An answered thread is still readable, just no longer asking for anything. */
 .discussion-thread.answered .message-body { color: var(--muted); }
 
-.discussion-message { display: grid; padding: 0.375rem 0; gap: 0.3125rem; }
+.discussion-message { display: grid; padding: 0.4375rem 0; gap: 0.375rem; }
 /*
  * A reply indents once and never again. One level is enough for two people talking about one
  * page, and a second would turn a thread into a tree nobody can scan. The rule down its left
@@ -4182,18 +4197,9 @@ textarea:hover { border-color: var(--border-bright); }
 }
 
 .message-head { display: flex; min-width: 0; align-items: center; gap: 0.4375rem; flex-wrap: wrap; }
-.message-who { color: var(--text); font-size: 0.5625rem; font-weight: 700; }
-.message-head time { color: var(--faint); font-size: 0.4375rem; white-space: nowrap; }
-.message-head .via-agent { font-size: 0.5rem; }
-.message-note {
-  padding: 0.0625rem 0.375rem;
-  color: var(--accent);
-  background: var(--accent-soft);
-  border-radius: 0.25rem;
-  font-size: 0.4375rem;
-  font-weight: 700;
-  white-space: nowrap;
-}
+.message-who { color: var(--text); font-size: 0.6875rem; font-weight: 700; }
+.message-head time { color: var(--faint); font-size: 0.5625rem; white-space: nowrap; }
+.message-head .via-agent { font-size: 0.625rem; }
 /*
  * What a thread lets you do, kept out of the way until it is wanted.
  *
@@ -4212,7 +4218,7 @@ textarea:hover { border-color: var(--border-bright); }
 }
 .thread-actions .text-button {
   color: var(--faint);
-  font-size: 0.4375rem;
+  font-size: 0.5rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -4226,8 +4232,8 @@ textarea:hover { border-color: var(--border-bright); }
 @media (prefers-reduced-motion: reduce) {
   .thread-actions { transition: none; }
 }
-.message-body { margin: 0; color: var(--text); font-size: 0.625rem; line-height: 1.65; overflow-wrap: anywhere; white-space: pre-wrap; }
-.thread-settled { margin: 0; padding: 0.25rem 0 0; color: var(--faint); font-size: 0.4375rem; }
+.message-body { margin: 0; color: var(--text); font-size: 0.8125rem; line-height: 1.6; overflow-wrap: anywhere; white-space: pre-wrap; }
+.thread-settled { margin: 0; padding: 0.375rem 0 0; color: var(--faint); font-size: 0.5625rem; }
 
 /*
  * Writing something. Pinned to the foot of the column, so it is in the same place whether the
@@ -4244,14 +4250,14 @@ textarea:hover { border-color: var(--border-bright); }
   border: 1px solid var(--border);
   border-radius: 0.4375rem;
   font: inherit;
-  font-size: 0.625rem;
+  font-size: 0.8125rem;
   line-height: 1.6;
   resize: none;
 }
 .discussion-composer textarea:hover { border-color: var(--border-bright); }
 .discussion-composer textarea:focus-visible { outline: 1px solid var(--border-bright); outline-offset: -1px; }
 .composer-tools { display: flex; align-items: baseline; justify-content: flex-end; gap: 0.75rem; }
-.composer-send { color: var(--accent); font-size: 0.5rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
+.composer-send { color: var(--accent); font-size: 0.5625rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
 .composer-send:disabled { color: var(--faint); cursor: default; }
 
 /* On a tile, an open thread wears the same quiet pill everything else on a tile wears. */

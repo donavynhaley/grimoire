@@ -17,6 +17,11 @@ import { relativeLabel } from "./activity-copy";
  * At rest a thread shows only that. Reply and answered are revealed on hover, because seven
  * open threads meant seven of each standing down a narrow column.
  *
+ * It is a discussion and nothing more. It does not work out whose turn it is or mark a thread
+ * as owing anybody an answer: a conversation between two people about one page does not need
+ * to be told who should speak next, and saying so on every other thread turned reading it into
+ * being chased.
+ *
  * A thread carries exactly one piece of state: open, or answered. Answered threads fold away,
  * which is what keeps a page with forty messages on it showing you two. Nothing is deleted to
  * get there, and reopening costs one click.
@@ -25,13 +30,12 @@ import { relativeLabel } from "./activity-copy";
 type Props = {
   threads: DiscussionThread[] | null;
   members: Member[];
-  currentUserId: string;
   onAsk: (body: string) => Promise<void>;
   onReply: (threadId: string, body: string) => Promise<void>;
   onSetAnswered: (threadId: string, answered: boolean) => Promise<void>;
 };
 
-export function DiscussionSection({ threads, members, currentUserId, onAsk, onReply, onSetAnswered }: Props) {
+export function DiscussionSection({ threads, members, onAsk, onReply, onSetAnswered }: Props) {
   const [showingAnswered, setShowingAnswered] = useState(false);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
 
@@ -44,10 +48,9 @@ export function DiscussionSection({ threads, members, currentUserId, onAsk, onRe
    * left over. That is what lets the list run as long as the conversation does without a cap,
    * and it is the whole reason this moved out from under the notes.
    *
-   * It carries no heading of its own. The control in the panel header already says the word
-   * and the count and is what opens and closes this, and the tab does the same job on a narrow
-   * screen; a heading here would have been the third place on one screen saying "discussion,
-   * six open", with two of them toggling the same thing.
+   * It carries no heading of its own. The switch at the top of the column already says the
+   * word and the unread count and is what turns to this, and the tab strip does the same job
+   * on a narrow screen; a heading here would be a third place saying it.
    */
   return (
     <div className="page-discussion">
@@ -57,7 +60,6 @@ export function DiscussionSection({ threads, members, currentUserId, onAsk, onRe
           <div className="discussion-threads">
             {shown.map((thread) => (
               <Thread
-                currentUserId={currentUserId}
                 key={thread.id}
                 members={members}
                 onReply={(body) => onReply(thread.id, body)}
@@ -69,7 +71,7 @@ export function DiscussionSection({ threads, members, currentUserId, onAsk, onRe
             ))}
             {shown.length === 0 && (
               <p className="empty-dependencies">
-                {answered.length > 0 ? "Nothing is waiting on anyone." : "Nothing has been asked here yet."}
+                {answered.length > 0 ? "Everything here has been answered." : "Nothing has been said here yet."}
               </p>
             )}
             {answered.length > 0 && (
@@ -85,15 +87,14 @@ export function DiscussionSection({ threads, members, currentUserId, onAsk, onRe
           </div>
         )}
 
-      <Composer label="Start a thread" onSubmit={onAsk} placeholder="Ask something about this page..." />
+      <Composer label="Start a thread" onSubmit={onAsk} placeholder="Say something about this page..." />
     </div>
   );
 }
 
-function Thread({ thread, members, currentUserId, replying, onReply, onReplyingChange, onSetAnswered }: {
+function Thread({ thread, members, replying, onReply, onReplyingChange, onSetAnswered }: {
   thread: DiscussionThread;
   members: Member[];
-  currentUserId: string;
   replying: boolean;
   onReply: (body: string) => Promise<void>;
   onReplyingChange: (active: boolean) => void;
@@ -102,16 +103,9 @@ function Thread({ thread, members, currentUserId, replying, onReply, onReplyingC
   const answered = thread.answeredAt !== null;
   // One clock per render of this thread, so every time in it agrees with the others.
   const now = useMemo(() => new Date(), [thread]);
-  /*
-   * Whose turn it is, said the same way the server says it: a thread nobody has answered in
-   * words is waiting on whoever was asked, and one that has been replied to is back with the
-   * person who asked. Only the accent edge marks it, and only when the turn is actually yours.
-   */
-  const last = thread.replies.at(-1) ?? thread;
-  const yourTurn = !answered && last.authorId !== currentUserId;
 
   return (
-    <Growing className={`discussion-thread${yourTurn ? " needs-you" : ""}${answered ? " answered" : ""}`}>
+    <Growing className={`discussion-thread${answered ? " answered" : ""}`}>
       <Message
         /*
          * Both actions in one cluster at the end of the head, revealed together rather than
@@ -130,7 +124,6 @@ function Thread({ thread, members, currentUserId, replying, onReply, onReplyingC
         )}
         members={members}
         message={thread}
-        note={yourTurn ? "waiting on you" : null}
         now={now}
       />
       {thread.replies.map((message) => (
@@ -148,12 +141,11 @@ function Thread({ thread, members, currentUserId, replying, onReply, onReplyingC
   );
 }
 
-function Message({ message, members, now, action, note, reply }: {
+function Message({ message, members, now, action, reply }: {
   message: DiscussionMessage;
   members: Member[];
   now: Date;
   action?: React.ReactNode;
-  note?: string | null;
   reply?: boolean;
 }) {
   const member = members.find((candidate) => candidate.id === message.authorId);
@@ -165,7 +157,6 @@ function Message({ message, members, now, action, note, reply }: {
         {/* An agent never replaces the person it wrote for; it is named beside them. */}
         {message.agentName && <span className="via-agent">via {message.agentName}</span>}
         <time dateTime={message.createdAt}>{relativeLabel(message.createdAt, now)}</time>
-        {note && <span className="message-note">{note}</span>}
         {action}
       </div>
       <p className="message-body">{message.body}</p>

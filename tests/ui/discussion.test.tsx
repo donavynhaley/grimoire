@@ -258,7 +258,7 @@ describe("the discussion on a page", () => {
     expect(within(discussion).getByText(/Answered by Donavyn/)).toBeTruthy();
   });
 
-  it("marks a thread whose turn is yours, and leaves your own alone", async () => {
+  it("says nothing about whose turn it is", async () => {
     const board = boardFixture();
     mountWith([
       thread({ id: "t-theirs", authorId: THEM, authorName: "Maren", body: "Asked of you" }),
@@ -266,29 +266,13 @@ describe("the discussion on a page", () => {
     ], board);
     await openPage(board);
 
-    const theirs = document.querySelectorAll(".discussion-thread")[0] as HTMLElement;
-    expect(theirs.className).toContain("needs-you");
-    expect(within(theirs).getByText("waiting on you")).toBeTruthy();
-
-    const mine = document.querySelectorAll(".discussion-thread")[1] as HTMLElement;
-    expect(mine.className).not.toContain("needs-you");
-    expect(within(mine).queryByText("waiting on you")).toBeNull();
-  });
-
-  it("hands the turn back once you have replied", async () => {
-    const board = boardFixture();
-    mountWith([
-      thread({
-        authorId: THEM,
-        authorName: "Maren",
-        body: "Asked of you",
-        replies: [message(ME, "Donavyn", "Answered it")],
-      }),
-    ], board);
-    await openPage(board);
-
-    const only = document.querySelector(".discussion-thread") as HTMLElement;
-    expect(only.className).not.toContain("needs-you");
+    // A conversation between two people about one page does not need to be told who should
+    // speak next, and saying so on every other thread turned reading it into being chased.
+    for (const element of document.querySelectorAll(".discussion-thread")) {
+      expect(element.className).not.toContain("needs-you");
+    }
+    expect(within(section()).queryByText("waiting on you")).toBeNull();
+    expect(document.querySelector(".message-note")).toBeNull();
   });
 
   it("names the agent beside the person it wrote for", async () => {
@@ -367,7 +351,7 @@ describe("the discussion on a page", () => {
     mountWith([], board);
     await openPage(board);
 
-    expect(within(section()).getByText("Nothing has been asked here yet.")).toBeTruthy();
+    expect(within(section()).getByText("Nothing has been said here yet.")).toBeTruthy();
   });
 });
 

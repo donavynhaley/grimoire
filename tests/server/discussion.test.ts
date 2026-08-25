@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import type { AgentToken, AuditPage, BoardWorkspace, DiscussionThread, Page } from "../../shared/types";
-import { awaitingReplyFrom } from "../../server/discussion";
 import { bootstrap, ownerAccount, startTestServer } from "./test-server";
 
 type TestServer = Awaited<ReturnType<typeof startTestServer>>;
@@ -431,44 +430,6 @@ describe("page discussion", () => {
         body: JSON.stringify({}),
       });
       expect(refused.response.status).toBe(403);
-    });
-  });
-
-  describe("whose turn it is", () => {
-    const message = (id: string, body: string) => ({
-      id: `m-${body}`,
-      authorId: id,
-      authorName: id,
-      agentName: null,
-      body,
-      createdAt: "2026-08-24T00:00:00.000Z",
-    });
-    const thread = (askerId: string, replierIds: string[]): DiscussionThread => ({
-      ...message(askerId, "question"),
-      replies: replierIds.map((id, index) => message(id, `reply-${index}`)),
-      answeredAt: null,
-      answeredById: null,
-      answeredByName: null,
-    });
-
-    it("waits on the assignee while nobody has replied", () => {
-      expect(awaitingReplyFrom(thread("donavyn", []), "alan")).toBe("alan");
-    });
-
-    it("waits on the asker once somebody else has replied", () => {
-      expect(awaitingReplyFrom(thread("donavyn", ["alan"]), "alan")).toBe("donavyn");
-    });
-
-    it("waits on the assignee again when the asker follows up", () => {
-      expect(awaitingReplyFrom(thread("donavyn", ["alan", "donavyn"]), "alan")).toBe("alan");
-    });
-
-    it("waits on nobody when the asker is the assignee talking to themselves", () => {
-      expect(awaitingReplyFrom(thread("alan", []), "alan")).toBeNull();
-    });
-
-    it("waits on nobody at all on an unassigned page", () => {
-      expect(awaitingReplyFrom(thread("donavyn", []), null)).toBeNull();
     });
   });
 });
