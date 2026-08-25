@@ -40,10 +40,10 @@ const openPage = (title, { discussion = false } = {}) => async (page) => {
   await page.getByText(title, { exact: false }).first().click();
   await page.waitForSelector(".page-editor", { timeout: 10000 });
   await page.waitForTimeout(500);
-  // The conversation is folded away until it is asked for, so a plate of it has to ask.
+  // The column shows the properties first, so a plate of the conversation has to turn to it.
   if (discussion) {
-    await page.locator(".discussion-toggle").click();
-    await page.waitForTimeout(600);
+    await page.locator(".aside-switch .pane-tab", { hasText: "Discussion" }).click();
+    await page.waitForTimeout(500);
   }
 };
 
@@ -65,7 +65,7 @@ await shot("06-narrow-880", {
   width: 880,
   run: async (page) => {
     await openPage("cut-over runbook")(page);
-    await page.locator(".pane-tab", { hasText: "Discussion" }).click();
+    await page.locator(".page-editor-panes .pane-tab", { hasText: "Discussion" }).click();
     await page.waitForTimeout(500);
   },
 });

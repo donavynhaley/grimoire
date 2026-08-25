@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "../../src/App";
@@ -52,13 +52,21 @@ describe("the page editor's two halves", () => {
 
     await user.click(await screen.findByText(board.pages[1].title));
     const split = document.querySelector(".page-editor-split");
+    // The strip is the one that chooses down here; the second column has a switch of its own
+    // for what it holds, and that one is hidden at these widths.
+    const tabs = within(document.querySelector(".page-editor-panes") as HTMLElement);
     expect(split).toHaveAttribute("data-pane", "notes");
 
-    await user.click(screen.getByRole("button", { name: "Details" }));
-    expect(split).toHaveAttribute("data-pane", "details");
+    await user.click(tabs.getByRole("button", { name: "Details" }));
+    expect(split).toHaveAttribute("data-pane", "aside");
 
-    await user.click(screen.getByRole("button", { name: "Notes" }));
+    await user.click(tabs.getByRole("button", { name: "Notes" }));
     expect(split).toHaveAttribute("data-pane", "notes");
+
+    // Both halves of the second column are reachable from the same strip.
+    await user.click(tabs.getByRole("button", { name: /Discussion/ }));
+    expect(split).toHaveAttribute("data-pane", "aside");
+    expect(document.querySelector(".page-discussion")).toBeTruthy();
   });
 
   it("keeps the archive and the autosave line out of both halves, under them", async () => {

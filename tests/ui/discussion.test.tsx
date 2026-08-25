@@ -73,78 +73,83 @@ function mountWith(threads: DiscussionThread[], board: BoardWorkspace = boardFix
   return calls;
 }
 
-async function openPage(board: BoardWorkspace) {
-  const user = userEvent.setup();
-  await user.click(await screen.findByText(board.pages[1].title));
-  await screen.findByRole("dialog", { name: "Edit page" });
-  return user;
+/** The control inside the second column that chooses what it shows. */
+function aside() {
+  return document.querySelector(".aside-switch") as HTMLElement;
 }
 
 function section() {
   return document.querySelector(".page-discussion") as HTMLElement;
 }
 
+/**
+ * Opens a page, and turns the second column to the conversation unless asked not to.
+ *
+ * A page opens on its properties, so almost everything here has to ask for the conversation
+ * first - which is itself the behaviour the first test pins down.
+ */
+async function openPage(board: BoardWorkspace, { discussion = true } = {}) {
+  const user = userEvent.setup();
+  await user.click(await screen.findByText(board.pages[1].title));
+  await screen.findByRole("dialog", { name: "Edit page" });
+  if (discussion) await user.click(within(aside()).getByRole("button", { name: /Discussion/ }));
+  return user;
+}
+
 describe("the discussion on a page", () => {
-  it("gets a column of its own rather than a slot under the notes", async () => {
+  it("shares the second column with the properties rather than taking one of its own", async () => {
     const board = boardFixture();
     mountWith([thread({ authorId: THEM, authorName: "Maren", body: "Whose clock?" })], board);
     await openPage(board);
 
-    const writing = document.querySelector(".page-editor-main");
-    const column = document.querySelector(".page-discussion-column");
-    const discussion = section();
-    // A sibling of the writing column, not a child of it. This is the whole fix: sharing the
-    // writing column's height meant capping the threads and scrolling them inside a scroller.
-    expect(column).toBeTruthy();
-    expect(writing?.contains(discussion)).toBe(false);
-    expect(column?.contains(discussion)).toBe(true);
-    expect(column?.parentElement).toBe(document.querySelector(".page-editor-split"));
+    const split = document.querySelector(".page-editor-split") as HTMLElement;
+    const columns = [...split.children].map((column) => column.className.split(" ")[0]);
+    // Two columns, always. The writing, and whatever the second one has been turned to.
+    expect(columns).toEqual(["page-editor-main", "page-aside"]);
+    expect(document.querySelector(".page-aside")?.contains(section())).toBe(true);
+    // The properties are not on screen at the same time; they took turns.
+    expect(document.querySelector(".page-rail")).toBeNull();
   });
 
-  it("stays folded away until it is asked for, however much is waiting", async () => {
+  it("opens on the properties, not on the conversation", async () => {
     const board = boardFixture();
     board.pages[1].openThreads = 4;
     board.pages[1].unseenMessages = 4;
-    mountWith([
-      thread({ authorId: THEM, authorName: "Maren", body: "Whose clock?" }),
-      thread({ authorId: THEM, authorName: "Maren", body: "And the other thing?" }),
-    ], board);
-    await openPage(board);
+    mountWith([thread({ authorId: THEM, authorName: "Maren", body: "Whose clock?" })], board);
+    await openPage(board, { discussion: false });
 
-    // A page opens on its writing. Deciding for the reader that they came for the
-    // conversation would cost them the wider notes column every time they did not.
-    expect(document.querySelector(".page-editor-split")).toHaveAttribute("data-discussion", "closed");
+    // A page opens on what it is, not on what was said about it - however much is waiting.
+    expect(document.querySelector(".page-rail")).toBeTruthy();
+    expect(section()).toBeNull();
   });
 
-  it("sits past the properties, so the page and its attributes stay together", async () => {
+  it("leaves the writing column exactly where it was, either way", async () => {
     const board = boardFixture();
     mountWith([thread({ authorId: THEM, authorName: "Maren", body: "Whose clock?" })], board);
-    await openPage(board);
+    const user = await openPage(board, { discussion: false });
 
-    const columns = [...(document.querySelector(".page-editor-split") as HTMLElement).children];
-    const classes = columns.map((column) => column.className.split(" ")[0]);
-    expect(classes).toEqual(["page-editor-main", "page-rail", "page-discussion-column"]);
+    const split = document.querySelector(".page-editor-split") as HTMLElement;
+    const before = split.className;
+    // Nothing about the split changes when the second column swaps what it holds: no state
+    // attribute, no track to travel, no width for the notes to give up.
+    expect(split.getAttribute("data-discussion")).toBeNull();
+
+    await user.click(within(aside()).getByRole("button", { name: /Discussion/ }));
+    expect(split.className).toBe(before);
+    expect(split.getAttribute("data-discussion")).toBeNull();
   });
 
-  it("folds away and comes back from the header, without the writing column changing shape", async () => {
+  it("switches back to the properties from the same control", async () => {
     const board = boardFixture();
     mountWith([thread({ authorId: THEM, authorName: "Maren", body: "Whose clock?" })], board);
     const user = await openPage(board);
 
-    const split = document.querySelector(".page-editor-split") as HTMLElement;
-    const toggle = document.querySelector(".discussion-toggle") as HTMLElement;
-    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    expect(within(aside()).getByRole("button", { name: /Discussion/ })).toHaveAttribute("aria-pressed", "true");
+    expect(within(aside()).getByRole("button", { name: "Details" })).toHaveAttribute("aria-pressed", "false");
 
-    await user.click(toggle);
-    expect(split).toHaveAttribute("data-discussion", "open");
-    expect(toggle).toHaveAttribute("aria-pressed", "true");
-    // The control is in the header either way, so nothing appears in the notes to replace it.
-    expect(document.querySelector(".page-editor-main .discussion-toggle")).toBeNull();
-    // Closed, the column is still in the grid so the widths can travel rather than jump.
-    expect(document.querySelector(".page-discussion-column")).toBeTruthy();
-
-    await user.click(toggle);
-    expect(split).toHaveAttribute("data-discussion", "closed");
+    await user.click(within(aside()).getByRole("button", { name: "Details" }));
+    expect(document.querySelector(".page-rail")).toBeTruthy();
+    expect(section()).toBeNull();
   });
 
   it("counts what has not been read, and says nothing when there is nothing", async () => {
@@ -153,31 +158,30 @@ describe("the discussion on a page", () => {
     // Resolved-ness is a different question, and not the one this number answers.
     board.pages[1].openThreads = 0;
     mountWith([], board);
-    await openPage(board);
+    await openPage(board, { discussion: false });
 
-    const toggle = document.querySelector(".discussion-toggle") as HTMLElement;
-    expect(within(toggle).getByText("3")).toBeTruthy();
-    expect(within(toggle).getByLabelText("3 unread")).toBeTruthy();
+    expect(within(aside()).getByText("3")).toBeTruthy();
+    expect(within(aside()).getByLabelText("3 unread")).toBeTruthy();
 
     cleanup();
     const read = boardFixture();
     read.pages.forEach((page) => { page.unseenMessages = 0; page.openThreads = 5; });
     mountWith([], read);
-    await openPage(read);
+    await openPage(read, { discussion: false });
     // Five open threads you have already read are not news.
     expect(document.querySelector(".discussion-unseen")).toBeNull();
   });
 
-  it("marks the conversation read when the column is opened, and not before", async () => {
+  it("marks the conversation read when it is turned to, and not before", async () => {
     const board = boardFixture();
     board.pages[1].unseenMessages = 2;
     const calls = mountWith([thread({ authorId: THEM, authorName: "Maren", body: "Whose clock?" })], board);
-    const user = await openPage(board);
+    const user = await openPage(board, { discussion: false });
 
     // Opening the page is not reading the conversation.
     expect(calls.filter((call) => call.url.includes("/discussion/seen"))).toHaveLength(0);
 
-    await user.click(document.querySelector(".discussion-toggle") as HTMLElement);
+    await user.click(within(aside()).getByRole("button", { name: /Discussion/ }));
     const seen = calls.filter((call) => call.url.includes("/discussion/seen"));
     expect(seen).toHaveLength(1);
     expect(seen[0].method).toBe("POST");
@@ -185,19 +189,18 @@ describe("the discussion on a page", () => {
 
   it("says the word and the count in exactly one place", async () => {
     const board = boardFixture();
+    board.pages[1].unseenMessages = 2;
     mountWith([
       thread({ authorId: THEM, authorName: "Maren", body: "One?" }),
       thread({ authorId: THEM, authorName: "Maren", body: "Two?" }),
     ], board);
     await openPage(board);
 
-    // The header control is the label, the count, and the way in and out. A heading inside
-    // the column would be a second thing saying the same words and a second way to close it.
-    const toggle = document.querySelector(".discussion-toggle") as HTMLElement;
-    expect(within(toggle).getByText("Discussion")).toBeTruthy();
-    // A heading inside the column would be a second thing saying the same word and a second
-    // way to close it.
+    // The switch is the label, the count, and the way in and out. A heading inside the column
+    // would be a second thing saying the same word and a second way to leave it.
+    expect(within(aside()).getByText("2")).toBeTruthy();
     expect(within(section()).queryByText(/^Discussion$/)).toBeNull();
+    expect(document.querySelector(".discussion-toggle")).toBeNull();
   });
 
   it("shows a thread's actions only when it is reached for", async () => {
@@ -231,7 +234,7 @@ describe("the discussion on a page", () => {
     expect(within(history).queryByText("Whose clock?")).toBeNull();
   });
 
-  it("counts what is open and folds what has been answered away", async () => {
+  it("folds what has been answered away until it is asked for", async () => {
     const board = boardFixture();
     const now = new Date().toISOString();
     mountWith([
@@ -248,7 +251,6 @@ describe("the discussion on a page", () => {
     const user = await openPage(board);
 
     const discussion = section();
-    // The answered one is out of the way until it is asked for - that is what keeps this short.
     expect(within(discussion).queryByText("Settled a while ago")).toBeNull();
 
     await user.click(within(discussion).getByRole("button", { name: /1 answered/ }));
@@ -328,7 +330,7 @@ describe("the discussion on a page", () => {
     expect(send).toBeDisabled();
     await user.type(screen.getByLabelText("Start a thread"), "   ");
     expect(send).toBeDisabled();
-    expect(calls.filter((call) => call.url.includes("/discussion"))).toHaveLength(0);
+    expect(calls.filter((call) => call.url.endsWith("/discussion"))).toHaveLength(0);
   });
 
   it("replies into the thread that was asked, not a new one", async () => {
@@ -347,7 +349,7 @@ describe("the discussion on a page", () => {
     expect(posted?.body).toEqual({ body: "Device time for display." });
   });
 
-  it("marks a thread answered, and offers to reopen one", async () => {
+  it("marks a thread answered", async () => {
     const board = boardFixture();
     const calls = mountWith([
       thread({ id: "t-open", authorId: THEM, authorName: "Maren", body: "Whose clock?" }),
@@ -366,8 +368,6 @@ describe("the discussion on a page", () => {
     await openPage(board);
 
     expect(within(section()).getByText("Nothing has been asked here yet.")).toBeTruthy();
-    // No count appears for a page nobody has said anything about.
-    expect(within(section()).queryByText(/open$/)).toBeNull();
   });
 });
 

@@ -3886,37 +3886,19 @@ textarea:hover { border-color: var(--border-bright); }
 .pane-tab[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); }
 
 /*
- * Three tracks: the writing, the properties, and the conversation.
+ * Two tracks, and neither of them ever changes width.
  *
- * The notes and the properties stay together at the left, because they are the page - one is
- * what it says and the other is what it is. The conversation is about the page rather than
- * part of it, so it sits past them both and is the only track that ever changes width.
- *
- * It travels to that width rather than appearing at it. Track lists interpolate only when the
- * count and the track types both match, which is why the closed state names a zero track of
- * the same shape instead of dropping it: `minmax(0, 0rem)` animates to `minmax(0, 24rem)`,
- * while a bare `0rem` against a `minmax()` can only snap.
- *
- * The spacing between columns is each column's own margin rather than the grid's gap. A gap
- * applies between every pair of tracks at once, so a closed column would hold two rem of
- * nothing open at the panel's right edge; a margin belongs to the column and leaves with it.
+ * The properties and the conversation take turns in the second one rather than each taking a
+ * column, because they are never read at the same time. Nothing here resizes, so there is no
+ * layout change to travel and no track list to interpolate - which is the whole reason this
+ * shape is simpler than the one before it.
  */
 .page-editor-split {
   display: grid;
   min-height: 0;
   flex: 1 1 auto;
-  grid-template-columns: minmax(0, 1fr) 20rem minmax(0, 0rem);
+  grid-template-columns: minmax(0, 1fr) 20rem;
   gap: 0;
-  transition: grid-template-columns 190ms cubic-bezier(0.2, 0.7, 0.2, 1);
-}
-/*
- * The writing keeps the larger share. The conversation is read in short lines and the notes
- * are not, so a track wide enough to hold a question comfortably is as much as it should take.
- * The figure covers the column's own margin, border and padding as well as its text.
- */
-.page-editor-split[data-discussion="open"] { grid-template-columns: minmax(0, 1fr) 20rem minmax(0, 24rem); }
-@media (prefers-reduced-motion: reduce) {
-  .page-editor-split { transition: none; }
 }
 
 /*
@@ -3958,33 +3940,42 @@ textarea:hover { border-color: var(--border-bright); }
  * height a promise rather than a hope.
  */
 /*
- * The properties, and no rule between them and the writing.
+ * The column the properties and the conversation share.
  *
- * The notes and the rail are one thing - what the page says and what it is - so a line drawn
- * between them divides something that is not divided. It also had somewhere worse to be: with
- * the conversation opened there were two full-height hairlines running down the panel, and the
- * rail's own horizontal rules ended two rem short of the second one, pointing at it without
- * meeting it. One rule, at the one boundary that is real, and the space here does the rest.
+ * One rule down the panel, in the same place whichever of the two is showing, so switching
+ * between them moves nothing at all. The switch holds its height at the top and whatever it
+ * chose takes the rest.
  */
+.page-aside {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  gap: 0.875rem;
+  margin-left: 2rem;
+  padding-left: 1.375rem;
+  border-left: 1px solid var(--border);
+}
+.aside-switch {
+  display: flex;
+  flex: none;
+  padding: 0.1875rem;
+  gap: 0.1875rem;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+.aside-switch .pane-tab { display: flex; align-items: center; justify-content: center; gap: 0.4375rem; }
+
 .page-rail {
   display: grid;
   min-width: 0;
   min-height: 0;
-  /* The grid has no gap any more, so each column brings its own separation. */
-  margin-left: 3.375rem;
+  flex: 1 1 auto;
   align-content: start;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
-.rail-row {
-  display: grid;
-  padding: 0.875rem 0;
-  gap: 0.5625rem;
-  border-bottom: 1px solid var(--border);
-}
-.rail-row:first-child { padding-top: 0; }
-.rail-row:last-child { padding-bottom: 0; border-bottom: 0; }
-
 .page-rail .choice-grid { gap: 0.3125rem; }
 .page-rail .choice {
   min-height: 1.75rem;
@@ -4074,30 +4065,14 @@ textarea:hover { border-color: var(--border-bright); }
 @media (max-width: 900px) {
   .page-editor-panes { display: flex; }
   /*
-   * One pane at a time, so the tab is what chooses and the widths stop mattering. The
-   * transition goes with them: nothing is travelling to a new width down here.
+   * One pane at a time, so the tab strip is what chooses and the widths stop mattering. It
+   * offers all three, which is why the switch inside the column is redundant down here.
    */
-  .page-editor-split,
-  .page-editor-split[data-discussion="open"] { grid-template-columns: minmax(0, 1fr); gap: 0; transition: none; }
-  .page-editor-split > .page-rail,
-  .page-editor-split[data-discussion="open"] > .page-discussion-column { margin-left: 0; padding-left: 0; }
-  .page-editor-split[data-pane="notes"] > .page-rail,
-  .page-editor-split[data-pane="notes"] > .page-discussion-column,
-  .page-editor-split[data-pane="discussion"] > .page-editor-main,
-  .page-editor-split[data-pane="discussion"] > .page-rail,
-  .page-editor-split[data-pane="details"] > .page-editor-main,
-  .page-editor-split[data-pane="details"] > .page-discussion-column { display: none; }
-  /* Chosen by its own tab, the conversation is never the folded-away column here. */
-  .page-editor-split[data-pane="discussion"] > .page-discussion-column,
-  .page-editor-split[data-discussion="closed"][data-pane="discussion"] > .page-discussion-column {
-    display: grid;
-    margin-left: 0;
-    padding-left: 0;
-    border-left: 0;
-  }
-  .page-rail { padding-left: 0; }
-  /* The tab does this job down here, and says the same count. */
-  .dialog-header .discussion-toggle { display: none; }
+  .page-editor-split { grid-template-columns: minmax(0, 1fr); }
+  .page-editor-split[data-pane="notes"] > .page-aside,
+  .page-editor-split[data-pane="aside"] > .page-editor-main { display: none; }
+  .page-aside { margin-left: 0; padding-left: 0; border-left: 0; }
+  .aside-switch { display: none; }
 }
 
 /*
@@ -4126,7 +4101,7 @@ textarea:hover { border-color: var(--border-bright); }
 .page-discussion {
   display: flex;
   min-height: 0;
-  height: 100%;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 0.625rem;
 }
@@ -4278,57 +4253,6 @@ textarea:hover { border-color: var(--border-bright); }
 .composer-tools { display: flex; align-items: baseline; justify-content: flex-end; gap: 0.75rem; }
 .composer-send { color: var(--accent); font-size: 0.5rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
 .composer-send:disabled { color: var(--faint); cursor: default; }
-
-/*
- * The column itself.
- *
- * It stays in the grid while closed and travels to nothing rather than vanishing, which is
- * the house rule: a box that changes size must travel to its new size. The track widths are
- * what animate, so the writing column widens as this one closes instead of the whole split
- * snapping to a new shape under the pointer that asked for it.
- */
-.page-discussion-column {
-  display: grid;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-  /* Everything that separates it from the rail leaves with it, and travels on the way out. */
-  margin-left: 0;
-  padding-left: 0;
-  border-left: 0 solid var(--border);
-  transition: margin-left 190ms cubic-bezier(0.2, 0.7, 0.2, 1), padding-left 190ms cubic-bezier(0.2, 0.7, 0.2, 1);
-}
-/* The rule sits centred in its own space rather than hugging the rail beside it. */
-.page-editor-split[data-discussion="open"] > .page-discussion-column {
-  margin-left: 2rem;
-  padding-left: 2rem;
-  border-left-width: 1px;
-}
-@media (prefers-reduced-motion: reduce) {
-  .page-discussion-column { transition: none; }
-}
-
-/*
- * The way in and out, in the header beside the close.
- *
- * It lives here rather than in the writing column because a control that is only present in
- * one of the two states is itself a box appearing: the column would fold away and a row would
- * pop into the notes to replace it. Here it simply changes what it is pressed into.
- */
-.discussion-toggle {
-  display: flex;
-  margin-left: auto;
-  margin-right: 0.875rem;
-  padding: 0.375rem 0.625rem;
-  align-items: baseline;
-  gap: 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 0.4375rem;
-}
-.discussion-toggle:hover { border-color: var(--border-bright); }
-.discussion-toggle:hover .field-label { color: var(--text); }
-.discussion-toggle[aria-pressed="true"] { background: var(--accent-soft); border-color: #465f3c; }
-.discussion-toggle[aria-pressed="true"] .field-label { color: var(--accent); }
 
 /* On a tile, an open thread wears the same quiet pill everything else on a tile wears. */
 .discussion-pill {

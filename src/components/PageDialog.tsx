@@ -74,16 +74,17 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
    * than that the alternative was one long scroll, and a page that has to be scrolled is
    * a page you cannot see.
    */
-  const [pane, setPane] = useState<"notes" | "discussion" | "details">("notes");
+  const [pane, setPane] = useState<"notes" | "aside">("notes");
   /**
-   * Whether the conversation has the panel open beside the writing.
+   * What the second column is showing.
    *
-   * Null until the threads arrive, and then it answers itself: a page somebody has asked
-   * something about opens with the conversation already there, and a page nobody has said
-   * anything about keeps the two columns it has always had. Closing it is a choice for this
-   * visit, not a setting - the next page decides again from its own threads.
+   * The properties and the conversation take turns in it rather than standing side by side,
+   * because nobody reads an estimate and a question at the same time, and giving them one
+   * column between them is what keeps the writing column exactly the width it always was.
+   *
+   * It starts on the properties. A page opens on what it is, not on what was said about it.
    */
-  const [discussionOpen, setDiscussionOpen] = useState<boolean | null>(null);
+  const [aside, setAside] = useState<"details" | "discussion">("details");
   /**
    * Category is the only attribute long enough to be worth folding: ten choices against four
    * or five everywhere else, and it is usually set once at capture time with `#` and rarely
@@ -132,7 +133,7 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
     setChangingCategory(false);
     setShowingHistory(false);
     setPane("notes");
-    setDiscussionOpen(null);
+    setAside("details");
     marked.current = null;
     setShowingClosedChapters(inClosedChapter);
     // `inClosedChapter` is read for the page being opened, not tracked: a page moved into a
@@ -175,20 +176,13 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
    * the loaded threads so it is there before the conversation has finished arriving.
    */
   const unseenCount = page.unseenMessages;
-  /*
-   * Folded away until somebody asks for it.
-   *
-   * A page opens on its writing. Deciding for the reader that a conversation is what they came
-   * for costs them the wider notes column every time they were only here to read the page, and
-   * the control in the header says plainly enough when there is something waiting.
-   */
-  const showingDiscussion = discussionOpen ?? false;
+  const showingDiscussion = aside === "discussion";
 
   /*
-   * Opening the column is what counts as having read it.
+   * Turning to the conversation is what counts as having read it.
    *
    * Once per page: a second mark would follow its own board refresh round and round. Anything
-   * posted while the column is open is unread again on the next visit, which is a count that
+   * posted while it is on screen is unread again on the next visit, which is a count that
    * flickers rather than one that lies.
    */
   const marked = useRef<string | null>(null);
@@ -207,22 +201,6 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
     <Drawer className="dialog-panel page-editor" labelledBy="dialog-panel-title" onClose={close}>
       <header className="dialog-header">
         <div><p className="eyebrow">page details</p><h2 id="dialog-panel-title">Edit page</h2></div>
-        {/*
-          Always here, whichever way the column is folded, so nothing appears or disappears in
-          the writing column as the conversation opens and closes. It carries the count, which
-          is also how a page says it has something waiting before you have opened anything.
-        */}
-        <button
-          aria-pressed={showingDiscussion}
-          className="text-button discussion-toggle"
-          onClick={() => setDiscussionOpen(!showingDiscussion)}
-          type="button"
-        >
-          <span className="field-label">Discussion</span>
-          {unseenCount > 0 && (
-            <span aria-label={`${unseenCount} unread`} className="discussion-unseen">{unseenCount}</span>
-          )}
-        </button>
         <button aria-label="Close page" className="icon-button" onClick={() => void close()} type="button">×</button>
       </header>
 
@@ -234,13 +212,25 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
       */}
       <div aria-label="Page halves" className="page-editor-panes" role="group">
         <button aria-pressed={pane === "notes"} className="pane-tab" onClick={() => setPane("notes")} type="button">Notes</button>
-        <button aria-pressed={pane === "discussion"} className="pane-tab" onClick={() => setPane("discussion")} type="button">
+        <button
+          aria-pressed={pane === "aside" && aside === "details"}
+          className="pane-tab"
+          onClick={() => { setPane("aside"); setAside("details"); }}
+          type="button"
+        >
+          Details
+        </button>
+        <button
+          aria-pressed={pane === "aside" && aside === "discussion"}
+          className="pane-tab"
+          onClick={() => { setPane("aside"); setAside("discussion"); }}
+          type="button"
+        >
           Discussion{unseenCount > 0 ? ` · ${unseenCount}` : ""}
         </button>
-        <button aria-pressed={pane === "details"} className="pane-tab" onClick={() => setPane("details")} type="button">Details</button>
       </div>
 
-      <div className="page-editor-split" data-discussion={showingDiscussion ? "open" : "closed"} data-pane={pane}>
+      <div className="page-editor-split" data-pane={pane}>
         <div className="page-editor-main">
           <div className="record-form">
             <label><span>Title</span><input name="title" onChange={(event) => editor.setTitle(event.target.value)} value={editor.title} /></label>
@@ -270,8 +260,50 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
           />
         </div>
 
-        {/* Properties sit beside the writing rather than under it, ordered by how often
-            someone reaches for them. */}
+        {/*
+          One column, two things taking turns in it.
+
+          The properties and the conversation are never read at the same time - nobody weighs
+          an estimate and answers a question in one breath - so they share a column rather
+          than each taking one. That is what keeps the writing column exactly the width it has
+          always been: nothing here resizes, so there is no layout change to travel.
+        */}
+        <div className="page-aside">
+          <div aria-label="What this column shows" className="aside-switch" role="group">
+            <button
+              aria-pressed={aside === "details"}
+              className="pane-tab"
+              onClick={() => setAside("details")}
+              type="button"
+            >
+              Details
+            </button>
+            <button
+              aria-pressed={aside === "discussion"}
+              className="pane-tab"
+              onClick={() => setAside("discussion")}
+              type="button"
+            >
+              Discussion
+              {unseenCount > 0 && (
+                <span aria-label={`${unseenCount} unread`} className="discussion-unseen">{unseenCount}</span>
+              )}
+            </button>
+          </div>
+
+          {aside === "discussion" ? (
+            <DiscussionSection
+              currentUserId={currentUserId}
+              members={members}
+              onAsk={async (body) => { await onAsk(page.id, body); await reloadDiscussion(); }}
+              onReply={async (threadId, body) => { await onReply(page.id, threadId, body); await reloadDiscussion(); }}
+              onSetAnswered={async (threadId, answered) => {
+                await onSetAnswered(page.id, threadId, answered);
+                await reloadDiscussion();
+              }}
+              threads={threads}
+            />
+          ) : (
         <div aria-label="Page properties" className="page-rail">
           <div className="rail-row">
             <span className="field-label">Column</span>
@@ -452,38 +484,7 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
             )}
           </Growing>
         </div>
-
-        {/*
-          The conversation gets a column of its own, past the notes and the properties.
-          A discussion has no length anybody can predict, and the writing column already
-          spends its height on the notes; sharing it meant capping the threads at a few
-          hundred pixels and scrolling them inside a column that was itself scrolling. Its
-          own column has the panel's full height to spend and needs no cap at all.
-
-          It sits after the rail because the notes and the properties are the page - one is
-          what it says, the other is what it is - and a conversation about the page should not
-          come between them. It also means the only track that ever changes width is the last
-          one, so nothing to its left moves when it opens.
-
-          It stays mounted while closed so the split's widths can travel rather than jump,
-          and goes inert so nothing inside a zero-width column can still be tabbed into.
-        */}
-        <div
-          aria-label="Discussion"
-          className="page-discussion-column"
-          inert={!showingDiscussion && pane !== "discussion"}
-        >
-          <DiscussionSection
-            currentUserId={currentUserId}
-            members={members}
-            onAsk={async (body) => { await onAsk(page.id, body); await reloadDiscussion(); }}
-            onReply={async (threadId, body) => { await onReply(page.id, threadId, body); await reloadDiscussion(); }}
-            onSetAnswered={async (threadId, answered) => {
-              await onSetAnswered(page.id, threadId, answered);
-              await reloadDiscussion();
-            }}
-            threads={threads}
-          />
+          )}
         </div>
       </div>
 
