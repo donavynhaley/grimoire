@@ -6,13 +6,16 @@ import { Growing } from "./Growing";
 import { relativeLabel } from "./activity-copy";
 
 /**
- * The conversation on a page, kept visibly apart from the history under it.
+ * The conversation on a page, in a column of its own beside the writing.
  *
  * The history is a trail the system wrote about the page; this is what people said to each
- * other about it. They are different materials, so they read differently: history is flat
- * muted text, and a thread is a raised block on the same surface a board tile uses. That one
- * distinction is the whole visual vocabulary here - no bubbles, no second typeface, nothing
- * that would turn a work board into a chat client.
+ * other about it. Keeping them in separate columns is what tells them apart, which is why a
+ * thread needs no card, border or raised surface of its own - it is a name, a time, and what
+ * was said, ruled off from the next one. No bubbles, no second typeface, nothing that would
+ * turn a work board into a chat client.
+ *
+ * At rest a thread shows only that. Reply and answered are revealed on hover, because seven
+ * open threads meant seven of each standing down a narrow column.
  *
  * A thread carries exactly one piece of state: open, or answered. Answered threads fold away,
  * which is what keeps a page with forty messages on it showing you two. Nothing is deleted to
@@ -26,11 +29,9 @@ type Props = {
   onAsk: (body: string) => Promise<void>;
   onReply: (threadId: string, body: string) => Promise<void>;
   onSetAnswered: (threadId: string, answered: boolean) => Promise<void>;
-  /** Folds the column away for this visit. The next page decides for itself again. */
-  onClose: () => void;
 };
 
-export function DiscussionSection({ threads, members, currentUserId, onAsk, onReply, onSetAnswered, onClose }: Props) {
+export function DiscussionSection({ threads, members, currentUserId, onAsk, onReply, onSetAnswered }: Props) {
   const [showingAnswered, setShowingAnswered] = useState(false);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
 
@@ -39,25 +40,17 @@ export function DiscussionSection({ threads, members, currentUserId, onAsk, onRe
   const shown = showingAnswered ? [...open, ...answered] : open;
 
   /*
-   * A column, not a section: the head and the composer hold their height and the threads take
-   * everything left over. That is what lets the list run as long as the conversation does
-   * without a cap, and it is the whole reason this moved out from under the notes.
+   * A column, not a section: the composer holds its height and the threads take everything
+   * left over. That is what lets the list run as long as the conversation does without a cap,
+   * and it is the whole reason this moved out from under the notes.
+   *
+   * It carries no heading of its own. The control in the panel header already says the word
+   * and the count and is what opens and closes this, and the tab does the same job on a narrow
+   * screen; a heading here would have been the third place on one screen saying "discussion,
+   * six open", with two of them toggling the same thing.
    */
   return (
     <div className="page-discussion">
-      <div className="discussion-head">
-        <span className="field-label">Discussion</span>
-        {open.length > 0 && <span className="discussion-open">{open.length} open</span>}
-        <button
-          aria-label="Close discussion"
-          className="text-button discussion-close"
-          onClick={onClose}
-          type="button"
-        >
-          hide
-        </button>
-      </div>
-
       {threads === null
         ? <p className="empty-dependencies">Reading the discussion...</p>
         : (
@@ -120,10 +113,20 @@ function Thread({ thread, members, currentUserId, replying, onReply, onReplyingC
   return (
     <Growing className={`discussion-thread${yourTurn ? " needs-you" : ""}${answered ? " answered" : ""}`}>
       <Message
+        /*
+         * Both actions in one cluster at the end of the head, revealed together rather than
+         * standing under every thread. Seven open threads meant seven REPLY buttons and seven
+         * MARK ANSWERED down a narrow column, which is more furniture than conversation.
+         */
         action={(
-          <button className="text-button thread-answer" onClick={() => void onSetAnswered(!answered)} type="button">
-            {answered ? "reopen" : "mark answered"}
-          </button>
+          <span className="thread-actions">
+            {!answered && !replying && (
+              <button className="text-button" onClick={() => onReplyingChange(true)} type="button">reply</button>
+            )}
+            <button className="text-button" onClick={() => void onSetAnswered(!answered)} type="button">
+              {answered ? "reopen" : "answered"}
+            </button>
+          </span>
         )}
         members={members}
         message={thread}
@@ -133,19 +136,14 @@ function Thread({ thread, members, currentUserId, replying, onReply, onReplyingC
       {thread.replies.map((message) => (
         <Message key={message.id} members={members} message={message} now={now} reply />
       ))}
-      {answered
-        ? (
-          <p className="thread-settled">
-            Answered{thread.answeredByName ? ` by ${thread.answeredByName}` : ""} {relativeLabel(thread.answeredAt as string, now)}
-          </p>
-        )
-        : replying
-          ? <Composer autoFocus label="Reply" onCancel={() => onReplyingChange(false)} onSubmit={onReply} placeholder="Reply..." reply />
-          : (
-            <button className="text-button thread-reply" onClick={() => onReplyingChange(true)} type="button">
-              reply
-            </button>
-          )}
+      {answered && (
+        <p className="thread-settled">
+          Answered{thread.answeredByName ? ` by ${thread.answeredByName}` : ""} {relativeLabel(thread.answeredAt as string, now)}
+        </p>
+      )}
+      {replying && (
+        <Composer autoFocus label="Reply" onCancel={() => onReplyingChange(false)} onSubmit={onReply} placeholder="Reply..." reply />
+      )}
     </Growing>
   );
 }
@@ -198,9 +196,37 @@ function Composer({ onSubmit, onCancel, placeholder, label, reply, autoFocus }: 
   useEffect(() => {
     const element = field.current;
     if (!element) return;
-    element.style.height = "auto";
+    /*
+     * Zero first, not "auto".
+     *
+     * A textarea sized `auto` inside a grid resolves its height from the row it is in, and
+     * the row is sized from the textarea - so the measurement reads back whatever the box
+     * already was and an empty field settles a hundred pixels tall. Collapsing it to nothing
+     * breaks the circle, and `min-height` in the stylesheet decides the floor.
+     */
+    element.style.height = "0px";
     element.style.height = `${element.scrollHeight}px`;
   }, [value]);
+
+  /*
+   * Measure again whenever the field changes width.
+   *
+   * The column it sits in can be folded away, and a textarea with no width wraps its
+   * placeholder into a dozen lines and pins that height for when the column comes back. The
+   * observer also covers the width travelling as the column opens, which is the same problem
+   * arriving more slowly.
+   */
+  useEffect(() => {
+    const element = field.current;
+    if (!element || typeof ResizeObserver !== "function") return;
+    const observer = new ResizeObserver(() => {
+      if (element.clientWidth === 0) return;
+      element.style.height = "0px";
+      element.style.height = `${element.scrollHeight}px`;
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (autoFocus) field.current?.focus();

@@ -170,8 +170,12 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
   const openThreadCount = threads
     ? threads.filter((thread) => thread.answeredAt === null).length
     : page.openThreads;
-  // Unanswered by default: a page with a question waiting opens with it in view.
-  const showingDiscussion = discussionOpen ?? (threads === null ? page.openThreads > 0 : threads.length > 0);
+  /*
+   * Open when something is actually waiting, not merely when something was once said. A page
+   * whose questions have all been answered has nothing to show but the sentence saying so,
+   * and it should look like the page it looked like before anyone asked.
+   */
+  const showingDiscussion = discussionOpen ?? openThreadCount > 0;
   const otherEditor = otherEditorName(history, currentUserId);
 
   const close = async () => {
@@ -262,7 +266,6 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
             currentUserId={currentUserId}
             members={members}
             onAsk={async (body) => { await onAsk(page.id, body); await reloadDiscussion(); }}
-            onClose={() => setDiscussionOpen(false)}
             onReply={async (threadId, body) => { await onReply(page.id, threadId, body); await reloadDiscussion(); }}
             onSetAnswered={async (threadId, answered) => {
               await onSetAnswered(page.id, threadId, answered);

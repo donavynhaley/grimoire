@@ -137,6 +137,36 @@ describe("the discussion on a page", () => {
     expect(split).toHaveAttribute("data-discussion", "open");
   });
 
+  it("says the word and the count in exactly one place", async () => {
+    const board = boardFixture();
+    mountWith([
+      thread({ authorId: THEM, authorName: "Maren", body: "One?" }),
+      thread({ authorId: THEM, authorName: "Maren", body: "Two?" }),
+    ], board);
+    await openPage(board);
+
+    // The header control is the label, the count, and the way in and out. A heading inside
+    // the column would be a second thing saying the same words and a second way to close it.
+    const toggle = document.querySelector(".discussion-toggle") as HTMLElement;
+    expect(within(toggle).getByText("2 open")).toBeTruthy();
+    expect(within(section()).queryByText("2 open")).toBeNull();
+    expect(within(section()).queryByText(/^Discussion$/)).toBeNull();
+  });
+
+  it("shows a thread's actions only when it is reached for", async () => {
+    const board = boardFixture();
+    mountWith([thread({ authorId: THEM, authorName: "Maren", body: "Whose clock?" })], board);
+    await openPage(board);
+
+    // Both live in one cluster rather than standing under every thread; at rest a thread is
+    // a name, a time, and what was said, and the stylesheet is what reveals them.
+    const actions = document.querySelector(".thread-actions") as HTMLElement;
+    expect(actions).toBeTruthy();
+    expect(within(actions).getByRole("button", { name: "reply" })).toBeTruthy();
+    expect(within(actions).getByRole("button", { name: "answered" })).toBeTruthy();
+    expect(document.querySelectorAll(".discussion-thread > .thread-reply")).toHaveLength(0);
+  });
+
   it("sits beside the history rather than inside it", async () => {
     const board = boardFixture();
     mountWith([thread({ authorId: THEM, authorName: "Maren", body: "Whose clock?" })], board);
@@ -171,7 +201,8 @@ describe("the discussion on a page", () => {
     const user = await openPage(board);
 
     const discussion = section();
-    expect(within(discussion).getByText("1 open")).toBeTruthy();
+    // The count is said once, on the control in the header that opens and closes the column.
+    expect(within(document.querySelector(".discussion-toggle") as HTMLElement).getByText("1 open")).toBeTruthy();
     // The answered one is out of the way until it is asked for - that is what keeps this short.
     expect(within(discussion).queryByText("Settled a while ago")).toBeNull();
 
@@ -278,7 +309,7 @@ describe("the discussion on a page", () => {
     ], board);
     const user = await openPage(board);
 
-    await user.click(within(section()).getByRole("button", { name: "mark answered" }));
+    await user.click(within(section()).getByRole("button", { name: "answered" }));
     const posted = calls.find((call) => call.url.includes("/answered"));
     expect(posted?.url).toContain("/discussion/t-open/answered");
     expect(posted?.body).toEqual({ answered: true });
