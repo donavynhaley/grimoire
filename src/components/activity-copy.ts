@@ -27,6 +27,11 @@ const PAGE_VERBS: Partial<Record<AuditEvent["action"], string>> = {
   promoted: "promoted",
   deleted: "deleted",
   renamed: "renamed",
+  // Discussion reads as something someone did to the page, because that is where it lives.
+  asked: "asked something on",
+  replied: "replied on",
+  answered: "answered a question on",
+  reopened: "reopened a question on",
 };
 
 /**

@@ -1,6 +1,6 @@
 {
   "name": "grimoire-mcp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "description": "An MCP server that lets an agent read and write one Grimoire project over its HTTP API.",
   "keywords": [

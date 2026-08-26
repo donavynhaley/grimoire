@@ -193,7 +193,10 @@ try {
     "grimoire_create_page",
     "grimoire_list_ideas",
     "grimoire_move_page",
+    "grimoire_post_in_discussion",
+    "grimoire_read_discussion",
     "grimoire_read_page",
+    "grimoire_reply_in_discussion",
     "grimoire_search",
     "grimoire_update_page",
   ];
@@ -235,6 +238,61 @@ try {
   const event = activity.body.events.find((candidate) => candidate.entityTitle === "Ward the tower door");
   check("the log names the person", event?.actorName === "Donavyn", String(event?.actorName));
   check("the log names the agent beside them", event?.agentName === "Planning agent", String(event?.agentName));
+
+
+  // ------------------------------------------------------- discussion
+  console.log("\nDiscussion");
+  // A person asks something on the page the agent is working.
+  const pageId = page.id;
+  const asked = await api(`/api/pages/${pageId}/discussion`, {
+    method: "POST",
+    body: JSON.stringify({ body: "Does this need the migration first?" }),
+  });
+  check("a person can open a thread", asked.status === 201, String(asked.status));
+
+  const seen = await callTool("grimoire_read_discussion", { page: "Ward the tower door" });
+  check("the agent reads the discussion", !seen.isError, seen.text);
+  check("an unanswered thread reads as open", seen.text.includes("[OPEN]"), seen.text);
+  check("and carries the question", seen.text.includes("Does this need the migration first?"), seen.text);
+  const threadId = seen.text.match(/id: ([0-9a-f-]{36})/)?.[1];
+  check("the agent is given an id to reply with", Boolean(threadId), seen.text);
+
+  const answered = await callTool("grimoire_reply_in_discussion", {
+    page: "Ward the tower door",
+    thread: threadId,
+    body: "It does. I ran it first and it moved 412 rows.",
+  });
+  check("the agent replies in the thread it was asked in", !answered.isError, answered.text);
+  check("and is told it cannot close the thread", answered.text.includes("person"), answered.text);
+
+  const reported = await callTool("grimoire_post_in_discussion", {
+    page: "Ward the tower door",
+    body: "Deployed to dev. Smoke tests green, nothing needed from you.",
+  });
+  check("the agent can report by opening its own thread", !reported.isError, reported.text);
+
+  const threads = await api(`/api/pages/${pageId}/discussion`);
+  check("Grimoire holds both threads", threads.body.threads.length === 2, String(threads.body.threads.length));
+  const asking = threads.body.threads.find((thread) => thread.body.includes("migration"));
+  check("the reply landed on the right thread", asking?.replies.length === 1, JSON.stringify(asking?.replies));
+  // A token is a delegation: the person stays the author and the agent is named beside them.
+  check("the reply is credited to the person", asking?.replies[0]?.authorName === "Donavyn", String(asking?.replies[0]?.authorName));
+  check("and names the agent beside them", asking?.replies[0]?.agentName === "Planning agent", String(asking?.replies[0]?.agentName));
+  check("both threads are still open", threads.body.threads.every((thread) => thread.answeredAt === null));
+
+  // The judgement that a question is settled is a person's, and no tool offers it.
+  check("no tool can close a thread", !names.some((name) => name.includes("answer") && name !== "grimoire_reply_in_discussion"));
+  const closeAttempt = await fetch(`${baseUrl}/api/pages/${pageId}/discussion/${threadId}/answered`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" },
+    body: JSON.stringify({ answered: true }),
+  });
+  check("and the route itself refuses the credential", closeAttempt.status === 403, String(closeAttempt.status));
+
+  // The notes are the brief; reporting never rewrites them.
+  const afterTalking = await api(`/api/pages/${pageId}`);
+  check("the page's notes are untouched by all of it", afterTalking.body.page.description === page.description);
+  check("and the page reports its open threads", afterTalking.body.page.openThreads === 2, String(afterTalking.body.page.openThreads));
 
   // ------------------------------------------------------------ resolution errors
   console.log("\nRefusing to guess");
@@ -456,7 +514,14 @@ try {
   check(
     "read scope registers exactly the reading tools",
     JSON.stringify(readTools) ===
-      JSON.stringify(["grimoire_board", "grimoire_list_ideas", "grimoire_read_page", "grimoire_search"]),
+      JSON.stringify([
+        "grimoire_board",
+        "grimoire_list_ideas",
+        // Reading what was asked is a read; only saying something back is a write.
+        "grimoire_read_discussion",
+        "grimoire_read_page",
+        "grimoire_search",
+      ]),
     readTools.join(","),
   );
 

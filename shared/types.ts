@@ -311,7 +311,72 @@ export type Page = {
   github: PageGithubLink | null;
   /** What GitHub last said about that link; null when the page has none. */
   githubStatus: PageGithubStatus | null;
+  /**
+   * How many discussion threads on this page are still waiting for an answer.
+   *
+   * Counted rather than stored on the page, because the page is a Markdown file and this is
+   * a fact about the conversation beside it. Zero is the ordinary case, and the board shows
+   * nothing at all for it.
+   */
+  openThreads: number;
+  /**
+   * How many messages on this page the person reading it has not seen yet.
+   *
+   * Private to them, and never their own writing. Zero for a page whose conversation they
+   * have already opened, and everything on it for a page they never have.
+   */
+  unseenMessages: number;
+  /**
+   * How many of those unseen messages named you.
+   *
+   * Always a subset of `unseenMessages`. Somebody writing on a page is news; somebody writing
+   * your name is a different kind of news, and the interface says so differently.
+   */
+  unseenMentions: number;
 };
+
+/**
+ * One thing somebody said on a page.
+ *
+ * A message with no `parentId` opens a thread; every other message answers one. There is no
+ * third level, because a conversation between two people about one page has never needed a
+ * tree and a tree is how a card ends up unreadable.
+ *
+ * `agentName` is set when an agent wrote this on its issuer's behalf, exactly as the activity
+ * log does it: the person stays the author and the agent is named beside them.
+ */
+export type DiscussionMessage = {
+  id: string;
+  authorId: string | null;
+  authorName: string;
+  agentName: string | null;
+  body: string;
+  createdAt: string;
+  /**
+   * The people this message named with an `@`, as account ids.
+   *
+   * Resolved when it was written rather than re-read out of the text, so being renamed does
+   * not change who a message was addressed to. The text keeps whatever was typed: a body is a
+   * quote, and quotes are not rewritten.
+   */
+  mentions: string[];
+};
+
+/**
+ * A question and what came back.
+ *
+ * `answeredAt` is the whole state of a thread. Open means somebody is still waiting; answered
+ * means they are not, and the interface folds it away. Nothing is ever deleted to get there.
+ */
+export type DiscussionThread = DiscussionMessage & {
+  replies: DiscussionMessage[];
+  answeredAt: string | null;
+  answeredById: string | null;
+  answeredByName: string | null;
+};
+
+/** The longest a single message may be. Generous, but not a place to paste a design doc. */
+export const DISCUSSION_BODY_MAX_LENGTH = 4000;
 
 export type BoardWorkspace = {
   project: {
@@ -435,6 +500,10 @@ export const AUDIT_ACTIONS = [
   "invited",
   "joined",
   "removed",
+  "asked",
+  "replied",
+  "answered",
+  "reopened",
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 

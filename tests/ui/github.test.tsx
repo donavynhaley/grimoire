@@ -34,6 +34,8 @@ function mountWith(board: BoardWorkspace, patchStatus = 200, pulls: unknown[] = 
       return response(patchStatus === 200 ? { ok: true } : { error: "no" }, patchStatus);
     }
     if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
+    // The page dialog reads its discussion the same way it reads its history, on every open.
+    if (/^\/api\/pages\/[^/]+\/discussion/.test(url)) return response({ threads: [] });
     if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
     if (url.startsWith("/api/agent-tokens")) return response({ tokens: [] });
     if (url === "/api/github/pulls") return response({ pulls });

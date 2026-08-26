@@ -546,6 +546,63 @@ CREATE TABLE IF NOT EXISTS seen_cursors (
 ${agentTokensTable}
 
 ${projectFieldsTable}
+/*
+ * What people said to each other about a page.
+ *
+ * Deliberately not in the Markdown. A page file is portable and editable outside Grimoire,
+ * and a conversation folded into its body would be rewritten by the first external editor
+ * that touched it. This is the same choice the activity log already makes, and it has the
+ * same consequence: discussion is visible in Grimoire and nowhere else.
+ *
+ * A row with no parent_id opens a thread; every other row answers one. answered_at is the
+ * only state a thread has, and nothing is ever deleted to reach it.
+ */
+CREATE TABLE IF NOT EXISTS page_discussion (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  page_id TEXT NOT NULL,
+  parent_id TEXT REFERENCES page_discussion(id) ON DELETE CASCADE,
+  author_id TEXT REFERENCES users(id),
+  author_name TEXT NOT NULL,
+  agent_token_id TEXT REFERENCES agent_tokens(id),
+  body TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  answered_at TEXT,
+  answered_by TEXT REFERENCES users(id)
+);
+
+/*
+ * Who a message named.
+ *
+ * Resolved once, when it is written, and stored as ids rather than re-read out of the text on
+ * every load. A name in a body is a quote and never changes; who was meant by it is a fact
+ * about an account, and an account can be renamed. Ids are also what a relay to somewhere else
+ * will need, because "@Alan" means nothing to Discord and a user id can be mapped to one.
+ */
+CREATE TABLE IF NOT EXISTS discussion_mentions (
+  message_id TEXT NOT NULL REFERENCES page_discussion(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  PRIMARY KEY (message_id, user_id)
+);
+
+/*
+ * How far each person has read the conversation on each page.
+ *
+ * The same shape as seen_cursors and for the same reason: it is private, it is per person,
+ * and nobody can see how caught up anybody else is. A page with no row here has never been
+ * opened by that person, so everything on it is unseen.
+ *
+ * Time rather than a sequence, because this is scoped to one page rather than to the whole
+ * project's log, and a message carries the moment it was written already.
+ */
+CREATE TABLE IF NOT EXISTS discussion_seen (
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  page_id TEXT NOT NULL,
+  seen_at TEXT NOT NULL,
+  PRIMARY KEY (project_id, user_id, page_id)
+);
+
 CREATE TABLE IF NOT EXISTS github_link_status (
   project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   page_id TEXT NOT NULL,
@@ -559,5 +616,8 @@ CREATE TABLE IF NOT EXISTS github_link_status (
 
 CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token_hash);
 CREATE INDEX IF NOT EXISTS idx_cards_board ON cards(project_id, status, position) WHERE archived_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_discussion_page ON page_discussion(project_id, page_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_discussion_open ON page_discussion(project_id, page_id) WHERE parent_id IS NULL AND answered_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_discussion_mentions_user ON discussion_mentions(user_id);
 ${auditEventsIndexes}
 `;

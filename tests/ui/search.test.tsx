@@ -68,6 +68,8 @@ function stubFetch(board = boardFixture(), search: SearchResults = results) {
     const url = typeof input === "string" ? input : input instanceof URL ? input.pathname + input.search : input.url;
     if (url.startsWith("/api/search")) return response(search);
     if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
+    // The page dialog reads its discussion the same way it reads its history, on every open.
+    if (/^\/api\/pages\/[^/]+\/discussion/.test(url)) return response({ threads: [] });
     if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
     if (url.startsWith("/api/seen")) return response({ ok: true });
     if (url.startsWith("/api/ideas")) return response(ideaFixture());

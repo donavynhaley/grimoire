@@ -104,3 +104,61 @@ test.describe("the page editor holds to one screen", () => {
     expect((await measure(page)).panelScroll).toBeLessThanOrEqual((await measure(page)).panelClient + 1);
   });
 });
+
+/**
+ * The two boxes on this panel that must never grow a scrollbar of their own.
+ *
+ * Both were caught here rather than in the unit suite, because both were a couple of pixels
+ * of box arithmetic and jsdom has no boxes: it reports every height as zero, so a test there
+ * cannot tell a field that fits from one that is two pixels short of its own text.
+ */
+test.describe("nothing on the page editor scrolls that should not", () => {
+  test("the writing column holds its title and notes without scrolling", async ({ page, isMobile }) => {
+    test.skip(Boolean(isMobile), "the desk form only");
+    await seedWordyPage(page, "Ward the tower door");
+    await openBoard(page);
+    await page.getByRole("button", { name: /^Open Ward the tower door/ }).first().click();
+    await expect(page.locator(".page-editor")).toBeVisible();
+
+    const column = await page.locator(".page-editor-main").evaluate((el) => ({
+      scroll: el.scrollHeight,
+      client: el.clientHeight,
+    }));
+    // The notes scroll inside their own box; the column around them never does.
+    expect(column.scroll).toBeLessThanOrEqual(column.client);
+  });
+
+  test("the composer is exactly as tall as what is written in it", async ({ page, isMobile }) => {
+    test.skip(Boolean(isMobile), "the desk form only");
+    await signIn(page);
+    const created = await page.request.post("/api/pages", {
+      data: { title: "Hold the circle", status: "ready" },
+    });
+    expect(created.ok()).toBe(true);
+    await openBoard(page);
+    await page.getByRole("button", { name: /^Open Hold the circle/ }).first().click();
+    await page.locator(".aside-switch .pane-tab", { hasText: "Discussion" }).click();
+
+    const field = page.locator(".discussion-composer textarea").first();
+    await expect(field).toBeVisible();
+
+    const fits = () => field.evaluate((el) => ({ scroll: el.scrollHeight, client: el.clientHeight }));
+
+    // Empty: `scrollHeight` counts padding and content, and the height it is assigned to has
+    // to hold the borders as well, so getting this wrong scrolls a field nobody has typed in.
+    const empty = await fits();
+    expect(empty.scroll).toBeLessThanOrEqual(empty.client);
+
+    await field.click();
+    await field.type("one line");
+    const one = await fits();
+    expect(one.scroll).toBeLessThanOrEqual(one.client);
+
+    await page.keyboard.press("Shift+Enter");
+    await field.type("and a second");
+    const two = await fits();
+    expect(two.scroll).toBeLessThanOrEqual(two.client);
+    // It really did grow rather than stay put and hide the second line.
+    expect(two.client).toBeGreaterThan(one.client);
+  });
+});

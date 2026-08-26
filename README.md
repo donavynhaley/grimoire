@@ -175,6 +175,49 @@ Teammates with the project open are ringed in green on the people filter bar and
 Presence is deliberately absent from the header, where it would mostly report the signed-in person back to themselves.
 It follows the live connection itself, so it clears as soon as someone closes the tab or loses their network.
 
+## Discussion
+
+Every page carries a discussion, and it is not the same thing as its history.
+
+The history is derived: the system wrote it, it is about the page, and it belongs to nobody.
+A discussion message is authored, is addressed to somebody, and is finished only once it has been answered.
+Putting them in one list would bury what somebody said under the column moves around it, and leave a page with a conversation on it reading like a changelog.
+So discussion takes turns with the page's properties in the second column, rather than adding a third.
+Nobody weighs an estimate and answers a question in the same breath, and giving the two of them one column between them is what keeps the writing column exactly the width it has always been.
+A switch at the top of that column says which of them is showing, and it starts on the properties: a page opens on what it is, not on what was said about it.
+
+Nothing resizes when it swaps, so there is no layout change to travel and no third track to hold open at zero width - which is the whole reason this shape is simpler than a column that folds.
+Threads inside it need no card or border, because the column is what tells them apart from the history in the writing column; a thread is a name, a time, and what was said, ruled off from the next one.
+Reply and answered are revealed on hover, so a page carrying nine open threads is nine questions rather than nine questions and eighteen buttons.
+
+A message with no parent opens a **thread**; every other message answers one.
+There is no third level: one indent is enough for a team talking about one page, and a second turns a thread into a tree nobody scans.
+
+A thread has exactly one piece of state - **open**, or **answered** - and that state is what keeps the surface small.
+Answered threads fold behind a count, so a page with forty messages on it still shows the two that are live.
+Nothing is deleted to get there, and reopening a thread costs one click and leaves a line in the history.
+
+Writing `@` and somebody's name addresses them.
+The people on the project are offered as the name is typed, and choosing one writes it into the message; who was meant is resolved once, when the message is written, and stored as an account id beside it.
+The text keeps whatever was typed, because a body is a quote and quotes are not rewritten - but being renamed never changes who a message was addressed to, and an id is also what a relay to somewhere else would need, since `@Alan` means nothing to Discord and an account can be mapped to one.
+Your own name is filled in where it appears; everybody else's is only marked enough to read as addressed.
+
+It is a discussion and nothing more.
+Nothing here works out whose turn it is or marks a thread as owing somebody an answer: two people talking about one page do not need to be told who should speak next, and saying so on every other thread turns reading a page into being chased.
+Replying does not close anything either, because saying something and having said enough are different claims and only the second is a thread's state.
+
+A board tile shows how many threads on a page are still open, and shows nothing at all when none are.
+
+The switch that turns to it counts something different: **how many messages you have not read**, and says whether any of them named you.
+An open thread you have already read is not news, and a reply to a question you asked is, even though it closed nothing - so the number that decides whether to look now is the unread one, and resolved-ness is left to the tile.
+Your own writing never counts, a page you have never opened counts everything on it, and turning the column to the conversation is what marks it read.
+Like every other seen marker here it is private: it moves your count and nobody else's, and tells nobody how caught up you are.
+The number is what is new; the accent on it is that some of it was addressed to you.
+
+Discussion lives in SQLite beside the activity log rather than in the page's Markdown.
+A page file is portable and editable outside Grimoire, and a conversation folded into its body would be rewritten by the first external editor that touched it.
+That is the same choice the activity log already makes, and it has the same consequence: discussion is visible in Grimoire and nowhere else, including inside an Obsidian vault.
+
 ## While you were away
 
 Opening a project after time away starts with a digest strip above the board: at most five human sentences describing what teammates changed, with the changes about you - new assignments and blockers that resolved - always first.
@@ -239,6 +282,9 @@ Nothing is ever assigned to an agent, because an assignee is the person responsi
 An agent never appears in the people filter, the Team section, or presence, because presence follows an open connection and an agent holds none.
 
 An agent may create and edit pages and ideas, place a page into an existing chapter, and read the board, search, and its issuer's activity log.
+It may also read the discussion on any page and write in it, which is how an agent is meant to report: what it did, what it found, and what it needs decided go into a thread rather than into the notes, because the notes are the brief a person wrote for the work and rewriting them destroys what the agent was working from.
+An open thread is how an agent asks a person something and is seen to be waiting.
+It may never mark a thread answered - that judgement is a person's, and an agent that could close the question it raised could report its own work settled.
 It may never archive, restore, promote an idea, manage chapters or categories, invite or remove anyone, change the project, or touch an account.
 The rule is that an agent adds and refines, and only a person destroys or restructures, which keeps a mistaken or runaway agent a mess rather than a catastrophe.
 A credential can also be issued read-only, its writes are rate limited so a loop stays interruptible, and revoking it stops the agent immediately while leaving everything it already wrote correctly attributed.

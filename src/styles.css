@@ -2078,9 +2078,31 @@ textarea:hover { border-color: var(--border-bright); }
   grid-template-columns: 1.25rem minmax(0, 1fr) auto;
   gap: 0.5625rem;
 }
-.page-history li > span { display: grid; gap: 0.3125rem; color: var(--muted); font-size: 0.5625rem; line-height: 1.5; }
+/*
+ * A size the record can actually be read at.
+ *
+ * It had been sized as a footnote - nine pixels for the sentence and seven for the time - which
+ * is small enough that opening the fold told you there was a history rather than what was in
+ * it. Everything here moves up together so the entry, its time and its changed fields keep
+ * their order of importance, and it stays a step under the conversation, which is the thing on
+ * this panel meant to be read rather than consulted.
+ */
+.page-history li > span { display: grid; gap: 0.3125rem; color: var(--muted); font-size: 0.6875rem; line-height: 1.55; }
 .page-history strong { color: var(--text); font-weight: 700; }
-.page-history time { padding-top: 0.125rem; color: var(--faint); font-size: 0.4375rem; white-space: nowrap; }
+.page-history time { padding-top: 0.1875rem; color: var(--faint); font-size: 0.5625rem; white-space: nowrap; }
+.page-history .activity-changes > span { font-size: 0.5rem; padding: 0.1875rem 0.5rem; }
+.page-history .empty-dependencies { font-size: 0.6875rem; }
+/* The fold's own line, scoped so every other label in the product keeps its size. */
+.page-history .field-label { font-size: 0.6875rem; }
+/*
+ * A line tall enough for the mark in it.
+ *
+ * At `line-height: 1` a twelve-pixel caret draws a fourteen-pixel glyph, so the box overflowed
+ * by two - which the toggle passed up to the section, and the section to the writing column,
+ * and that column scrolls. One pixel of rounding is all it takes to put a scrollbar beside
+ * the notes.
+ */
+.page-history .history-caret { width: 0.6875rem; font-size: 0.75rem; line-height: 1.25; }
 .history-reopen {
   min-width: 4.5rem;
   color: var(--faint);
@@ -3837,7 +3859,11 @@ textarea:hover { border-color: var(--border-bright); }
  */
 .page-editor {
   display: flex;
-  width: min(78rem, 100%);
+  /*
+   * Wider than the rest of the dialogs, because this is the only one with two columns in it
+   * and the writing wants every pixel the second column is not using.
+   */
+  width: min(82rem, 100%);
   flex-direction: column;
   overflow: hidden;
 }
@@ -3846,9 +3872,19 @@ textarea:hover { border-color: var(--border-bright); }
 /* The furniture holds its size; only the split in the middle gives and takes. */
 .page-editor > .dialog-header,
 .page-editor > .page-editor-panes,
+.page-editor > .page-history,
 .page-editor > .autosave-state,
 .page-editor > .conflict-bar,
 .page-editor > .dialog-footer { flex: none; }
+/*
+ * The record sits in the band under the two columns rather than at the foot of one of them.
+ *
+ * It is the page's history and not the notes', and down here it is no longer a fixed thing
+ * the writing column has to shrink for - the column holds a title and the notes, and nothing
+ * else can push it into scrolling. Opening it still takes its room from the notes, because
+ * the split gives way first; that has not changed, only where it is written.
+ */
+.page-editor > .page-history { margin-top: 0.875rem; padding-top: 0; border-top: 0; }
 .page-editor > .dialog-header { margin-bottom: 1.125rem; }
 /* The line answers for the notes above it, so it keeps to their edge rather than the panel's. */
 .page-editor > .autosave-state { margin-top: 0.75rem; align-self: flex-end; }
@@ -3885,12 +3921,28 @@ textarea:hover { border-color: var(--border-bright); }
 .pane-tab:hover { color: var(--text); }
 .pane-tab[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); }
 
+/*
+ * Two tracks, and neither of them ever changes width.
+ *
+ * The properties and the conversation take turns in the second one rather than each taking a
+ * column, because they are never read at the same time. Nothing here resizes, so there is no
+ * layout change to travel and no track list to interpolate - which is the whole reason this
+ * shape is simpler than the one before it.
+ */
 .page-editor-split {
   display: grid;
   min-height: 0;
   flex: 1 1 auto;
-  grid-template-columns: minmax(0, 1fr) 20rem;
-  gap: 2rem;
+  /*
+   * The second column meets the writing halfway.
+   *
+   * Twenty rem was too narrow to read a conversation in and twenty-five spent more of the
+   * panel on it than a column of short messages needs. This is the middle, and the writing
+   * takes everything else - which is the right way round, because the notes are what the page
+   * is and the column beside them is what is being said about it.
+   */
+  grid-template-columns: minmax(0, 1fr) 22.5rem;
+  gap: 0;
 }
 
 /*
@@ -3913,7 +3965,15 @@ textarea:hover { border-color: var(--border-bright); }
 }
 .page-editor-main > * { flex: none; }
 .page-editor-main > .notes-field { min-height: 8rem; flex: 1 1 auto; }
-.page-editor-main > .dialog-section { margin-top: 0; }
+/*
+ * The folded sections in the writing column carry no rule above them.
+ *
+ * A disclosure that is shut is already a line of its own - a caret, a label, and nothing else -
+ * and drawing a rule above it fences off a row that is mostly empty. Taking the rule and the
+ * padding with it hands twenty-one pixels back to the notes, which is the thing on this panel
+ * that can always use them.
+ */
+.page-editor-main > .dialog-section { margin-top: 0; padding-top: 0; border-top: 0; }
 /*
  * History opens by taking room from the notes, because that is the only room the panel has
  * to give. The list is capped and scrolls so a busy page cannot push the writing off it.
@@ -3931,16 +3991,65 @@ textarea:hover { border-color: var(--border-bright); }
  * carries more properties than the panel is tall, which is what keeps the panel's own
  * height a promise rather than a hope.
  */
+/*
+ * The column the properties and the conversation share.
+ *
+ * No rule down its edge. One ran the full height of the panel, which is right where the
+ * conversation is - it fills that height - and wrong where the properties are, because they
+ * stop two thirds of the way up and the line carried on into four hundred pixels of nothing.
+ *
+ * Nothing was needed there anyway: the switch is a bordered box the width of the column, and
+ * a box says "this is a column" more plainly than a line beside it ever did. What is left is
+ * the space, which is the same either way, and never trails off past anything.
+ */
+.page-aside {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  gap: 0.875rem;
+  /*
+   * Close to the writing rather than held off from it. The two columns are one panel and the
+   * space between them only has to say they are two things, which at this width it does; the
+   * three and a bit rem it used to be was inherited from a rule that no longer exists and was
+   * keeping them apart for a line that is not there any more.
+   */
+  margin-left: 1.375rem;
+  /*
+   * Dropped to the height of the Title label and the gap under it, so the switch starts on
+   * the same line as the box you type the title into rather than on the line above it. The
+   * writing column's first thing is a label; this column's first thing is a control, and two
+   * columns whose contents start at different heights read as a mistake.
+   */
+  padding-top: calc(0.75rem + 0.4375rem);
+}
+.aside-switch {
+  display: flex;
+  flex: none;
+  padding: 0.1875rem;
+  gap: 0.1875rem;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+.aside-switch .pane-tab { display: flex; align-items: center; justify-content: center; gap: 0.4375rem; }
+
 .page-rail {
   display: grid;
   min-width: 0;
   min-height: 0;
-  padding-left: 1.375rem;
+  flex: 1 1 auto;
   align-content: start;
   overflow-y: auto;
   overscroll-behavior: contain;
-  border-left: 1px solid var(--border);
 }
+/*
+ * One property per row, ruled off from the next.
+ *
+ * The first and last rows drop the padding and the rule they would otherwise put against the
+ * top and bottom of the column, so the list sits flush inside it rather than floating with a
+ * half-row of air at each end.
+ */
 .rail-row {
   display: grid;
   padding: 0.875rem 0;
@@ -3949,7 +4058,6 @@ textarea:hover { border-color: var(--border-bright); }
 }
 .rail-row:first-child { padding-top: 0; }
 .rail-row:last-child { padding-bottom: 0; border-bottom: 0; }
-
 .page-rail .choice-grid { gap: 0.3125rem; }
 .page-rail .choice {
   min-height: 1.75rem;
@@ -4038,10 +4146,16 @@ textarea:hover { border-color: var(--border-bright); }
  */
 @media (max-width: 900px) {
   .page-editor-panes { display: flex; }
-  .page-editor-split { grid-template-columns: minmax(0, 1fr); gap: 0; }
-  .page-editor-split[data-pane="notes"] .page-rail,
-  .page-editor-split[data-pane="details"] .page-editor-main { display: none; }
-  .page-rail { padding-left: 0; border-left: 0; }
+  /*
+   * One pane at a time, so the tab strip is what chooses and the widths stop mattering. It
+   * offers all three, which is why the switch inside the column is redundant down here.
+   */
+  .page-editor-split { grid-template-columns: minmax(0, 1fr); }
+  .page-editor-split[data-pane="notes"] > .page-aside,
+  .page-editor-split[data-pane="aside"] > .page-editor-main { display: none; }
+  /* Stacked, there is no title beside it to line up with. */
+  .page-aside { margin-left: 0; padding-top: 0; }
+  .aside-switch { display: none; }
 }
 
 /*
@@ -4051,4 +4165,260 @@ textarea:hover { border-color: var(--border-bright); }
 @media (max-width: 620px) {
   .page-rail .choice-grid { display: flex; flex-wrap: wrap; gap: 0.375rem; }
   .page-rail .status-choices .choice { flex: 1 1 46%; }
+}
+
+/*
+ * The conversation on a page.
+ *
+ * It began as a section under the notes and did not survive contact with a real page: a
+ * discussion has no length anybody can predict, the writing column already spends its height
+ * on the notes, and sharing it meant capping the threads and scrolling them inside a column
+ * that was itself scrolling. It shares the second column with the properties instead, taking
+ * turns with them, and the composer holds its height while the threads take the rest.
+ *
+ * A thread needs no card, border or raised surface: the column is what tells it apart from
+ * the history in the writing column. A name, a time, and what was said, ruled off from the
+ * next one - no bubbles, no second typeface.
+ */
+.page-discussion {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+.discussion-open { color: var(--accent); font-size: 0.5rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
+/*
+ * How much of this conversation you have not read.
+ *
+ * A count rather than a dot, because "three" and "eleven" are different decisions about
+ * whether to open it now. It is absent at zero: a page you are caught up on says nothing.
+ */
+.discussion-unseen {
+  display: inline-grid;
+  min-width: 1.0625rem;
+  height: 1.0625rem;
+  padding: 0 0.25rem;
+  place-items: center;
+  border-radius: 62.4375rem;
+  font-size: 0.4375rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The one thing in the column allowed to scroll, and the only thing that needs to. */
+.discussion-threads {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0.4375rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Room for the blocks to sit clear of the scrollbar. */
+  padding-right: 0.25rem;
+}
+/*
+ * Each thread is exactly as tall as what it holds.
+ *
+ * A grid here sized every row the same and clipped whatever did not fit, which hid replies
+ * and cut sentences in half - the list has a definite height from the column, and auto rows
+ * in a definite-height grid do not mean "as tall as the content" the way a flex column does.
+ */
+.discussion-threads > * { flex: none; }
+/* Answered threads live at the foot of the list, behind the count that summons them. */
+.discussion-fold {
+  margin-top: 0.375rem;
+  padding: 0.375rem 0;
+  align-self: flex-start;
+  font-size: 0.5625rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/*
+ * A thread is a run of messages separated from the next by a rule, and nothing else.
+ *
+ * It began as a raised card, which was the right idea while the conversation sat under the
+ * notes and had to be told apart from the history beneath it. Its own column does that job
+ * now, so the card was doing nothing but drawing seven boxes down a narrow panel. What is
+ * left is the reading: a name, a time, and what was said.
+ */
+.discussion-thread { padding: 0.125rem 0 0.75rem; }
+.discussion-thread + .discussion-thread { border-top: 1px solid var(--border); padding-top: 0.875rem; }
+/* An answered thread is still readable, just no longer asking for anything. */
+.discussion-thread.answered .message-body { color: var(--muted); }
+
+.discussion-message { display: grid; padding: 0.4375rem 0; gap: 0.375rem; }
+/*
+ * A reply indents once and never again. One level is enough for two people talking about one
+ * page, and a second would turn a thread into a tree nobody can scan. The rule down its left
+ * is what says it belongs to the message above rather than standing on its own.
+ */
+.discussion-message.reply {
+  margin-left: 0.5rem;
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--border);
+}
+
+.message-head { display: flex; min-width: 0; align-items: center; gap: 0.4375rem; flex-wrap: wrap; }
+.message-who { color: var(--text); font-size: 0.6875rem; font-weight: 700; }
+.message-head time { color: var(--faint); font-size: 0.5625rem; white-space: nowrap; }
+.message-head .via-agent { font-size: 0.625rem; }
+/*
+ * What a thread lets you do, kept out of the way until it is wanted.
+ *
+ * At rest a thread shows who, when, and what was said, and nothing else. Seven open threads
+ * meant seven REPLY buttons and seven MARK ANSWERED down a narrow column - more furniture
+ * than conversation. They hold their place in the row either way, so revealing them never
+ * moves the name beside them.
+ */
+.thread-actions {
+  display: flex;
+  margin-left: auto;
+  flex: none;
+  gap: 0.625rem;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.thread-actions .text-button {
+  color: var(--faint);
+  font-size: 0.5rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.thread-actions .text-button:hover { color: var(--text); }
+.discussion-thread:hover .thread-actions,
+.discussion-thread:focus-within .thread-actions { opacity: 1; }
+/* Never hidden from a pointer that cannot hover. */
+@media (hover: none) {
+  .thread-actions { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .thread-actions { transition: none; }
+}
+.message-body { margin: 0; color: var(--text); font-size: 0.8125rem; line-height: 1.6; overflow-wrap: anywhere; white-space: pre-wrap; }
+.thread-settled { margin: 0; padding: 0.375rem 0 0; color: var(--faint); font-size: 0.5625rem; }
+
+/*
+ * Writing something. Pinned to the foot of the column, so it is in the same place whether the
+ * conversation is one thread or thirty.
+ */
+.discussion-composer { display: grid; flex: none; gap: 0.375rem; }
+.discussion-composer.reply { padding: 0.375rem 0 0; }
+.discussion-composer textarea {
+  min-height: 2.125rem;
+  max-height: 9rem;
+  padding: 0.625rem 0.75rem;
+  color: var(--text);
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 0.4375rem;
+  font: inherit;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  resize: none;
+}
+/*
+ * Hover and focus are the ones every other field in the product has.
+ *
+ * This had an outline of its own - a dim hairline drawn inside the border - which meant the
+ * one field you are asked to type in was the only one that did not light up when you clicked
+ * it. The rules for `input, textarea` already say what a field does; there was nothing here
+ * worth saying differently.
+ */
+.composer-tools { display: flex; align-items: center; justify-content: flex-end; gap: 0.75rem; }
+
+/* On a tile, an open thread wears the same quiet pill everything else on a tile wears. */
+.discussion-pill {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 1.0625rem;
+  padding: 0 0.375rem;
+  align-items: center;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid #465f3c;
+  border-radius: 62.4375rem;
+  font-size: 0.4375rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/*
+ * Somebody's name, written into a message.
+ *
+ * Quiet for anybody else's name - it is only there so the sentence reads as addressed - and
+ * filled when it is yours, because that is the moment this is worth noticing. This is the one
+ * place the conversation says anything is about you, and it says it because a person typed it
+ * rather than because a rule worked it out.
+ */
+.mention {
+  color: var(--accent);
+  font-weight: 700;
+}
+.mention.you {
+  padding: 0.0625rem 0.25rem;
+  margin: 0 -0.0625rem;
+  color: #182016;
+  background: var(--accent);
+  border-radius: 0.25rem;
+}
+
+/* Something new is a quiet number; somebody naming you earns the accent. */
+.discussion-unseen:not(.named) {
+  color: var(--muted);
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+}
+.discussion-unseen.named {
+  color: #182016;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/*
+ * Picking a name while writing one.
+ *
+ * It sits above the field rather than below it, because the field is at the foot of the
+ * column and there is nothing below it to open into.
+ */
+.discussion-composer { position: relative; }
+.mention-picker {
+  position: absolute;
+  bottom: calc(100% + 0.3125rem);
+  left: 0;
+  right: 0;
+  z-index: 6;
+  display: grid;
+  margin: 0;
+  padding: 0.25rem;
+  gap: 0.125rem;
+  list-style: none;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-bright);
+  border-radius: 0.5rem;
+  box-shadow: 0 1rem 2rem rgb(0 0 0 / 55%);
+  animation: capture-tools-in 140ms ease-out;
+}
+.mention-option {
+  display: flex;
+  width: 100%;
+  min-height: 1.875rem;
+  padding: 0 0.5rem;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 0.375rem;
+  font: inherit;
+  font-size: 0.6875rem;
+  text-align: left;
+  cursor: pointer;
+}
+.mention-option.on,
+.mention-option:hover { color: var(--accent); background: var(--accent-soft); }
+@media (prefers-reduced-motion: reduce) {
+  .mention-picker { animation: none; }
 }

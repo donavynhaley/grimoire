@@ -1,5 +1,5 @@
 import { type FormEvent, Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { type AuditPage, type AwayState, type BoardWorkspace, type Page, type PageStatus, type IdeaState, type IdeaWorkspace, type ProjectRole } from "../../shared/types";
+import { type AuditPage, type AwayState, type BoardWorkspace, type DiscussionThread, type Page, type PageStatus, type IdeaState, type IdeaWorkspace, type ProjectRole } from "../../shared/types";
 import { AccountDialog } from "./AccountDialog";
 import { ActivityDialog } from "./ActivityDialog";
 import { Avatar } from "./Avatar";
@@ -66,6 +66,11 @@ type Props = {
   onCreateInvite: () => Promise<string>;
   onCreateIdea: (input: { title: string }) => Promise<void>;
   onLoadActivity: (options: { entityId?: string; before?: number; limit?: number }) => Promise<AuditPage>;
+  onLoadDiscussion: (pageId: string) => Promise<{ threads: DiscussionThread[] }>;
+  onAsk: (pageId: string, body: string) => Promise<void>;
+  onReply: (pageId: string, threadId: string, body: string) => Promise<void>;
+  onSetAnswered: (pageId: string, threadId: string, answered: boolean) => Promise<void>;
+  onSeeDiscussion: (pageId: string) => Promise<void>;
   onChangeAvatar: (file: File) => Promise<void>;
   onChangeName: (name: string) => Promise<void>;
   onChangePassword: (currentPassword: string, newPassword: string) => Promise<void>;
@@ -82,7 +87,7 @@ type Props = {
   onViewChange: (view: "work" | "ideas") => Promise<void>;
 };
 
-export function Board({ away, board, busy, categoryActions, chapterActions, fieldActions, ideas, online, projectActions, projectSettingsActions, revision, view, onCreate, onUpdate, onArchive, onAddMember, onCreateInvite, onCreateIdea, onChangeAvatar, onChangeName, onChangePassword, onLoadActivity, onLogout, onMoveBacklogToNext, onPromoteIdea, onRemoveAvatar, onChangeMemberRole, onRemoveMember, onRestorePage, onSurfaceError, onUpdateIdea, onViewChange }: Props) {
+export function Board({ away, board, busy, categoryActions, chapterActions, fieldActions, ideas, online, projectActions, projectSettingsActions, revision, view, onCreate, onUpdate, onArchive, onAddMember, onCreateInvite, onCreateIdea, onChangeAvatar, onChangeName, onChangePassword, onLoadActivity, onLoadDiscussion, onAsk, onReply, onSetAnswered, onSeeDiscussion, onLogout, onMoveBacklogToNext, onPromoteIdea, onRemoveAvatar, onChangeMemberRole, onRemoveMember, onRestorePage, onSurfaceError, onUpdateIdea, onViewChange }: Props) {
   const [addingTo, setAddingTo] = useState<PageStatus | null>(null);
   const [columnTitle, setColumnTitle] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -824,11 +829,24 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
                           onClick={() => { if (!pointerDrag.consumeClick()) setSelectedId(page.id); }}
                           type="button"
                         >
-                          {(page.category || blockers.length > 0 || page.github || (board.project.estimatesEnabled && page.estimate !== null)) && <span className="page-signals">
+                          {(page.category || blockers.length > 0 || page.github || page.openThreads > 0 || (board.project.estimatesEnabled && page.estimate !== null)) && <span className="page-signals">
                             {page.category && <span className="category-pill">{categoryName(page.category)}</span>}
                             {blockers.length > 0 && <span className="page-blocked">blocked by {blockers.length}</span>}
                             {board.project.estimatesEnabled && page.estimate !== null && (
                               <span className="estimate-pill" title={`Estimated at ${page.estimate}`}>{page.estimate}</span>
+                            )}
+                            {/*
+                              Only unanswered threads are worth a tile: a page whose questions
+                              have all been answered looks exactly as it did before anyone
+                              asked one.
+                            */}
+                            {page.openThreads > 0 && (
+                              <span
+                                className="discussion-pill"
+                                title={page.openThreads === 1 ? "1 open thread" : `${page.openThreads} open threads`}
+                              >
+                                {page.openThreads} open
+                              </span>
                             )}
                             {page.github && (
                               <span className={`github-pill github-state-${page.githubStatus?.state ?? "unchecked"}`}>
@@ -929,6 +947,11 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
           onArchive={async () => { await onArchive(selectedPage.id); setSelectedId(null); }}
           onClose={() => setSelectedId(null)}
           onLoadActivity={onLoadActivity}
+          onLoadDiscussion={onLoadDiscussion}
+          onAsk={onAsk}
+          onReply={onReply}
+          onSetAnswered={onSetAnswered}
+          onSeeDiscussion={onSeeDiscussion}
           onUpdate={(input) => onUpdate(selectedPage.id, input)}
         />
       )}

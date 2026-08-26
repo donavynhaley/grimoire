@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { ConflictError, GrimoireClient, GrimoireError, type Board, type Page } from "./client.js";
+import { ConflictError, GrimoireClient, GrimoireError, type Board, type DiscussionThread, type Page } from "./client.js";
 import {
   ResolutionError,
   categoryName,
@@ -57,7 +57,7 @@ export type ServerOptions = {
 export function createServer(client: GrimoireClient, options: ServerOptions = {}): McpServer {
   const writable = options.scope !== "read";
   const server = new McpServer(
-    { name: "grimoire", version: "0.2.0" },
+    { name: "grimoire", version: "0.3.0" },
     {
       instructions:
         "Grimoire is a small collaborative work board. A unit of work is a page, and pages sit " +
@@ -67,7 +67,18 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
         (writable
           ? "A project may also define its own fields - a priority, an estimate, whatever it " +
             "tracks - and you can fill those in on any page. You can create and edit pages and " +
-            "ideas, and place a page into an existing chapter or take it out of one. When a page " +
+            "ideas, and place a page into an existing chapter or take it out of one. " +
+            "Every page also has a discussion beside it, and that is where you report: post " +
+            "what you did, what you found, and what you need decided with " +
+            "grimoire_post_in_discussion rather than writing it into the notes, because the " +
+            "notes are the brief somebody wrote for the work and rewriting them destroys what " +
+            "you were working from. Read grimoire_read_discussion before you start on a page " +
+            "and again before you finish: an open thread is a question a person is waiting on " +
+            "you for, and it appears nowhere in the page itself. Answer one in the thread it " +
+            "was asked in with grimoire_reply_in_discussion. You cannot mark a thread " +
+            "answered - that is a person's judgement, and an agent that could close its own " +
+            "question could report its own work settled. " +
+            "When a page " +
             "is delivered by a pull request, tie the two together with grimoire_update_page's " +
             "github argument rather than writing the link into the notes: Grimoire tracks it from " +
             "there, and the page moves itself into Review when the pull request opens and into " +
@@ -77,9 +88,10 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
             "too. Those are deliberately left to a person. Before rewriting a page's title or " +
             "notes, read them with grimoire_read_page and pass what you read as expectedTitle or " +
             "expectedNotes."
-          : "This credential is read-only: you can read the board, search, and list ideas, and " +
-            "nothing here can write. Ask the project owner for a write-scoped credential if " +
-            "this agent should create or edit work."),
+        : "This credential is read-only: you can read the board, search, list ideas, and read " +
+            "the discussion on any page, and nothing here can write. Ask the project owner for " +
+            "a write-scoped credential if this agent should create or edit work, or report in " +
+            "a page's discussion."),
     },
   );
 
@@ -189,6 +201,41 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
     },
   );
 
+
+  server.registerTool(
+    "grimoire_read_discussion",
+    {
+      title: "Read the discussion on a page",
+      description:
+        "Everything people have said about one page, thread by thread, with what is still " +
+        "open and what has been answered, and who each message named with an @. Read this before you start work on a page and " +
+        "again before you report on it: an open thread is a question somebody is waiting on " +
+        "you for, and it will not appear in the page's notes. Answer one with " +
+        "grimoire_reply_in_discussion.",
+      inputSchema: {
+        page: z.string().min(1).describe("The page id, or its exact title."),
+      },
+    },
+    async ({ page }) => {
+      try {
+        const board = await client.board();
+        const target = resolvePage(board, page);
+        const { threads } = await client.discussion(target.id);
+        if (threads.length === 0) return text(`Nothing has been said on "${target.title}" yet.`);
+        const open = threads.filter((thread) => thread.answeredAt === null);
+        const answered = threads.filter((thread) => thread.answeredAt !== null);
+        const lines = [
+          `# Discussion on ${target.title}`,
+          `${open.length} open, ${answered.length} answered.`,
+          "",
+          ...threads.map(describeThread),
+        ];
+        return text(lines.join("\n"));
+      } catch (error) {
+        return failure(error);
+      }
+    },
+  );
 
   if (!writable) return server;
 
@@ -395,6 +442,87 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
     },
   );
 
+  server.registerTool(
+    "grimoire_post_in_discussion",
+    {
+      title: "Say something on a page",
+      description:
+        "Opens a thread on a page. This is how you report: what you did, what you found, what " +
+        "you need decided, what you are about to do. Use it in preference to editing the " +
+        "notes - the notes are the brief somebody wrote for this work, and rewriting them to " +
+        "say what you did destroys the thing you were working from. A thread stays open until " +
+        "a person marks it answered, so raising a question here means somebody will see that " +
+        "you are waiting. Write it as one message a teammate could act on, not a log.",
+      inputSchema: {
+        page: z.string().min(1).describe("The page id, or its exact title."),
+        body: z
+          .string()
+          .trim()
+          .min(1)
+          .max(4000)
+          .describe(
+            "What you want to say. Plain prose; one message, not a transcript. Write @ and " +
+              "somebody's name, exactly as grimoire_board gives it, to address them - Grimoire " +
+              "resolves it and tells them it was for them. Use it when you need a particular " +
+              "person, not on every message.",
+          ),
+      },
+    },
+    async ({ page, body }) => {
+      try {
+        const board = await client.board();
+        const target = resolvePage(board, page);
+        const { thread } = await client.openThread(target.id, body);
+        return text(
+          `Posted on "${target.title}". Thread ${thread.id} is open until a person marks it ` +
+            "answered; you cannot close it yourself.",
+        );
+      } catch (error) {
+        return failure(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "grimoire_reply_in_discussion",
+    {
+      title: "Answer a thread on a page",
+      description:
+        "Replies to a thread somebody opened. Use this when a person asked you something: " +
+        "read the page's discussion first, then answer in the thread the question was asked " +
+        "in rather than opening a new one. Replying does not close the thread - saying " +
+        "something and having said enough are different claims, and only a person decides " +
+        "the second one.",
+      inputSchema: {
+        page: z.string().min(1).describe("The page id, or its exact title."),
+        thread: z.string().min(1).describe("The thread id, from grimoire_read_discussion."),
+        body: z
+          .string()
+          .trim()
+          .min(1)
+          .max(4000)
+          .describe("Your answer. @ and a member's name addresses them, as in a new thread."),
+      },
+    },
+    async ({ page, thread, body }) => {
+      try {
+        const board = await client.board();
+        const target = resolvePage(board, page);
+        const { threads } = await client.discussion(target.id);
+        const known = threads.find((candidate) => candidate.id === thread);
+        if (!known) {
+          throw new Error(
+            `No thread ${thread} on "${target.title}". Call grimoire_read_discussion to see the ` +
+              "threads it has, and pass the id it returns.",
+          );
+        }
+        await client.replyToThread(target.id, thread, body);
+        return text(`Replied on "${target.title}". The thread stays open until a person marks it answered.`);
+      } catch (error) {
+        return failure(error);
+      }
+    },
+  );
   return server;
 }
 
@@ -406,6 +534,25 @@ function isNone(value: string): boolean {
 function isNobody(value: string): boolean {
   const key = value.trim().toLowerCase();
   return isNone(value) || key === "nobody" || key === "unassigned" || key === "no one";
+}
+
+/**
+ * One thread, rendered so an agent can tell at a glance whether it is being waited on.
+ *
+ * The state leads, because it is the only thing that decides whether this thread is the
+ * agent's problem. The id follows it, because replying needs one.
+ */
+function describeThread(thread: DiscussionThread): string {
+  const who = (message: { authorName: string; agentName: string | null }) =>
+    message.agentName ? `${message.authorName} (via ${message.agentName})` : message.authorName;
+  const head = thread.answeredAt
+    ? `- [answered${thread.answeredByName ? ` by ${thread.answeredByName}` : ""}]`
+    : "- [OPEN]";
+  return [
+    `${head} ${who(thread)}: ${thread.body}`,
+    `  id: ${thread.id}`,
+    ...thread.replies.map((reply) => `  ↳ ${who(reply)}: ${reply.body}`),
+  ].join("\n");
 }
 
 function firstLine(value: string): string {

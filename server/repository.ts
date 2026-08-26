@@ -1,5 +1,13 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
+import {
+  openThreadCount,
+  openThreadCounts,
+  unseenCount,
+  unseenCounts,
+  unseenMentionCount,
+  unseenMentionCounts,
+} from "./discussion";
 import { fieldHasOptions,
   fieldTypeSwapAllowed,
   type ChapterVelocity,
@@ -763,6 +771,9 @@ export function getBoard(
   const enabled = Number(project.chapters_enabled ?? 0) === 1;
   const estimatesOn = Number(project.estimates_enabled ?? 0) === 1;
   const githubStatuses = githubStatusesForProject(database, projectId);
+  const openThreads = openThreadCounts(database, projectId);
+  const unseen = unseenCounts(database, projectId, user.id);
+  const mentioned = unseenMentionCounts(database, projectId, user.id);
 
   return {
     project: {
@@ -790,7 +801,7 @@ export function getBoard(
     currentUser: user,
     viewerIsOwner: userOwnsProject(database, user, projectId),
     members,
-    pages: pages.map((page) => publicPage(database, page, members, githubStatuses)),
+    pages: pages.map((page) => publicPage(database, projectId, page, members, githubStatuses, openThreads, { id: user.id, unseen, mentions: mentioned })),
     // Chapters and estimates are separate gates, and velocity is the place they meet: it is
     // an estimate summed per chapter, so it needs both to mean anything.
     velocity: enabled && estimatesOn
@@ -841,6 +852,7 @@ export function findPage(
   if (!stored) return null;
   return publicPage(
     database,
+    projectId,
     stored,
     membersForProject(database, projectId),
     githubStatusesForProject(database, projectId),
@@ -855,7 +867,8 @@ export function listPages(
   const project = projectById(database, projectId);
   if (!project) return [];
   const members = membersForProject(database, projectId);
-  return pageStore.list(String(project.slug)).map((page) => publicPage(database, page, members));
+  const openThreads = openThreadCounts(database, projectId);
+  return pageStore.list(String(project.slug)).map((page) => publicPage(database, projectId, page, members, undefined, openThreads));
 }
 
 type PageInput = {
@@ -916,7 +929,7 @@ export function createPage(
   };
   validateDependencyGraph([...pages, page]);
   pageStore.save(String(project.slug), page);
-  return publicPage(database, page, members);
+  return publicPage(database, projectId, page, members);
 }
 
 export function updatePage(
@@ -934,7 +947,7 @@ export function updatePage(
   const pages = pageStore.list(projectSlug);
   const current = pages.find((page) => page.id === pageId);
   if (!current) return null;
-  requireUnchangedContent(current, input, publicPage(database, current, members), "page");
+  requireUnchangedContent(current, input, publicPage(database, projectId, current, members), "page");
   const assignee = input.assigneeId ? members.find((member) => member.id === input.assigneeId) : null;
   if (input.assigneeId && !assignee) return null;
   if (input.category) requireProjectCategory(database, projectId, input.category);
@@ -965,7 +978,7 @@ export function updatePage(
 
   if (!shouldMove) {
     pageStore.save(projectSlug, updated);
-    return publicPage(database, updated, members);
+    return publicPage(database, projectId, updated, members);
   }
 
   for (const status of PAGE_STATUSES) {
@@ -980,7 +993,7 @@ export function updatePage(
       if (page.id === pageId) updated.position = position;
     });
   }
-  return publicPage(database, updated, members);
+  return publicPage(database, projectId, updated, members);
 }
 
 export function archivePage(
@@ -1058,7 +1071,7 @@ export function restorePage(
     if (page.position !== position) pageStore.save(projectSlug, { ...page, position });
     if (page.id === restored.id) restored.position = position;
   });
-  return publicPage(database, restored, membersForProject(database, projectId));
+  return publicPage(database, projectId, restored, membersForProject(database, projectId));
 }
 
 export function projectById(database: DatabaseSync, projectId: string): Row | undefined {
@@ -1187,9 +1200,18 @@ export function removeProjectMember(
 
 function publicPage(
   database: DatabaseSync,
+  projectId: string,
   value: StoredPage,
   members: Member[],
   githubStatuses?: Map<string, PageGithubStatus>,
+  /*
+   * Counted once for the whole board and handed down, because this is read on every board
+   * load and a project of a few hundred pages should not pay a query per tile. A single page
+   * read on its own counts for itself instead, so it is never quietly wrong.
+   */
+  openThreads?: Map<string, number>,
+  /** Whose unread count this is. Absent where a read is not on anyone's behalf. */
+  reader?: { id: string; unseen?: Map<string, number>; mentions?: Map<string, number> },
 ): Page {
   const assignee = value.assignee
     ? members.find((member) => member.email.toLowerCase() === value.assignee?.toLowerCase())
@@ -1220,6 +1242,19 @@ function publicPage(
     githubStatus: value.github
       ? githubStatuses?.get(value.id) ?? { state: "unchecked", prNumber: null, prTitle: null, prUrl: null, checkedAt: null }
       : null,
+    openThreads: openThreads
+      ? openThreads.get(value.id) ?? 0
+      : openThreadCount(database, projectId, value.id),
+    unseenMessages: reader
+      ? reader.unseen
+        ? reader.unseen.get(value.id) ?? 0
+        : unseenCount(database, projectId, value.id, reader.id)
+      : 0,
+    unseenMentions: reader
+      ? reader.mentions
+        ? reader.mentions.get(value.id) ?? 0
+        : unseenMentionCount(database, projectId, value.id, reader.id)
+      : 0,
   };
 }
 

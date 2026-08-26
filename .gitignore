@@ -10,3 +10,9 @@ data/
 tests/e2e/.data/
 test-results/
 playwright-report/
+
+# Local demo stack (scripts/demo.sh)
+demo-data/
+
+# Screenshots from scripts/shots.mjs
+.shots/

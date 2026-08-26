@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { AwayState, BoardWorkspace, FieldType, PageStatus, IdeaState, IdeaWorkspace, SessionState, User, ProjectRole } from "../shared/types";
-import { activity as loadActivity, ApiError, away as loadAway, board as loadBoard, editConflict, ideas as loadIdeas, liveEventsUrl, markSeen, mutate, request, session, setActiveProjectId, uploadAvatar } from "./api/client";
+import { activity as loadActivity, ApiError, away as loadAway, board as loadBoard, discussion as loadDiscussion, editConflict, ideas as loadIdeas, liveEventsUrl, markDiscussionSeen, markSeen, mutate, openThread, replyToThread, request, session, setActiveProjectId, setThreadAnswered, uploadAvatar } from "./api/client";
 import { AuthScreen } from "./components/AuthScreen";
 import { Board } from "./components/Board";
 import type { CapturePageInput } from "./components/QuickCapture";
@@ -230,6 +230,32 @@ export function App() {
     } catch (error) {
       if (previous && !editConflict(error)) setBoard(previous);
       throw error;
+    }
+  };
+
+  /*
+   * Saying something changes the board as well as the page: the tile carries how many threads
+   * are still open, so every one of these goes through `perform` and refreshes it. The dialog
+   * reloads its own threads on top of that, because the board carries the count and not the
+   * conversation.
+   */
+  const askOnPage = (pageId: string, body: string) =>
+    perform(() => openThread(pageId, body)).then(() => undefined);
+  const replyOnPage = (pageId: string, threadId: string, body: string) =>
+    perform(() => replyToThread(pageId, threadId, body)).then(() => undefined);
+  const answerOnPage = (pageId: string, threadId: string, answered: boolean) =>
+    perform(() => setThreadAnswered(pageId, threadId, answered)).then(() => undefined);
+  /*
+   * Reading is not a change anyone else can see, so it does not go through `perform` and its
+   * error banner - a failed read marker is worth nothing to report. The board is refreshed
+   * anyway, because the count on the control is carried on the page.
+   */
+  const seeDiscussion = async (pageId: string) => {
+    try {
+      await markDiscussionSeen(pageId);
+      await refreshBoard();
+    } catch {
+      // The count stays where it was until the next visit, which is the harmless failure.
     }
   };
 
@@ -487,6 +513,11 @@ export function App() {
         onCreateIdea={createIdea}
         online={online}
         onLoadActivity={loadActivity}
+        onLoadDiscussion={loadDiscussion}
+        onAsk={askOnPage}
+        onReply={replyOnPage}
+        onSetAnswered={answerOnPage}
+        onSeeDiscussion={seeDiscussion}
         onLogout={logout}
         onMoveBacklogToNext={moveBacklogToNext}
         revision={revision}

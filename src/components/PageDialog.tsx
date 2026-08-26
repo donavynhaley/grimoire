@@ -6,6 +6,7 @@ import {
   type Page,
   type PageStatus,
   type Chapter,
+  type DiscussionThread,
   type Member,
   type ProjectCategory,
   type ProjectField,
@@ -16,6 +17,7 @@ import { EditorState, otherEditorName } from "./EditorState";
 import { Growing } from "./Growing";
 import { NotesField } from "./NotesField";
 import { describeChange, describeEvent, relativeLabel } from "./activity-copy";
+import { DiscussionSection } from "./DiscussionSection";
 import { Drawer } from "./Drawer";
 import { GithubLink } from "./GithubLink";
 import { useContentEditor } from "./use-content-editor";
@@ -47,9 +49,16 @@ type Props = {
   onArchive: () => Promise<void>;
   onClose: () => void;
   onLoadActivity: (options: { entityId?: string; limit?: number }) => Promise<AuditPage>;
+  /** The conversation on this page, and the three things anyone can do to it. */
+  onLoadDiscussion: (pageId: string) => Promise<{ threads: DiscussionThread[] }>;
+  onAsk: (pageId: string, body: string) => Promise<void>;
+  onReply: (pageId: string, threadId: string, body: string) => Promise<void>;
+  onSetAnswered: (pageId: string, threadId: string, answered: boolean) => Promise<void>;
+  /** Called the moment the conversation is actually looked at, and only then. */
+  onSeeDiscussion: (pageId: string) => Promise<void>;
 };
 
-export function PageDialog({ page, pages, categories, chapters, estimatesEnabled, fields, currentUserId, githubRepo, members, revision, onUpdate, onArchive, onClose, onLoadActivity }: Props) {
+export function PageDialog({ page, pages, categories, chapters, estimatesEnabled, fields, currentUserId, githubRepo, members, revision, onUpdate, onArchive, onClose, onLoadActivity, onLoadDiscussion, onAsk, onReply, onSetAnswered, onSeeDiscussion }: Props) {
   const categoryColor = (slug: string | null) =>
     slug ? categories.find((category) => category.slug === slug)?.color : undefined;
   const swatchStyle = (slug: string | null) => {
@@ -65,7 +74,17 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
    * than that the alternative was one long scroll, and a page that has to be scrolled is
    * a page you cannot see.
    */
-  const [pane, setPane] = useState<"notes" | "details">("notes");
+  const [pane, setPane] = useState<"notes" | "aside">("notes");
+  /**
+   * What the second column is showing.
+   *
+   * The properties and the conversation take turns in it rather than standing side by side,
+   * because nobody reads an estimate and a question at the same time, and giving them one
+   * column between them is what keeps the writing column exactly the width it always was.
+   *
+   * It starts on the properties. A page opens on what it is, not on what was said about it.
+   */
+  const [aside, setAside] = useState<"details" | "discussion">("details");
   /**
    * Category is the only attribute long enough to be worth folding: ten choices against four
    * or five everywhere else, and it is usually set once at capture time with `#` and rarely
@@ -114,6 +133,8 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
     setChangingCategory(false);
     setShowingHistory(false);
     setPane("notes");
+    setAside("details");
+    marked.current = null;
     setShowingClosedChapters(inClosedChapter);
     // `inClosedChapter` is read for the page being opened, not tracked: a page moved into a
     // closed chapter from the open fold must not re-run this and fold it away underneath.
@@ -145,6 +166,35 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
   });
 
   const history = usePageHistory(page.id, revision, onLoadActivity);
+  const { threads, failed: discussionFailed, reload: reloadDiscussion } = usePageDiscussion(page.id, revision, onLoadDiscussion);
+  /*
+   * What the control counts is what has not been read, not what is unresolved.
+   *
+   * An open thread you have already read is not news; a reply to a question you asked is,
+   * even though it closed nothing. The number is there to say "there is something here for
+   * you", and unread is the only count that answers that. It comes from the page rather than
+   * the loaded threads so it is there before the conversation has finished arriving.
+   */
+  const unseenCount = page.unseenMessages;
+  const namedCount = page.unseenMentions;
+  const showingDiscussion = aside === "discussion";
+
+  /*
+   * Turning to the conversation is what counts as having read it.
+   *
+   * Once per page: a second mark would follow its own board refresh round and round. Anything
+   * posted while it is on screen is unread again on the next visit, which is a count that
+   * flickers rather than one that lies.
+   */
+  const marked = useRef<string | null>(null);
+  useEffect(() => {
+    // Not until it has actually arrived. Marking a conversation read because somebody asked
+    // to see one, when what they were shown was a spinner or a failure, loses the only signal
+    // saying there was something here.
+    if (!showingDiscussion || threads === null || marked.current === page.id) return;
+    marked.current = page.id;
+    void onSeeDiscussion(page.id);
+  }, [showingDiscussion, threads, page.id, onSeeDiscussion]);
   const otherEditor = otherEditorName(history, currentUserId);
 
   const close = async () => {
@@ -166,7 +216,22 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
       */}
       <div aria-label="Page halves" className="page-editor-panes" role="group">
         <button aria-pressed={pane === "notes"} className="pane-tab" onClick={() => setPane("notes")} type="button">Notes</button>
-        <button aria-pressed={pane === "details"} className="pane-tab" onClick={() => setPane("details")} type="button">Details</button>
+        <button
+          aria-pressed={pane === "aside" && aside === "details"}
+          className="pane-tab"
+          onClick={() => { setPane("aside"); setAside("details"); }}
+          type="button"
+        >
+          Details
+        </button>
+        <button
+          aria-pressed={pane === "aside" && aside === "discussion"}
+          className="pane-tab"
+          onClick={() => { setPane("aside"); setAside("discussion"); }}
+          type="button"
+        >
+          Discussion{unseenCount > 0 ? ` · ${unseenCount}` : ""}{namedCount > 0 ? " @" : ""}
+        </button>
       </div>
 
       <div className="page-editor-split" data-pane={pane}>
@@ -191,16 +256,62 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
 
           <GithubLink github={page.github} onUpdate={onUpdate} repo={githubRepo} status={page.githubStatus} />
 
-          <PageHistory
-            events={history}
-            members={members}
-            onToggle={() => setShowingHistory((showing) => !showing)}
-            open={showingHistory}
-          />
         </div>
 
-        {/* Properties sit beside the writing rather than under it, ordered by how often
-            someone reaches for them. */}
+        {/*
+          One column, two things taking turns in it.
+
+          The properties and the conversation are never read at the same time - nobody weighs
+          an estimate and answers a question in one breath - so they share a column rather
+          than each taking one. That is what keeps the writing column exactly the width it has
+          always been: nothing here resizes, so there is no layout change to travel.
+        */}
+        <div className="page-aside">
+          <div aria-label="What this column shows" className="aside-switch" role="group">
+            <button
+              aria-pressed={aside === "details"}
+              className="pane-tab"
+              onClick={() => setAside("details")}
+              type="button"
+            >
+              Details
+            </button>
+            <button
+              aria-pressed={aside === "discussion"}
+              className="pane-tab"
+              onClick={() => setAside("discussion")}
+              type="button"
+            >
+              Discussion
+              {/*
+                One badge, two states. Something new here is worth a quiet number; somebody
+                writing your name is worth the accent, because they meant you specifically.
+              */}
+              {unseenCount > 0 && (
+                <span
+                  aria-label={namedCount > 0 ? `${unseenCount} unread, ${namedCount} naming you` : `${unseenCount} unread`}
+                  className={namedCount > 0 ? "discussion-unseen named" : "discussion-unseen"}
+                >
+                  {unseenCount}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {aside === "discussion" ? (
+            <DiscussionSection
+              currentUserId={currentUserId}
+              failed={discussionFailed}
+              members={members}
+              onAsk={async (body) => { await onAsk(page.id, body); await reloadDiscussion(); }}
+              onReply={async (threadId, body) => { await onReply(page.id, threadId, body); await reloadDiscussion(); }}
+              onSetAnswered={async (threadId, answered) => {
+                await onSetAnswered(page.id, threadId, answered);
+                await reloadDiscussion();
+              }}
+              threads={threads}
+            />
+          ) : (
         <div aria-label="Page properties" className="page-rail">
           <div className="rail-row">
             <span className="field-label">Column</span>
@@ -381,7 +492,21 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
             )}
           </Growing>
         </div>
+          )}
+        </div>
       </div>
+
+      {/*
+        The record of the page stands under both halves, for the same reason the autosave line
+        and the archive do: it is the page's history, not the notes' - and inside the writing
+        column it was one more fixed thing the notes had to make room for.
+      */}
+      <PageHistory
+        events={history}
+        members={members}
+        onToggle={() => setShowingHistory((showing) => !showing)}
+        open={showingHistory}
+      />
 
       {/* The autosave line and the archive stand under both halves rather than inside the
           writing, so a refused save is still in sight from the details. */}
@@ -450,6 +575,46 @@ function usePageHistory(
   }, [pageId, load, revision]);
 
   return loaded?.pageId === pageId ? loaded.events : null;
+}
+
+/**
+ * Loads the conversation on one page.
+ *
+ * Kept beside the page it belongs to for the same reason the history is: a refetch triggered
+ * by an autosave should leave the threads in place rather than blanking them mid-read, while
+ * switching pages must never show the previous page's conversation for a frame.
+ *
+ * `reload` is what a post calls once the write has landed, so the list reflects the server's
+ * answer rather than a guess assembled on the client.
+ */
+function usePageDiscussion(
+  pageId: string,
+  revision: number,
+  load: (pageId: string) => Promise<{ threads: DiscussionThread[] }>,
+): { threads: DiscussionThread[] | null; failed: boolean; reload: () => Promise<void> } {
+  const [loaded, setLoaded] = useState<{ pageId: string; threads: DiscussionThread[] } | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+  const [reloads, setReloads] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    load(pageId)
+      .then((result) => { if (alive) { setLoaded({ pageId, threads: result.threads }); setFailed(null); } })
+      /*
+       * A conversation that could not be fetched is not an empty one.
+       *
+       * Drawing nothing beside a badge saying three things are unread says the messages are
+       * gone, and marking them read on the strength of that would lose them for good.
+       */
+      .catch(() => { if (alive) setFailed(pageId); });
+    return () => { alive = false; };
+  }, [pageId, load, revision, reloads]);
+
+  return {
+    threads: loaded?.pageId === pageId ? loaded.threads : null,
+    failed: failed === pageId,
+    reload: async () => { setReloads((count) => count + 1); },
+  };
 }
 
 /**
