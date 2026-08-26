@@ -2171,8 +2171,14 @@ textarea:hover { border-color: var(--border-bright); }
 .markdown-editor .cm-line { padding: 0; }
 .markdown-editor .cm-placeholder { color: var(--faint); }
 .markdown-editor .cm-cursor, .markdown-editor .cm-dropCursor { border-left-color: var(--text); }
-.markdown-editor .cm-selectionBackground,
-.markdown-editor .cm-content ::selection { background: var(--accent-soft); }
+/*
+ * Selected text is the stylesheet's business, not this editor's.
+ *
+ * The interface already answers what a selection looks like, once, at the top of this file:
+ * the accent behind it and the background colour on top. Restating only the background here
+ * kept that dark foreground and put it on a dark green, which is a selection you cannot read
+ * through. Notes are text like any other text on the page, so they take the same answer.
+ */
 
 /*
  * Notes that fill the height they are handed instead of growing with what is in them.
