@@ -150,7 +150,9 @@ describe("editing a page someone else is also changing", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "use theirs" }));
 
-    expect(screen.getByLabelText("Notes")).toHaveValue(theirs);
+    // The notes are a rendered surface rather than a box with a value in it, so their
+    // text is what it shows - which is also the proof the adopted version really landed.
+    expect(screen.getByLabelText("Notes").textContent).toBe(theirs);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     // Choosing their text is not a new edit, so nothing further is written.
     const writes = fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === "PATCH");

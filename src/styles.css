@@ -2140,41 +2140,102 @@ textarea:hover { border-color: var(--border-bright); }
 .notes-upload.failed { color: var(--red); }
 /* Sits with `edit` as another quiet way in, not as a call to action. */
 .notes-add-image > span { font-weight: 800; }
-.notes-view {
-  min-height: 2.875rem;
-  padding: 0.75rem;
+/*
+ * The notes are one surface now, so the box around them is the editor itself.
+ *
+ * `--notes-rows` carries what the `rows` on a textarea used to say: the height notes
+ * start at before anything is in them. It is a minimum rather than a size, because the
+ * surface grows with what is written unless it has been told to fill instead.
+ */
+.markdown-editor {
+  min-height: calc(var(--notes-rows, 6) * 1.6em + 1.5rem);
   background: var(--background);
   border: 1px solid var(--border);
   border-radius: 0.375rem;
-  cursor: text;
 }
-.notes-view:hover { border-color: var(--border-bright); }
-.notes-placeholder { margin: 0; color: var(--faint); line-height: 1.6; }
-.notes-field.drop-active .notes-view,
-.notes-field.drop-active textarea { background: var(--accent-soft); border-color: var(--accent); }
+.markdown-editor:hover,
+.markdown-editor:focus-within { border-color: var(--border-bright); }
+.notes-field.drop-active .markdown-editor { background: var(--accent-soft); border-color: var(--accent); }
+
+.markdown-editor .cm-editor { background: transparent; color: var(--text); font-size: 0.8125rem; }
+/* The box already says where focus is; a second ring inside it would say it twice. */
+.markdown-editor .cm-editor.cm-focused { outline: none; }
+.markdown-editor .cm-scroller {
+  padding: 0.75rem;
+  font-family: inherit;
+  line-height: 1.6;
+  cursor: text;
+  overscroll-behavior: contain;
+}
+.markdown-editor .cm-content { padding: 0; caret-color: var(--text); }
+.markdown-editor .cm-line { padding: 0; }
+.markdown-editor .cm-placeholder { color: var(--faint); }
+.markdown-editor .cm-cursor, .markdown-editor .cm-dropCursor { border-left-color: var(--text); }
+.markdown-editor .cm-selectionBackground,
+.markdown-editor .cm-content ::selection { background: var(--accent-soft); }
 
 /*
  * Notes that fill the height they are handed instead of growing with what is in them.
  *
  * On the page editor the notes are the one thing that can be longer than the panel, so
- * they are the one thing that scrolls: the field takes whatever the column has left, and
- * the resting view and the textarea are the same box - which is also why the field needs
- * no height animation between them.
+ * they are the one thing that scrolls - and the box that does the scrolling is the
+ * editor's own scroller, which is why it is the one wearing `notes-view`.
  */
 .notes-field.fill { grid-template-rows: auto minmax(0, 1fr); }
 .notes-field.fill .notes-body { min-height: 0; }
-.notes-field.fill .notes-view {
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+.markdown-editor.fill { min-height: 0; height: 100%; }
+.markdown-editor.fill .cm-editor { height: 100%; }
+.markdown-editor.fill .cm-scroller { overflow-y: auto; }
+
+/*
+ * Live preview: what the Markdown produces, drawn in place of the Markdown.
+ *
+ * These are deliberately the same values `.markdown-body` uses, because they are the same
+ * document seen from the other side - notes should not change size or colour depending on
+ * whether a caret happens to be in them.
+ */
+.cm-lp-heading { font-weight: 700; }
+.cm-lp-h1 { font-size: 0.9375rem; }
+.cm-lp-h2 { font-size: 0.875rem; }
+.cm-lp-strong { font-weight: 700; }
+.cm-lp-emphasis { font-style: italic; }
+.cm-lp-strikethrough { color: var(--muted); text-decoration: line-through; }
+.cm-lp-code {
+  padding: 1px 0.3125rem;
+  background: var(--surface-soft);
+  border-radius: 0.25rem;
+  font-family: ui-monospace, "SF Mono", monospace;
+  font-size: 0.75rem;
 }
-/* It takes focus only so a keyboard can scroll it, so it says so quietly. */
-.notes-field.fill .notes-view:focus-visible { outline: 1px solid var(--border-bright); outline-offset: -1px; }
-.notes-field.fill textarea {
-  min-height: 0;
-  height: 100%;
-  resize: none;
+.cm-lp-quote { padding-left: 0.625rem; border-left: 0.125rem solid var(--border-bright); color: var(--muted); }
+.cm-lp-code-line { background: var(--surface-soft); font-family: ui-monospace, "SF Mono", monospace; font-size: 0.75rem; }
+.cm-lp-link { color: var(--blue); text-decoration: underline; text-decoration-color: rgb(139 185 201 / 45%); cursor: pointer; }
+.cm-lp-link:hover { text-decoration-color: currentcolor; }
+.cm-lp-bullet { color: var(--faint); }
+.cm-lp-task {
+  width: 0.75rem;
+  height: 0.75rem;
+  margin: 0 0.375rem 0 0;
+  padding: 0;
+  vertical-align: -1px;
+  accent-color: var(--accent);
 }
+.cm-lp-image { max-width: 100%; border-radius: 0.25rem; vertical-align: middle; }
+.cm-lp-image.block { display: block; margin: 0.25rem 0; }
+.cm-lp-rule { margin: 0.5rem 0; border: 0; border-top: 1px solid var(--border); }
+.cm-lp-table { overflow-x: auto; }
+.cm-lp-table table { border-collapse: collapse; font-size: 0.75rem; }
+.cm-lp-table th,
+.cm-lp-table td { padding: 0.25rem 0.5rem; border: 1px solid var(--border); text-align: left; }
+.cm-lp-table th { background: var(--surface-soft); }
+
+/* Only fenced code is coloured; everything else is drawn as what it produces. */
+.cm-lp-token-keyword { color: var(--purple, #c3a6ff); }
+.cm-lp-token-string { color: var(--green, #9ece6a); }
+.cm-lp-token-comment { color: var(--faint); font-style: italic; }
+.cm-lp-token-number { color: var(--amber); }
+.cm-lp-token-name { color: var(--blue); }
+.cm-lp-token-type { color: var(--blue); }
 
 .markdown-body { font-size: 0.8125rem; line-height: 1.6; overflow-wrap: break-word; }
 .markdown-body > :first-child { margin-top: 0; }

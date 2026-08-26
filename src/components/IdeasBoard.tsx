@@ -416,12 +416,11 @@ function IdeaDialog({ idea, shortlistPosition, onUpdate, onPromote, onClose }: {
         <label><span>Title</span><input aria-label="Idea title" name="ideaTitle" onChange={(event) => editor.setTitle(event.target.value)} value={editor.title} /></label>
         <NotesField
           editLabel="Edit idea notes"
+          editorLabel="Idea notes"
           label="Notes"
-          name="ideaDescription"
           onChange={editor.setDescription}
           placeholder="What makes this interesting?"
           rows={7}
-          textareaLabel="Idea notes"
           value={editor.description}
         />
         <EditorState editor={editor} who={null} />
