@@ -3921,7 +3921,15 @@ textarea:hover { border-color: var(--border-bright); }
 }
 .page-editor-main > * { flex: none; }
 .page-editor-main > .notes-field { min-height: 8rem; flex: 1 1 auto; }
-.page-editor-main > .dialog-section { margin-top: 0; }
+/*
+ * The folded sections in the writing column carry no rule above them.
+ *
+ * A disclosure that is shut is already a line of its own - a caret, a label, and nothing else -
+ * and drawing a rule above it fences off a row that is mostly empty. Taking the rule and the
+ * padding with it hands twenty-one pixels back to the notes, which is the thing on this panel
+ * that can always use them.
+ */
+.page-editor-main > .dialog-section { margin-top: 0; padding-top: 0; border-top: 0; }
 /*
  * History opens by taking room from the notes, because that is the only room the panel has
  * to give. The list is capped and scrolls so a busy page cannot push the writing off it.
@@ -3957,6 +3965,13 @@ textarea:hover { border-color: var(--border-bright); }
   flex-direction: column;
   gap: 0.875rem;
   margin-left: 3.375rem;
+  /*
+   * Dropped to the height of the Title label and the gap under it, so the switch starts on
+   * the same line as the box you type the title into rather than on the line above it. The
+   * writing column's first thing is a label; this column's first thing is a control, and two
+   * columns whose contents start at different heights read as a mistake.
+   */
+  padding-top: calc(0.75rem + 0.4375rem);
 }
 .aside-switch {
   display: flex;
@@ -4088,7 +4103,8 @@ textarea:hover { border-color: var(--border-bright); }
   .page-editor-split { grid-template-columns: minmax(0, 1fr); }
   .page-editor-split[data-pane="notes"] > .page-aside,
   .page-editor-split[data-pane="aside"] > .page-editor-main { display: none; }
-  .page-aside { margin-left: 0; }
+  /* Stacked, there is no title beside it to line up with. */
+  .page-aside { margin-left: 0; padding-top: 0; }
   .aside-switch { display: none; }
 }
 
