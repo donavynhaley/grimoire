@@ -160,9 +160,18 @@ textarea:focus-visible {
   align-items: center;
 }
 
-.brand-lockup { gap: 0.625rem; }
+.brand-lockup { position: relative; gap: 0.625rem; }
 .brand-word { font-size: 0.75rem; font-weight: 800; letter-spacing: 0.04em; }
-.app-version { color: var(--faint); font-size: 0.5rem; letter-spacing: 0.04em; }
+.app-version {
+  position: absolute;
+  top: calc(50% + 0.4375rem);
+  left: 2.25rem;
+  color: var(--faint);
+  font-size: 0.5rem;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  pointer-events: none;
+}
 
 .board-project { display: grid; justify-items: center; }
 .board-project h1 { margin: 0; font-size: 0.6875rem; text-transform: lowercase; }
