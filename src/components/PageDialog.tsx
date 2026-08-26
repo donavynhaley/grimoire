@@ -256,12 +256,6 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
 
           <GithubLink github={page.github} onUpdate={onUpdate} repo={githubRepo} status={page.githubStatus} />
 
-          <PageHistory
-            events={history}
-            members={members}
-            onToggle={() => setShowingHistory((showing) => !showing)}
-            open={showingHistory}
-          />
         </div>
 
         {/*
@@ -501,6 +495,18 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
           )}
         </div>
       </div>
+
+      {/*
+        The record of the page stands under both halves, for the same reason the autosave line
+        and the archive do: it is the page's history, not the notes' - and inside the writing
+        column it was one more fixed thing the notes had to make room for.
+      */}
+      <PageHistory
+        events={history}
+        members={members}
+        onToggle={() => setShowingHistory((showing) => !showing)}
+        open={showingHistory}
+      />
 
       {/* The autosave line and the archive stand under both halves rather than inside the
           writing, so a refused save is still in sight from the details. */}

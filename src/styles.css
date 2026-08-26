@@ -2094,7 +2094,15 @@ textarea:hover { border-color: var(--border-bright); }
 .page-history .empty-dependencies { font-size: 0.6875rem; }
 /* The fold's own line, scoped so every other label in the product keeps its size. */
 .page-history .field-label { font-size: 0.6875rem; }
-.page-history .history-caret { width: 0.6875rem; font-size: 0.75rem; }
+/*
+ * A line tall enough for the mark in it.
+ *
+ * At `line-height: 1` a twelve-pixel caret draws a fourteen-pixel glyph, so the box overflowed
+ * by two - which the toggle passed up to the section, and the section to the writing column,
+ * and that column scrolls. One pixel of rounding is all it takes to put a scrollbar beside
+ * the notes.
+ */
+.page-history .history-caret { width: 0.6875rem; font-size: 0.75rem; line-height: 1.25; }
 .history-reopen {
   min-width: 4.5rem;
   color: var(--faint);
@@ -3851,7 +3859,11 @@ textarea:hover { border-color: var(--border-bright); }
  */
 .page-editor {
   display: flex;
-  width: min(78rem, 100%);
+  /*
+   * Wider than the rest of the dialogs, because this is the only one with two columns in it
+   * and the writing wants every pixel the second column is not using.
+   */
+  width: min(82rem, 100%);
   flex-direction: column;
   overflow: hidden;
 }
@@ -3860,9 +3872,19 @@ textarea:hover { border-color: var(--border-bright); }
 /* The furniture holds its size; only the split in the middle gives and takes. */
 .page-editor > .dialog-header,
 .page-editor > .page-editor-panes,
+.page-editor > .page-history,
 .page-editor > .autosave-state,
 .page-editor > .conflict-bar,
 .page-editor > .dialog-footer { flex: none; }
+/*
+ * The record sits in the band under the two columns rather than at the foot of one of them.
+ *
+ * It is the page's history and not the notes', and down here it is no longer a fixed thing
+ * the writing column has to shrink for - the column holds a title and the notes, and nothing
+ * else can push it into scrolling. Opening it still takes its room from the notes, because
+ * the split gives way first; that has not changed, only where it is written.
+ */
+.page-editor > .page-history { margin-top: 0.875rem; padding-top: 0; border-top: 0; }
 .page-editor > .dialog-header { margin-bottom: 1.125rem; }
 /* The line answers for the notes above it, so it keeps to their edge rather than the panel's. */
 .page-editor > .autosave-state { margin-top: 0.75rem; align-self: flex-end; }
