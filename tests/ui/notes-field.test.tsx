@@ -102,10 +102,59 @@ describe("NotesField live preview", () => {
 
     const table = container.querySelector(".cm-lp-table table");
     expect(table).not.toBeNull();
-    expect(table?.querySelectorAll("th")).toHaveLength(2);
-    expect(table?.querySelector("th")?.textContent).toBe("Part");
-    expect(table?.querySelector("td")?.textContent).toBe("Door");
-    expect((table?.querySelectorAll("th")[1] as HTMLElement).style.textAlign).toBe("right");
+    const headers = table?.querySelectorAll("th:not(.cm-lp-table-grow)") ?? [];
+    expect(headers).toHaveLength(2);
+    expect(headers[0].textContent).toBe("Part");
+    expect(table?.querySelector("td:not(.cm-lp-table-grow)")?.textContent).toBe("Door");
+    expect((headers[1] as HTMLElement).style.textAlign).toBe("right");
+  });
+
+  it("grows a table by a column, and squares the source back up", async () => {
+    const written: string[] = [];
+    function TableHarness() {
+      const [value, setValue] = useState("| Part | Owner |\n| --- | ---: |\n| Door | Ana |");
+      return notesElement(value, (next) => {
+        written.push(next);
+        setValue(next);
+      });
+    }
+    render(<TableHarness />);
+
+    fireEvent.mouseDown(screen.getByRole("button", { name: "Add a column" }));
+
+    await waitFor(() =>
+      expect(written.at(-1)).toBe("| Part | Owner |     |\n| ---- | ----: | --- |\n| Door | Ana   |     |"),
+    );
+  });
+
+  it("grows a table by a row", async () => {
+    const written: string[] = [];
+    function TableHarness() {
+      const [value, setValue] = useState("| Part | Owner |\n| --- | --- |\n| Door | Ana |");
+      return notesElement(value, (next) => {
+        written.push(next);
+        setValue(next);
+      });
+    }
+    render(<TableHarness />);
+
+    fireEvent.mouseDown(screen.getByRole("button", { name: "Add a row" }));
+
+    await waitFor(() =>
+      expect(written.at(-1)).toBe("| Part | Owner |\n| ---- | ----- |\n| Door | Ana   |\n|      |       |"),
+    );
+  });
+
+  it("takes a click on a cell as a request to write in that cell", async () => {
+    const { container } = renderNotes("| Part | Owner |\n| --- | --- |\n| Door | Ana |");
+
+    const ana = Array.from(container.querySelectorAll("td")).find((cell) => cell.textContent === "Ana");
+    expect(ana).toBeDefined();
+    fireEvent.mouseDown(ana as Element);
+
+    // The caret went into the table, so the table is showing its workings rather than its shape.
+    await waitFor(() => expect(container.querySelector(".cm-lp-table")).toBeNull());
+    expect(shown()).toContain("| Door | Ana |");
   });
 
   it("keeps a fenced block as the characters it contains", () => {
@@ -176,6 +225,17 @@ describe("NotesField task checkboxes", () => {
     fireEvent.mouseDown(box);
 
     await waitFor(() => expect((container.querySelector("input.cm-lp-task") as HTMLInputElement).checked).toBe(true));
+  });
+
+  it("hands the box back as [ ] once the caret is on its line", async () => {
+    const { container } = renderNotes("- [ ] hang the door");
+    expect(container.querySelector("input.cm-lp-task")).not.toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit notes" }));
+
+    // A box that stayed a box would have no characters for the caret to walk into.
+    await waitFor(() => expect(container.querySelector("input.cm-lp-task")).toBeNull());
+    expect(shown()).toContain("[ ]");
   });
 });
 

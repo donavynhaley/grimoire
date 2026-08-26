@@ -62,9 +62,10 @@ class ImageWidget extends WidgetType {
 /**
  * A checkbox that is the task, not a picture of one.
  *
- * It stays a live control even while its line shows its syntax, because a checklist
- * someone is reading is a checklist they are ticking, and having to leave the line to
- * do it would be the swap all over again in miniature.
+ * It is a control while the line is at rest and plain `[ ]` once the caret arrives, which
+ * is the same rule every other piece of syntax follows here. Anything else strands the
+ * caret: a box that stays a box has no character positions to walk into, so an arrow key
+ * aimed at the brackets stops against them instead of entering them.
  */
 class TaskWidget extends WidgetType {
   constructor(readonly checked: boolean, readonly from: number) {
@@ -119,54 +120,126 @@ class RuleWidget extends WidgetType {
   }
 }
 
+/** A table as a shape rather than as lines: the header row first, then the body rows. */
+type TableModel = { rows: string[][]; alignments: (string | null)[] };
+
 /**
- * A table drawn as a table.
+ * A table drawn as a table, and grown as one.
  *
  * Hiding syntax character by character is enough for everything that formats a run of
- * words, but a table is a shape: there is no arrangement of hidden pipes that makes
- * source rows into columns. So the whole block is replaced by a real table while the
- * caret is outside it, and handed back as text the moment the caret moves in - which is
- * also the only way to edit one that does not need a table editor.
+ * words, but a table is a shape: there is no arrangement of hidden pipes that makes source
+ * rows into columns. So the whole block is replaced by a real table while the caret is
+ * outside it.
  *
- * Cell text is reduced with the same reader the board tiles use, so a cell shows its
- * words rather than its syntax without a second Markdown renderer existing to disagree
- * with the first.
+ * Reading it is not the whole job, though. A column is a thing a table gains, and gaining
+ * one by hand means counting pipes across every row and getting the dashes right - so the
+ * table carries the two controls that add one, and clicking any cell puts the caret in that
+ * cell rather than at the top of the block. Both rewrite the block as a whole and lay it out
+ * square again, which is the same tidying Obsidian does when a table is edited.
+ *
+ * Cell text is reduced with the same reader the board tiles use, so a cell shows its words
+ * rather than its syntax without a second Markdown renderer existing to disagree with the
+ * first.
  */
 class TableWidget extends WidgetType {
-  constructor(readonly source: string) {
+  constructor(readonly source: string, readonly from: number, readonly to: number) {
     super();
   }
 
   eq(other: TableWidget): boolean {
-    return other.source === this.source;
+    return other.source === this.source && other.from === this.from;
   }
 
-  toDOM(): HTMLElement {
+  toDOM(view: EditorView): HTMLElement {
+    const model = parseTable(this.source);
+    const columns = columnCount(model);
     const wrapper = document.createElement("div");
     wrapper.className = "cm-lp-table";
+    // The table is furniture inside a writable document; the document must not try to edit it.
+    wrapper.contentEditable = "false";
+
+    /** Rewrites the block and leaves the caret in whichever cell the action was about. */
+    const rewrite = (next: TableModel, row: number, column: number) => {
+      const text = serializeTable(next);
+      const cell = cellPositions(text)[row === 0 ? 0 : row + 1]?.[column];
+      view.dispatch({
+        changes: { from: this.from, to: this.to, insert: text },
+        selection: { anchor: this.from + (cell ? cell.start : 0) },
+        scrollIntoView: true,
+      });
+      view.focus();
+    };
+
+    const control = (label: string, title: string, className: string, run: () => void) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = className;
+      button.title = title;
+      button.setAttribute("aria-label", title);
+      button.textContent = label;
+      button.addEventListener("mousedown", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        run();
+      });
+      return button;
+    };
+
     const table = document.createElement("table");
-    const rows = this.source.split("\n").filter((line) => line.trim());
-    const alignments = rows[1] ? columnAlignments(rows[1]) : [];
     const head = document.createElement("thead");
     const body = document.createElement("tbody");
+    const positions = cellPositions(this.source);
 
-    rows.forEach((row, index) => {
-      if (index === 1) return;
-      const cells = splitRow(row);
+    model.rows.forEach((cells, row) => {
+      const line = row === 0 ? 0 : row + 1;
       const element = document.createElement("tr");
-      cells.forEach((cell, column) => {
-        const target = document.createElement(index === 0 ? "th" : "td");
-        target.textContent = plainTextFromMarkdown(cell);
-        const alignment = alignments[column];
+      for (let column = 0; column < columns; column += 1) {
+        const target = document.createElement(row === 0 ? "th" : "td");
+        target.textContent = plainTextFromMarkdown(cells[column] ?? "");
+        const alignment = model.alignments[column];
         if (alignment) target.style.textAlign = alignment;
+        // Clicking a cell is a request to write in that cell, not to open the block.
+        const at = positions[line]?.[column];
+        target.addEventListener("mousedown", (event) => {
+          event.preventDefault();
+          view.dispatch({ selection: { anchor: this.from + (at ? at.start : 0) }, scrollIntoView: true });
+          view.focus();
+        });
         element.append(target);
-      });
-      (index === 0 ? head : body).append(element);
+      }
+      if (row === 0) {
+        const adder = document.createElement("th");
+        adder.className = "cm-lp-table-grow";
+        adder.append(
+          control("+", "Add a column", "cm-lp-table-add", () => {
+            rewrite(
+              { rows: model.rows.map((cells) => [...padRow(cells, columns), ""]), alignments: [...model.alignments, null] },
+              0,
+              columns,
+            );
+          }),
+        );
+        element.append(adder);
+      } else {
+        const spacer = document.createElement("td");
+        spacer.className = "cm-lp-table-grow";
+        element.append(spacer);
+      }
+      (row === 0 ? head : body).append(element);
     });
 
     table.append(head, body);
     wrapper.append(table);
+    wrapper.append(
+      control("+", "Add a row", "cm-lp-table-add-row", () => {
+        rewrite({ rows: [...model.rows, new Array(columns).fill("")], alignments: model.alignments }, model.rows.length, 0);
+      }),
+    );
     return wrapper;
+  }
+
+  ignoreEvent(): boolean {
+    return true;
   }
 }
 
@@ -183,6 +256,78 @@ function columnAlignments(delimiter: string): (string | null)[] {
     if (left) return "left";
     return null;
   });
+}
+
+function parseTable(source: string): TableModel {
+  const lines = source.split("\n");
+  const rows = lines.map(splitRow);
+  // The alignments come from the delimiter line as written, not from its split cells.
+  return { rows: [rows[0] ?? [], ...rows.slice(2)], alignments: lines[1] ? columnAlignments(lines[1]) : [] };
+}
+
+function columnCount(model: TableModel): number {
+  return model.rows.reduce((widest, row) => Math.max(widest, row.length), model.alignments.length);
+}
+
+function padRow(cells: string[], columns: number): string[] {
+  return Array.from({ length: columns }, (_, column) => cells[column] ?? "");
+}
+
+/**
+ * Writes the table back out square.
+ *
+ * Every column is as wide as its widest cell, which costs nothing to compute and makes the
+ * source readable for whoever opens the file outside Grimoire - including Obsidian, which
+ * lays its own tables out the same way.
+ */
+function serializeTable(model: TableModel): string {
+  const columns = columnCount(model);
+  const widths = Array.from({ length: columns }, (_, column) =>
+    model.rows.reduce((widest, row) => Math.max(widest, (row[column] ?? "").length), 3),
+  );
+  const line = (cells: string[]) => `| ${padRow(cells, columns).map((cell, column) => cell.padEnd(widths[column])).join(" | ")} |`;
+  const delimiter = `| ${widths
+    .map((width, column) => {
+      const alignment = model.alignments[column];
+      if (alignment === "center") return `:${"-".repeat(width - 2)}:`;
+      if (alignment === "right") return `${"-".repeat(width - 1)}:`;
+      if (alignment === "left") return `:${"-".repeat(width - 1)}`;
+      return "-".repeat(width);
+    })
+    .join(" | ")} |`;
+  return [line(model.rows[0] ?? []), delimiter, ...model.rows.slice(1).map(line)].join("\n");
+}
+
+/**
+ * Where every cell's text begins and ends in the source.
+ *
+ * Rendered cells carry no position of their own, so a click on one has to be answered from
+ * the text it was drawn from. Walking the pipes is enough: a table row is only ever cells
+ * between them, and the padding around each one is not part of what was written.
+ */
+function cellPositions(text: string): Array<Array<{ start: number; end: number }>> {
+  const lines: Array<Array<{ start: number; end: number }>> = [];
+  let offset = 0;
+  for (const line of text.split("\n")) {
+    const cells: Array<{ start: number; end: number }> = [];
+    let cursor = line.startsWith("|") ? 1 : 0;
+    while (cursor <= line.length) {
+      const next = line.indexOf("|", cursor);
+      const end = next === -1 ? line.length : next;
+      const raw = line.slice(cursor, end);
+      // A trailing pipe closes the row rather than opening an empty cell after it.
+      if (next !== -1 || raw.trim() !== "") {
+        const leading = raw.length - raw.trimStart().length;
+        const trailing = raw.length - raw.trimEnd().length;
+        cells.push({ start: offset + cursor + leading, end: offset + end - trailing });
+      }
+      if (next === -1) break;
+      cursor = next + 1;
+    }
+    lines.push(cells);
+    offset += line.length + 1;
+  }
+  return lines;
 }
 
 /**
@@ -243,7 +388,9 @@ function build(state: EditorState, focused: boolean): Built {
         const first = state.doc.lineAt(node.from);
         const last = state.doc.lineAt(Math.min(node.to, state.doc.length));
         const source = state.doc.sliceString(first.from, last.to);
-        decorations.push(Decoration.replace({ widget: new TableWidget(source), block: true }).range(first.from, last.to));
+        decorations.push(
+          Decoration.replace({ widget: new TableWidget(source, first.from, last.to), block: true }).range(first.from, last.to),
+        );
         atomic.push(HIDDEN.range(first.from, last.to));
         claimed.push([first.from, last.to]);
         return false;
@@ -287,15 +434,15 @@ function build(state: EditorState, focused: boolean): Built {
       if (node.name === "Strikethrough") decorations.push(STRIKETHROUGH.range(node.from, node.to));
       if (node.name === "InlineCode") decorations.push(INLINE_CODE.range(node.from, node.to));
 
+      if (show) return undefined;
+
+      // From here down is syntax that only exists to produce what is already drawn.
       if (node.name === "TaskMarker") {
         const checked = /[xX]/.test(state.doc.sliceString(node.from, node.to));
         decorations.push(Decoration.replace({ widget: new TaskWidget(checked, node.from) }).range(node.from, node.to));
         return false;
       }
 
-      if (show) return undefined;
-
-      // From here down is syntax that only exists to produce what is already drawn.
       if (node.name === "HeaderMark") {
         const line = state.doc.lineAt(node.from);
         // Setext underlines are a whole line of syntax; ATX hashes take the space after them.

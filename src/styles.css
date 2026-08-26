@@ -2218,11 +2218,53 @@ textarea:hover { border-color: var(--border-bright); }
 .cm-lp-image { max-width: 100%; border-radius: 0.25rem; vertical-align: middle; }
 .cm-lp-image.block { display: block; margin: 0.25rem 0; }
 .cm-lp-rule { margin: 0.5rem 0; border: 0; border-top: 1px solid var(--border); }
-.cm-lp-table { overflow-x: auto; }
+/* Only as wide as the table, so the control that adds a row is the width of the row it adds. */
+.cm-lp-table { position: relative; width: max-content; max-width: 100%; overflow-x: auto; padding-bottom: 0.75rem; }
 .cm-lp-table table { border-collapse: collapse; font-size: 0.75rem; }
 .cm-lp-table th,
-.cm-lp-table td { padding: 0.25rem 0.5rem; border: 1px solid var(--border); text-align: left; }
+.cm-lp-table td { padding: 0.25rem 0.5rem; border: 1px solid var(--border); text-align: left; cursor: text; }
 .cm-lp-table th { background: var(--surface-soft); }
+
+/*
+ * The two controls that grow a table.
+ *
+ * They sit where the next column and the next row would go, quiet until the table is under
+ * the pointer, because a table is read far more often than it is widened. A coarse pointer
+ * has no hover to reveal them with, so there they simply stay visible.
+ */
+.cm-lp-table th.cm-lp-table-grow,
+.cm-lp-table td.cm-lp-table-grow { padding: 0; border: 0; background: none; }
+.cm-lp-table-add,
+.cm-lp-table-add-row {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: var(--faint);
+  background: none;
+  border: 1px dashed var(--border);
+  border-radius: 0.25rem;
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.cm-lp-table-add { width: 1.125rem; height: 1.125rem; margin-left: 0.25rem; }
+.cm-lp-table-add-row { width: calc(100% - 0.25rem); height: 0.875rem; margin-top: 0.25rem; }
+.cm-lp-table:hover .cm-lp-table-add,
+.cm-lp-table:hover .cm-lp-table-add-row,
+.cm-lp-table-add:focus-visible,
+.cm-lp-table-add-row:focus-visible { opacity: 1; }
+.cm-lp-table-add:hover,
+.cm-lp-table-add-row:hover { color: var(--text); border-color: var(--border-bright); }
+@media (pointer: coarse) {
+  .cm-lp-table-add,
+  .cm-lp-table-add-row { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cm-lp-table-add,
+  .cm-lp-table-add-row { transition: none; }
+}
 
 /* Only fenced code is coloured; everything else is drawn as what it produces. */
 .cm-lp-token-keyword { color: var(--purple, #c3a6ff); }

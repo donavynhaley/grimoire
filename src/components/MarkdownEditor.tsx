@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
-import { markdown, markdownKeymap, markdownLanguage } from "@codemirror/lang-markdown";
+import { markdown, markdownKeymap, markdownLanguage, pasteURLAsLink } from "@codemirror/lang-markdown";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { EditorSelection, EditorState, type Extension } from "@codemirror/state";
 import { EditorView, keymap, placeholder as placeholderExtension } from "@codemirror/view";
@@ -89,6 +89,8 @@ function editorExtensions(props: {
       ...defaultKeymap,
     ]),
     markdown({ base: markdownLanguage, extensions: [GFM] }),
+    // A URL pasted over chosen words is a link around those words, as it is in Obsidian.
+    pasteURLAsLink,
     syntaxHighlighting(CODE_HIGHLIGHT),
     livePreview(),
     EditorView.lineWrapping,
