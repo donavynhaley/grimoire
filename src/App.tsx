@@ -17,6 +17,7 @@ export function App() {
   const [view, setView] = useState<"work" | "ideas">(
     new URLSearchParams(location.search).get("view") === "ideas" ? "ideas" : "work",
   );
+  const [projectOpening, setProjectOpening] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [online, setOnline] = useState<ReadonlySet<string>>(() => new Set());
@@ -388,19 +389,27 @@ export function App() {
   };
 
   const openProject = async (id: string | null) => {
+    const previousProjectId = board?.project.id ?? null;
     setUndoNotice(null);
     setActiveProjectId(id);
     syncProjectUrl(id);
     setIdeas(null);
+    setProjectOpening(true);
     setBusy(true);
     setError("");
     try {
       await refreshBoard();
       if (view === "ideas") await refreshIdeas();
     } catch (value) {
+      // The old board is still a valid place to land if the next one cannot be read.
+      // Put the request scope and URL back with it rather than leaving subsequent calls
+      // aimed at a project that never opened.
+      setActiveProjectId(previousProjectId);
+      syncProjectUrl(previousProjectId);
       setError(value instanceof ApiError ? value.message : "The project could not be opened");
       throw value;
     } finally {
+      setProjectOpening(false);
       setBusy(false);
     }
   };
@@ -488,6 +497,9 @@ export function App() {
     return <AuthScreen inviteCode={invite} mode={invite ? "register" : "login"} onAuthenticated={onAuthenticated} />;
   }
   if (!board) return null;
+  if (projectOpening) {
+    return <div className="loading-screen"><span className="brand-mark pulse">g</span><p>opening project...</p></div>;
+  }
 
   return (
     <>

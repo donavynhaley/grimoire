@@ -336,6 +336,21 @@ describe("choosing which chapter is current", () => {
 });
 
 describe("pulling from the backlog", () => {
+  it("folds closed chapters away until they are requested", async () => {
+    const user = userEvent.setup();
+    mountWith(withClosedChapter());
+
+    await user.click(await screen.findByRole("button", { name: /Open backlog/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Backlog" });
+    expect(within(dialog).getByRole("button", { name: "Second Brew" })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Old Brew" })).toBeNull();
+
+    const fold = within(dialog).getByRole("button", { name: /earlier/ });
+    expect(fold).toHaveAttribute("aria-expanded", "false");
+    await user.click(fold);
+    expect(within(dialog).getByRole("button", { name: "Old Brew" })).toBeInTheDocument();
+  });
+
   it("offers the viewed chapter on every row and leaves the page in the Backlog", async () => {
     const user = userEvent.setup();
     const board = chapteredBoard();
@@ -371,6 +386,28 @@ describe("pulling from the backlog", () => {
     const dialog = await screen.findByRole("dialog", { name: "Backlog" });
 
     expect(within(dialog).getByRole("button", { name: /Remove Reserved for later from First Brew/ })).toBeInTheDocument();
+  });
+});
+
+describe("capturing into chapters", () => {
+  it("places new pages in the current chapter by default", async () => {
+    const user = userEvent.setup();
+    const calls = mountWith(chapteredBoard());
+
+    const capture = await screen.findByLabelText("Capture work page");
+    await user.type(capture, "Bottle the moonlight{Enter}");
+
+    await waitFor(() => expect(calls).toContainEqual({
+      url: "/api/pages",
+      method: "POST",
+      body: {
+        title: "Bottle the moonlight",
+        category: null,
+        chapter: "first-brew",
+        assigneeId: null,
+        status: "backlog",
+      },
+    }));
   });
 });
 

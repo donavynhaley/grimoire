@@ -160,8 +160,18 @@ textarea:focus-visible {
   align-items: center;
 }
 
-.brand-lockup { gap: 0.625rem; }
+.brand-lockup { position: relative; gap: 0.625rem; }
 .brand-word { font-size: 0.75rem; font-weight: 800; letter-spacing: 0.04em; }
+.app-version {
+  position: absolute;
+  top: calc(50% + 0.75rem);
+  left: 2.25rem;
+  color: var(--faint);
+  font-size: 0.5rem;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  pointer-events: none;
+}
 
 .board-project { display: grid; justify-items: center; }
 .board-project h1 { margin: 0; font-size: 0.6875rem; text-transform: lowercase; }
@@ -1908,6 +1918,9 @@ textarea:hover { border-color: var(--border-bright); }
 }
 .library-filters button:hover { color: var(--text); border-color: var(--border-bright); }
 .library-filters button.active { color: var(--accent); background: var(--accent-soft); border-color: #465f3c; }
+.library-chapter-fold { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 0.3125rem; }
+.library-filters .library-chapter-fold-toggle { border-style: dashed; }
+.library-chapter-fold-toggle span { color: var(--faint); }
 .category-filters button { border-radius: 0.3125rem; }
 .library-results,
 .history-results {
@@ -2933,6 +2946,7 @@ textarea:hover { border-color: var(--border-bright); }
 @media (max-width: 980px) {
   .board-topbar { grid-template-columns: auto 1fr auto; }
   .brand-word,
+  .app-version,
   .member-faces { display: none; }
   /* Columns stack into one vertically scrolling page instead of a horizontal filmstrip. */
   .board-main { overflow-x: hidden; overflow-y: auto; }

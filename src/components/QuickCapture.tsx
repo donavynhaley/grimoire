@@ -54,6 +54,15 @@ const DEFAULT_SETTINGS: CaptureSettings = {
   fields: {},
 };
 
+/** New work belongs to the chapter the project has declared current, when it has one. */
+function defaultSettings(chapters: Chapter[]): CaptureSettings {
+  return {
+    ...DEFAULT_SETTINGS,
+    chapter: chapters.find((chapter) => chapter.state === "open")?.slug ?? null,
+    fields: {},
+  };
+}
+
 /** Whether a field answers with a choice among options, or has to be written in. */
 function picksFromList(field: ProjectField): boolean {
   return fieldHasOptions(field.type) || field.type === "checkbox";
@@ -86,7 +95,7 @@ const statusLabels: Partial<Record<PageStatus, string>> = {
 
 export function QuickCapture({ busy, categories, chapters, fields = [], members, onCreate }: Props) {
   const [title, setTitle] = useState("");
-  const [settings, setSettings] = useState<CaptureSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<CaptureSettings>(() => defaultSettings(chapters));
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
   const [picker, setPicker] = useState<PickerState | null>(null);
@@ -236,7 +245,7 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
   };
 
   const resetSettings = () => {
-    setSettings({ ...DEFAULT_SETTINGS, fields: {} });
+    setSettings(defaultSettings(chapters));
     setPicker(null);
     inputRef.current?.focus();
   };

@@ -28,6 +28,7 @@ import { plainTextFromMarkdown } from "./markdown-text";
 import { IdeasBoard } from "./IdeasBoard";
 import { useFlip } from "./use-flip";
 import { type DragPoint, gapIndexIn, pointWithin, usePointerDrag } from "./use-pointer-drag";
+import packageJson from "../../package.json";
 
 const BOARD_STATUSES = ["ready", "in_progress", "review", "done"] as const satisfies readonly PageStatus[];
 
@@ -588,6 +589,7 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
         <div className="brand-lockup">
           <span className="brand-mark">g</span>
           <span className="brand-word">grimoire</span>
+          <span className="app-version">v{packageJson.version}</span>
           <nav className="workspace-tabs" aria-label="Project spaces">
             <button aria-current={view === "work" ? "page" : undefined} aria-label="work" onClick={() => void onViewChange("work")} title="Work (1)" type="button">work <kbd aria-hidden="true">1</kbd></button>
             <button aria-current={view === "ideas" ? "page" : undefined} aria-label="ideas" onClick={() => void onViewChange("ideas")} title="Ideas (2)" type="button">ideas <kbd aria-hidden="true">2</kbd></button>

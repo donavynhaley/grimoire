@@ -199,6 +199,37 @@ describe("Grimoire board", () => {
     const navigation = await screen.findByRole("navigation", { name: "Project spaces" });
     expect(navigation.parentElement).toHaveClass("brand-lockup");
     expect(screen.getByRole("heading", { name: "Wizard Simulator" }).closest(".board-project")).not.toBeNull();
+    expect(screen.getByText("v0.6.1")).toBeInTheDocument();
+  });
+
+  it("shows the opening animation while switching projects", async () => {
+    const initial = boardFixture();
+    const nextProject = {
+      id: "00000000-0000-4000-8000-000000000002",
+      name: "Potion Shop",
+      description: "",
+    };
+    initial.projects = [...initial.projects, nextProject];
+    const next = {
+      ...initial,
+      project: { ...initial.project, ...nextProject },
+      pages: [],
+    };
+    let finishOpening!: (value: Response) => void;
+    const opening = new Promise<Response>((resolve) => { finishOpening = resolve; });
+    const fetchMock = authenticatedFetch(initial).mockImplementationOnce(() => opening);
+    stubFetch(fetchMock);
+
+    render(<App />);
+    await userEvent.click(await screen.findByRole("button", { name: "Wizard Simulator" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Potion Shop" }));
+
+    const loading = await screen.findByText("opening project...");
+    expect(loading.previousElementSibling).toHaveClass("brand-mark", "pulse");
+    expect(screen.queryByRole("heading", { name: "Wizard Simulator" })).not.toBeInTheDocument();
+
+    finishOpening(await response(next));
+    expect(await screen.findByRole("heading", { name: "Potion Shop" })).toBeInTheDocument();
   });
 
   it("switches between Work and Ideas with 1 and 2 from an empty capture field", async () => {
