@@ -2078,9 +2078,23 @@ textarea:hover { border-color: var(--border-bright); }
   grid-template-columns: 1.25rem minmax(0, 1fr) auto;
   gap: 0.5625rem;
 }
-.page-history li > span { display: grid; gap: 0.3125rem; color: var(--muted); font-size: 0.5625rem; line-height: 1.5; }
+/*
+ * A size the record can actually be read at.
+ *
+ * It had been sized as a footnote - nine pixels for the sentence and seven for the time - which
+ * is small enough that opening the fold told you there was a history rather than what was in
+ * it. Everything here moves up together so the entry, its time and its changed fields keep
+ * their order of importance, and it stays a step under the conversation, which is the thing on
+ * this panel meant to be read rather than consulted.
+ */
+.page-history li > span { display: grid; gap: 0.3125rem; color: var(--muted); font-size: 0.6875rem; line-height: 1.55; }
 .page-history strong { color: var(--text); font-weight: 700; }
-.page-history time { padding-top: 0.125rem; color: var(--faint); font-size: 0.4375rem; white-space: nowrap; }
+.page-history time { padding-top: 0.1875rem; color: var(--faint); font-size: 0.5625rem; white-space: nowrap; }
+.page-history .activity-changes > span { font-size: 0.5rem; padding: 0.1875rem 0.5rem; }
+.page-history .empty-dependencies { font-size: 0.6875rem; }
+/* The fold's own line, scoped so every other label in the product keeps its size. */
+.page-history .field-label { font-size: 0.6875rem; }
+.page-history .history-caret { width: 0.6875rem; font-size: 0.75rem; }
 .history-reopen {
   min-width: 4.5rem;
   color: var(--faint);
@@ -3897,7 +3911,15 @@ textarea:hover { border-color: var(--border-bright); }
   display: grid;
   min-height: 0;
   flex: 1 1 auto;
-  grid-template-columns: minmax(0, 1fr) 25rem;
+  /*
+   * The second column meets the writing halfway.
+   *
+   * Twenty rem was too narrow to read a conversation in and twenty-five spent more of the
+   * panel on it than a column of short messages needs. This is the middle, and the writing
+   * takes everything else - which is the right way round, because the notes are what the page
+   * is and the column beside them is what is being said about it.
+   */
+  grid-template-columns: minmax(0, 1fr) 22.5rem;
   gap: 0;
 }
 
