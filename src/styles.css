@@ -164,7 +164,7 @@ textarea:focus-visible {
 .brand-word { font-size: 0.75rem; font-weight: 800; letter-spacing: 0.04em; }
 .app-version {
   position: absolute;
-  top: calc(50% + 0.4375rem);
+  top: calc(50% + 0.625rem);
   left: 2.25rem;
   color: var(--faint);
   font-size: 0.5rem;
