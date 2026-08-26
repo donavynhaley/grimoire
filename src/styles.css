@@ -2200,15 +2200,10 @@ textarea:hover { border-color: var(--border-bright); }
 .cm-lp-strong { font-weight: 700; }
 .cm-lp-emphasis { font-style: italic; }
 .cm-lp-strikethrough { color: var(--muted); text-decoration: line-through; }
-.cm-lp-code {
-  padding: 1px 0.3125rem;
-  background: var(--surface-soft);
-  border-radius: 0.25rem;
-  font-family: ui-monospace, "SF Mono", monospace;
-  font-size: 0.75rem;
-}
+/* No font of its own: the whole interface is already set in one, as `.markdown-body` assumes. */
+.cm-lp-code { padding: 1px 0.3125rem; background: var(--surface-soft); border-radius: 0.25rem; font-size: 0.75rem; }
 .cm-lp-quote { padding-left: 0.625rem; border-left: 0.125rem solid var(--border-bright); color: var(--muted); }
-.cm-lp-code-line { background: var(--surface-soft); font-family: ui-monospace, "SF Mono", monospace; font-size: 0.75rem; }
+.cm-lp-code-line { background: var(--surface-soft); font-size: 0.75rem; }
 .cm-lp-link { color: var(--blue); text-decoration: underline; text-decoration-color: rgb(139 185 201 / 45%); cursor: pointer; }
 .cm-lp-link:hover { text-decoration-color: currentcolor; }
 .cm-lp-bullet { color: var(--faint); }
