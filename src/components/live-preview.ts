@@ -233,144 +233,142 @@ function build(state: EditorState, focused: boolean): Built {
   const isClaimed = (from: number) => claimed.some(([start, end]) => from >= start && from < end);
 
   const tree = syntaxTree(state);
-  {
-    tree.iterate({
-      enter: (node) => {
-        if (isClaimed(node.from)) return false;
-        const show = revealed(state, active, node.from, node.to);
+  tree.iterate({
+    enter: (node) => {
+      if (isClaimed(node.from)) return false;
+      const show = revealed(state, active, node.from, node.to);
 
-        if (node.name === "Table") {
-          if (show) return undefined;
-          const first = state.doc.lineAt(node.from);
-          const last = state.doc.lineAt(Math.min(node.to, state.doc.length));
-          const source = state.doc.sliceString(first.from, last.to);
-          decorations.push(Decoration.replace({ widget: new TableWidget(source), block: true }).range(first.from, last.to));
-          atomic.push(HIDDEN.range(first.from, last.to));
-          claimed.push([first.from, last.to]);
-          return false;
-        }
-
-        if (node.name === "HorizontalRule") {
-          if (show) return undefined;
-          const line = state.doc.lineAt(node.from);
-          decorations.push(Decoration.replace({ widget: new RuleWidget(), block: true }).range(line.from, line.to));
-          atomic.push(HIDDEN.range(line.from, line.to));
-          claimed.push([line.from, line.to]);
-          return false;
-        }
-
-        const heading = node.name.match(/^(?:ATX|Setext)Heading([1-6])$/);
-        if (heading) {
-          decorations.push(HEADING_LINES[Number(heading[1]) - 1].range(state.doc.lineAt(node.from).from));
-          return undefined;
-        }
-
-        if (node.name === "Blockquote") {
-          const first = state.doc.lineAt(node.from).number;
-          const last = state.doc.lineAt(Math.min(node.to, state.doc.length)).number;
-          for (let line = first; line <= last; line += 1) {
-            decorations.push(QUOTE_LINE.range(state.doc.line(line).from));
-          }
-          return undefined;
-        }
-
-        if (node.name === "FencedCode" || node.name === "CodeBlock") {
-          const first = state.doc.lineAt(node.from).number;
-          const last = state.doc.lineAt(Math.min(node.to, state.doc.length)).number;
-          for (let line = first; line <= last; line += 1) {
-            decorations.push(CODE_LINE.range(state.doc.line(line).from));
-          }
-          return undefined;
-        }
-
-        if (node.name === "StrongEmphasis") decorations.push(STRONG.range(node.from, node.to));
-        if (node.name === "Emphasis") decorations.push(EMPHASIS.range(node.from, node.to));
-        if (node.name === "Strikethrough") decorations.push(STRIKETHROUGH.range(node.from, node.to));
-        if (node.name === "InlineCode") decorations.push(INLINE_CODE.range(node.from, node.to));
-
-        if (node.name === "TaskMarker") {
-          const checked = /[xX]/.test(state.doc.sliceString(node.from, node.to));
-          decorations.push(Decoration.replace({ widget: new TaskWidget(checked, node.from) }).range(node.from, node.to));
-          return false;
-        }
-
+      if (node.name === "Table") {
         if (show) return undefined;
+        const first = state.doc.lineAt(node.from);
+        const last = state.doc.lineAt(Math.min(node.to, state.doc.length));
+        const source = state.doc.sliceString(first.from, last.to);
+        decorations.push(Decoration.replace({ widget: new TableWidget(source), block: true }).range(first.from, last.to));
+        atomic.push(HIDDEN.range(first.from, last.to));
+        claimed.push([first.from, last.to]);
+        return false;
+      }
 
-        // From here down is syntax that only exists to produce what is already drawn.
-        if (node.name === "HeaderMark") {
-          const line = state.doc.lineAt(node.from);
-          // Setext underlines are a whole line of syntax; ATX hashes take the space after them.
-          if (node.from === line.from && node.to === line.to) return false;
-          const after = /\s/.test(state.doc.sliceString(node.to, node.to + 1)) ? node.to + 1 : node.to;
-          decorations.push(HIDDEN.range(node.from, after));
-          return false;
-        }
+      if (node.name === "HorizontalRule") {
+        if (show) return undefined;
+        const line = state.doc.lineAt(node.from);
+        decorations.push(Decoration.replace({ widget: new RuleWidget(), block: true }).range(line.from, line.to));
+        atomic.push(HIDDEN.range(line.from, line.to));
+        claimed.push([line.from, line.to]);
+        return false;
+      }
 
-        if (node.name === "EmphasisMark" || node.name === "StrikethroughMark" || node.name === "QuoteMark") {
-          decorations.push(HIDDEN.range(node.from, node.to));
-          return false;
-        }
-
-        if (node.name === "CodeMark" && !insideFence(state, node.from)) {
-          decorations.push(HIDDEN.range(node.from, node.to));
-          return false;
-        }
-
-        if (node.name === "ListMark") {
-          const mark = state.doc.sliceString(node.from, node.to);
-          if (/^[-*+]$/.test(mark)) {
-            decorations.push(Decoration.replace({ widget: new BulletWidget() }).range(node.from, node.to));
-          }
-          return false;
-        }
-
-        if (node.name === "Link") {
-          const url = urlOf(state, node.node);
-          if (url) decorations.push(Decoration.mark({ class: "cm-lp-link", attributes: { "data-href": url } }).range(node.from, node.to));
-          for (const child of childrenOf(node.node)) {
-            if (child.name === "LinkMark" || child.name === "URL" || child.name === "LinkTitle") {
-              decorations.push(HIDDEN.range(child.from, child.to));
-            }
-          }
-          return false;
-        }
-
-        if (node.name === "Image") {
-          // Obsidian's own embeds are handled below; this is the plain Markdown form.
-          if (state.doc.sliceString(node.from, node.from + 3) === "![[") return false;
-          const url = urlOf(state, node.node);
-          if (!url) return false;
-          const line = state.doc.lineAt(node.from);
-          const alone = line.text.trim() === state.doc.sliceString(node.from, node.to).trim();
-          decorations.push(
-            Decoration.replace({ widget: new ImageWidget(url, altOf(state, node.node), undefined, undefined, alone) })
-              .range(node.from, node.to),
-          );
-          atomic.push(HIDDEN.range(node.from, node.to));
-          return false;
-        }
-
+      const heading = node.name.match(/^(?:ATX|Setext)Heading([1-6])$/);
+      if (heading) {
+        decorations.push(HEADING_LINES[Number(heading[1]) - 1].range(state.doc.lineAt(node.from).from));
         return undefined;
-      },
-    });
+      }
 
-    // Obsidian embeds are not Markdown, so no parser reports them; they are found in the
-    // text and then disqualified by the tree wherever Markdown has stopped applying.
-    const text = state.doc.toString();
-    EMBED_PATTERN.lastIndex = 0;
-    for (let match = EMBED_PATTERN.exec(text); match; match = EMBED_PATTERN.exec(text)) {
-      const start = match.index;
-      const end = start + match[0].length;
-      if (isClaimed(start) || insideCode(state, start)) continue;
-      if (revealed(state, active, start, end)) continue;
-      const { width, height, alt } = embedDimensions(match[2]?.trim());
-      const line = state.doc.lineAt(start);
-      const alone = line.text.trim() === match[0];
-      decorations.push(
-        Decoration.replace({ widget: new ImageWidget(match[1].trim(), alt, width, height, alone) }).range(start, end),
-      );
-      atomic.push(HIDDEN.range(start, end));
-    }
+      if (node.name === "Blockquote") {
+        const first = state.doc.lineAt(node.from).number;
+        const last = state.doc.lineAt(Math.min(node.to, state.doc.length)).number;
+        for (let line = first; line <= last; line += 1) {
+          decorations.push(QUOTE_LINE.range(state.doc.line(line).from));
+        }
+        return undefined;
+      }
+
+      if (node.name === "FencedCode" || node.name === "CodeBlock") {
+        const first = state.doc.lineAt(node.from).number;
+        const last = state.doc.lineAt(Math.min(node.to, state.doc.length)).number;
+        for (let line = first; line <= last; line += 1) {
+          decorations.push(CODE_LINE.range(state.doc.line(line).from));
+        }
+        return undefined;
+      }
+
+      if (node.name === "StrongEmphasis") decorations.push(STRONG.range(node.from, node.to));
+      if (node.name === "Emphasis") decorations.push(EMPHASIS.range(node.from, node.to));
+      if (node.name === "Strikethrough") decorations.push(STRIKETHROUGH.range(node.from, node.to));
+      if (node.name === "InlineCode") decorations.push(INLINE_CODE.range(node.from, node.to));
+
+      if (node.name === "TaskMarker") {
+        const checked = /[xX]/.test(state.doc.sliceString(node.from, node.to));
+        decorations.push(Decoration.replace({ widget: new TaskWidget(checked, node.from) }).range(node.from, node.to));
+        return false;
+      }
+
+      if (show) return undefined;
+
+      // From here down is syntax that only exists to produce what is already drawn.
+      if (node.name === "HeaderMark") {
+        const line = state.doc.lineAt(node.from);
+        // Setext underlines are a whole line of syntax; ATX hashes take the space after them.
+        if (node.from === line.from && node.to === line.to) return false;
+        const after = /\s/.test(state.doc.sliceString(node.to, node.to + 1)) ? node.to + 1 : node.to;
+        decorations.push(HIDDEN.range(node.from, after));
+        return false;
+      }
+
+      if (node.name === "EmphasisMark" || node.name === "StrikethroughMark" || node.name === "QuoteMark") {
+        decorations.push(HIDDEN.range(node.from, node.to));
+        return false;
+      }
+
+      if (node.name === "CodeMark" && !insideFence(state, node.from)) {
+        decorations.push(HIDDEN.range(node.from, node.to));
+        return false;
+      }
+
+      if (node.name === "ListMark") {
+        const mark = state.doc.sliceString(node.from, node.to);
+        if (/^[-*+]$/.test(mark)) {
+          decorations.push(Decoration.replace({ widget: new BulletWidget() }).range(node.from, node.to));
+        }
+        return false;
+      }
+
+      if (node.name === "Link") {
+        const url = urlOf(state, node.node);
+        if (url) decorations.push(Decoration.mark({ class: "cm-lp-link", attributes: { "data-href": url } }).range(node.from, node.to));
+        for (const child of childrenOf(node.node)) {
+          if (child.name === "LinkMark" || child.name === "URL" || child.name === "LinkTitle") {
+            decorations.push(HIDDEN.range(child.from, child.to));
+          }
+        }
+        return false;
+      }
+
+      if (node.name === "Image") {
+        // Obsidian's own embeds are handled below; this is the plain Markdown form.
+        if (state.doc.sliceString(node.from, node.from + 3) === "![[") return false;
+        const url = urlOf(state, node.node);
+        if (!url) return false;
+        const line = state.doc.lineAt(node.from);
+        const alone = line.text.trim() === state.doc.sliceString(node.from, node.to).trim();
+        decorations.push(
+          Decoration.replace({ widget: new ImageWidget(url, altOf(state, node.node), undefined, undefined, alone) })
+            .range(node.from, node.to),
+        );
+        atomic.push(HIDDEN.range(node.from, node.to));
+        return false;
+      }
+
+      return undefined;
+    },
+  });
+
+  // Obsidian embeds are not Markdown, so no parser reports them; they are found in the
+  // text and then disqualified by the tree wherever Markdown has stopped applying.
+  const text = state.doc.toString();
+  EMBED_PATTERN.lastIndex = 0;
+  for (let match = EMBED_PATTERN.exec(text); match; match = EMBED_PATTERN.exec(text)) {
+    const start = match.index;
+    const end = start + match[0].length;
+    if (isClaimed(start) || insideCode(state, start)) continue;
+    if (revealed(state, active, start, end)) continue;
+    const { width, height, alt } = embedDimensions(match[2]?.trim());
+    const line = state.doc.lineAt(start);
+    const alone = line.text.trim() === match[0];
+    decorations.push(
+      Decoration.replace({ widget: new ImageWidget(match[1].trim(), alt, width, height, alone) }).range(start, end),
+    );
+    atomic.push(HIDDEN.range(start, end));
   }
 
   return { decorations: Decoration.set(decorations, true), atomic: Decoration.set(atomic, true) };

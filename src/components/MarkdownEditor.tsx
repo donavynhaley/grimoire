@@ -73,7 +73,6 @@ function wrapSelection(view: EditorView, mark: string): boolean {
 function editorExtensions(props: {
   ariaLabel: string;
   placeholder: string;
-  fill: boolean;
   onChange: (value: string) => void;
   onPasteFiles?: (files: File[]) => void;
   onFocusChange?: (focused: boolean) => void;
@@ -95,7 +94,6 @@ function editorExtensions(props: {
     EditorView.lineWrapping,
     placeholderExtension(props.placeholder),
     EditorView.contentAttributes.of({ "aria-label": props.ariaLabel }),
-    EditorView.editorAttributes.of({ class: props.fill ? "cm-grimoire fill" : "cm-grimoire" }),
     EditorView.updateListener.of((update) => {
       if (update.docChanged) props.onChange(update.state.doc.toString());
       if (update.focusChanged) props.onFocusChange?.(update.view.hasFocus);
@@ -160,7 +158,6 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, Props>(function M
         extensions: editorExtensions({
           ariaLabel,
           placeholder,
-          fill,
           onChange: (next) => {
             emitted.current.push(next);
             // Only enough history to outlast React's lag, never enough to be a copy of the notes.
