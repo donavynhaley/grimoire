@@ -4,6 +4,7 @@ import { type Page, type PageCategory, type Chapter, type Member, type ProjectCa
 import { categoryDisplay, categoryStyle } from "./category-style";
 import { plainTextFromMarkdown } from "./markdown-text";
 import { useTypingFocus } from "./use-typing-focus";
+import { Growing } from "./Growing";
 
 type Props = {
   allPages: Page[];
@@ -30,8 +31,11 @@ export function BacklogDialog({ allPages, busy, pages, categories, chapters, mem
   const [person, setPerson] = useState<string | null>(null);
   const [blockedOnly, setBlockedOnly] = useState(false);
   const [chapterFilter, setChapterFilter] = useState<ChapterChoice>(null);
+  const [showClosedChapters, setShowClosedChapters] = useState(false);
   const normalizedQuery = query.trim().toLowerCase();
   const target = chapters.find((chapter) => chapter.slug === targetChapter);
+  const activeChapters = chapters.filter((chapter) => chapter.state !== "closed");
+  const closedChapters = chapters.filter((chapter) => chapter.state === "closed");
   const usedCategories = useMemo(
     () => [...new Set(pages.map((page) => page.category).filter((value): value is PageCategory => Boolean(value)))],
     [pages],
@@ -105,7 +109,7 @@ export function BacklogDialog({ allPages, busy, pages, categories, chapters, mem
           <div aria-label="Backlog chapters" className="library-filters chapter-filters">
             <span className="library-filter-label">chapter</span>
             <button aria-pressed={chapterFilter === null} className={chapterFilter === null ? "active" : ""} onClick={() => setChapterFilter(null)} type="button">any</button>
-            {chapters.map((chapter) => (
+            {activeChapters.map((chapter) => (
               <button
                 aria-pressed={chapterFilter === chapter.slug}
                 className={chapterFilter === chapter.slug ? "active" : ""}
@@ -114,6 +118,28 @@ export function BacklogDialog({ allPages, busy, pages, categories, chapters, mem
                 type="button"
               >{chapter.name}</button>
             ))}
+            {closedChapters.length > 0 && (
+              <Growing className="library-chapter-fold">
+                <button
+                  aria-expanded={showClosedChapters}
+                  className="library-chapter-fold-toggle"
+                  onClick={() => setShowClosedChapters((shown) => !shown)}
+                  type="button"
+                >
+                  earlier <span>{closedChapters.length}</span>
+                  <span aria-hidden="true">{showClosedChapters ? "▾" : "▸"}</span>
+                </button>
+                {showClosedChapters && closedChapters.map((chapter) => (
+                  <button
+                    aria-pressed={chapterFilter === chapter.slug}
+                    className={chapterFilter === chapter.slug ? "active" : ""}
+                    key={chapter.slug}
+                    onClick={() => setChapterFilter(chapterFilter === chapter.slug ? null : chapter.slug)}
+                    type="button"
+                  >{chapter.name}</button>
+                ))}
+              </Growing>
+            )}
             <button aria-pressed={chapterFilter === "unplaced"} className={chapterFilter === "unplaced" ? "active" : ""} onClick={() => setChapterFilter(chapterFilter === "unplaced" ? null : "unplaced")} type="button">no chapter</button>
           </div>
         )}

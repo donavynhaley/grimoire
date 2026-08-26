@@ -1908,6 +1908,9 @@ textarea:hover { border-color: var(--border-bright); }
 }
 .library-filters button:hover { color: var(--text); border-color: var(--border-bright); }
 .library-filters button.active { color: var(--accent); background: var(--accent-soft); border-color: #465f3c; }
+.library-chapter-fold { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 0.3125rem; }
+.library-filters .library-chapter-fold-toggle { border-style: dashed; }
+.library-chapter-fold-toggle span { color: var(--faint); }
 .category-filters button { border-radius: 0.3125rem; }
 .library-results,
 .history-results {
