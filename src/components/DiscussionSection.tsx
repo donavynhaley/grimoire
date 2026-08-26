@@ -95,7 +95,7 @@ export function DiscussionSection({ threads, failed, members, currentUserId, onA
           </div>
         )}
 
-      <Composer label="Start a thread" members={members} onSubmit={onAsk} placeholder="Say something about this page..." />
+      <Composer label="Start a thread" members={members} onSubmit={onAsk} placeholder="Say something about this page..." sendLabel="post" />
     </div>
   );
 }
@@ -152,7 +152,7 @@ function Thread({ thread, members, currentUserId, replying, onReply, onReplyingC
         </p>
       )}
       {replying && (
-        <Composer autoFocus label="Reply" members={members} onCancel={() => onReplyingChange(false)} onSubmit={onReply} placeholder="Reply..." reply />
+        <Composer autoFocus label="Reply" members={members} onCancel={() => onReplyingChange(false)} onSubmit={onReply} placeholder="Reply..." reply sendLabel="reply" />
       )}
     </Growing>
   );
@@ -210,11 +210,14 @@ function fitToContent(element: HTMLTextAreaElement): void {
  * than they meant to. Enter sends and shift-enter breaks the line, which is what everyone
  * expects from a field that looks like this.
  */
-function Composer({ onSubmit, onCancel, placeholder, label, members, reply, autoFocus }: {
+function Composer({ onSubmit, onCancel, placeholder, label, sendLabel, members, reply, autoFocus }: {
   onSubmit: (body: string) => Promise<void>;
   onCancel?: () => void;
   placeholder: string;
+  /** What a screen reader calls the field. */
   label: string;
+  /** What the button says. Shorter than the field's name, because it sits beside it. */
+  sendLabel: string;
   members: Member[];
   reply?: boolean;
   autoFocus?: boolean;
@@ -419,10 +422,20 @@ function Composer({ onSubmit, onCancel, placeholder, label, members, reply, auto
         </ul>
       )}
 
+      {/*
+        The same shape the capture field at the top of the board has: a button that is always
+        there and comes alive when there is something to send. It is the one control on this
+        panel that commits something, and the product already has a look for that.
+      */}
       <div className="composer-tools">
         {onCancel && <button className="text-button" onClick={onCancel} type="button">cancel</button>}
-        <button className="text-button composer-send" disabled={!value.trim() || busy} onClick={() => void send()} type="button">
-          {label.toLowerCase()}
+        <button
+          className="primary-button compact"
+          disabled={!value.trim() || busy}
+          onClick={() => void send()}
+          type="button"
+        >
+          {sendLabel}
         </button>
       </div>
     </div>

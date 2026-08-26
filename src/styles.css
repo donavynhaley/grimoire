@@ -4319,11 +4319,15 @@ textarea:hover { border-color: var(--border-bright); }
   line-height: 1.6;
   resize: none;
 }
-.discussion-composer textarea:hover { border-color: var(--border-bright); }
-.discussion-composer textarea:focus-visible { outline: 1px solid var(--border-bright); outline-offset: -1px; }
-.composer-tools { display: flex; align-items: baseline; justify-content: flex-end; gap: 0.75rem; }
-.composer-send { color: var(--accent); font-size: 0.5625rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
-.composer-send:disabled { color: var(--faint); cursor: default; }
+/*
+ * Hover and focus are the ones every other field in the product has.
+ *
+ * This had an outline of its own - a dim hairline drawn inside the border - which meant the
+ * one field you are asked to type in was the only one that did not light up when you clicked
+ * it. The rules for `input, textarea` already say what a field does; there was nothing here
+ * worth saying differently.
+ */
+.composer-tools { display: flex; align-items: center; justify-content: flex-end; gap: 0.75rem; }
 
 /* On a tile, an open thread wears the same quiet pill everything else on a tile wears. */
 .discussion-pill {

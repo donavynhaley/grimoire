@@ -299,7 +299,7 @@ describe("the discussion on a page", () => {
     const user = await openPage(board);
 
     await user.type(screen.getByLabelText("Start a thread"), "Does this need a migration?");
-    await user.click(within(section()).getByRole("button", { name: "start a thread" }));
+    await user.click(within(section()).getByRole("button", { name: "post" }));
 
     const posted = calls.find((call) => call.url.endsWith("/discussion"));
     expect(posted?.method).toBe("POST");
@@ -311,11 +311,36 @@ describe("the discussion on a page", () => {
     const calls = mountWith([], board);
     const user = await openPage(board);
 
-    const send = within(section()).getByRole("button", { name: "start a thread" });
+    const send = within(section()).getByRole("button", { name: "post" });
     expect(send).toBeDisabled();
     await user.type(screen.getByLabelText("Start a thread"), "   ");
     expect(send).toBeDisabled();
     expect(calls.filter((call) => call.url.endsWith("/discussion"))).toHaveLength(0);
+  });
+
+  it("commits with the same button the capture field uses, alive only once there is something to send", async () => {
+    const board = boardFixture();
+    mountWith([], board);
+    const user = await openPage(board);
+
+    const send = within(section()).getByRole("button", { name: "post" });
+    // The same control the board's capture field carries, rather than a link dressed as one.
+    expect(send.className).toContain("primary-button");
+    expect(send).toBeDisabled();
+
+    await user.type(screen.getByLabelText("Start a thread"), "something");
+    expect(send).toBeEnabled();
+  });
+
+  it("leaves the field the focus ring every other field in the product has", async () => {
+    const board = boardFixture();
+    mountWith([], board);
+    await openPage(board);
+
+    // Nothing of its own: the rules for `input, textarea` already say what a field does when
+    // it is clicked, and this one used to draw a dimmer outline inside its own border.
+    expect(document.querySelector(".composer-send")).toBeNull();
+    expect(screen.getByLabelText("Start a thread").className).not.toContain("composer");
   });
 
   it("replies into the thread that was asked, not a new one", async () => {
