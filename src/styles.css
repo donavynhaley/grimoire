@@ -3964,7 +3964,13 @@ textarea:hover { border-color: var(--border-bright); }
   min-height: 0;
   flex-direction: column;
   gap: 0.875rem;
-  margin-left: 3.375rem;
+  /*
+   * Close to the writing rather than held off from it. The two columns are one panel and the
+   * space between them only has to say they are two things, which at this width it does; the
+   * three and a bit rem it used to be was inherited from a rule that no longer exists and was
+   * keeping them apart for a line that is not there any more.
+   */
+  margin-left: 1.375rem;
   /*
    * Dropped to the height of the Title label and the gap under it, so the switch starts on
    * the same line as the box you type the title into rather than on the line above it. The
