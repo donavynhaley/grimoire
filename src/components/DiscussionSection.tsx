@@ -183,6 +183,26 @@ function Message({ message, members, currentUserId, now, action, reply }: {
 }
 
 /**
+ * Sizes a textarea to exactly what is written in it.
+ *
+ * Zero first, not "auto": a textarea sized `auto` inside a grid resolves its height from the
+ * row it is in, and the row is sized from the textarea, so the measurement reads back whatever
+ * the box already was and an empty field settles a hundred pixels tall. Collapsing it to
+ * nothing breaks the circle, and `min-height` in the stylesheet decides the floor.
+ *
+ * The borders are added back on. `scrollHeight` measures the padding and the content and
+ * nothing else, while under `box-sizing: border-box` the height it is assigned to has to
+ * contain the borders too - so setting one to the other leaves the content two pixels short
+ * of its own text, and a field that is exactly full scrolls.
+ */
+function fitToContent(element: HTMLTextAreaElement): void {
+  const style = getComputedStyle(element);
+  const borders = parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
+  element.style.height = "0px";
+  element.style.height = `${element.scrollHeight + borders}px`;
+}
+
+/**
  * One place to write something.
  *
  * The textarea grows with what is typed rather than scrolling inside a fixed box, because a
@@ -271,18 +291,7 @@ function Composer({ onSubmit, onCancel, placeholder, label, members, reply, auto
   };
 
   useEffect(() => {
-    const element = field.current;
-    if (!element) return;
-    /*
-     * Zero first, not "auto".
-     *
-     * A textarea sized `auto` inside a grid resolves its height from the row it is in, and
-     * the row is sized from the textarea - so the measurement reads back whatever the box
-     * already was and an empty field settles a hundred pixels tall. Collapsing it to nothing
-     * breaks the circle, and `min-height` in the stylesheet decides the floor.
-     */
-    element.style.height = "0px";
-    element.style.height = `${element.scrollHeight}px`;
+    if (field.current) fitToContent(field.current);
   }, [value]);
 
   /*
@@ -298,8 +307,7 @@ function Composer({ onSubmit, onCancel, placeholder, label, members, reply, auto
     if (!element || typeof ResizeObserver !== "function") return;
     const observer = new ResizeObserver(() => {
       if (element.clientWidth === 0) return;
-      element.style.height = "0px";
-      element.style.height = `${element.scrollHeight}px`;
+      fitToContent(element);
     });
     observer.observe(element);
     return () => observer.disconnect();
