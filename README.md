@@ -37,11 +37,17 @@ Completed pages are never automatically archived or deleted, and any completed p
 Moving a page into Done records its completion time, editing it preserves that time, and reopening it clears the completion time.
 
 Every page can contain a title, optional notes, and one assignee.
-Notes are written in Markdown and shown rendered, so headings, emphasis, links, lists, task checkboxes, quotes, and code display as formatting instead of syntax.
-Clicking the rendered notes, or the `edit` action beside them, opens the plain-text editor, and leaving it returns to the rendered view.
+Notes are written in Markdown on a single surface that is always rendered and always writable, the way Obsidian's Live Preview works.
+Headings, emphasis, links, lists, task checkboxes, quotes, tables, rules, code, and embedded screenshots display as what they produce rather than as syntax, and the Markdown that produced any of it appears only on the line the caret is on.
+There is no reading mode and no editing mode to switch between: clicking puts the caret where it was clicked, and moving away lets that line settle back into what it says.
+A table is drawn as a table, and grown as one: quiet controls add a column or a row, and clicking any cell puts the caret in that cell rather than at the top of the block.
+Both rewrite the block and lay the source out square again, the same tidying Obsidian does.
+A table being written in shows its rows as text, since no arrangement of hidden pipes turns source rows into columns.
+Task checkboxes are live controls while their line is at rest and plain `[ ]` once the caret arrives, so a list can be ticked with the pointer and rewritten with the keyboard.
 Links in notes open in a new tab without disturbing the page.
+`Cmd/Ctrl+B` and `Cmd/Ctrl+I` wrap the selection, pasting a URL over chosen words links them, Enter carries a list on, and Escape leaves the surface without closing the panel behind it.
 Pasting or dropping a screenshot into the notes uploads it to the project's `images/` directory and embeds it with Obsidian's `![[name]]` syntax, including support for Obsidian's `![[name|300]]` display sizes.
-The whole notes field accepts drops whether it is being read or edited, highlights while a file is dragged across it, and the editor stays open while a screenshot is fetched from another window.
+The whole notes field accepts drops wherever the caret happens to be, and highlights while a file is dragged across it.
 Because the embed resolves by file name, images keep working when a page is archived, restored, or promoted from an idea, and they render natively if the project directory lives inside an Obsidian vault.
 Board and library tiles reduce notes to plain text so Markdown syntax never clutters a preview.
 Idea notes work the same way in both the idea dialog and the garden tiles.

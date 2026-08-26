@@ -16,3 +16,6 @@ demo-data/
 
 # Screenshots from scripts/shots.mjs
 .shots/
+
+# Local preview instance data, never part of the project.
+.live/

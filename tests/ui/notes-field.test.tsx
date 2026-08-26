@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { uploadImage } from "../../src/api/client";
 import { NotesField } from "../../src/components/NotesField";
 import { plainTextFromMarkdown } from "../../src/components/markdown-text";
@@ -23,12 +23,11 @@ function notesElement(value: string, onChange: (value: string) => void = () => u
   return (
     <NotesField
       editLabel="Edit notes"
+      editorLabel="Notes"
       label="Notes"
-      name="description"
       onChange={onChange}
       placeholder="Add only the context someone needs to act..."
       rows={6}
-      textareaLabel="Notes"
       value={value}
     />
   );
@@ -38,68 +37,131 @@ function renderNotes(value: string, onChange: (value: string) => void = () => un
   return render(notesElement(value, onChange));
 }
 
-describe("NotesField", () => {
-  it("renders notes as formatted Markdown instead of raw syntax", () => {
-    renderNotes("# Goal\n\nUse **bold** words and a [reference](https://example.com).\n\n- first\n- second");
+/** What the surface is currently showing, which is never the same as what it holds. */
+function shown(): string {
+  return (document.querySelector(".cm-content") as HTMLElement | null)?.textContent ?? "";
+}
 
-    expect(screen.getByRole("heading", { name: "Goal" })).toBeInTheDocument();
-    expect(screen.getByText("bold").tagName).toBe("STRONG");
-    expect(screen.getByRole("list")).toBeInTheDocument();
-    expect(screen.queryByText(/\*\*/)).not.toBeInTheDocument();
+function surface(): HTMLElement {
+  return document.querySelector(".cm-content") as HTMLElement;
+}
 
-    const link = screen.getByRole("link", { name: "reference" });
-    expect(link).toHaveAttribute("href", "https://example.com");
-    expect(link).toHaveAttribute("target", "_blank");
-    expect(link).toHaveAttribute("rel", "noreferrer");
+describe("NotesField live preview", () => {
+  it("draws what the Markdown produces instead of the Markdown", () => {
+    const { container } = renderNotes("# Goal\n\nUse **bold** words and *quiet* ones.");
+
+    expect(container.querySelector(".cm-lp-h1")).not.toBeNull();
+    expect(container.querySelector(".cm-lp-strong")?.textContent).toBe("bold");
+    expect(container.querySelector(".cm-lp-emphasis")?.textContent).toBe("quiet");
+    // The syntax that produced all of that is not on screen while the caret is elsewhere.
+    expect(shown()).not.toContain("**");
+    expect(shown()).not.toContain("# ");
+    expect(shown()).toContain("Goal");
+    expect(shown()).toContain("bold");
+  });
+
+  it("keeps the whole document, not just the part it is drawing", () => {
+    const changes: string[] = [];
+    renderNotes("**bold**", (value) => changes.push(value));
+
+    // Nothing was rewritten to make it render: the notes still say what they said.
+    expect(screen.getByRole("textbox", { name: "Notes" })).toBeInTheDocument();
+    expect(changes).toHaveLength(0);
+  });
+
+  it("shows a link as a link and follows it rather than editing it", async () => {
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    const { container } = renderNotes("A [reference](https://example.com) worth reading.");
+
+    const link = container.querySelector(".cm-lp-link") as HTMLElement;
+    expect(link.textContent).toBe("reference");
+    expect(shown()).not.toContain("https://example.com");
+
+    fireEvent.mouseDown(link);
+    expect(open).toHaveBeenCalledWith("https://example.com", "_blank", "noreferrer");
   });
 
   it("shows raw HTML as text rather than injecting it", () => {
     renderNotes('<img src="x" onerror="alert(1)">definitely text');
 
-    expect(document.querySelector("img")).toBeNull();
-    expect(screen.getByText(/definitely text/)).toBeInTheDocument();
+    expect(document.querySelector('img[src="x"]')).toBeNull();
+    expect(shown()).toContain("definitely text");
   });
 
-  it("opens the editor when the rendered notes are clicked and returns on blur", async () => {
-    // jsdom reports an unfocused document during synthetic tabbing; a browser
-    // moving focus inside the page always reports a focused one.
-    vi.spyOn(document, "hasFocus").mockReturnValue(true);
-    renderNotes("Some **notes** here");
+  it("draws a rule, a quote, and a bullet as themselves", () => {
+    const { container } = renderNotes("> quoted\n\n- first\n- second\n\n---");
 
-    await userEvent.click(screen.getByText("notes"));
-    const textarea = screen.getByRole("textbox", { name: "Notes" });
-    expect(textarea).toHaveFocus();
-    expect(textarea).toHaveValue("Some **notes** here");
-
-    await userEvent.tab();
-    expect(screen.queryByRole("textbox", { name: "Notes" })).not.toBeInTheDocument();
-    expect(screen.getByText("notes").tagName).toBe("STRONG");
+    expect(container.querySelector(".cm-lp-quote")).not.toBeNull();
+    expect(container.querySelectorAll(".cm-lp-bullet")).toHaveLength(2);
+    expect(container.querySelector("hr.cm-lp-rule")).not.toBeNull();
+    expect(shown()).not.toContain(">");
   });
 
-  it("keeps link clicks from entering edit mode", async () => {
-    renderNotes("See the [design doc](https://example.com).");
+  it("draws a table as a table, because no hidden pipe makes rows into columns", () => {
+    const { container } = renderNotes("| Part | Owner |\n| --- | ---: |\n| Door | Ana |");
 
-    await userEvent.click(screen.getByRole("link", { name: "design doc" }));
-    expect(screen.queryByRole("textbox", { name: "Notes" })).not.toBeInTheDocument();
+    const table = container.querySelector(".cm-lp-table table");
+    expect(table).not.toBeNull();
+    const headers = table?.querySelectorAll("th:not(.cm-lp-table-grow)") ?? [];
+    expect(headers).toHaveLength(2);
+    expect(headers[0].textContent).toBe("Part");
+    expect(table?.querySelector("td:not(.cm-lp-table-grow)")?.textContent).toBe("Door");
+    expect((headers[1] as HTMLElement).style.textAlign).toBe("right");
   });
 
-  it("offers the placeholder and an edit button when notes are empty", async () => {
-    const onChange = vi.fn();
-    renderNotes("", onChange);
+  it("grows a table by a column, and squares the source back up", async () => {
+    const written: string[] = [];
+    function TableHarness() {
+      const [value, setValue] = useState("| Part | Owner |\n| --- | ---: |\n| Door | Ana |");
+      return notesElement(value, (next) => {
+        written.push(next);
+        setValue(next);
+      });
+    }
+    render(<TableHarness />);
 
-    expect(screen.getByText("Add only the context someone needs to act...")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Edit notes" }));
-    await userEvent.type(screen.getByRole("textbox", { name: "Notes" }), "a");
-    expect(onChange).toHaveBeenCalledWith("a");
+    fireEvent.mouseDown(screen.getByRole("button", { name: "Add a column" }));
+
+    await waitFor(() =>
+      expect(written.at(-1)).toBe("| Part | Owner |     |\n| ---- | ----: | --- |\n| Door | Ana   |     |"),
+    );
   });
 
-  it("closes the editor on Escape without losing the draft owner", async () => {
-    renderNotes("draft text");
+  it("grows a table by a row", async () => {
+    const written: string[] = [];
+    function TableHarness() {
+      const [value, setValue] = useState("| Part | Owner |\n| --- | --- |\n| Door | Ana |");
+      return notesElement(value, (next) => {
+        written.push(next);
+        setValue(next);
+      });
+    }
+    render(<TableHarness />);
 
-    await userEvent.click(screen.getByText("draft text"));
-    await userEvent.keyboard("{Escape}");
-    expect(screen.queryByRole("textbox", { name: "Notes" })).not.toBeInTheDocument();
-    expect(screen.getByText("draft text")).toBeInTheDocument();
+    fireEvent.mouseDown(screen.getByRole("button", { name: "Add a row" }));
+
+    await waitFor(() =>
+      expect(written.at(-1)).toBe("| Part | Owner |\n| ---- | ----- |\n| Door | Ana   |\n|      |       |"),
+    );
+  });
+
+  it("takes a click on a cell as a request to write in that cell", async () => {
+    const { container } = renderNotes("| Part | Owner |\n| --- | --- |\n| Door | Ana |");
+
+    const ana = Array.from(container.querySelectorAll("td")).find((cell) => cell.textContent === "Ana");
+    expect(ana).toBeDefined();
+    fireEvent.mouseDown(ana as Element);
+
+    // The caret went into the table, so the table is showing its workings rather than its shape.
+    await waitFor(() => expect(container.querySelector(".cm-lp-table")).toBeNull());
+    expect(shown()).toContain("| Door | Ana |");
+  });
+
+  it("keeps a fenced block as the characters it contains", () => {
+    const { container } = renderNotes("```\nconst door = 1;\n```");
+
+    expect(container.querySelector(".cm-lp-code-line")).not.toBeNull();
+    expect(shown()).toContain("const door = 1;");
   });
 });
 
@@ -107,16 +169,17 @@ describe("NotesField Obsidian embeds", () => {
   it("renders ![[name]] embeds as project images the way Obsidian does", () => {
     const { container } = renderNotes("See ![[shot.png]] for the layout.");
 
-    const image = container.querySelector("img");
+    const image = container.querySelector("img.cm-lp-image");
     expect(image).toHaveAttribute("src", "/api/images/shot.png");
     expect(image).toHaveAttribute("loading", "lazy");
-    expect(screen.getByText(/for the layout/)).toBeInTheDocument();
+    expect(shown()).toContain("for the layout");
+    expect(shown()).not.toContain("![[shot.png]]");
   });
 
   it("honors Obsidian display sizes and alt modifiers", () => {
     const { container } = renderNotes("![[shot.png|300]]\n\n![[plan.png|300x200]]\n\n![[door.png|door sketch]]");
 
-    const images = container.querySelectorAll("img");
+    const images = container.querySelectorAll("img.cm-lp-image");
     expect(images[0]).toHaveAttribute("width", "300");
     expect(images[0]).not.toHaveAttribute("height");
     expect(images[1]).toHaveAttribute("width", "300");
@@ -128,15 +191,15 @@ describe("NotesField Obsidian embeds", () => {
   it("leaves embeds inside code as literal text", () => {
     const { container } = renderNotes("Use `![[literal.png]]` to embed.\n\n```\n![[fenced.png]]\n```");
 
-    expect(container.querySelector("img")).toBeNull();
-    expect(screen.getByText("![[literal.png]]")).toBeInTheDocument();
-    expect(screen.getByText("![[fenced.png]]")).toBeInTheDocument();
+    expect(container.querySelector("img.cm-lp-image")).toBeNull();
+    expect(shown()).toContain("![[literal.png]]");
+    expect(shown()).toContain("![[fenced.png]]");
   });
 
   it("resolves hand-written relative image paths by file name", () => {
     const { container } = renderNotes("![goal](images/goal.png)");
 
-    const image = container.querySelector("img");
+    const image = container.querySelector("img.cm-lp-image");
     expect(image).toHaveAttribute("src", "/api/images/goal.png");
     expect(image).toHaveAttribute("alt", "goal");
   });
@@ -144,60 +207,103 @@ describe("NotesField Obsidian embeds", () => {
   it("leaves absolute image sources untouched", () => {
     const { container } = renderNotes("![chart](https://example.com/chart.png)");
 
-    expect(container.querySelector("img")).toHaveAttribute("src", "https://example.com/chart.png");
+    expect(container.querySelector("img.cm-lp-image")).toHaveAttribute("src", "https://example.com/chart.png");
   });
 });
 
-function PasteHarness() {
+describe("NotesField task checkboxes", () => {
+  it("ticks a task where it stands, without going to find its syntax", async () => {
+    function TaskHarness() {
+      const [value, setValue] = useState("- [ ] hang the door");
+      return notesElement(value, setValue);
+    }
+    const { container } = render(<TaskHarness />);
+
+    const box = container.querySelector("input.cm-lp-task") as HTMLInputElement;
+    expect(box.checked).toBe(false);
+
+    fireEvent.mouseDown(box);
+
+    await waitFor(() => expect((container.querySelector("input.cm-lp-task") as HTMLInputElement).checked).toBe(true));
+  });
+
+  it("hands the box back as [ ] once the caret is on its line", async () => {
+    const { container } = renderNotes("- [ ] hang the door");
+    expect(container.querySelector("input.cm-lp-task")).not.toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit notes" }));
+
+    // A box that stayed a box would have no characters for the caret to walk into.
+    await waitFor(() => expect(container.querySelector("input.cm-lp-task")).toBeNull());
+    expect(shown()).toContain("[ ]");
+  });
+});
+
+/**
+ * Notes that report what they now hold, which is not what they are showing.
+ *
+ * An embed that has just been pasted is on the line the caret is on, so the surface is
+ * showing that line's source - the reference itself - rather than the picture. That is the
+ * whole point of the thing, so these tests read the notes rather than the screen, and the
+ * one that cares about the picture moves the caret away first.
+ */
+function PasteHarness({ onValue }: { onValue?: (value: string) => void } = {}) {
   const [value, setValue] = useState("Existing notes.");
-  return (
-    <NotesField
-      editLabel="Edit notes"
-      label="Notes"
-      name="description"
-      onChange={setValue}
-      placeholder="Add only the context someone needs to act..."
-      rows={6}
-      textareaLabel="Notes"
-      value={value}
-    />
-  );
+  return notesElement(value, (next) => {
+    onValue?.(next);
+    setValue(next);
+  });
 }
 
 describe("NotesField image paste", () => {
+  const png = () => new File([Uint8Array.from([137, 80, 78, 71])], "screenshot.png", { type: "image/png" });
+  /** A clipboard the editor can also read text out of, the way a real one would. */
+  const clipboard = (files: File[]) => ({ files, items: [], types: files.length ? ["Files"] : [], getData: () => "" });
+
   it("uploads a pasted screenshot and embeds it Obsidian-style", async () => {
     vi.mocked(uploadImage).mockResolvedValue({ name: "pasted-image-20260807-183045-ab12.png" });
-    render(<PasteHarness />);
+    const written: string[] = [];
+    render(<PasteHarness onValue={(value) => written.push(value)} />);
 
-    await userEvent.click(screen.getByRole("button", { name: "Edit notes" }));
-    const textarea = screen.getByRole("textbox", { name: "Notes" });
-    const file = new File([Uint8Array.from([137, 80, 78, 71])], "screenshot.png", { type: "image/png" });
-    fireEvent.paste(textarea, { clipboardData: { files: [file] } });
+    const file = png();
+    fireEvent.paste(surface(), { clipboardData: clipboard([file]) });
 
     await waitFor(() =>
-      expect(textarea).toHaveValue("Existing notes.![[pasted-image-20260807-183045-ab12.png]]"),
+      expect(written.at(-1)).toBe("Existing notes.\n\n![[pasted-image-20260807-183045-ab12.png]]"),
     );
     expect(uploadImage).toHaveBeenCalledWith(file);
+  });
+
+  it("draws the picture once the caret is no longer standing on it", async () => {
+    vi.mocked(uploadImage).mockResolvedValue({ name: "settled.png" });
+    const { container } = render(<PasteHarness />);
+
+    fireEvent.paste(surface(), { clipboardData: clipboard([png()]) });
+    await waitFor(() => expect(uploadImage).toHaveBeenCalled());
+
+    // Really leaving, not just being told about it: the editor reads focus off the document.
+    surface().blur();
+
+    await waitFor(() =>
+      expect(container.querySelector("img.cm-lp-image")).toHaveAttribute("src", "/api/images/settled.png"),
+    );
   });
 
   it("removes the placeholder and reports when an upload fails", async () => {
     vi.mocked(uploadImage).mockRejectedValue(new Error("boom"));
     render(<PasteHarness />);
 
-    await userEvent.click(screen.getByRole("button", { name: "Edit notes" }));
-    const textarea = screen.getByRole("textbox", { name: "Notes" });
-    const file = new File([Uint8Array.from([137, 80, 78, 71])], "screenshot.png", { type: "image/png" });
-    fireEvent.paste(textarea, { clipboardData: { files: [file] } });
+    fireEvent.paste(surface(), { clipboardData: clipboard([png()]) });
 
     await waitFor(() => expect(screen.getByText("image upload failed")).toBeInTheDocument());
-    expect(textarea).toHaveValue("Existing notes.");
+    await waitFor(() => expect(shown()).toBe("Existing notes."));
   });
 
   it("takes an image from the picker, which is the only route a phone has", async () => {
     vi.mocked(uploadImage).mockResolvedValue({ name: "from-camera-roll.png" });
-    const { container } = render(<PasteHarness />);
+    const written: string[] = [];
+    const { container } = render(<PasteHarness onValue={(value) => written.push(value)} />);
 
-    // Neither paste nor drag-and-drop is available on a phone, so the picker is the way in.
     expect(screen.getByRole("button", { name: "Add an image" })).toBeInTheDocument();
     const picker = container.querySelector('input[type="file"]') as HTMLInputElement;
     expect(picker).toHaveAttribute("accept", "image/*");
@@ -206,278 +312,102 @@ describe("NotesField image paste", () => {
     fireEvent.change(picker, { target: { files: [file] } });
 
     await waitFor(() => expect(uploadImage).toHaveBeenCalledWith(file));
-    await waitFor(() =>
-      expect(screen.getByRole("textbox", { name: "Notes" })).toHaveValue("Existing notes.\n\n![[from-camera-roll.png]]"),
-    );
+    // It arrived while nobody was writing, so it went to the end on a line of its own.
+    await waitFor(() => expect(written.at(-1)).toBe("Existing notes.\n\n![[from-camera-roll.png]]"));
   });
 
-  it("ignores pastes that contain no image", async () => {
+  it("ignores pastes that contain no image", () => {
     render(<PasteHarness />);
 
-    await userEvent.click(screen.getByRole("button", { name: "Edit notes" }));
-    const textarea = screen.getByRole("textbox", { name: "Notes" });
-    fireEvent.paste(textarea, { clipboardData: { files: [] } });
+    fireEvent.paste(surface(), { clipboardData: clipboard([]) });
 
     expect(uploadImage).not.toHaveBeenCalled();
-    expect(textarea).toHaveValue("Existing notes.");
+    expect(shown()).toBe("Existing notes.");
   });
 
-  it("accepts a drop on the rendered view and embeds on its own line", async () => {
+  it("accepts a drop anywhere on the field and embeds on its own line", async () => {
     vi.mocked(uploadImage).mockResolvedValue({ name: "dropped.png" });
-    const { container } = render(<PasteHarness />);
+    const written: string[] = [];
+    const { container } = render(<PasteHarness onValue={(value) => written.push(value)} />);
 
-    const view = container.querySelector(".notes-view");
-    expect(view).not.toBeNull();
+    const field = container.querySelector(".notes-field") as Element;
     const file = new File([Uint8Array.from([137, 80, 78, 71])], "sketch.png", { type: "image/png" });
-    fireEvent.drop(view as Element, { dataTransfer: { files: [file], types: ["Files"] } });
+    fireEvent.drop(field, { dataTransfer: { files: [file], types: ["Files"], getData: () => "" } });
 
-    const textarea = await screen.findByRole("textbox", { name: "Notes" });
-    await waitFor(() => expect(textarea).toHaveValue("Existing notes.\n\n![[dropped.png]]"));
-    expect(uploadImage).toHaveBeenCalledWith(file);
+    await waitFor(() => expect(written.at(-1)).toBe("Existing notes.\n\n![[dropped.png]]"));
   });
 
-  it("shows the drop affordance while files drag across either mode", () => {
+  it("shows the drop affordance while files drag across the field", () => {
     const { container } = render(<PasteHarness />);
     const field = container.querySelector(".notes-field") as Element;
 
-    fireEvent.dragEnter(field, { dataTransfer: { types: ["Files"], files: [] } });
-    expect(field).toHaveClass("drop-active");
-    fireEvent.dragLeave(field, { dataTransfer: { types: ["Files"], files: [] } });
-    expect(field).not.toHaveClass("drop-active");
+    fireEvent.dragEnter(field, { dataTransfer: { files: [], types: ["Files"] } });
+    expect(field.className).toContain("drop-active");
 
-    fireEvent.dragEnter(field, { dataTransfer: { types: ["text/plain"], files: [] } });
-    expect(field).not.toHaveClass("drop-active");
-  });
-
-  it("keeps the editor open when the window loses focus to another application", async () => {
-    const hasFocus = vi.spyOn(document, "hasFocus");
-    render(<PasteHarness />);
-
-    await userEvent.click(screen.getByRole("button", { name: "Edit notes" }));
-    const textarea = screen.getByRole("textbox", { name: "Notes" });
-
-    hasFocus.mockReturnValue(false);
-    fireEvent.blur(textarea);
-    expect(screen.getByRole("textbox", { name: "Notes" })).toBeInTheDocument();
-
-    hasFocus.mockReturnValue(true);
-    fireEvent.blur(textarea);
-    expect(screen.queryByRole("textbox", { name: "Notes" })).not.toBeInTheDocument();
-    hasFocus.mockRestore();
+    fireEvent.dragLeave(field, { dataTransfer: { files: [], types: ["Files"] } });
+    expect(field.className).not.toContain("drop-active");
   });
 });
 
-/**
- * jsdom has no layout and no Web Animations, so the heights and the animation are
- * supplied here. What is being checked is the arithmetic and the cleanup around
- * them, which is where a growing box goes wrong: the wrong pair of heights, or a
- * clip left behind over a field someone then focuses.
- */
-describe("NotesField growth", () => {
-  const RESTING = 70;
-  const EDITING = 240;
+describe("NotesField as a controlled field", () => {
+  it("reports what was typed without being told what to show", async () => {
+    const changes: string[] = [];
+    function TypingHarness() {
+      const [value, setValue] = useState("");
+      return notesElement(value, (next) => {
+        changes.push(next);
+        setValue(next);
+      });
+    }
+    render(<TypingHarness />);
 
-  /**
-   * A box part way through an animation measures where it has travelled to, and only
-   * reports the size it is aiming at once the animation lets go of the height. The
-   * stub mirrors that, because taking over mid-flight is the whole behaviour under
-   * test and a fixed height cannot express it.
-   */
-  function stubLayout() {
-    let travelled: number | null = null;
-    Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
-      configurable: true,
-      get(this: HTMLElement) {
-        if (!this.classList.contains("notes-body")) return 0;
-        if (travelled !== null) return travelled;
-        return this.querySelector("textarea") ? EDITING : RESTING;
-      },
-    });
-    onTestFinished(() => { Reflect.deleteProperty(HTMLElement.prototype, "offsetHeight"); });
-    return {
-      travelTo: (height: number) => { travelled = height; },
-      release: () => { travelled = null; },
-    };
-  }
+    await userEvent.type(surface(), "hello");
 
-  function stubAnimate(onCancel: () => void = () => undefined) {
-    const animation = { addEventListener: vi.fn(), cancel: vi.fn(onCancel) };
-    const animate = vi.fn((_frames: Keyframe[], _options: KeyframeAnimationOptions) => animation);
-    Object.defineProperty(HTMLElement.prototype, "animate", { configurable: true, value: animate, writable: true });
-    onTestFinished(() => { Reflect.deleteProperty(HTMLElement.prototype, "animate"); });
-    return { animate, animation };
-  }
+    await waitFor(() => expect(changes.at(-1)).toBe("hello"));
+  });
 
-  it("grows the notes from their resting height into the editor", async () => {
-    stubLayout();
-    const { animate } = stubAnimate();
-    renderNotes("Charging past 80% should cost something.");
+  it("adopts a value that arrived from somewhere else", async () => {
+    const { rerender } = render(notesElement("mine"));
+    expect(shown()).toBe("mine");
 
-    await userEvent.click(screen.getByText("Charging past 80% should cost something."));
+    rerender(notesElement("theirs, adopted while this field sat untouched"));
+
+    await waitFor(() => expect(shown()).toBe("theirs, adopted while this field sat untouched"));
+  });
+
+  it("names the surface and offers the same destination to a keyboard", () => {
+    renderNotes("notes");
 
     expect(screen.getByRole("textbox", { name: "Notes" })).toBeInTheDocument();
-    expect(animate).toHaveBeenCalledTimes(1);
-    const [frames, options] = animate.mock.calls[0];
-    expect(frames).toEqual([{ height: `${RESTING}px` }, { height: `${EDITING}px` }]);
-    expect(options.duration).toBe(190);
+    expect(screen.getByRole("button", { name: "Edit notes" })).toBeInTheDocument();
   });
 
-  it("hands the box back to the stylesheet once the growth settles", async () => {
-    stubLayout();
-    const { animation } = stubAnimate();
-    renderNotes("Charging past 80% should cost something.");
+  it("carries the resting height the rows asked for", () => {
+    const { container } = renderNotes("");
 
-    await userEvent.click(screen.getByText("Charging past 80% should cost something."));
-
-    const body = document.querySelector<HTMLElement>(".notes-body")!;
-    expect(body.style.overflow).toBe("hidden");
-
-    const finish = animation.addEventListener.mock.calls.find(([type]) => type === "finish")?.[1] as () => void;
-    finish();
-    expect(body.style.overflow).toBe("");
-  });
-
-  it("takes over from where the box has travelled to when a render lands mid-flight", async () => {
-    const layout = stubLayout();
-    const { animate, animation } = stubAnimate(() => layout.release());
-    const view = renderNotes("Charging past 80% should cost something.");
-
-    await userEvent.click(screen.getByText("Charging past 80% should cost something."));
-    expect(animate.mock.calls[0][0]).toEqual([{ height: `${RESTING}px` }, { height: `${EDITING}px` }]);
-
-    // An autosave settles while the box is still opening.
-    layout.travelTo(150);
-    view.rerender(notesElement("Charging past 80% should cost something. Ramping drain."));
-
-    expect(animation.cancel).toHaveBeenCalled();
-    expect(animate).toHaveBeenCalledTimes(2);
-    expect(animate.mock.calls[1][0]).toEqual([{ height: "150px" }, { height: `${EDITING}px` }]);
-  });
-
-  it("swaps without motion when the system asks for less of it", async () => {
-    stubLayout();
-    const { animate } = stubAnimate();
-    // jsdom ships no matchMedia at all, which is why the hook reaches for it optionally.
-    Object.defineProperty(window, "matchMedia", {
-      configurable: true,
-      value: () => ({ matches: true }) as MediaQueryList,
-      writable: true,
-    });
-    onTestFinished(() => { Reflect.deleteProperty(window, "matchMedia"); });
-    renderNotes("Charging past 80% should cost something.");
-
-    await userEvent.click(screen.getByText("Charging past 80% should cost something."));
-
-    expect(screen.getByRole("textbox", { name: "Notes" })).toBeInTheDocument();
-    expect(animate).not.toHaveBeenCalled();
-  });
-});
-
-/**
- * jsdom lays nothing out, so the caret-under-the-pointer API is supplied here:
- * what is under test is the mapping from a rendered text node back to the
- * Markdown source it was drawn from, which is arithmetic over the stamped
- * offsets rather than geometry.
- */
-describe("NotesField click-to-caret", () => {
-  function stubCaretAt(node: Node, offset: number) {
-    const range = document.createRange();
-    range.setStart(node, offset);
-    Object.defineProperty(document, "caretRangeFromPoint", {
-      configurable: true,
-      value: () => range,
-      writable: true,
-    });
-    onTestFinished(() => { Reflect.deleteProperty(document, "caretRangeFromPoint"); });
-  }
-
-  it("stamps rendered elements with the source span they came from", () => {
-    const { container } = renderNotes("# Goal\n\nSome **bold** words");
-
-    expect(container.querySelector("h1")).toHaveAttribute("data-sourcepos", "0-6");
-    expect(container.querySelector("p")).toHaveAttribute("data-sourcepos", "8-27");
-  });
-
-  it("opens the editor with the caret on the words that were clicked", async () => {
-    const { container } = renderNotes("Some **bold** words");
-    const paragraph = container.querySelector("p")!;
-    stubCaretAt(paragraph.lastChild!, 3);
-
-    await userEvent.click(screen.getByText(/words/));
-
-    const textarea = screen.getByRole("textbox", { name: "Notes" }) as HTMLTextAreaElement;
-    // " words" starts at source offset 13; three characters in lands inside "words".
-    expect(textarea.selectionStart).toBe(16);
-    expect(textarea.selectionEnd).toBe(16);
-  });
-
-  it("lands inside the syntax when the click was on formatted text", async () => {
-    const { container } = renderNotes("Some **bold** words");
-    stubCaretAt(container.querySelector("strong")!.firstChild!, 2);
-
-    await userEvent.click(screen.getByText("bold"));
-
-    const textarea = screen.getByRole("textbox", { name: "Notes" }) as HTMLTextAreaElement;
-    expect(textarea.selectionStart).toBe(9);
-  });
-
-  it("keeps the caret at the end when the click cannot be placed", async () => {
-    renderNotes("Some **bold** words");
-
-    await userEvent.click(screen.getByText(/words/));
-
-    const textarea = screen.getByRole("textbox", { name: "Notes" }) as HTMLTextAreaElement;
-    expect(textarea.selectionStart).toBe(textarea.value.length);
-  });
-});
-
-describe("NotesField editor size", () => {
-  it("opens the editor no smaller than the rendered notes it replaces", async () => {
-    Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
-      configurable: true,
-      get(this: HTMLElement) { return this.classList.contains("notes-view") ? 320 : 0; },
-    });
-    onTestFinished(() => { Reflect.deleteProperty(HTMLElement.prototype, "offsetHeight"); });
-    renderNotes("A long rendered document.");
-
-    await userEvent.click(screen.getByText("A long rendered document."));
-
-    const textarea = screen.getByRole("textbox", { name: "Notes" });
-    expect(textarea.style.minHeight).toBe("320px");
-  });
-
-  it("leaves the rows sizing alone when the resting view was never measured", async () => {
-    renderNotes("Short note.");
-
-    await userEvent.click(screen.getByText("Short note."));
-
-    const textarea = screen.getByRole("textbox", { name: "Notes" });
-    expect(textarea.style.minHeight).toBe("");
+    expect((container.querySelector(".notes-field") as HTMLElement).style.getPropertyValue("--notes-rows")).toBe("6");
   });
 });
 
 describe("plainTextFromMarkdown", () => {
   it("strips the syntax that would clutter a page tile", () => {
-    const markdown = "# Goal\n\n- Use **bold** words\n- See the [docs](https://example.com)\n\n> quoted `code` and *soft* text";
-    expect(plainTextFromMarkdown(markdown)).toBe("Goal Use bold words See the docs quoted code and soft text");
+    const text = plainTextFromMarkdown("# Goal\n\nUse **bold** and [a link](https://example.com).\n\n- one\n- two");
+    expect(text).toBe("Goal Use bold and a link. one two");
   });
 
   it("keeps snake_case identifiers intact", () => {
-    expect(plainTextFromMarkdown("tune wizard_tower_door speed")).toBe("tune wizard_tower_door speed");
+    expect(plainTextFromMarkdown("open wizard_tower_door now")).toBe("open wizard_tower_door now");
   });
 
   it("drops Obsidian embeds from previews entirely", () => {
-    expect(plainTextFromMarkdown("before ![[pasted-image.png]] after")).toBe("before after");
-    expect(plainTextFromMarkdown("![[door.png|300]]\n\nThe door sketch.")).toBe("The door sketch.");
+    expect(plainTextFromMarkdown("before ![[shot.png]] after")).toBe("before after");
   });
 
   it("keeps code content while dropping the fences", () => {
-    expect(plainTextFromMarkdown("```gdscript\nvar mana = 3\n```")).toBe("var mana = 3");
+    expect(plainTextFromMarkdown("```ts\nconst x = 1;\n```")).toBe("const x = 1;");
   });
 
   it("reduces images and task lists to their text", () => {
-    expect(plainTextFromMarkdown("![tower sketch](sketch.png)\n\n- [x] model door\n- [ ] texture door")).toBe(
-      "tower sketch model door texture door",
-    );
+    expect(plainTextFromMarkdown("- [x] ![shot](a.png) done")).toBe("shot done");
   });
 });

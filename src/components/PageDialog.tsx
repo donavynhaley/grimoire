@@ -244,13 +244,12 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
               thing on this panel allowed to scroll. */}
           <NotesField
             editLabel="Edit notes"
+            editorLabel="Notes"
             fill
             label="Notes"
-            name="description"
             onChange={editor.setDescription}
             placeholder="Add only the context someone needs to act..."
             rows={10}
-            textareaLabel="Notes"
             value={editor.description}
           />
 

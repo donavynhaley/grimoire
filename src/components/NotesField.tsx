@@ -1,35 +1,19 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import Markdown, { type Components, type ExtraProps } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { imageUrl, uploadImage } from "../api/client";
-import { Growing } from "./Growing";
-import { rehypeSourceOffsets, sourceOffsetFromPoint } from "./markdown-source-offsets";
+import { uploadImage } from "../api/client";
+import { resolveImageSource } from "./image-source";
+import { MarkdownEditor, type MarkdownEditorHandle } from "./MarkdownEditor";
+import { rehypeSourceOffsets } from "./markdown-source-offsets";
 import { remarkObsidianEmbeds } from "./obsidian-embeds";
 
 const REMARK_PLUGINS = [remarkGfm, remarkObsidianEmbeds];
 const REHYPE_PLUGINS = [rehypeSourceOffsets];
 
+export { resolveImageSource };
+
 function ExternalLink({ node: _node, ...props }: React.ComponentProps<"a"> & ExtraProps) {
   return <a {...props} onClick={(event) => event.stopPropagation()} rel="noreferrer" target="_blank" />;
-}
-
-/**
- * Resolves the image references notes actually contain the way Obsidian would.
- *
- * Obsidian embeds arrive as bare file names, and hand-written relative paths such
- * as `images/goal.png` resolve by their final segment, so both find the project
- * images directory regardless of where the Markdown file itself lives. Absolute
- * URLs pass through untouched.
- */
-export function resolveImageSource(src: string): string {
-  if (/^(?:https?:|data:|blob:)/i.test(src) || src.startsWith("/")) return src;
-  let decoded = src;
-  try {
-    decoded = decodeURIComponent(src);
-  } catch {
-    // A malformed escape sequence is still a usable file name.
-  }
-  return imageUrl(decoded.split("/").pop() ?? decoded);
 }
 
 function EmbeddedImage({ node: _node, src, ...props }: React.ComponentProps<"img"> & ExtraProps) {
@@ -39,7 +23,13 @@ function EmbeddedImage({ node: _node, src, ...props }: React.ComponentProps<"img
 
 const MARKDOWN_COMPONENTS: Components = { a: ExternalLink, img: EmbeddedImage };
 
-/** Renders trusted-shape Markdown; raw HTML in the source is shown as text, never injected. */
+/**
+ * Renders trusted-shape Markdown; raw HTML in the source is shown as text, never injected.
+ *
+ * This is the read-only renderer, for notes nobody is holding a caret in. The notes field
+ * itself no longer uses it - it renders as it is written now - but a surface that only
+ * ever displays Markdown should not have to instantiate an editor to do it.
+ */
 export function MarkdownView({ markdown }: { markdown: string }) {
   return (
     <div className="markdown-body">
@@ -50,11 +40,11 @@ export function MarkdownView({ markdown }: { markdown: string }) {
 
 type Props = {
   label: string;
+  /** Names the way in for a keyboard, which is now a way to the caret rather than to a mode. */
   editLabel: string;
   /** Names the image picker for whichever notes these are; defaults to a plain one. */
   addImageLabel?: string;
-  name: string;
-  textareaLabel: string;
+  editorLabel: string;
   placeholder: string;
   rows: number;
   /**
@@ -62,8 +52,7 @@ type Props = {
    *
    * The page editor is a frame rather than a document: nothing on it scrolls except the
    * notes, and the notes only do so because they are the one thing that can be longer
-   * than the panel. In that mode the resting view and the textarea are the same box, so
-   * there is no size to travel between and no height wrapper to travel it.
+   * than the panel.
    */
   fill?: boolean;
   value: string;
@@ -71,84 +60,45 @@ type Props = {
 };
 
 /**
- * Notes field that rests as rendered Markdown and edits as the plain textarea.
+ * Notes as one surface that is always rendered and always writable.
  *
- * Clicking in the rendered view opens the editor with the caret on the words
- * that were clicked, found through the source offsets the renderer stamps on
- * every element; the `edit` button opens it with the caret at the end for
- * keyboard and screen-reader use, and links stay real links in both worlds.
- * The editor opens no smaller than the rendered notes it replaces, so entering
- * it never pulls the rest of the panel up under the pointer. Leaving the
- * textarea for another control returns to the rendered view, but switching to
- * another application does not, so going to fetch a screenshot never closes the
- * editor. The parent owns the value and its autosave, so switching modes never
- * touches unsaved text.
+ * There is no longer a rendered view and an editor taking turns. Headings are headings,
+ * emphasis is emphasis, embedded screenshots are pictures - and the syntax underneath any
+ * of it appears only on the line the caret is on, which is Obsidian's Live Preview and the
+ * reason none of this needs a mode. Clicking lands the caret where it was clicked because
+ * the caret was always there to land; nothing is measured, swapped, or grown, so the box
+ * this lives in never changes size and the rule about things travelling has nothing to do.
  *
- * Pasting or dropping an image uploads it and embeds `![[name]]`, exactly the
- * reference Obsidian would create. Drops are accepted by the whole field in both
- * modes, since a drag usually begins while the notes are at rest. A placeholder
- * token holds the caret position while the upload runs, so typing during the
- * upload never misplaces the embed.
+ * Pasting or dropping an image uploads it and embeds `![[name]]`, exactly the reference
+ * Obsidian would create. Drops are accepted by the whole field, since a drag usually
+ * begins over the notes rather than over the caret, and a placeholder token holds the
+ * spot while the upload runs so typing during it never misplaces the embed.
  */
-export function NotesField({ label, editLabel, addImageLabel = "Add an image", name, textareaLabel, placeholder, rows, fill = false, value, onChange }: Props) {
-  const [editing, setEditing] = useState(false);
+export function NotesField({ label, editLabel, addImageLabel = "Add an image", editorLabel, placeholder, rows, fill = false, value, onChange }: Props) {
   const [pendingUploads, setPendingUploads] = useState(0);
   const [uploadFailed, setUploadFailed] = useState(false);
   const [dropActive, setDropActive] = useState(false);
   const dragDepth = useRef(0);
   const imagePicker = useRef<HTMLInputElement | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const viewRef = useRef<HTMLDivElement | null>(null);
-  const caretRef = useRef<number | null>(null);
-  const [restingHeight, setRestingHeight] = useState<number | null>(null);
+  const editor = useRef<MarkdownEditorHandle | null>(null);
+  const focused = useRef(false);
   const valueRef = useRef(value);
   valueRef.current = value;
 
-  useEffect(() => {
-    if (!editing) return;
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-    textarea.focus();
-    const caret = Math.min(caretRef.current ?? textarea.value.length, textarea.value.length);
-    caretRef.current = null;
-    textarea.setSelectionRange(caret, caret);
-    scrollCaretIntoView(textarea, caret);
-  }, [editing]);
-
   /**
-   * The editor opens at least as tall as the rendered notes it replaces:
-   * a textarea sized only by its rows would shrink under long notes and drag
-   * everything below up into the click. Measured here, at the moment of the
-   * swap, because this is the last render the resting view exists in.
+   * An embed arriving while the caret is elsewhere goes to the end, on its own line.
+   * An embed arriving while someone is writing goes where they are writing.
    */
-  const openEditor = (caret: number | null = null) => {
-    caretRef.current = caret;
-    const resting = viewRef.current?.offsetHeight ?? 0;
-    setRestingHeight(resting > 0 ? resting : null);
-    setEditing(true);
-  };
-
-  const startEditing = (event: React.MouseEvent) => {
-    if ((event.target as HTMLElement).closest("a")) return;
-    const view = viewRef.current;
-    const caret = view ? sourceOffsetFromPoint(view, valueRef.current, event.clientX, event.clientY) : null;
-    openEditor(caret);
-  };
-
-  const insertAtSelection = (text: string) => {
-    const current = valueRef.current;
-    const textarea = textareaRef.current;
-    const start = textarea?.selectionStart ?? current.length;
-    const end = textarea?.selectionEnd ?? current.length;
-    onChange(current.slice(0, start) + text + current.slice(end));
-    const caret = start + text.length;
-    requestAnimationFrame(() => textareaRef.current?.setSelectionRange(caret, caret));
-  };
-
-  const replaceToken = (token: string, replacement: string) => {
-    const current = valueRef.current;
-    if (!current.includes(token)) return;
-    onChange(current.replace(token, replacement).replace(/\n{3,}/g, "\n\n"));
+  const placeEmbeds = (tokens: string[]) => {
+    const handle = editor.current;
+    if (!handle) return;
+    if (focused.current) {
+      handle.insert(tokens.join("\n"));
+      return;
+    }
+    const existing = valueRef.current;
+    handle.focus(existing.length);
+    handle.insert(existing.trim() ? `\n\n${tokens.join("\n")}` : tokens.join("\n"));
   };
 
   const importImages = async (files: File[]) => {
@@ -156,15 +106,14 @@ export function NotesField({ label, editLabel, addImageLabel = "Add an image", n
     if (images.length === 0) return;
     setUploadFailed(false);
     const tokens = images.map(() => `![[uploading-${Math.random().toString(36).slice(2, 8)}]]`);
-    const separated = !textareaRef.current && valueRef.current.trim() ? `\n\n${tokens.join("\n")}` : tokens.join("\n");
-    insertAtSelection(separated);
+    placeEmbeds(tokens);
     setPendingUploads((count) => count + images.length);
     for (const [index, image] of images.entries()) {
       try {
         const { name: imageName } = await uploadImage(image);
-        replaceToken(tokens[index], `![[${imageName}]]`);
+        editor.current?.replaceFirst(tokens[index], `![[${imageName}]]`);
       } catch {
-        replaceToken(tokens[index], "");
+        editor.current?.replaceFirst(tokens[index], "");
         setUploadFailed(true);
       } finally {
         setPendingUploads((count) => count - 1);
@@ -175,51 +124,6 @@ export function NotesField({ label, editLabel, addImageLabel = "Add an image", n
   const collectFiles = (list: FileList | null | undefined) => Array.from(list ?? []);
   const hasImage = (files: File[]) => files.some((file) => file.type.startsWith("image/"));
   const draggingFiles = (transfer: DataTransfer | null) => Boolean(transfer?.types.includes("Files"));
-
-  const body = editing ? (
-    <textarea
-      aria-label={textareaLabel}
-      name={name}
-      onBlur={() => {
-        if (document.hasFocus()) setEditing(false);
-      }}
-      onChange={(event) => onChange(event.target.value)}
-      onKeyDown={(event) => {
-        if (event.key !== "Escape") return;
-        event.stopPropagation();
-        setEditing(false);
-      }}
-      onPaste={(event) => {
-        const files = collectFiles(event.clipboardData?.files);
-        if (!hasImage(files)) return;
-        event.preventDefault();
-        void importImages(files);
-      }}
-      placeholder={placeholder}
-      ref={textareaRef}
-      rows={rows}
-      style={!fill && restingHeight ? { minHeight: restingHeight } : undefined}
-      value={value}
-    />
-  ) : (
-    /*
-     * In fill mode the resting notes are their own scrolling box, and a box that scrolls
-     * has to be reachable without a mouse: notes longer than the panel would otherwise
-     * strand everything past the first screenful for anyone on a keyboard. Focusable and
-     * named, it is a region someone can tab to and arrow through; the `edit` button above
-     * stays the way in, so this never has to pretend to be a control.
-     */
-    <div
-      aria-label={fill ? label : undefined}
-      className="notes-view"
-      onClick={startEditing}
-      ref={viewRef}
-      role={fill ? "region" : undefined}
-      tabIndex={fill ? 0 : undefined}
-    >
-      {value.trim() ? <MarkdownView markdown={value} /> : <p className="notes-placeholder">{placeholder}</p>}
-    </div>
-  );
 
   return (
     <div
@@ -243,9 +147,9 @@ export function NotesField({ label, editLabel, addImageLabel = "Add an image", n
         const files = collectFiles(event.dataTransfer?.files);
         if (!hasImage(files)) return;
         event.preventDefault();
-        if (!editing) openEditor();
         void importImages(files);
       }}
+      style={{ "--notes-rows": rows } as React.CSSProperties}
     >
       <div className="notes-head">
         <span>{label}</span>
@@ -277,7 +181,6 @@ export function NotesField({ label, editLabel, addImageLabel = "Add an image", n
               // The same input has to accept the same picture twice in a row.
               event.target.value = "";
               if (!hasImage(files)) return;
-              if (!editing) openEditor();
               void importImages(files);
             }}
             multiple
@@ -285,32 +188,36 @@ export function NotesField({ label, editLabel, addImageLabel = "Add an image", n
             tabIndex={-1}
             type="file"
           />
-          {!editing && (
-            <button aria-label={editLabel} className="text-button" onClick={() => openEditor()} type="button">
-              edit
-            </button>
-          )}
+          {/*
+            A pointer puts the caret where it clicks. This is the same destination for
+            everyone else: the end of the notes, named, and one stop along the tab order
+            rather than something to hunt for.
+          */}
+          <button
+            aria-label={editLabel}
+            className="text-button"
+            onClick={() => editor.current?.focus(valueRef.current.length)}
+            type="button"
+          >
+            edit
+          </button>
         </span>
       </div>
-      {/* Only a box that can change size needs to travel between them. */}
-      {fill
-        ? <div className="notes-body">{body}</div>
-        : <Growing className="notes-body">{body}</Growing>}
+      <div className="notes-body">
+        <MarkdownEditor
+          ariaLabel={editorLabel}
+          fill={fill}
+          onChange={onChange}
+          onFocusChange={(next) => {
+            focused.current = next;
+          }}
+          onPasteFiles={(files) => void importImages(files)}
+          placeholder={placeholder}
+          ref={editor}
+          scrollerClass="notes-view"
+          value={value}
+        />
+      </div>
     </div>
   );
-}
-
-/**
- * Long notes overflow the editor, and a caret placed by a click must not land
- * below the fold. Soft wrapping makes the physical line unknowable from here,
- * so the newline count stands in for it: exact for the common case, and off by
- * only the wrapped lines above the caret when a paragraph runs long.
- */
-function scrollCaretIntoView(textarea: HTMLTextAreaElement, caret: number): void {
-  if (textarea.scrollHeight <= textarea.clientHeight) return;
-  const line = textarea.value.slice(0, caret).split("\n").length - 1;
-  const lineHeight = Number.parseFloat(getComputedStyle(textarea).lineHeight) || 21;
-  const target = line * lineHeight;
-  if (target >= textarea.scrollTop && target <= textarea.scrollTop + textarea.clientHeight - lineHeight) return;
-  textarea.scrollTop = Math.max(0, target - textarea.clientHeight / 2);
 }

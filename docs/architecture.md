@@ -93,6 +93,23 @@ Embeds resolve by file name rather than by relative path, so a page keeps its im
 The web application serves the same files through an authenticated project-scoped route, and a vault or repository that contains the project directory renders them natively in Obsidian.
 Uploads are verified by content signature (PNG, JPEG, WebP, or GIF), written atomically with generated names, and never deleted by the application.
 
+## Notes editing
+
+Notes are edited on a CodeMirror surface that is always rendered, which is Obsidian's Live Preview rather than a preview pane beside a source pane.
+`src/components/live-preview.ts` walks the parsed Markdown tree and hides the syntax that produced formatting, except on the lines the selection touches; an unfocused editor reveals nothing, because notes nobody is writing in are notes someone is reading.
+Everything is decided from the tree rather than from text patterns, so syntax inside code stays literal, exactly as `remarkObsidianEmbeds` already treats embeds.
+
+Obsidian's `![[name]]` embeds are not Markdown and no parser reports them, so they are found in the text and then disqualified wherever the tree says Markdown has stopped applying.
+Tables and horizontal rules are replaced as whole blocks, which is why the decorations live in a state field rather than a view plugin: block replacements change how tall a line is, and CodeMirror only accepts them from the state.
+
+Nothing in the editor ever builds HTML from note text.
+Widgets are constructed element by element, so a note containing markup still shows that markup as characters, which is the same guarantee the read-only renderer gives by never enabling raw HTML.
+
+The surface is a controlled field with the same value-and-`onChange` shape the textarea had, so the autosave and conflict handling in `use-content-editor.ts` are unchanged.
+A controlled value arrives a render late, by which time the document has usually moved on, so the editor keeps the short list of texts it has announced and treats a match as its own writing coming back rather than as an edit from elsewhere.
+
+`MarkdownView` remains the read-only renderer for surfaces that only ever display Markdown, and board and library tiles still reduce notes to plain text.
+
 ## Page format
 
 Every page contains strict YAML frontmatter followed by its Markdown notes.
