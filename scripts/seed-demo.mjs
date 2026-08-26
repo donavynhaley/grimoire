@@ -12,6 +12,21 @@
 
 const BASE = (process.argv[2] ?? process.env.GRIMOIRE_URL ?? "http://127.0.0.1:8099").replace(/\/+$/, "");
 
+/*
+ * This script creates an owner account, invites somebody, and archives a project. That is
+ * fine against the throwaway container it is written for and is not fine against anything
+ * else, so it will only point at this machine unless somebody says otherwise in as many
+ * words. A fresh instance answering on a public address is far more likely to be a mistake
+ * than an invitation.
+ */
+const host = new URL(BASE).hostname;
+const local = host === "127.0.0.1" || host === "localhost" || host === "::1" || host === "[::1]";
+if (!local && process.env.GRIMOIRE_SEED_REMOTE !== "yes") {
+  console.error(`Refusing to seed ${BASE}: it is not this machine.`);
+  console.error("This bootstraps an owner and reshapes a project. Set GRIMOIRE_SEED_REMOTE=yes if you meant it.");
+  process.exit(2);
+}
+
 const OWNER = { name: "Donavyn", email: "donavyn@team.example.test", password: "a long enough password" };
 const TEAMMATE = { name: "Alan", email: "alan@team.example.test", password: "a long enough password" };
 

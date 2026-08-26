@@ -1798,6 +1798,9 @@ export function createGrimoireServer(options: Options) {
         parseMentions(body, membersForProject(database, projectId)),
       );
       if (thread === "no_thread") throw new HttpError(404, "Thread not found");
+      if (thread === "answered") {
+        throw new HttpError(409, "That question has been answered. Open a new thread to say something else.");
+      }
       audit(context, {
         projectId,
         entityType: "page",

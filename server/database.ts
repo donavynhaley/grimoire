@@ -572,16 +572,6 @@ CREATE TABLE IF NOT EXISTS page_discussion (
 );
 
 /*
- * How far each person has read the conversation on each page.
- *
- * The same shape as seen_cursors and for the same reason: it is private, it is per person,
- * and nobody can see how caught up anybody else is. A page with no row here has never been
- * opened by that person, so everything on it is unseen.
- *
- * Time rather than a sequence, because this is scoped to one page rather than to the whole
- * project's log, and a message carries the moment it was written already.
- */
-/*
  * Who a message named.
  *
  * Resolved once, when it is written, and stored as ids rather than re-read out of the text on
@@ -595,6 +585,16 @@ CREATE TABLE IF NOT EXISTS discussion_mentions (
   PRIMARY KEY (message_id, user_id)
 );
 
+/*
+ * How far each person has read the conversation on each page.
+ *
+ * The same shape as seen_cursors and for the same reason: it is private, it is per person,
+ * and nobody can see how caught up anybody else is. A page with no row here has never been
+ * opened by that person, so everything on it is unseen.
+ *
+ * Time rather than a sequence, because this is scoped to one page rather than to the whole
+ * project's log, and a message carries the moment it was written already.
+ */
 CREATE TABLE IF NOT EXISTS discussion_seen (
   project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

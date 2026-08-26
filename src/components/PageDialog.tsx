@@ -166,7 +166,7 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
   });
 
   const history = usePageHistory(page.id, revision, onLoadActivity);
-  const { threads, reload: reloadDiscussion } = usePageDiscussion(page.id, revision, onLoadDiscussion);
+  const { threads, failed: discussionFailed, reload: reloadDiscussion } = usePageDiscussion(page.id, revision, onLoadDiscussion);
   /*
    * What the control counts is what has not been read, not what is unresolved.
    *
@@ -188,10 +188,13 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
    */
   const marked = useRef<string | null>(null);
   useEffect(() => {
-    if (!showingDiscussion || marked.current === page.id) return;
+    // Not until it has actually arrived. Marking a conversation read because somebody asked
+    // to see one, when what they were shown was a spinner or a failure, loses the only signal
+    // saying there was something here.
+    if (!showingDiscussion || threads === null || marked.current === page.id) return;
     marked.current = page.id;
     void onSeeDiscussion(page.id);
-  }, [showingDiscussion, page.id, onSeeDiscussion]);
+  }, [showingDiscussion, threads, page.id, onSeeDiscussion]);
   const otherEditor = otherEditorName(history, currentUserId);
 
   const close = async () => {
@@ -304,6 +307,7 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
           {aside === "discussion" ? (
             <DiscussionSection
               currentUserId={currentUserId}
+              failed={discussionFailed}
               members={members}
               onAsk={async (body) => { await onAsk(page.id, body); await reloadDiscussion(); }}
               onReply={async (threadId, body) => { await onReply(page.id, threadId, body); await reloadDiscussion(); }}
@@ -581,21 +585,28 @@ function usePageDiscussion(
   pageId: string,
   revision: number,
   load: (pageId: string) => Promise<{ threads: DiscussionThread[] }>,
-): { threads: DiscussionThread[] | null; reload: () => Promise<void> } {
+): { threads: DiscussionThread[] | null; failed: boolean; reload: () => Promise<void> } {
   const [loaded, setLoaded] = useState<{ pageId: string; threads: DiscussionThread[] } | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
   const [reloads, setReloads] = useState(0);
 
   useEffect(() => {
     let alive = true;
     load(pageId)
-      .then((result) => { if (alive) setLoaded({ pageId, threads: result.threads }); })
-      // Silent, like the history: this is context beside an editor that still works.
-      .catch(() => { if (alive) setLoaded({ pageId, threads: [] }); });
+      .then((result) => { if (alive) { setLoaded({ pageId, threads: result.threads }); setFailed(null); } })
+      /*
+       * A conversation that could not be fetched is not an empty one.
+       *
+       * Drawing nothing beside a badge saying three things are unread says the messages are
+       * gone, and marking them read on the strength of that would lose them for good.
+       */
+      .catch(() => { if (alive) setFailed(pageId); });
     return () => { alive = false; };
   }, [pageId, load, revision, reloads]);
 
   return {
     threads: loaded?.pageId === pageId ? loaded.threads : null,
+    failed: failed === pageId,
     reload: async () => { setReloads((count) => count + 1); },
   };
 }

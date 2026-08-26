@@ -421,6 +421,129 @@ describe("the discussion on a page", () => {
     expect(document.querySelector(".mention-picker")).toBeNull();
   });
 
+
+  it("backs out of a reply without closing the page", async () => {
+    const board = boardFixture();
+    mountWith([
+      thread({ id: "t-clock", authorId: THEM, authorName: "Maren", body: "Whose clock?" }),
+    ], board);
+    const user = await openPage(board);
+
+    await user.click(within(section()).getByRole("button", { name: "reply" }));
+    await user.type(screen.getByLabelText("Reply"), "Device time");
+    await user.keyboard("{Escape}");
+
+    // The drawer listens for Escape too; backing out of a reply is not closing the page.
+    expect(screen.queryByRole("dialog", { name: "Edit page" })).toBeTruthy();
+    expect(screen.queryByLabelText("Reply")).toBeNull();
+  });
+
+  it("closes the picker on escape without closing the page either", async () => {
+    const board = boardFixture();
+    mountWith([], board);
+    const user = await openPage(board);
+
+    await user.type(screen.getByLabelText("Start a thread"), "over to @Mar");
+    expect(document.querySelector(".mention-picker")).toBeTruthy();
+
+    await user.keyboard("{Escape}");
+    expect(document.querySelector(".mention-picker")).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Edit page" })).toBeTruthy();
+  });
+
+  it("does not reopen the picker on the space it just wrote", async () => {
+    const board = boardFixture();
+    const calls = mountWith([], board);
+    const user = await openPage(board);
+
+    const field = screen.getByLabelText("Start a thread") as HTMLTextAreaElement;
+    await user.type(field, "over to @Mar");
+    await user.keyboard("{Enter}");
+    expect(field.value).toBe("over to @Maren ");
+    // The trailing space still reads as a half-written name, and the picker must not take
+    // the next Enter and mention somebody instead of sending.
+    expect(document.querySelector(".mention-picker")).toBeNull();
+
+    await user.keyboard("{Enter}");
+    const posted = calls.find((call) => call.url.endsWith("/discussion"));
+    expect(posted?.body).toEqual({ body: "over to @Maren" });
+  });
+
+  it("does not mark anything read while the conversation is still arriving", async () => {
+    const board = boardFixture();
+    board.pages[1].unseenMessages = 2;
+    const calls: Array<{ url: string; method: string }> = [];
+    // Assigned synchronously by the executor, but the compiler cannot see that, so it starts
+    // as a callable no-op rather than null.
+    let release = () => {};
+    const held = new Promise<void>((resolve) => { release = resolve; });
+
+    vi.stubGlobal("fetch", (input: RequestInfo | URL, init: RequestInit = {}) => {
+      const url = requestUrl(input);
+      const method = init.method ?? "GET";
+      if (method !== "GET") {
+        calls.push({ url, method });
+        return response({ ok: true });
+      }
+      if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
+      // The conversation never arrives until this test lets it.
+      if (/^\/api\/pages\/[^/]+\/discussion/.test(url)) return held.then(() => response({ threads: [] }));
+      if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
+      if (url.startsWith("/api/agent-tokens")) return response({ tokens: [] });
+      if (url.startsWith("/api/session")) return response({ status: "authenticated", user: board.currentUser });
+      return response(board);
+    });
+    render(<App />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByText(board.pages[1].title));
+    await screen.findByRole("dialog", { name: "Edit page" });
+    await user.click(within(aside()).getByRole("button", { name: /Discussion/ }));
+
+    // Asking to see a conversation is not reading one; a spinner is not a witness.
+    expect(calls.filter((call) => call.url.includes("/discussion/seen"))).toHaveLength(0);
+    release();
+  });
+
+  it("says a conversation could not be loaded rather than drawing an empty one", async () => {
+    const board = boardFixture();
+    board.pages[1].unseenMessages = 3;
+    vi.stubGlobal("fetch", (input: RequestInfo | URL, init: RequestInit = {}) => {
+      const url = requestUrl(input);
+      if ((init.method ?? "GET") !== "GET") return response({ ok: true });
+      if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
+      if (/^\/api\/pages\/[^/]+\/discussion/.test(url)) return Promise.reject(new Error("offline"));
+      if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
+      if (url.startsWith("/api/agent-tokens")) return response({ tokens: [] });
+      if (url.startsWith("/api/session")) return response({ status: "authenticated", user: board.currentUser });
+      return response(board);
+    });
+    render(<App />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByText(board.pages[1].title));
+    await screen.findByRole("dialog", { name: "Edit page" });
+    await user.click(within(aside()).getByRole("button", { name: /Discussion/ }));
+
+    // Nothing drawn beside a badge saying three are unread would say the messages are gone.
+    expect(await within(section()).findByText(/could not be loaded/)).toBeTruthy();
+    expect(within(section()).queryByText("Nothing has been said here yet.")).toBeNull();
+  });
+
+  it("gives a screen reader a listbox that owns its options", async () => {
+    const board = boardFixture();
+    mountWith([], board);
+    const user = await openPage(board);
+
+    const field = screen.getByLabelText("Start a thread");
+    await user.type(field, "over to @Mar");
+
+    const listbox = screen.getByRole("listbox");
+    const options = within(listbox).getAllByRole("option");
+    expect(options.length).toBeGreaterThan(0);
+    expect(field).toHaveAttribute("aria-expanded", "true");
+    expect(field).toHaveAttribute("aria-controls", listbox.id);
+    expect(field).toHaveAttribute("aria-activedescendant", options[0].id);
+  });
+
   it("says on the switch when something unread named you", async () => {
     const board = boardFixture();
     board.pages[1].unseenMessages = 3;

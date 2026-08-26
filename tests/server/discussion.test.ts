@@ -1,3 +1,4 @@
+import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import type { AgentToken, AuditPage, BoardWorkspace, DiscussionThread, Page } from "../../shared/types";
 import { parseMentions } from "../../server/discussion";
@@ -257,6 +258,91 @@ describe("page discussion", () => {
 
       const anonymous = await fetch(`${server.baseUrl}/api/pages/${page.id}/discussion`);
       expect(anonymous.status).toBe(401);
+    });
+  });
+
+  describe("what a review found", () => {
+    it("counts what your agent said as unread for you", async () => {
+      const server = await startTestServer();
+      await bootstrap(server);
+      const page = await makePage(server);
+      const secret = await issueAgent(server);
+
+      await asAgent(server, secret, `/api/pages/${page.id}/discussion`, {
+        method: "POST",
+        body: JSON.stringify({ body: "Deployed to dev; smoke tests green." }),
+      });
+
+      const board = await server.request<BoardWorkspace>("/api/board");
+      // A token is a delegation and the write is attributed to Donavyn, but Donavyn has not
+      // read it - and an agent reporting is exactly what he most needs telling about.
+      expect(board.body.pages.find((value) => value.id === page.id)?.unseenMessages).toBe(1);
+    });
+
+    it("still does not count what you wrote yourself", async () => {
+      const server = await startTestServer();
+      await bootstrap(server);
+      const page = await makePage(server);
+      await ask(server, page.id, "My own words.");
+
+      const board = await server.request<BoardWorkspace>("/api/board");
+      expect(board.body.pages.find((value) => value.id === page.id)?.unseenMessages).toBe(0);
+    });
+
+    it("keeps a message written in the same instant as the seen mark", async () => {
+      const server = await startTestServer();
+      await bootstrap(server);
+      await registerMember(server);
+      await loginOwner(server);
+      const page = await makePage(server);
+      const thread = (await ask(server, page.id, "Before.")).body.thread;
+
+      await loginMember(server);
+      await server.request(`/api/pages/${page.id}/discussion/seen`, { method: "POST", body: JSON.stringify({}) });
+
+      // Force the collision the clock would only occasionally produce.
+      const stamp = new Date().toISOString();
+      await loginOwner(server);
+      await reply(server, page.id, thread.id, "Same millisecond.");
+      const database = new DatabaseSync(server.databasePath);
+      database.prepare("UPDATE discussion_seen SET seen_at = ?").run(stamp);
+      database.prepare("UPDATE page_discussion SET created_at = ? WHERE body = ?").run(stamp, "Same millisecond.");
+      database.close();
+
+      await loginMember(server);
+      const board = await server.request<BoardWorkspace>("/api/board");
+      // The safe direction for a count of what somebody has not read is to count it again.
+      expect(board.body.pages.find((value) => value.id === page.id)?.unseenMessages).toBe(1);
+    });
+
+    it("names both people who share a display name", () => {
+      const twins = [
+        { id: "u-one", name: "Alan" },
+        { id: "u-two", name: "Alan" },
+      ];
+      // Guessing which was meant would be worse than telling both.
+      expect(parseMentions("@Alan can one of you look?", twins).sort()).toEqual(["u-one", "u-two"]);
+    });
+
+    it("does not find a name inside a longer one that is not ASCII", () => {
+      const team = [{ id: "u-alan", name: "Alan" }, { id: "u-jose", name: "José" }];
+      expect(parseMentions("@Alanè is somebody else", team)).toEqual([]);
+      expect(parseMentions("@José can you look?", team)).toEqual(["u-jose"]);
+      // And a name is still a name when it follows a letter this alphabet has not heard of.
+      expect(parseMentions("é @Alan", team)).toEqual(["u-alan"]);
+    });
+
+    it("refuses a reply to a question somebody has already answered", async () => {
+      const server = await startTestServer();
+      await bootstrap(server);
+      const page = await makePage(server);
+      const thread = (await ask(server, page.id, "Settled?")).body.thread;
+      await setAnswered(server, page.id, thread.id, true);
+
+      const late = await reply(server, page.id, thread.id, "One more thing.");
+      // It would have landed folded away behind the answered count, where nobody would read it.
+      expect(late.response.status).toBe(409);
+      expect((await read(server, page.id)).body.threads[0].replies).toHaveLength(0);
     });
   });
 

@@ -86,6 +86,7 @@ export type DiscussionMessage = {
 export type DiscussionThread = DiscussionMessage & {
   replies: DiscussionMessage[];
   answeredAt: string | null;
+  answeredById: string | null;
   answeredByName: string | null;
 };
 

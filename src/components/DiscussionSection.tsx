@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { DiscussionMessage, DiscussionThread, Member } from "../../shared/types";
 import { DISCUSSION_BODY_MAX_LENGTH } from "../../shared/types";
 import { Avatar } from "./Avatar";
@@ -30,6 +30,8 @@ import { withMentions } from "./mention-text";
 
 type Props = {
   threads: DiscussionThread[] | null;
+  /** True when the conversation could not be fetched, so an empty column is not a lie. */
+  failed?: boolean;
   members: Member[];
   /** Only so your own name can light up when somebody writes it. */
   currentUserId: string;
@@ -38,7 +40,7 @@ type Props = {
   onSetAnswered: (threadId: string, answered: boolean) => Promise<void>;
 };
 
-export function DiscussionSection({ threads, members, currentUserId, onAsk, onReply, onSetAnswered }: Props) {
+export function DiscussionSection({ threads, failed, members, currentUserId, onAsk, onReply, onSetAnswered }: Props) {
   const [showingAnswered, setShowingAnswered] = useState(false);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
 
@@ -57,7 +59,9 @@ export function DiscussionSection({ threads, members, currentUserId, onAsk, onRe
    */
   return (
     <div className="page-discussion">
-      {threads === null
+      {failed
+        ? <p className="empty-dependencies">The conversation could not be loaded. Close the page and open it again.</p>
+        : threads === null
         ? <p className="empty-dependencies">Reading the discussion...</p>
         : (
           <div className="discussion-threads">
@@ -214,6 +218,8 @@ function Composer({ onSubmit, onCancel, placeholder, label, members, reply, auto
    * until the writing moves on.
    */
   const [dismissed, setDismissed] = useState<string | null>(null);
+  // One id per composer, so the reply's picker and the page's never claim the same one.
+  const pickerId = useId();
 
   const matches = naming
     ? members
@@ -249,7 +255,13 @@ function Composer({ onSubmit, onCancel, placeholder, label, members, reply, auto
     const next = `${value.slice(0, naming.at)}@${member.name} ${value.slice(caret)}`;
     setValue(next);
     setNaming(null);
-    setDismissed(null);
+    /*
+     * The name is written with a space after it, and that space is still inside what reads as
+     * a half-written name - "@Maren " is a plausible start for "Maren Voss". Left alone the
+     * picker reopens on the space it just typed, and the next Enter picks somebody instead of
+     * sending. Dismissing exactly that state closes it until the writing moves on.
+     */
+    setDismissed(`${naming.at}:${member.name} `);
     // Put the caret after the name that was just written, not back at the end of everything.
     const to = naming.at + member.name.length + 2;
     requestAnimationFrame(() => {
@@ -314,6 +326,10 @@ function Composer({ onSubmit, onCancel, placeholder, label, members, reply, auto
   return (
     <div className={reply ? "discussion-composer reply" : "discussion-composer"}>
       <textarea
+        aria-activedescendant={matches.length > 0 ? `${pickerId}-${highlighted}` : undefined}
+        aria-autocomplete="list"
+        aria-controls={matches.length > 0 ? pickerId : undefined}
+        aria-expanded={matches.length > 0}
         aria-label={label}
         maxLength={DISCUSSION_BODY_MAX_LENGTH}
         onChange={(event) => { setValue(event.target.value); readCaret(event.target); }}
@@ -340,6 +356,8 @@ function Composer({ onSubmit, onCancel, placeholder, label, members, reply, auto
             }
             if (event.key === "Escape") {
               event.preventDefault();
+              // The drawer closes on Escape too, and it must not hear this one.
+              event.stopPropagation();
               setDismissed(`${naming?.at}:${naming?.query}`);
               setNaming(null);
               return;
@@ -349,30 +367,45 @@ function Composer({ onSubmit, onCancel, placeholder, label, members, reply, auto
             event.preventDefault();
             void send();
           }
-          if (event.key === "Escape" && onCancel) onCancel();
+          /*
+           * Backing out of a reply is not closing the page.
+           *
+           * The drawer listens for Escape as well, so without stopping this one here a reply
+           * somebody had half written took the whole dialog down with it.
+           */
+          if (event.key === "Escape" && onCancel) {
+            event.preventDefault();
+            event.stopPropagation();
+            onCancel();
+          }
         }}
         onKeyUp={(event) => readCaret(event.currentTarget)}
         onBlur={() => setNaming(null)}
         placeholder={placeholder}
         ref={field}
+        role="combobox"
         rows={1}
         value={value}
       />
       {matches.length > 0 && (
-        <ul className="mention-picker" role="listbox">
+        <ul className="mention-picker" id={pickerId} role="listbox">
           {matches.map((member, index) => (
-            <li key={member.id}>
-              <button
-                aria-selected={index === highlighted}
-                className={index === highlighted ? "mention-option on" : "mention-option"}
-                // The field blurs before a click lands, which would close the picker first.
-                onMouseDown={(event) => { event.preventDefault(); choose(member); }}
-                role="option"
-                type="button"
-              >
-                <Avatar avatarUrl={member.avatarUrl} className="avatar tiny" name={member.name} />
-                {member.name}
-              </button>
+            /*
+             * The option is the row itself rather than a control inside it, so the listbox
+             * really owns its options; a list item in between would break that ownership and
+             * leave a reader with a listbox that appears to hold nothing.
+             */
+            <li
+              aria-selected={index === highlighted}
+              className={index === highlighted ? "mention-option on" : "mention-option"}
+              id={`${pickerId}-${index}`}
+              key={member.id}
+              // The field blurs before a click lands, which would close the picker first.
+              onMouseDown={(event) => { event.preventDefault(); choose(member); }}
+              role="option"
+            >
+              <Avatar avatarUrl={member.avatarUrl} className="avatar tiny" name={member.name} />
+              {member.name}
             </li>
           ))}
         </ul>

@@ -64,10 +64,19 @@ Build it first with `npm install && npm run build` in this directory.
 | `grimoire_move_page` | Moves a page between columns |
 | `grimoire_list_ideas` | Reads the idea garden |
 | `grimoire_create_idea` | Captures a possibility without committing to it |
+| `grimoire_read_discussion` | Everything said about one page, thread by thread, with what is open and what has been answered |
+| `grimoire_post_in_discussion` | Opens a thread on a page - what you did, what you found, what you need decided |
+| `grimoire_reply_in_discussion` | Answers a thread somebody opened, in the thread it was asked in |
 
 Category, chapter, assignee, and blockers all take the names a person would use, and are resolved against the board.
 `"me"` resolves to the person the token acts as.
 An unrecognised name is refused with the real options listed, rather than guessed at.
+
+Every page also carries a discussion, and that is where an agent reports.
+Say what you did in a thread rather than writing it into the notes: the notes are the brief somebody wrote for the work, and rewriting them destroys what you were working from.
+An open thread is also how you ask a person something and are seen to be waiting.
+Writing `@` and a member's name, exactly as `grimoire_board` gives it, addresses them.
+You cannot mark a thread answered - that is a person's judgement, and an agent that could close its own question could report its own work settled - and a thread somebody has already answered refuses further replies.
 
 A project can also define its own fields - a priority, an estimate, a due day, whatever it tracks - and `grimoire_create_page` and `grimoire_update_page` take them as `fields`.
 A field can be named by its key or by the label a person reads, and a choice field's option can be given in any casing, so `{ "Priority": "P0" }` and `{ "priority": "p0" }` are the same write.

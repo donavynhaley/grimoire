@@ -24,8 +24,18 @@ export function withMentions(
     .sort((left, right) => right.name.length - left.name.length);
   if (named.length === 0) return body;
 
+  /*
+   * The same boundaries the server used, on both sides.
+   *
+   * Without the leading one this marked a name inside an address - `maren@example` reading as
+   * a mention of Maren - which the server never counted, so the highlight would have claimed
+   * something the unread count disagreed with.
+   */
   const escaped = named.map((member) => member.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-  const pattern = new RegExp(`@(?:${escaped.join("|")})(?![\\w'-])`, "gi");
+  const pattern = new RegExp(
+    `(?<![\\p{L}\\p{N}_@])@(?:${escaped.join("|")})(?![\\p{L}\\p{N}_'-])`,
+    "giu",
+  );
 
   const nodes: React.ReactNode[] = [];
   let cursor = 0;

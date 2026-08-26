@@ -29,21 +29,33 @@ export type Mentionable = { id: string; name: string };
  * Longest names go first, so naming "@Maren Voss" is not read as naming "@Maren" and leaving
  * a stray surname behind.
  *
- * The `@` has to start a word and the name has to end on one, so an email address is not a
- * mention and "@Alanis" is not "@Alan".
+ * The boundaries either side are Unicode letters rather than ASCII ones, so "@Alan" is not
+ * found inside "@Alanè" any more than inside "@Alanis", and a name is still a name when it
+ * follows a character this alphabet has never heard of.
+ *
+ * Two people who share a display name are both named. Guessing which of them was meant would
+ * be worse than telling both: the writer typed one name and it belongs to two people.
  */
 export function parseMentions(body: string, members: Mentionable[]): string[] {
+  const byName = new Map<string, string[]>();
+  for (const member of members) {
+    const key = member.name.toLowerCase();
+    byName.set(key, [...(byName.get(key) ?? []), member.id]);
+  }
+
   const found = new Set<string>();
   let remaining = body;
-  const byLength = [...members].sort((left, right) => right.name.length - left.name.length);
-  for (const member of byLength) {
-    const escaped = member.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const pattern = new RegExp(`(^|[^\\w@])@${escaped}(?![\\w'-])`, "gi");
-    if (pattern.test(remaining)) {
-      found.add(member.id);
-      // Struck out so a shorter name inside this one cannot match the same words again.
-      remaining = remaining.replace(new RegExp(`(^|[^\\w@])@${escaped}(?![\\w'-])`, "gi"), "$1");
-    }
+  const names = [...byName.keys()].sort((left, right) => right.length - left.length);
+  for (const name of names) {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = new RegExp(`(?<![\\p{L}\\p{N}_@])@${escaped}(?![\\p{L}\\p{N}_'-])`, "giu");
+    if (!pattern.test(remaining)) continue;
+    for (const id of byName.get(name) ?? []) found.add(id);
+    // Struck out so a shorter name inside this one cannot match the same words again.
+    remaining = remaining.replace(
+      new RegExp(`(?<![\\p{L}\\p{N}_@])@${escaped}(?![\\p{L}\\p{N}_'-])`, "giu"),
+      " ",
+    );
   }
   return [...found];
 }
@@ -152,8 +164,17 @@ export function openThreadCount(database: DatabaseSync, projectId: string, pageI
  * How much of a page's conversation this person has not read yet.
  *
  * Counted per person and never shared: this answers "is there something here for me", which is
- * the only question the control in the panel header is asking. Your own messages never count -
+ * the only question the switch on the column is asking. What you wrote yourself never counts -
  * you have read what you wrote - and a page you have never opened counts everything on it.
+ *
+ * What your agent wrote does count. A token is a delegation and every write it makes is
+ * attributed to the person who issued it, but that person has not read it: an agent reporting
+ * that it deployed something is news to them, and treating it as their own writing would have
+ * made the one thing agents are best at the one thing nobody is told about.
+ *
+ * The seen mark is compared with `>=` rather than `>`. A message written in the same
+ * millisecond as the mark may have arrived after the reading, and the safe direction for a
+ * count of what somebody has not read is to count it again.
  *
  * One query for the whole board rather than one per tile, for the same reason the open-thread
  * counts are gathered that way.
@@ -168,8 +189,8 @@ export function unseenCounts(database: DatabaseSync, projectId: string, userId: 
         AND discussion_seen.page_id = page_discussion.page_id
         AND discussion_seen.user_id = ?
        WHERE page_discussion.project_id = ?
-         AND (page_discussion.author_id IS NULL OR page_discussion.author_id != ?)
-         AND (discussion_seen.seen_at IS NULL OR page_discussion.created_at > discussion_seen.seen_at)
+         AND NOT (page_discussion.author_id = ? AND page_discussion.agent_token_id IS NULL)
+         AND (discussion_seen.seen_at IS NULL OR page_discussion.created_at >= discussion_seen.seen_at)
        GROUP BY page_discussion.page_id`,
     )
     .all(userId, projectId, userId) as Row[];
@@ -217,8 +238,8 @@ export function unseenMentionCounts(database: DatabaseSync, projectId: string, u
         AND discussion_seen.page_id = page_discussion.page_id
         AND discussion_seen.user_id = ?
        WHERE page_discussion.project_id = ?
-         AND (page_discussion.author_id IS NULL OR page_discussion.author_id != ?)
-         AND (discussion_seen.seen_at IS NULL OR page_discussion.created_at > discussion_seen.seen_at)
+         AND NOT (page_discussion.author_id = ? AND page_discussion.agent_token_id IS NULL)
+         AND (discussion_seen.seen_at IS NULL OR page_discussion.created_at >= discussion_seen.seen_at)
        GROUP BY page_discussion.page_id`,
     )
     .all(userId, userId, projectId, userId) as Row[];
@@ -265,7 +286,7 @@ export function openThread(
   return findThread(database, projectId, pageId, id) as DiscussionThread;
 }
 
-export type ReplyResult = DiscussionThread | "no_thread";
+export type ReplyResult = DiscussionThread | "no_thread" | "answered";
 
 /**
  * Answers a thread in words.
@@ -285,6 +306,15 @@ export function replyToThread(
 ): ReplyResult {
   const thread = findThread(database, projectId, pageId, threadId);
   if (!thread) return "no_thread";
+  /*
+   * A settled thread stays settled.
+   *
+   * The interface offers no reply on one, so this only ever refuses something holding a stale
+   * copy of the page - an agent that read the conversation before somebody closed the question
+   * it was about to answer. Its reply would land folded away behind the answered count, which
+   * is a worse outcome than being told to say it somewhere it will be read.
+   */
+  if (thread.answeredAt !== null) return "answered";
   const id = randomUUID();
   database
     .prepare(
