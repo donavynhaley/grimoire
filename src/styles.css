@@ -162,6 +162,7 @@ textarea:focus-visible {
 
 .brand-lockup { gap: 0.625rem; }
 .brand-word { font-size: 0.75rem; font-weight: 800; letter-spacing: 0.04em; }
+.app-version { color: var(--faint); font-size: 0.5rem; letter-spacing: 0.04em; }
 
 .board-project { display: grid; justify-items: center; }
 .board-project h1 { margin: 0; font-size: 0.6875rem; text-transform: lowercase; }
@@ -2832,6 +2833,7 @@ textarea:hover { border-color: var(--border-bright); }
 @media (max-width: 980px) {
   .board-topbar { grid-template-columns: auto 1fr auto; }
   .brand-word,
+  .app-version,
   .member-faces { display: none; }
   /* Columns stack into one vertically scrolling page instead of a horizontal filmstrip. */
   .board-main { overflow-x: hidden; overflow-y: auto; }

@@ -199,6 +199,7 @@ describe("Grimoire board", () => {
     const navigation = await screen.findByRole("navigation", { name: "Project spaces" });
     expect(navigation.parentElement).toHaveClass("brand-lockup");
     expect(screen.getByRole("heading", { name: "Wizard Simulator" }).closest(".board-project")).not.toBeNull();
+    expect(screen.getByText("v0.1.0")).toBeInTheDocument();
   });
 
   it("shows the opening animation while switching projects", async () => {
