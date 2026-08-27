@@ -99,8 +99,12 @@ a real one, not a stub. A stub only ever proves the code against the stub.
 of its own, normally used to put an OpenID face on something else in front of Kubernetes; it is
 not what people self-host as their identity provider. It earns its place here by being a real,
 spec-compliant provider that starts in about a second from one config file with no database,
-which is what you want from something you restart a hundred times while working on sign-in. If
-you are choosing an identity provider to actually run, the section below is the honest list.
+which is what you want from something you restart a hundred times while working on sign-in.
+
+Authentik is what most people reading this actually run, and the flow has been verified against
+it — but four containers and a database is a heavy thing to make somebody start before they can
+change a line of sign-in code, so it is not the fixture in the repository. If you are choosing
+an identity provider to run for real, the list below is the honest one.
 
 ```sh
 docker compose -f compose.dex.yaml up -d
@@ -134,9 +138,10 @@ authorization code flow, the redirect address above, and the `openid email profi
 What each provider calls those differs.
 
 Grimoire speaks the protocol rather than keeping a list of vendors, so anything that publishes a
-discovery document works. The flow has been run end to end against **Dex** and **Keycloak**, and
-read live from **Google**'s published configuration. If you get a provider working that is not
-listed here, a note saying so is a welcome issue.
+discovery document works. The whole flow — setup, sign-in, and matching an account that already
+existed — has been run end to end against **Authentik**, **Keycloak**, and **Dex**, and Google's
+published configuration has been read live. If you get a provider working that is not listed
+here, a note saying so is a welcome issue.
 
 ### Authentik
 
@@ -144,10 +149,17 @@ Create an **OAuth2/OpenID Provider**, then an **Application** pointing at it.
 
 - Client type: **Confidential**
 - Redirect URI: the address above, as a **Strict** match
-- Signing key: any; Grimoire reads the algorithm from your provider
+- Signing key: any of them; Grimoire reads the algorithm from your provider rather than
+  assuming one
 - Scopes: `openid`, `email`, `profile`
 
-Paste `https://authentik.example.com/application/o/<application-slug>/` as the provider address.
+Paste `https://authentik.example.com/application/o/<application-slug>/` as the provider address —
+including the trailing slash, which is how Authentik writes it and how its tokens name it.
+Grimoire treats that spelling and the one without as the same provider.
+
+Authentik serves its authorization, token, and userinfo endpoints from paths that do not sit
+under that issuer. Grimoire reads them from the discovery document, so this needs nothing from
+you; it is worth knowing only if you were expecting to see them agree.
 
 ### Keycloak
 
