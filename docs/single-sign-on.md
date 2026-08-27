@@ -38,7 +38,25 @@ that instead.
 
 Accounts are matched by **email address**. Somebody who has been signing in with a password
 keeps their history, their memberships, and their name the moment single sign-on is turned on.
-The provider signs them in; it does not replace them.
+The provider signs them in; it does not replace them, and it cannot rename them or change what
+they are allowed to do. Their password keeps working too — two doors, one account.
+
+That first match is then **written down**, against your provider's own id for them. Email is a
+good way to find somebody once and a poor way to keep knowing who they are, because people
+change their address: after the first sign-in the link is what identifies them, so somebody
+whose address changes at your provider stays the person they were here, and their Grimoire
+address follows. Without that, the day they changed it they would quietly get a second, empty
+account and lose everything they had done.
+
+Two things this deliberately refuses rather than guesses at. If the new address is one another
+Grimoire account already uses, the sign-in is refused: that is two accounts wanting to be one,
+and which history survives a merge is a person's decision. And if a *different* person at your
+provider presents the address of an account already linked to somebody else, that is refused
+too — guessing either way signs somebody in as somebody else.
+
+Removing somebody from every project stops their provider sign-in, exactly as it stops their
+password sign-in. A recorded link says which account somebody is; it is never a reason to let
+them in.
 
 For somebody with no account yet, there are two settings and they answer different worries.
 

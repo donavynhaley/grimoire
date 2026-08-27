@@ -199,6 +199,15 @@ export function emailDomainAllowed(email: string, allowed: string[]): boolean {
 
 /** What the provider told us about the person, reduced to what an account needs. */
 export type OidcIdentity = {
+  /**
+   * The issuer as the verified token names it, not as the operator typed it.
+   *
+   * A subject id means nothing except under the issuer that minted it, so the two are only
+   * ever recorded together - and the one worth recording is the canonical one the provider
+   * asserts, which is also the one the signature was checked against.
+   */
+  issuer: string;
+  /** Opaque, stable, and the provider's own: what does not change when an address does. */
   subject: string;
   email: string;
   name: string | null;
@@ -388,7 +397,12 @@ export class OidcProvider {
     // provider that says nothing about verification is trusted; one that says no is not.
     if (emailVerified === false) throw new OidcError("The sign-in provider has not verified that email address");
 
-    return { subject, email: email.trim().toLowerCase(), name: name?.trim() || null };
+    return {
+      issuer: discovery.issuer.replace(/\/+$/, ""),
+      subject,
+      email: email.trim().toLowerCase(),
+      name: name?.trim() || null,
+    };
   }
 
   private async verifyIdToken(token: string, nonce: string, discovery: Discovery): Promise<Record<string, unknown>> {

@@ -64,6 +64,13 @@ export type OidcSettings = {
    * tunnel, a reverse proxy, a port that is not the default - is a chance to get it wrong.
    */
   callbackUrl: string;
+  /**
+   * How many accounts have signed in through this provider and been recorded as its people.
+   *
+   * Counted against the issuer in force, so pointing Grimoire at a different provider says
+   * nobody is linked yet rather than counting links the new provider never made.
+   */
+  linkedAccounts: number;
   updatedAt: string | null;
 };
 

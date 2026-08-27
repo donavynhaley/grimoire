@@ -1,4 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
+import { countOidcLinks } from "./oidc-identities";
 import type { OidcSettings, OidcSource } from "../shared/types";
 import {
   emailDomainAllowed,
@@ -175,6 +176,7 @@ export function oidcSettingsView(
       redirectUri: environmentConfig.redirectUri ?? "",
       signupProject: environmentConfig.signupProject ?? "",
       callbackUrl: environmentConfig.redirectUri || callbackUrl,
+      linkedAccounts: countOidcLinks(database),
       updatedAt: null,
     };
   }
@@ -191,6 +193,7 @@ export function oidcSettingsView(
     redirectUri: row.redirect_uri,
     signupProject: row.signup_project,
     callbackUrl: row.redirect_uri || callbackUrl,
+    linkedAccounts: countOidcLinks(database),
     updatedAt: row.updated_at,
   };
 }

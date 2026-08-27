@@ -29,6 +29,7 @@ function settings(overrides: Partial<OidcSettings> = {}): OidcSettings {
     redirectUri: "",
     signupProject: "",
     callbackUrl: "https://grimoire.example.com/api/auth/oidc/callback",
+    linkedAccounts: 0,
     updatedAt: null,
     ...overrides,
   };

@@ -315,6 +315,15 @@ export function SignInSection({ run }: { run: SettingsRun }) {
             ? "Password sign-in stays available either way, so a provider that goes down cannot lock you out of your own Grimoire."
             : "Add a provider address and a client id first."}
         </p>
+        {settings.linkedAccounts > 0 && (
+          <p className="settings-summary">
+            {settings.linkedAccounts === 1
+              ? "One account signs in this way."
+              : `${settings.linkedAccounts} accounts sign in this way.`}{" "}
+            Each was matched by email the first time and is remembered by your provider&apos;s own
+            id for them since, so it follows them if they change their address.
+          </p>
+        )}
       </div>
     </div>
   );

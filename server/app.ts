@@ -97,6 +97,7 @@ import {
   type OidcIdentity,
 } from "./oidc";
 import { emailDomainAllowed, oidcSettingsView, OidcProviders, resolveOidc, saveOidcSettings } from "./oidc-settings";
+import { findOidcLink, linkOidcIdentity, oidcLinkForUser, touchOidcLink } from "./oidc-identities";
 import {
   AgentRateLimiter,
   agentForToken,
@@ -2451,15 +2452,41 @@ export function createGrimoireServer(options: Options) {
     if (!emailDomainAllowed(identity.email, config.allowedEmailDomains)) {
       throw new HttpError(403, "That email address is not on a domain this Grimoire accepts.");
     }
+    /*
+     * Who this is, asked in the order that survives people changing their own details.
+     *
+     * The recorded link comes first. Once somebody has signed in through the provider we know
+     * which account they are by the provider's own id for them, and that keeps being true on
+     * the day they change their email address - which is precisely the day an email-only match
+     * would hand them a second, empty account and lose everything they had done.
+     */
+    const linked = findOidcLink(database, identity.issuer, identity.subject);
+    if (linked) {
+      const stored = findUserById(database, linked.userId);
+      // The account was removed since it was linked, so the link names nobody. Fall through and
+      // treat this as a first sign-in rather than resurrecting a deleted person.
+      if (stored) {
+        const user = publicUser(stored);
+        if (user.email.toLowerCase() !== identity.email) await moveAccountEmail(user, identity.email);
+        touchOidcLink(database, identity.issuer, identity.subject);
+        return requireOnAProject(findUserById(database, linked.userId)!);
+      }
+    }
+
     const existing = findUserByEmail(database, identity.email);
     if (existing) {
       const user = publicUser(existing);
-      // The same refusal password sign-in gives: an account on no project can see nothing,
-      // and being told so is more useful than an empty board.
-      if (!defaultProjectIdForUser(database, user)) {
-        throw new HttpError(403, "That account is not on any project yet. Ask the project owner to add you.");
+      // The first sign-in after single sign-on is turned on: the address is how somebody's
+      // existing account is recognised, and this is the moment that recognition stops having
+      // to be repeated. Anything the provider says afterwards is about a known account.
+      const claimed = oidcLinkForUser(database, identity.issuer, user.id);
+      if (claimed && claimed.subject !== identity.subject) {
+        // Two of the provider's people naming one Grimoire account. Refused rather than
+        // guessed at, because whichever way it were guessed somebody signs in as somebody else.
+        throw new HttpError(409, "Another account at your provider is already signed in to this Grimoire account.");
       }
-      return user;
+      linkOidcIdentity(database, identity.issuer, identity.subject, user.id);
+      return requireOnAProject(existing);
     }
 
     const invite = inviteCode ? findUsableInvite(inviteCode) : null;
@@ -2501,10 +2528,50 @@ export function createGrimoireServer(options: Options) {
       throw error;
     }
 
+    linkOidcIdentity(database, identity.issuer, identity.subject, userId);
     const user = withAvatar(publicUser(findUserById(database, userId)!));
     auditAs(user, { projectId, entityType: "member", entityId: userId, entityTitle: user.name, action: "joined" });
     broadcast(projectId, "work", null);
     return user;
+  }
+
+  /** The refusal password sign-in gives too: an account on no project can see nothing. */
+  function requireOnAProject(stored: Record<string, unknown>): User {
+    const user = publicUser(stored as Record<string, string>);
+    if (!defaultProjectIdForUser(database, user)) {
+      throw new HttpError(403, "That account is not on any project yet. Ask the project owner to add you.");
+    }
+    return user;
+  }
+
+  /**
+   * Follows somebody whose address changed at the provider.
+   *
+   * This is the whole reason the link is recorded rather than recomputed. The provider is the
+   * authority on its own people's addresses, so the account follows - but only into an address
+   * nothing else answers to. A collision is two accounts wanting to be one, which is a merge,
+   * and a merge is a person's decision about whose history survives rather than a side effect
+   * of somebody signing in.
+   */
+  async function moveAccountEmail(user: User, email: string): Promise<void> {
+    const occupied = findUserByEmail(database, email);
+    if (occupied && String(occupied.id) !== user.id) {
+      throw new HttpError(
+        409,
+        `Your provider now gives your address as ${email}, which another Grimoire account already uses. An admin has to settle which account is yours.`,
+      );
+    }
+    database.prepare("UPDATE users SET email = ? WHERE id = ?").run(email, user.id);
+    const projectId = defaultProjectIdForUser(database, user);
+    if (projectId) {
+      auditAs({ ...user, email }, {
+        projectId,
+        entityType: "member",
+        entityId: user.id,
+        entityTitle: user.name,
+        action: "updated",
+      });
+    }
   }
 
   /** An invitation that is still worth something: unused, unexpired, and on a live project. */
