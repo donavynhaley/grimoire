@@ -90,6 +90,36 @@ A half-written configuration stops the server rather than starting without the b
 sign-in option that quietly never appears is the hardest kind of mistake to notice. Every
 variable is listed in [.env.example](../.env.example).
 
+## Trying it locally
+
+There is a provider in the repository to develop and test against — [Dex](https://dexidp.io),
+a real one, not a stub. A stub only ever proves the code against the stub.
+
+```sh
+docker compose -f compose.dex.yaml up -d
+```
+
+Then, in Grimoire's **Settings → Sign-in**:
+
+| Field | Value |
+| --- | --- |
+| Provider address | `http://127.0.0.1:5556/dex` |
+| Client id | `grimoire` |
+| Client secret | `grimoire-client-secret` |
+
+Turn it on, sign out, and use **continue with…**. The accounts are `admin@example.com` and
+`newcomer@example.com`, both with the password `dex-test-password`.
+
+`http` works here because Grimoire allows it against `localhost` and `127.0.0.1` and nowhere
+else. The redirect addresses Dex will accept are listed in
+[ops/dex-config.yaml](../ops/dex-config.yaml); if you reach Grimoire on a different port, add
+yours there and restart Dex.
+
+To watch an address change follow somebody: edit the email in `ops/dex-config.yaml`, leave the
+`userID` alone, `docker compose -f compose.dex.yaml restart`, and sign in again. The account
+follows, because the link was recorded against that unchanged id. Restarting Dex also rotates
+its signing keys, which is a free test of a key rotation being picked up mid-session.
+
 ## Your provider
 
 Grimoire needs the same four things everywhere: an application of type OpenID Connect, the
