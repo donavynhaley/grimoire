@@ -545,6 +545,31 @@ CREATE TABLE IF NOT EXISTS seen_cursors (
 
 ${agentTokensTable}
 
+/*
+ * The identity provider this installation signs people in through, when it has one.
+ *
+ * One row, because a provider belongs to the installation rather than to a project - the
+ * same reason there is exactly one admin. It lives in the database rather than only in the
+ * environment so that setting it up is a screen somebody fills in and checks, instead of a
+ * redeploy they get wrong twice. An environment variable still wins where one is set, which
+ * is what keeps a file-configured deployment file-configured.
+ */
+CREATE TABLE IF NOT EXISTS oidc_settings (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  enabled INTEGER NOT NULL DEFAULT 0,
+  issuer TEXT NOT NULL DEFAULT '',
+  client_id TEXT NOT NULL DEFAULT '',
+  client_secret TEXT NOT NULL DEFAULT '',
+  scopes TEXT NOT NULL DEFAULT '',
+  label TEXT NOT NULL DEFAULT '',
+  auto_register INTEGER NOT NULL DEFAULT 1,
+  allowed_email_domains TEXT NOT NULL DEFAULT '',
+  redirect_uri TEXT NOT NULL DEFAULT '',
+  signup_project TEXT NOT NULL DEFAULT '',
+  updated_at TEXT,
+  updated_by TEXT REFERENCES users(id)
+);
+
 ${projectFieldsTable}
 /*
  * What people said to each other about a page.

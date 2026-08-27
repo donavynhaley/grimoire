@@ -66,8 +66,23 @@ describe("the one settings surface", () => {
     const settings = await openSettings(user);
     const rail = within(settings).getByRole("navigation", { name: "Settings sections" });
     expect(within(rail).getAllByRole("button").map((button) => button.textContent)).toEqual([
-      "General", "Categories", "Page fields", "Chapters", "GitHub", "Discord", "Team", "Agent access", "Danger zone",
+      "General", "Categories", "Page fields", "Chapters", "GitHub", "Discord", "Team", "Agent access", "Sign-in", "Danger zone",
     ]);
+  });
+
+  it("keeps how everybody signs in out of a project owner's settings", async () => {
+    const user = userEvent.setup();
+    const board = boardFixture();
+    // An owner of this project, but not the account that set the installation up. A provider
+    // reaches every board, so it is not theirs to change.
+    board.currentUser = { ...board.currentUser, role: "member" };
+    mountWith({ board });
+
+    const settings = await openSettings(user);
+    const rail = within(settings).getByRole("navigation", { name: "Settings sections" });
+    const sections = within(rail).getAllByRole("button").map((button) => button.textContent);
+    expect(sections).toContain("Agent access");
+    expect(sections).not.toContain("Sign-in");
   });
 
   it("auto-saves a rename on blur and says so", async () => {

@@ -7,17 +7,27 @@ import { CategoriesSection, type CategoryActions } from "./CategoriesSection";
 import { ChaptersSection, type ChapterActions } from "./ChaptersSection";
 import { FieldsSection, type FieldActions } from "./FieldsSection";
 import { AgentAccessSection } from "./AgentAccessSection";
+import { SignInSection } from "./SignInSection";
 import { TeamSection } from "./TeamSection";
 import { type SettingsRun, useSettingsAction } from "./use-settings-action";
 
-export const SETTINGS_SECTIONS = ["general", "categories", "fields", "chapters", "github", "discord", "team", "agents", "danger"] as const;
+export const SETTINGS_SECTIONS = ["general", "categories", "fields", "chapters", "github", "discord", "team", "agents", "signin", "danger"] as const;
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
 
 /** The sections a member can read. Agent credentials and archiving stay owner-only. */
 const MEMBER_SECTIONS: readonly SettingsSection[] = ["general", "categories", "fields", "chapters", "team"];
 
-export function settingsSectionsFor(isOwner: boolean): readonly SettingsSection[] {
-  return isOwner ? SETTINGS_SECTIONS : MEMBER_SECTIONS;
+/**
+ * How people sign in belongs to the installation, not to a project.
+ *
+ * So it is the admin's, and it is the one section a project owner does not get: an owner
+ * reshapes the board in front of them, and a provider reaches every board there is.
+ */
+const ADMIN_SECTIONS: readonly SettingsSection[] = ["signin"];
+
+export function settingsSectionsFor(isOwner: boolean, isAdmin = false): readonly SettingsSection[] {
+  const reachable = isOwner ? SETTINGS_SECTIONS : MEMBER_SECTIONS;
+  return reachable.filter((section) => isAdmin || !ADMIN_SECTIONS.includes(section));
 }
 
 const SECTION_LABELS: Record<SettingsSection, string> = {
@@ -29,6 +39,7 @@ const SECTION_LABELS: Record<SettingsSection, string> = {
   discord: "Discord",
   team: "Team",
   agents: "Agent access",
+  signin: "Sign-in",
   danger: "Danger zone",
 };
 
@@ -120,7 +131,7 @@ export function ProjectSettingsDialog({
   onSectionChange,
   onClose,
 }: Props) {
-  const sections = settingsSectionsFor(isOwner);
+  const sections = settingsSectionsFor(isOwner, currentUser.role === "admin");
   const active = sections.includes(section) ? section : "general";
   const { error, saved, run } = useSettingsAction();
 
@@ -217,6 +228,7 @@ export function ProjectSettingsDialog({
             />
           )}
           {active === "agents" && isOwner && <AgentAccessSection run={run} />}
+          {active === "signin" && currentUser.role === "admin" && <SignInSection run={run} />}
           {active === "danger" && isOwner && (
             <DangerSection
               busy={busy}

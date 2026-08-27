@@ -17,10 +17,13 @@ import { z } from "zod";
  * container, which is most of the argument for running it at all.
  */
 
-/** How a person who has no account yet may get one through the provider. */
-export type OidcSignupMode = "invite" | "open";
-
 export type OidcConfig = {
+  /**
+   * Whatever the operator pasted: an issuer, or a discovery URL.
+   *
+   * Both are accepted because both are what providers hand people. Some providers do not sit
+   * at the standard well-known path at all, so demanding an issuer would lock them out.
+   */
   issuer: string;
   clientId: string;
   clientSecret: string;
@@ -29,8 +32,24 @@ export type OidcConfig = {
   scopes: string[];
   /** What the sign-in button calls the provider. */
   label: string;
-  signup: OidcSignupMode;
-  /** Which project an `open` signup joins; the oldest one when unset. */
+  /**
+   * Whether somebody the provider vouches for gets an account without an invitation.
+   *
+   * On by default, because a team that has just pointed Grimoire at their own identity
+   * provider has already said who is allowed in, and making them each also click an
+   * invitation link is asking the same question twice.
+   */
+  autoRegister: boolean;
+  /**
+   * The email domains that may sign in at all, when the operator names any.
+   *
+   * This is the guard that makes auto-registration safe to leave on. Pointed at a provider
+   * that is only your team, it is unnecessary; pointed at a shared or public one - a Google
+   * or an Entra tenant that is not only yours - it is the difference between "my team" and
+   * "anybody with an account there".
+   */
+  allowedEmailDomains: string[];
+  /** Which project a created account joins; the oldest one when unset. */
   signupProject: string | null;
 };
 
@@ -69,7 +88,13 @@ const discoverySchema = z.object({
   jwks_uri: z.string().url().optional(),
   userinfo_endpoint: z.string().url().optional(),
   token_endpoint_auth_methods_supported: z.array(z.string()).optional(),
+  id_token_signing_alg_values_supported: z.array(z.string()).optional(),
+  code_challenge_methods_supported: z.array(z.string()).optional(),
+  scopes_supported: z.array(z.string()).optional(),
 });
+
+/** Where a provider's configuration lives when it lives where the spec says it does. */
+export const WELL_KNOWN_PATH = "/.well-known/openid-configuration";
 
 type Discovery = z.infer<typeof discoverySchema>;
 
@@ -82,7 +107,8 @@ const tokenResponseSchema = z.object({
   access_token: z.string().optional(),
 });
 
-const DEFAULT_SCOPES = ["openid", "email", "profile"];
+/** What every provider understands, and enough to know who somebody is. */
+export const DEFAULT_SCOPES = ["openid", "email", "profile"];
 /** Discovery is stable enough to cache and cheap enough to refetch hourly. */
 const DISCOVERY_TTL_MS = 60 * 60 * 1000;
 /** A signing key rotation is answered by refetching when a key id is unknown, not by expiry alone. */
@@ -106,37 +132,69 @@ export function oidcConfigFromEnvironment(environment: Record<string, string | u
     throw new Error("OIDC needs both GRIMOIRE_OIDC_ISSUER and GRIMOIRE_OIDC_CLIENT_ID, or neither");
   }
 
-  let parsed: URL;
-  try {
-    parsed = new URL(issuer);
-  } catch {
-    throw new Error(`GRIMOIRE_OIDC_ISSUER is not a URL: ${issuer}`);
-  }
-  if (parsed.protocol !== "https:" && parsed.hostname !== "localhost" && parsed.hostname !== "127.0.0.1") {
-    throw new Error("GRIMOIRE_OIDC_ISSUER must be https, except against localhost");
-  }
+  const parsed = parseIssuerInput(issuer);
+  if ("error" in parsed) throw new Error(`GRIMOIRE_OIDC_ISSUER ${parsed.error}`);
 
-  const signup = environment.GRIMOIRE_OIDC_SIGNUP?.trim() || "invite";
-  if (signup !== "invite" && signup !== "open") {
-    throw new Error(`GRIMOIRE_OIDC_SIGNUP must be "invite" or "open": ${signup}`);
+  const autoRegister = environment.GRIMOIRE_OIDC_AUTO_REGISTER?.trim();
+  if (autoRegister !== undefined && autoRegister !== "" && !/^(1|0|true|false|yes|no)$/i.test(autoRegister)) {
+    throw new Error(`GRIMOIRE_OIDC_AUTO_REGISTER must be true or false: ${autoRegister}`);
   }
-
-  const scopes = (environment.GRIMOIRE_OIDC_SCOPES ?? "")
-    .split(/[\s,]+/)
-    .map((scope) => scope.trim())
-    .filter(Boolean);
 
   return {
-    // Trailing slashes are how two spellings of the same provider stop matching each other.
-    issuer: issuer.replace(/\/+$/, ""),
+    issuer: parsed.issuer,
     clientId,
     clientSecret,
     redirectUri: environment.GRIMOIRE_OIDC_REDIRECT_URI?.trim() || null,
-    scopes: scopes.length > 0 ? [...new Set(["openid", ...scopes])] : DEFAULT_SCOPES,
+    scopes: parseScopes(environment.GRIMOIRE_OIDC_SCOPES),
     label: environment.GRIMOIRE_OIDC_LABEL?.trim() || parsed.hostname,
-    signup,
+    autoRegister: autoRegister ? /^(1|true|yes)$/i.test(autoRegister) : true,
+    allowedEmailDomains: parseEmailDomains(environment.GRIMOIRE_OIDC_ALLOWED_EMAIL_DOMAINS),
     signupProject: environment.GRIMOIRE_OIDC_SIGNUP_PROJECT?.trim() || null,
   };
+}
+
+/**
+ * Reads whatever the operator pasted into the issuer box.
+ *
+ * Providers hand people three different strings and call them all the same thing: an issuer,
+ * an issuer with a trailing slash, and the full discovery URL. Refusing two of the three is
+ * a support thread rather than a security property, so all three are accepted here and the
+ * difference is remembered, because it decides one real check later - see `discover`.
+ */
+export function parseIssuerInput(value: string): { issuer: string; hostname: string; pastedDiscovery: boolean } | { error: string } {
+  const trimmed = value.trim();
+  if (!trimmed) return { error: "is empty" };
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed.includes("://") ? trimmed : `https://${trimmed}`);
+  } catch {
+    return { error: `is not a URL: ${trimmed}` };
+  }
+  if (parsed.protocol !== "https:" && parsed.hostname !== "localhost" && parsed.hostname !== "127.0.0.1") {
+    return { error: "must be https, except against localhost" };
+  }
+  const pastedDiscovery = parsed.pathname.endsWith(WELL_KNOWN_PATH);
+  const issuer = pastedDiscovery ? parsed.toString() : parsed.toString().replace(/\/+$/, "");
+  return { issuer, hostname: parsed.hostname, pastedDiscovery };
+}
+
+export function parseScopes(value: string | undefined): string[] {
+  const scopes = (value ?? "").split(/[\s,]+/).map((scope) => scope.trim()).filter(Boolean);
+  return scopes.length > 0 ? [...new Set(["openid", ...scopes])] : DEFAULT_SCOPES;
+}
+
+export function parseEmailDomains(value: string | undefined): string[] {
+  return (value ?? "")
+    .split(/[\s,]+/)
+    .map((domain) => domain.trim().toLowerCase().replace(/^@/, ""))
+    .filter(Boolean);
+}
+
+/** Whether an address is one the operator said may sign in. An empty list means anybody may. */
+export function emailDomainAllowed(email: string, allowed: string[]): boolean {
+  if (allowed.length === 0) return true;
+  const domain = email.split("@")[1]?.toLowerCase() ?? "";
+  return allowed.some((candidate) => domain === candidate || domain.endsWith(`.${candidate}`));
 }
 
 /** What the provider told us about the person, reduced to what an account needs. */
@@ -156,22 +214,79 @@ export class OidcProvider {
     private readonly now: () => number = Date.now,
   ) {}
 
-  private async discover(): Promise<Discovery> {
+  /** The URL the provider's configuration is read from, whichever form was pasted. */
+  get discoveryUrl(): string {
+    const input = parseIssuerInput(this.config.issuer);
+    if ("error" in input) return this.config.issuer;
+    return input.pastedDiscovery ? input.issuer : `${input.issuer}${WELL_KNOWN_PATH}`;
+  }
+
+  async discover(): Promise<Discovery> {
     const cached = this.discovery;
     if (cached && this.now() - cached.fetchedAt < DISCOVERY_TTL_MS) return cached.document;
 
-    const url = `${this.config.issuer}/.well-known/openid-configuration`;
-    const { status, body } = await this.fetcher(url);
+    const input = parseIssuerInput(this.config.issuer);
+    if ("error" in input) throw new OidcError(`The sign-in provider's address ${input.error}`);
+
+    const { status, body } = await this.fetcher(this.discoveryUrl);
+    if (status === 404) {
+      throw new OidcError(
+        `No provider configuration at ${this.discoveryUrl} (404). If your provider publishes it elsewhere, paste that full URL instead of the issuer.`,
+      );
+    }
     if (status !== 200) throw new OidcError(`The sign-in provider could not be reached (${status})`);
     const parsed = discoverySchema.safeParse(body);
-    if (!parsed.success) throw new OidcError("The sign-in provider returned an unusable configuration");
-    // A discovery document that names a different issuer is either a misconfiguration or
-    // somebody else's provider answering for this one, and both are refusals.
-    if (parsed.data.issuer.replace(/\/+$/, "") !== this.config.issuer) {
-      throw new OidcError("The sign-in provider's configuration names a different issuer");
+    if (!parsed.success) {
+      throw new OidcError(`The address ${this.discoveryUrl} did not answer with a provider configuration`);
+    }
+    // The spec's anti-spoofing check: a document fetched from the well-known path under an
+    // issuer must name that issuer. It only applies when the issuer is what built the URL -
+    // an operator who pasted the discovery URL outright has already chosen the document, and
+    // holding them to it would refuse every provider that does not sit at the standard path.
+    if (!input.pastedDiscovery && parsed.data.issuer.replace(/\/+$/, "") !== input.issuer) {
+      throw new OidcError(
+        `The provider at ${input.issuer} calls itself ${parsed.data.issuer}. Use that as the issuer, or paste its discovery URL.`,
+      );
     }
     this.discovery = { document: parsed.data, fetchedAt: this.now() };
     return parsed.data;
+  }
+
+  /**
+   * What the provider says about itself, for the operator setting it up.
+   *
+   * This is what the setup screen fills its fields from and what its check reports. It proves
+   * the provider is reachable and speaks the protocol; it cannot prove the client id and
+   * secret, which only an actual sign-in exercises, and the screen says so rather than
+   * implying a green tick means more than it does.
+   */
+  async describe(): Promise<{
+    issuer: string;
+    discoveryUrl: string;
+    authorizationEndpoint: string;
+    tokenEndpoint: string;
+    userinfoEndpoint: string | null;
+    jwksUri: string | null;
+    signingAlgorithms: string[];
+    supportsPkce: boolean;
+    scopesSupported: string[];
+    signingKeyCount: number;
+  }> {
+    const document = await this.discover();
+    let signingKeyCount = 0;
+    if (document.jwks_uri) signingKeyCount = (await this.signingKeys(true)).length;
+    return {
+      issuer: document.issuer,
+      discoveryUrl: this.discoveryUrl,
+      authorizationEndpoint: document.authorization_endpoint,
+      tokenEndpoint: document.token_endpoint,
+      userinfoEndpoint: document.userinfo_endpoint ?? null,
+      jwksUri: document.jwks_uri ?? null,
+      signingAlgorithms: document.id_token_signing_alg_values_supported ?? [],
+      supportsPkce: (document.code_challenge_methods_supported ?? []).includes("S256"),
+      scopesSupported: document.scopes_supported ?? [],
+      signingKeyCount,
+    };
   }
 
   private async signingKeys(force: boolean): Promise<Array<Record<string, unknown>>> {

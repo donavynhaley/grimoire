@@ -85,16 +85,18 @@ import {
   LoginRateLimiter,
 } from "./login-rate-limit";
 import {
+  DEFAULT_SCOPES as DEFAULT_OIDC_SCOPES,
   newSignInSecrets,
   OidcError,
-  OidcProvider,
   oidcHttpFetcher,
+  parseIssuerInput,
   PendingSignIns,
   safeReturnPath,
   type OidcConfig,
   type OidcFetcher,
   type OidcIdentity,
 } from "./oidc";
+import { emailDomainAllowed, oidcSettingsView, OidcProviders, resolveOidc, saveOidcSettings } from "./oidc-settings";
 import {
   AgentRateLimiter,
   agentForToken,
@@ -213,6 +215,32 @@ const passwordChangeSchema = z
   });
 
 const displayNameSchema = accountSchema.pick({ name: true });
+
+/**
+ * The provider settings screen, field by field.
+ *
+ * Every field is optional because the screen saves as it goes rather than as one form: an
+ * operator pastes an address, checks it, pastes a client id, and each of those is a save. A
+ * missing `clientSecret` therefore has to mean "leave the stored one alone" rather than
+ * "clear it", or every other edit would silently forget the secret.
+ */
+const oidcSettingsSchema = z.object({
+  enabled: z.boolean().optional(),
+  issuer: z.string().trim().max(400).optional(),
+  clientId: z.string().trim().max(300).optional(),
+  clientSecret: z.string().trim().max(600).optional(),
+  scopes: z.string().trim().max(300).optional(),
+  label: z.string().trim().max(60).optional(),
+  autoRegister: z.boolean().optional(),
+  allowedEmailDomains: z.string().trim().max(500).optional(),
+  redirectUri: z.string().trim().max(400).optional(),
+  signupProject: z.string().trim().max(100).optional(),
+});
+
+const oidcProbeSchema = z.object({
+  issuer: z.string().trim().min(1).max(400),
+  clientId: z.string().trim().max(300).optional(),
+});
 
 const pageStatus = z.enum(["backlog", "ready", "in_progress", "review", "done"]);
 const categorySlug = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(40);
@@ -439,9 +467,16 @@ export function createGrimoireServer(options: Options) {
   const loginAddressLimiter = new LoginRateLimiter({ burst: LOGIN_ADDRESS_BURST, perMinute: LOGIN_ADDRESS_PER_MINUTE });
   const loginAccountLimiter = new LoginRateLimiter({ burst: LOGIN_ACCOUNT_BURST, perMinute: LOGIN_ACCOUNT_PER_MINUTE });
   const trustProxy = options.trustProxy ?? false;
-  const oidcConfig = options.oidc ?? null;
-  const oidc = oidcConfig ? new OidcProvider(oidcConfig, options.oidcFetcher ?? oidcHttpFetcher) : null;
+  const environmentOidc = options.oidc ?? null;
+  const oidcProviders = new OidcProviders(options.oidcFetcher ?? oidcHttpFetcher);
   const pendingSignIns = new PendingSignIns();
+  /**
+   * The provider as it stands on this request.
+   *
+   * Read every time rather than held from boot, because the settings screen exists so that
+   * turning single sign-on on is not a restart of the server everybody else is working in.
+   */
+  const currentOidc = () => resolveOidc(database, environmentOidc);
 
   /**
    * The board following the code: linked pages are brought up to date with GitHub on an
@@ -621,7 +656,8 @@ export function createGrimoireServer(options: Options) {
       // What the sign-in screen needs to know before anybody has signed in: whether there is
       // a second door, and what to call it. Nothing here is a secret - the client id and the
       // provider's name are both public parts of the flow.
-      const signInOptions = oidcConfig ? { oidc: { label: oidcConfig.label } } : {};
+      const configured = currentOidc().config;
+      const signInOptions = configured ? { oidc: { label: configured.label } } : {};
       if (userCount(database) === 0) json(response, 200, { status: "setup_required", ...signInOptions });
       else if (!context.user) json(response, 200, { status: "anonymous", ...signInOptions });
       else {
@@ -699,9 +735,11 @@ export function createGrimoireServer(options: Options) {
     }
 
     if (method === "GET" && url.pathname === "/api/auth/oidc") {
-      if (!oidc) throw new HttpError(404, "No sign-in provider is configured");
+      const { config: oidcConfig } = currentOidc();
+      if (!oidcConfig) throw new HttpError(404, "No sign-in provider is configured");
+      const oidc = oidcProviders.for(oidcConfig);
       const secrets = newSignInSecrets();
-      const redirectUri = oidcRedirectUri(request, url);
+      const redirectUri = oidcRedirectUri(request, url, oidcConfig);
       const invite = url.searchParams.get("invite");
       pendingSignIns.open({
         state: secrets.state,
@@ -730,7 +768,9 @@ export function createGrimoireServer(options: Options) {
     }
 
     if (method === "GET" && url.pathname === "/api/auth/oidc/callback") {
-      if (!oidc) throw new HttpError(404, "No sign-in provider is configured");
+      const { config: oidcConfig } = currentOidc();
+      if (!oidcConfig) throw new HttpError(404, "No sign-in provider is configured");
+      const oidc = oidcProviders.for(oidcConfig);
       appendCookie(response, `${OIDC_STATE_COOKIE}=; Path=/api/auth/oidc; HttpOnly; SameSite=Lax; Max-Age=0${options.production ? "; Secure" : ""}`);
       const state = url.searchParams.get("state") ?? "";
       const cookieState = readCookie(request, OIDC_STATE_COOKIE);
@@ -766,7 +806,7 @@ export function createGrimoireServer(options: Options) {
 
       let signedIn: User;
       try {
-        signedIn = await signInWithIdentity(identity, pending.invite);
+        signedIn = await signInWithIdentity(identity, pending.invite, oidcConfig);
       } catch (error) {
         if (error instanceof HttpError) {
           redirectToSignIn(response, pending.returnTo, error.message);
@@ -786,6 +826,83 @@ export function createGrimoireServer(options: Options) {
       if (context.sessionToken) database.prepare("DELETE FROM sessions WHERE token_hash = ?").run(hashToken(context.sessionToken));
       clearSession(response);
       json(response, 200, { ok: true });
+      return;
+    }
+
+    /*
+     * Setting the provider up, from a screen rather than from a redeploy.
+     *
+     * All three are the installation admin's, not a project owner's: there is one provider
+     * for the whole installation, the way there is one admin, and a project owner reshaping
+     * their own board has no business deciding how everybody signs in to all of them.
+     */
+    if (method === "GET" && url.pathname === "/api/auth/oidc/settings") {
+      const user = requireAdmin(context);
+      void user;
+      json(response, 200, {
+        settings: oidcSettingsView(database, environmentOidc, oidcRedirectUri(request, url, null)),
+      });
+      return;
+    }
+
+    if (method === "PATCH" && url.pathname === "/api/auth/oidc/settings") {
+      const user = requireAdmin(context);
+      if (environmentOidc) {
+        throw new HttpError(409, "This provider is set in the environment, so it is changed there.");
+      }
+      const input = oidcSettingsSchema.parse(await readJson(request));
+      if (input.issuer !== undefined && input.issuer !== "") {
+        const parsed = parseIssuerInput(input.issuer);
+        if ("error" in parsed) throw new HttpError(400, `The provider address ${parsed.error}`);
+      }
+      saveOidcSettings(database, input, user.id);
+      audit(context, {
+        projectId: defaultProjectIdForUser(database, user) ?? "",
+        entityType: "member",
+        entityId: user.id,
+        entityTitle: "single sign-on",
+        action: "updated",
+      });
+      json(response, 200, {
+        settings: oidcSettingsView(database, environmentOidc, oidcRedirectUri(request, url, null)),
+      });
+      return;
+    }
+
+    /*
+     * Ask a provider to describe itself, before anything is saved.
+     *
+     * This is the auto-populate button and the check button at once: the same call fills the
+     * screen in and says whether the address works. It answers about the provider, never about
+     * the client id and secret, because nothing short of an actual sign-in exercises those -
+     * and a check that implied otherwise would be worse than no check.
+     */
+    if (method === "POST" && url.pathname === "/api/auth/oidc/probe") {
+      requireAdmin(context);
+      const input = oidcProbeSchema.parse(await readJson(request));
+      const parsed = parseIssuerInput(input.issuer);
+      if ("error" in parsed) throw new HttpError(400, `The provider address ${parsed.error}`);
+      const probe = oidcProviders.probe({
+        issuer: parsed.issuer,
+        clientId: input.clientId ?? "grimoire",
+        clientSecret: "",
+        redirectUri: null,
+        scopes: DEFAULT_OIDC_SCOPES,
+        label: parsed.hostname,
+        autoRegister: true,
+        allowedEmailDomains: [],
+        signupProject: null,
+      });
+      try {
+        json(response, 200, { provider: await probe.describe() });
+      } catch (error) {
+        if (error instanceof OidcError) {
+          json(response, 200, { error: error.message });
+          return;
+        }
+        console.error("oidc probe failed", error);
+        json(response, 200, { error: "That address could not be reached from the server." });
+      }
       return;
     }
 
@@ -2304,8 +2421,8 @@ export function createGrimoireServer(options: Options) {
    * provider refuses. `GRIMOIRE_OIDC_REDIRECT_URI` pins it for deployments where the public
    * address and the address Grimoire is asked for are not the same string.
    */
-  function oidcRedirectUri(request: IncomingMessage, url: URL): string {
-    if (oidcConfig?.redirectUri) return oidcConfig.redirectUri;
+  function oidcRedirectUri(request: IncomingMessage, url: URL, config: OidcConfig | null): string {
+    if (config?.redirectUri) return config.redirectUri;
     const forwardedProtocol = trustProxy ? String(request.headers["x-forwarded-proto"] ?? "").split(",")[0].trim() : "";
     const protocol = forwardedProtocol || (options.production ? "https" : url.protocol.replace(":", ""));
     const forwardedHost = trustProxy ? String(request.headers["x-forwarded-host"] ?? "").split(",")[0].trim() : "";
@@ -2324,7 +2441,16 @@ export function createGrimoireServer(options: Options) {
    * an invitation, or the operator has said in configuration that this provider's word is
    * enough.
    */
-  async function signInWithIdentity(identity: OidcIdentity, inviteCode: string | null): Promise<User> {
+  async function signInWithIdentity(
+    identity: OidcIdentity,
+    inviteCode: string | null,
+    config: OidcConfig,
+  ): Promise<User> {
+    // Checked before anything is matched or made, because it is the answer to the one thing
+    // auto-registration cannot answer on its own: a provider that is not only your team.
+    if (!emailDomainAllowed(identity.email, config.allowedEmailDomains)) {
+      throw new HttpError(403, "That email address is not on a domain this Grimoire accepts.");
+    }
     const existing = findUserByEmail(database, identity.email);
     if (existing) {
       const user = publicUser(existing);
@@ -2337,15 +2463,13 @@ export function createGrimoireServer(options: Options) {
     }
 
     const invite = inviteCode ? findUsableInvite(inviteCode) : null;
-    const projectId = invite
-      ? String(invite.project_id)
-      : oidcConfig?.signup === "open"
-        ? signupProjectId()
-        : null;
+    const projectId = invite ? String(invite.project_id) : config.autoRegister ? signupProjectId(config) : null;
     if (!projectId) {
       throw new HttpError(
         403,
-        "No Grimoire account uses that email address. Ask the project owner for an invitation link.",
+        config.autoRegister
+          ? "There is no project for a new account to join yet."
+          : "No Grimoire account uses that email address. Ask the project owner for an invitation link.",
       );
     }
 
@@ -2396,9 +2520,9 @@ export function createGrimoireServer(options: Options) {
     return project ? invite : null;
   }
 
-  /** Which project an open signup lands on: the one named in configuration, or the first one. */
-  function signupProjectId(): string | null {
-    const named = oidcConfig?.signupProject;
+  /** Which project a new account lands on: the one named in configuration, or the first one. */
+  function signupProjectId(config: OidcConfig): string | null {
+    const named = config.signupProject;
     if (named) {
       const project = database
         .prepare("SELECT id FROM projects WHERE (id = ? OR slug = ?) AND archived_at IS NULL")
@@ -2503,6 +2627,18 @@ export function createGrimoireServer(options: Options) {
 function requireUser(context: RequestContext): User {
   if (!context.user) throw new HttpError(401, "Authentication required");
   return context.user;
+}
+
+/**
+ * The one account that answers for the installation rather than for a project.
+ *
+ * Whoever set Grimoire up. How everybody signs in is theirs to decide, and deliberately not a
+ * project owner's: an owner reshapes their own board, and a provider reaches every board.
+ */
+function requireAdmin(context: RequestContext): User {
+  const user = requireUser(context);
+  if (user.role !== "admin") throw new HttpError(403, "Only the Grimoire admin can change how people sign in");
+  return user;
 }
 
 /** Ids name a file on disk, so anything that is not a plain uuid names nothing. */
