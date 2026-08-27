@@ -432,8 +432,9 @@ export class OidcProvider {
       }
     }
 
-    const issuer = typeof claims.iss === "string" ? claims.iss.replace(/\/+$/, "") : "";
-    if (issuer !== discovery.issuer.replace(/\/+$/, "")) throw new OidcError("The identity token came from another issuer");
+    if (typeof claims.iss !== "string" || !issuerMatches(claims.iss, discovery.issuer)) {
+      throw new OidcError("The identity token came from another issuer");
+    }
 
     const audience = Array.isArray(claims.aud) ? claims.aud.map(String) : [String(claims.aud ?? "")];
     if (!audience.includes(this.config.clientId)) throw new OidcError("The identity token was issued for another application");
@@ -540,6 +541,26 @@ const HMAC_ALGORITHMS: Record<string, string> = { HS256: "sha256", HS384: "sha38
 const RSA_ALGORITHMS: Record<string, string> = { RS256: "sha256", RS384: "sha384", RS512: "sha512" };
 const PSS_ALGORITHMS: Record<string, string> = { PS256: "sha256", PS384: "sha384", PS512: "sha512" };
 const EC_ALGORITHMS: Record<string, string> = { ES256: "sha256", ES384: "sha384", ES512: "sha512" };
+
+/**
+ * Whether a token's `iss` names the provider its configuration does.
+ *
+ * Exact, with one documented exception. Google states that its identity tokens carry either
+ * `https://accounts.google.com` or the bare `accounts.google.com`, so an equality check
+ * refuses Google roughly half the time - and "sometimes" is the worst way for a sign-in to
+ * fail, because it looks like an outage rather than a bug.
+ *
+ * The exception is deliberately as narrow as the problem: only the `https://` prefix may
+ * differ, the host must be identical, and `http://` never matches. Nothing here weakens the
+ * check that matters anyway, which is that the token carried a signature from the key set
+ * that provider publishes.
+ */
+function issuerMatches(claimed: string, expected: string): boolean {
+  const trim = (value: string) => value.trim().replace(/\/+$/, "");
+  const claim = trim(claimed);
+  const wanted = trim(expected);
+  return claim === wanted || wanted === `https://${claim}`;
+}
 
 function decodeSegment(segment: string): Record<string, unknown> {
   try {

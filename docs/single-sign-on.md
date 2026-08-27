@@ -95,6 +95,13 @@ variable is listed in [.env.example](../.env.example).
 There is a provider in the repository to develop and test against — [Dex](https://dexidp.io),
 a real one, not a stub. A stub only ever proves the code against the stub.
 
+**This is a test harness, not a recommendation.** Dex is a federation broker with no user store
+of its own, normally used to put an OpenID face on something else in front of Kubernetes; it is
+not what people self-host as their identity provider. It earns its place here by being a real,
+spec-compliant provider that starts in about a second from one config file with no database,
+which is what you want from something you restart a hundred times while working on sign-in. If
+you are choosing an identity provider to actually run, the section below is the honest list.
+
 ```sh
 docker compose -f compose.dex.yaml up -d
 ```
@@ -125,6 +132,11 @@ its signing keys, which is a free test of a key rotation being picked up mid-ses
 Grimoire needs the same four things everywhere: an application of type OpenID Connect, the
 authorization code flow, the redirect address above, and the `openid email profile` scopes.
 What each provider calls those differs.
+
+Grimoire speaks the protocol rather than keeping a list of vendors, so anything that publishes a
+discovery document works. The flow has been run end to end against **Dex** and **Keycloak**, and
+read live from **Google**'s published configuration. If you get a provider working that is not
+listed here, a note saying so is a welcome issue.
 
 ### Authentik
 
@@ -176,7 +188,17 @@ the address above as an authorized redirect URI.
 Provider address: `https://accounts.google.com`
 
 **Set allowed email domains.** Google will vouch for every Google account there is, so without
-that list, auto-registration means anybody at all.
+that list, auto-registration means anybody at all. This is the single most important setting on
+that screen if you point Grimoire at Google, and it is the one nobody thinks about.
+
+Google is also the reason Grimoire accepts a scheme-less issuer in an identity token: Google
+documents its tokens as carrying either `https://accounts.google.com` or the bare
+`accounts.google.com`, and a strict comparison refuses roughly half of them. Only that prefix
+may differ — the host must match and `http` never does.
+
+Note that Google's token and key endpoints live on different hosts from its issuer
+(`oauth2.googleapis.com` and `www.googleapis.com`). Grimoire follows the discovery document
+rather than building addresses out of the issuer, so this needs nothing from you.
 
 ### Microsoft Entra ID
 

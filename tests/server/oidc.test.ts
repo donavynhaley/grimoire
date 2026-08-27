@@ -206,6 +206,31 @@ describe("signing in through an identity provider", () => {
     expect(refusal(replayed)).toContain("expired");
   });
 
+  it("accepts the scheme-less issuer Google documents, and nothing looser", async () => {
+    const provider = fakeProvider();
+    const server = await startTestServer(undefined, { oidc: provider.settings, oidcFetcher: provider.fetcher });
+    await bootstrap(server);
+
+    // Google's own documentation says its id tokens carry either "https://accounts.google.com"
+    // or the bare "accounts.google.com", so refusing the second would refuse Google.
+    const bare = await beginSignIn(server);
+    provider.issue("code-1", provider.claimsFor(bare.nonce, { iss: "id.example.com", email: ownerAccount.email }));
+    const accepted = await callback(server, `code=code-1&state=${encodeURIComponent(bare.state)}`, bare.cookie);
+    expect(accepted.headers.getSetCookie().some((value) => value.startsWith("grimoire_session="))).toBe(true);
+
+    // The allowance is only the https prefix. A different host is still a different issuer.
+    const impostor = await beginSignIn(server);
+    provider.issue("code-2", provider.claimsFor(impostor.nonce, { iss: "evil.example.com", email: ownerAccount.email }));
+    const refusedHost = await callback(server, `code=code-2&state=${encodeURIComponent(impostor.state)}`, impostor.cookie);
+    expect(refusal(refusedHost)).toContain("another issuer");
+
+    // And http is never quietly taken for https.
+    const insecure = await beginSignIn(server);
+    provider.issue("code-3", provider.claimsFor(insecure.nonce, { iss: "http://id.example.com", email: ownerAccount.email }));
+    const refusedScheme = await callback(server, `code=code-3&state=${encodeURIComponent(insecure.state)}`, insecure.cookie);
+    expect(refusal(refusedScheme)).toContain("another issuer");
+  });
+
   it("refuses a token issued for another application, or answering another sign-in", async () => {
     const provider = fakeProvider();
     const server = await startTestServer(undefined, { oidc: provider.settings, oidcFetcher: provider.fetcher });
