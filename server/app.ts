@@ -77,6 +77,25 @@ import {
 } from "./repository";
 import { createOpaqueToken, hashPassword, hashToken, verifyPassword } from "./security";
 import {
+  clientAddress,
+  LOGIN_ACCOUNT_BURST,
+  LOGIN_ACCOUNT_PER_MINUTE,
+  LOGIN_ADDRESS_BURST,
+  LOGIN_ADDRESS_PER_MINUTE,
+  LoginRateLimiter,
+} from "./login-rate-limit";
+import {
+  newSignInSecrets,
+  OidcError,
+  OidcProvider,
+  oidcHttpFetcher,
+  PendingSignIns,
+  safeReturnPath,
+  type OidcConfig,
+  type OidcFetcher,
+  type OidcIdentity,
+} from "./oidc";
+import {
   AgentRateLimiter,
   agentForToken,
   issueAgentToken,
@@ -114,6 +133,14 @@ import { CHAPTER_STATE_LABELS,
 
 const SESSION_COOKIE = "grimoire_session";
 const SESSION_AGE_SECONDS = 60 * 60 * 24 * 30;
+/**
+ * Ties a provider callback to the browser that started the flow.
+ *
+ * Scoped to the callback route so it is sent on exactly one request, and `SameSite=Lax` rather
+ * than `Strict` because the browser arrives back here from the provider's origin and a strict
+ * cookie would not be sent on that navigation at all.
+ */
+const OIDC_STATE_COOKIE = "grimoire_oidc_state";
 
 type Options = {
   pagesDirectory?: string;
@@ -126,6 +153,18 @@ type Options = {
   githubFetcher?: GithubFetcher;
   /** Stands in for Discord in tests. */
   discordPoster?: DiscordPoster;
+  /** The identity provider people may sign in through, when the operator configured one. */
+  oidc?: OidcConfig | null;
+  /** Stands in for that provider in tests. */
+  oidcFetcher?: OidcFetcher;
+  /**
+   * Whether something in front of Grimoire is writing `X-Forwarded-For`.
+   *
+   * It decides who a sign-in attempt is counted against, so it is a deployment fact rather
+   * than a preference: wrong in one direction every visitor shares one allowance, wrong in
+   * the other the allowance is free to walk around.
+   */
+  trustProxy?: boolean;
 };
 
 type RequestContext = {
@@ -396,6 +435,13 @@ export function createGrimoireServer(options: Options) {
   // Per-token write allowance. In memory on purpose: it guards this process against a
   // runaway loop, and persisting it would mean a write on every request to limit writes.
   const writeLimiter = new AgentRateLimiter();
+  // Password guesses, counted against where they came from and against the account they name.
+  const loginAddressLimiter = new LoginRateLimiter({ burst: LOGIN_ADDRESS_BURST, perMinute: LOGIN_ADDRESS_PER_MINUTE });
+  const loginAccountLimiter = new LoginRateLimiter({ burst: LOGIN_ACCOUNT_BURST, perMinute: LOGIN_ACCOUNT_PER_MINUTE });
+  const trustProxy = options.trustProxy ?? false;
+  const oidcConfig = options.oidc ?? null;
+  const oidc = oidcConfig ? new OidcProvider(oidcConfig, options.oidcFetcher ?? oidcHttpFetcher) : null;
+  const pendingSignIns = new PendingSignIns();
 
   /**
    * The board following the code: linked pages are brought up to date with GitHub on an
@@ -572,12 +618,17 @@ export function createGrimoireServer(options: Options) {
     }
 
     if (method === "GET" && url.pathname === "/api/session") {
-      if (userCount(database) === 0) json(response, 200, { status: "setup_required" });
-      else if (!context.user) json(response, 200, { status: "anonymous" });
+      // What the sign-in screen needs to know before anybody has signed in: whether there is
+      // a second door, and what to call it. Nothing here is a secret - the client id and the
+      // provider's name are both public parts of the flow.
+      const signInOptions = oidcConfig ? { oidc: { label: oidcConfig.label } } : {};
+      if (userCount(database) === 0) json(response, 200, { status: "setup_required", ...signInOptions });
+      else if (!context.user) json(response, 200, { status: "anonymous", ...signInOptions });
       else {
         json(response, 200, {
           status: "authenticated",
           user: withAvatar(context.user),
+          ...signInOptions,
           // Tells a credential what it is, so an agent client can shape its own surface -
           // a read-only agent that knows its scope never offers itself a write tool.
           ...(context.agent ? { agent: { name: context.agent.name, scope: context.agent.scope } } : {}),
@@ -616,15 +667,118 @@ export function createGrimoireServer(options: Options) {
 
     if (method === "POST" && url.pathname === "/api/auth/login") {
       const input = loginSchema.parse(await readJson(request));
+      const address = clientAddress(request, trustProxy);
+      // Checked before the password is verified, so a refused attempt costs a comparison
+      // rather than the deliberately slow hash the password itself is worth.
+      const exhausted = !loginAddressLimiter.allows(address) || !loginAccountLimiter.allows(input.email);
+      if (exhausted) {
+        const wait = Math.max(
+          loginAddressLimiter.retryAfterSeconds(address),
+          loginAccountLimiter.retryAfterSeconds(input.email),
+        );
+        response.setHeader("Retry-After", String(wait));
+        throw new HttpError(429, "Too many sign-in attempts. Try again shortly.");
+      }
       const stored = findUserByEmail(database, input.email);
       const passwordMatches = stored
         ? await verifyPassword(input.password, String(stored.password_hash))
         : await verifyPassword(input.password, await hashPassword("invalid password placeholder"));
       const projectId = stored ? defaultProjectIdForUser(database, publicUser(stored)) : null;
-      if (!stored || !passwordMatches || !projectId) throw new HttpError(401, "Email or password is incorrect");
+      if (!stored || !passwordMatches || !projectId) {
+        loginAddressLimiter.spend(address);
+        loginAccountLimiter.spend(input.email);
+        throw new HttpError(401, "Email or password is incorrect");
+      }
+      // A right answer is not a guess, so it clears what the wrong ones before it cost.
+      loginAddressLimiter.forget(address);
+      loginAccountLimiter.forget(input.email);
       const user = withAvatar(publicUser(stored));
       setSession(response, user.id);
       json(response, 200, { user });
+      return;
+    }
+
+    if (method === "GET" && url.pathname === "/api/auth/oidc") {
+      if (!oidc) throw new HttpError(404, "No sign-in provider is configured");
+      const secrets = newSignInSecrets();
+      const redirectUri = oidcRedirectUri(request, url);
+      const invite = url.searchParams.get("invite");
+      pendingSignIns.open({
+        state: secrets.state,
+        verifier: secrets.verifier,
+        nonce: secrets.nonce,
+        redirectUri,
+        invite: invite && invite.length <= 200 ? invite : null,
+        returnTo: safeReturnPath(url.searchParams.get("return")),
+      });
+      let destination: string;
+      try {
+        destination = await oidc.authorizationUrl({ redirectUri, ...secrets });
+      } catch (error) {
+        redirectToSignIn(response, "/", oidcMessage(error));
+        return;
+      }
+      // The state also rides in a cookie, so a callback has to arrive in the same browser that
+      // started the flow. Without it an attacker who completed their own sign-in could hand
+      // somebody a callback link and quietly land them in the attacker's account.
+      appendCookie(response, `${OIDC_STATE_COOKIE}=${secrets.state}; Path=/api/auth/oidc; HttpOnly; SameSite=Lax; Max-Age=600${options.production ? "; Secure" : ""}`);
+      response.statusCode = 302;
+      response.setHeader("Location", destination);
+      response.setHeader("Cache-Control", "no-store");
+      response.end();
+      return;
+    }
+
+    if (method === "GET" && url.pathname === "/api/auth/oidc/callback") {
+      if (!oidc) throw new HttpError(404, "No sign-in provider is configured");
+      appendCookie(response, `${OIDC_STATE_COOKIE}=; Path=/api/auth/oidc; HttpOnly; SameSite=Lax; Max-Age=0${options.production ? "; Secure" : ""}`);
+      const state = url.searchParams.get("state") ?? "";
+      const cookieState = readCookie(request, OIDC_STATE_COOKIE);
+      const pending = state && cookieState === state ? pendingSignIns.claim(state) : null;
+      if (!pending) {
+        redirectToSignIn(response, "/", "That sign-in has expired. Try again.");
+        return;
+      }
+      // The provider says no by redirecting back with a reason rather than by failing.
+      const refusal = url.searchParams.get("error");
+      if (refusal) {
+        redirectToSignIn(response, pending.returnTo, `The sign-in provider refused the request (${refusal}).`);
+        return;
+      }
+      const code = url.searchParams.get("code");
+      if (!code) {
+        redirectToSignIn(response, pending.returnTo, "The sign-in provider returned no authorization code.");
+        return;
+      }
+
+      let identity;
+      try {
+        identity = await oidc.identify({
+          code,
+          redirectUri: pending.redirectUri,
+          verifier: pending.verifier,
+          nonce: pending.nonce,
+        });
+      } catch (error) {
+        redirectToSignIn(response, pending.returnTo, oidcMessage(error));
+        return;
+      }
+
+      let signedIn: User;
+      try {
+        signedIn = await signInWithIdentity(identity, pending.invite);
+      } catch (error) {
+        if (error instanceof HttpError) {
+          redirectToSignIn(response, pending.returnTo, error.message);
+          return;
+        }
+        throw error;
+      }
+      setSession(response, signedIn.id);
+      response.statusCode = 302;
+      response.setHeader("Location", pending.returnTo);
+      response.setHeader("Cache-Control", "no-store");
+      response.end();
       return;
     }
 
@@ -2142,6 +2296,121 @@ export function createGrimoireServer(options: Options) {
     return context.agent?.tokenId ?? null;
   }
 
+  /**
+   * Where the provider sends the browser back to.
+   *
+   * A provider only ever redirects to a URI registered with it, so deriving this from the
+   * request is a convenience rather than a trust decision - a forged Host produces a URI the
+   * provider refuses. `GRIMOIRE_OIDC_REDIRECT_URI` pins it for deployments where the public
+   * address and the address Grimoire is asked for are not the same string.
+   */
+  function oidcRedirectUri(request: IncomingMessage, url: URL): string {
+    if (oidcConfig?.redirectUri) return oidcConfig.redirectUri;
+    const forwardedProtocol = trustProxy ? String(request.headers["x-forwarded-proto"] ?? "").split(",")[0].trim() : "";
+    const protocol = forwardedProtocol || (options.production ? "https" : url.protocol.replace(":", ""));
+    const forwardedHost = trustProxy ? String(request.headers["x-forwarded-host"] ?? "").split(",")[0].trim() : "";
+    const host = forwardedHost || request.headers.host || url.host;
+    return `${protocol}://${host}/api/auth/oidc/callback`;
+  }
+
+  /**
+   * The account behind a verified identity, matched by email or created.
+   *
+   * Matching on email is what makes the provider useful on an installation that already has
+   * accounts: somebody who has been signing in with a password keeps their history, their
+   * memberships and their name the moment single sign-on is turned on. Creating is the narrow
+   * case, and it is narrow on purpose - Grimoire is invitation-only, so a provider that
+   * vouches for somebody is not by itself a reason to put them on a board. Either they carried
+   * an invitation, or the operator has said in configuration that this provider's word is
+   * enough.
+   */
+  async function signInWithIdentity(identity: OidcIdentity, inviteCode: string | null): Promise<User> {
+    const existing = findUserByEmail(database, identity.email);
+    if (existing) {
+      const user = publicUser(existing);
+      // The same refusal password sign-in gives: an account on no project can see nothing,
+      // and being told so is more useful than an empty board.
+      if (!defaultProjectIdForUser(database, user)) {
+        throw new HttpError(403, "That account is not on any project yet. Ask the project owner to add you.");
+      }
+      return user;
+    }
+
+    const invite = inviteCode ? findUsableInvite(inviteCode) : null;
+    const projectId = invite
+      ? String(invite.project_id)
+      : oidcConfig?.signup === "open"
+        ? signupProjectId()
+        : null;
+    if (!projectId) {
+      throw new HttpError(
+        403,
+        "No Grimoire account uses that email address. Ask the project owner for an invitation link.",
+      );
+    }
+
+    const userId = randomUUID();
+    const now = new Date().toISOString();
+    // The account has no password and needs a row that no password can ever match. A hash of
+    // something unguessable is used rather than a marker, so a sign-in attempt against this
+    // account costs exactly what every other one costs and cannot be told apart by timing.
+    const passwordHash = await hashPassword(createOpaqueToken());
+    const name = identity.name || identity.email.split("@")[0];
+
+    database.exec("BEGIN IMMEDIATE");
+    try {
+      database
+        .prepare("INSERT INTO users (id, name, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, 'member', ?)")
+        .run(userId, name, identity.email, passwordHash, now);
+      database
+        .prepare("INSERT INTO project_members (project_id, user_id, role, created_at) VALUES (?, ?, 'member', ?)")
+        .run(projectId, userId, now);
+      if (invite) {
+        const update = database
+          .prepare("UPDATE invites SET used_by = ? WHERE id = ? AND used_by IS NULL")
+          .run(userId, String(invite.id));
+        if (Number(update.changes) !== 1) throw new HttpError(409, "Invitation has already been used");
+      }
+      database.exec("COMMIT");
+    } catch (error) {
+      database.exec("ROLLBACK");
+      throw error;
+    }
+
+    const user = withAvatar(publicUser(findUserById(database, userId)!));
+    auditAs(user, { projectId, entityType: "member", entityId: userId, entityTitle: user.name, action: "joined" });
+    broadcast(projectId, "work", null);
+    return user;
+  }
+
+  /** An invitation that is still worth something: unused, unexpired, and on a live project. */
+  function findUsableInvite(code: string): Record<string, string | null> | null {
+    const invite = database.prepare("SELECT * FROM invites WHERE code_hash = ?").get(hashToken(code)) as
+      | Record<string, string | null>
+      | undefined;
+    if (!invite || invite.used_by || String(invite.expires_at) <= new Date().toISOString()) return null;
+    if (!invite.project_id) return null;
+    const project = database
+      .prepare("SELECT id FROM projects WHERE id = ? AND archived_at IS NULL")
+      .get(String(invite.project_id));
+    return project ? invite : null;
+  }
+
+  /** Which project an open signup lands on: the one named in configuration, or the first one. */
+  function signupProjectId(): string | null {
+    const named = oidcConfig?.signupProject;
+    if (named) {
+      const project = database
+        .prepare("SELECT id FROM projects WHERE (id = ? OR slug = ?) AND archived_at IS NULL")
+        .get(named, named) as { id?: string } | undefined;
+      return project?.id ? String(project.id) : null;
+    }
+    const first = database
+      .prepare("SELECT id FROM projects WHERE archived_at IS NULL ORDER BY created_at LIMIT 1")
+      .get() as { id?: string } | undefined;
+    return first?.id ? String(first.id) : null;
+  }
+
   function setSession(response: ServerResponse, userId: string): void {
     const token = createOpaqueToken();
     const now = new Date();
@@ -2150,15 +2419,15 @@ export function createGrimoireServer(options: Options) {
       .prepare("INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)")
       .run(randomUUID(), userId, hashToken(token), expires.toISOString(), now.toISOString());
     const secure = options.production ? "; Secure" : "";
-    response.setHeader(
-      "Set-Cookie",
+    appendCookie(
+      response,
       `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_AGE_SECONDS}${secure}`,
     );
   }
 
   function clearSession(response: ServerResponse): void {
     const secure = options.production ? "; Secure" : "";
-    response.setHeader("Set-Cookie", `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`);
+    appendCookie(response, `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`);
   }
 
   function userForSession(token: string): User | null {
@@ -2293,11 +2562,78 @@ function json(response: ServerResponse, status: number, body: unknown): void {
   response.end(JSON.stringify(body));
 }
 
+/**
+ * What the page is allowed to load, and from where.
+ *
+ * The build ships no inline script and Grimoire calls nothing off its own origin, so the
+ * script and connection rules are as tight as they go and a bug that injects a `<script>` has
+ * nowhere to load it from. Two entries are not tight, and both are deliberate:
+ *
+ * `style-src` allows inline styles because the interface sets custom properties through the
+ * `style` attribute - a category's colour, a field's row count - and the editor's own styles
+ * arrive as elements it inserts at runtime. Nonces cannot reach either.
+ *
+ * `img-src` allows any https source because a page's Markdown may link a picture that lives
+ * somewhere else, and refusing those would break boards that already have them. It is a real
+ * trade: an external image tells whoever hosts it that somebody here looked at that page.
+ */
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "base-uri 'none'",
+  "object-src 'none'",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self'",
+  "connect-src 'self'",
+  "media-src 'self' data: blob:",
+  "manifest-src 'self'",
+  "worker-src 'none'",
+].join("; ");
+
 function applySecurityHeaders(response: ServerResponse): void {
+  response.setHeader("Content-Security-Policy", CONTENT_SECURITY_POLICY);
   response.setHeader("X-Content-Type-Options", "nosniff");
   response.setHeader("Referrer-Policy", "same-origin");
   response.setHeader("X-Frame-Options", "DENY");
   response.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+}
+
+/**
+ * Adds a cookie without displacing one already set.
+ *
+ * A single sign-in writes two: the session it just created, and the expiry of the short-lived
+ * state cookie the provider flow used. `setHeader` would keep only the last of them.
+ */
+function appendCookie(response: ServerResponse, value: string): void {
+  const existing = response.getHeader("Set-Cookie");
+  const cookies = existing === undefined ? [] : Array.isArray(existing) ? existing.map(String) : [String(existing)];
+  response.setHeader("Set-Cookie", [...cookies, value]);
+}
+
+/**
+ * Sends a failed provider sign-in back to the interface with something to say.
+ *
+ * The flow is a browser redirect rather than a fetch, so a JSON refusal would land the person
+ * on a page of JSON. The message travels in the query string and the sign-in screen shows it
+ * in the same banner a wrong password uses.
+ */
+function redirectToSignIn(response: ServerResponse, returnTo: string, message: string): void {
+  const target = new URL(returnTo, "http://placeholder.invalid");
+  target.searchParams.set("signin_error", message);
+  response.statusCode = 302;
+  response.setHeader("Location", `${target.pathname}${target.search}`);
+  response.setHeader("Cache-Control", "no-store");
+  response.end();
+}
+
+/** A provider failure a person can read, without leaking what went wrong internally. */
+function oidcMessage(error: unknown): string {
+  if (error instanceof OidcError) return error.message;
+  console.error("oidc sign-in failed", error);
+  return "The sign-in provider could not be reached.";
 }
 
 /** Unknown paths fall back to the shell so the client router can answer them. */

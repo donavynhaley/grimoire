@@ -30,6 +30,12 @@ type TestServerOptions = {
   githubFetcher?: Parameters<typeof createGrimoireServer>[0]["githubFetcher"];
   /** Stands in for Discord, so a test can be the thing a recap is posted to. */
   discordPoster?: Parameters<typeof createGrimoireServer>[0]["discordPoster"];
+  /** The identity provider this installation offers, when a test is exercising one. */
+  oidc?: Parameters<typeof createGrimoireServer>[0]["oidc"];
+  /** Stands in for that provider, so a test can be the thing a browser is sent to. */
+  oidcFetcher?: Parameters<typeof createGrimoireServer>[0]["oidcFetcher"];
+  /** Lets a test speak for several source addresses through one socket. */
+  trustProxy?: boolean;
 };
 
 export async function startTestServer(
@@ -45,6 +51,9 @@ export async function startTestServer(
     githubPollMs: 0,
     githubFetcher: options.githubFetcher,
     discordPoster: options.discordPoster,
+    oidc: options.oidc,
+    oidcFetcher: options.oidcFetcher,
+    trustProxy: options.trustProxy,
   });
 
   await new Promise<void>((resolve) => app.server.listen(0, "127.0.0.1", resolve));
@@ -86,8 +95,11 @@ export async function startTestServer(
       if (cookie) headers.set("cookie", cookie);
       if (init.body && !headers.has("content-type")) headers.set("content-type", "application/json");
       const response = await fetch(`${baseUrl}${path}`, { ...init, headers });
-      const setCookie = response.headers.get("set-cookie");
-      if (setCookie) cookie = setCookie.split(";")[0];
+      // A single answer may set more than one cookie now that a provider sign-in expires its
+      // own state alongside the session it creates, so the session is picked out by name
+      // rather than by being the only one there.
+      const session = response.headers.getSetCookie().find((value) => value.startsWith("grimoire_session="));
+      if (session) cookie = session.split(";")[0];
       const body = (await response.json()) as T;
       return { response, body };
     },

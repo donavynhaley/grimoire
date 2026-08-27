@@ -23,10 +23,16 @@ export type User = {
   avatarUrl?: string | null;
 };
 
-export type SessionState =
-  | { status: "setup_required" }
-  | { status: "anonymous" }
-  | { status: "authenticated"; user: User };
+/**
+ * The other door, when the operator has opened one.
+ *
+ * Present on every session answer rather than only the signed-out ones, so the sign-in screen
+ * knows what to offer before anybody has an account and nothing has to ask a second time.
+ */
+export type SignInProviders = { oidc?: { label: string } };
+
+export type SessionState = SignInProviders &
+  ({ status: "setup_required" } | { status: "anonymous" } | { status: "authenticated"; user: User });
 
 export type Member = User & {
   /**

@@ -2937,6 +2937,40 @@ textarea:hover { border-color: var(--border-bright); }
 .auth-footnote { margin: 1.625rem 0 0; color: var(--faint); font-size: 0.6875rem; line-height: 1.6; }
 .auth-card > .text-button { margin-top: 1.375rem; font-size: 0.75rem; }
 
+/*
+ * The second door.
+ *
+ * The provider button is deliberately quieter than the password button beside it. Password
+ * sign-in is what every installation has and single sign-on is what some of them add, so the
+ * accent stays on the form and this reads as the alternative it is.
+ */
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  margin: 1.5rem 0;
+  color: var(--faint);
+  font-size: 0.6875rem;
+}
+.auth-divider::before,
+.auth-divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+
+.provider-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3.125rem;
+  padding: 0 0.9375rem;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--border-bright);
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+.provider-button:hover { background: var(--surface-raised); border-color: var(--accent); }
+
 /* A phone has no room for 2.75rem of padding around a form this size. */
 @media (max-width: 520px) {
   .auth-card { padding: 1.875rem 1.5rem; }

@@ -7,15 +7,19 @@ type Props = {
   mode: "setup" | "login" | "register";
   inviteCode?: string;
   onAuthenticated: (user: User) => Promise<void>;
+  /** The identity provider this installation offers, when it offers one. */
+  oidc?: { label: string };
+  /** Why a provider sign-in that was already attempted came back without a session. */
+  providerError?: string;
 };
 
-export function AuthScreen({ mode: initialMode, inviteCode, onAuthenticated }: Props) {
+export function AuthScreen({ mode: initialMode, inviteCode, onAuthenticated, oidc, providerError }: Props) {
   const [mode, setMode] = useState(initialMode);
   const [name, setName] = useState("");
   const [email, setEmail] = useState(initialMode === "setup" ? DEFAULT_OWNER_EMAIL : "");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(providerError ?? "");
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -36,6 +40,21 @@ export function AuthScreen({ mode: initialMode, inviteCode, onAuthenticated }: P
 
   const setup = mode === "setup";
   const register = mode === "register";
+
+  /**
+   * The provider flow is a navigation rather than a request, so it is a link.
+   *
+   * It carries where to come back to, so signing in from a link to a particular page lands on
+   * that page, and the invitation when there is one, which is the only way a provider sign-in
+   * can create an account on an installation nobody has invited the person to.
+   */
+  const providerHref = () => {
+    const current = new URLSearchParams(location.search);
+    current.delete("signin_error");
+    const query = new URLSearchParams({ return: `${location.pathname}${current.size ? `?${current}` : ""}` });
+    if (inviteCode) query.set("invite", inviteCode);
+    return `/api/auth/oidc?${query}`;
+  };
 
   return (
     <div className="auth-shell">
@@ -90,6 +109,16 @@ export function AuthScreen({ mode: initialMode, inviteCode, onAuthenticated }: P
             {busy ? "working..." : setup ? "create workspace" : register ? "join project" : "sign in"}
           </button>
         </form>
+        {/* Setup has no provider button: the first account is the one that can never be
+            locked out, and it is only ever the account somebody makes here with a password. */}
+        {oidc && !setup && (
+          <>
+            <p className="auth-divider"><span>or</span></p>
+            <a className="provider-button" href={providerHref()}>
+              continue with {oidc.label}
+            </a>
+          </>
+        )}
         {!setup && !register && (
           <p className="auth-footnote">Accounts are invitation-only. Ask the project owner for an invite link.</p>
         )}
