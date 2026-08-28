@@ -353,16 +353,21 @@ export function deleteCategory(
 ): boolean {
   const project = projectById(database, projectId);
   if (!project) return false;
-  const removed = database
-    .prepare("DELETE FROM categories WHERE project_id = ? AND slug = ?")
-    .run(projectId, slug);
-  if (Number(removed.changes) !== 1) return false;
+  const exists = row(database, "SELECT 1 AS present FROM categories WHERE project_id = ? AND slug = ?", projectId, slug);
+  if (!exists) return false;
+  // Pages release the value before the definition goes, because the two writes cannot
+  // share a transaction: interrupted this way around, the category still exists and
+  // deleting it again finishes the job - the other way, pages hold a value the strict
+  // schema no longer accepts.
   const now = new Date().toISOString();
   pageStore.list(String(project.slug)).forEach((page) => {
     if (page.category !== slug) return;
     pageStore.save(String(project.slug), { ...page, category: null, updatedAt: now });
   });
-  return true;
+  const removed = database
+    .prepare("DELETE FROM categories WHERE project_id = ? AND slug = ?")
+    .run(projectId, slug);
+  return Number(removed.changes) === 1;
 }
 
 export function fieldsForProject(database: DatabaseSync, projectId: string): ProjectField[] {
@@ -464,19 +469,21 @@ export function updateField(
   const label = input.label ?? current.label;
   const showOnTile = input.showOnTile ?? current.showOnTile;
   const position = input.position ?? current.position;
+
+  // A value whose option was just withdrawn cannot stay: the next write touching that page
+  // would be refused for holding something the field no longer offers, and the person
+  // making that write would have had nothing to do with the withdrawal. The values clear
+  // before the definition changes so an interruption leaves a field still holding the old
+  // options, not pages holding values the new ones refuse.
+  const cleared = fieldHasOptions(type)
+    ? clearFieldValues(pageStore, String(project.slug), key, (value) => typeof value === "string" && options.includes(value))
+    : 0;
   database
     .prepare(
       `UPDATE project_fields SET label = ?, type = ?, options = ?, show_on_tile = ?, position = ?
        WHERE project_id = ? AND key = ?`,
     )
     .run(label, type, JSON.stringify(options), showOnTile ? 1 : 0, position, projectId, key);
-
-  // A value whose option was just withdrawn cannot stay: the next write touching that page
-  // would be refused for holding something the field no longer offers, and the person
-  // making that write would have had nothing to do with the withdrawal.
-  const cleared = fieldHasOptions(type)
-    ? clearFieldValues(pageStore, String(project.slug), key, (value) => typeof value === "string" && options.includes(value))
-    : 0;
   return { field: { key, label, type, options, position, showOnTile }, cleared };
 }
 
@@ -489,9 +496,12 @@ export function deleteField(
 ): number | null {
   const project = projectById(database, projectId);
   if (!project) return null;
-  const removed = database.prepare("DELETE FROM project_fields WHERE project_id = ? AND key = ?").run(projectId, key);
-  if (Number(removed.changes) !== 1) return null;
-  return clearFieldValues(pageStore, String(project.slug), key, () => false);
+  const exists = row(database, "SELECT 1 AS present FROM project_fields WHERE project_id = ? AND key = ?", projectId, key);
+  if (!exists) return null;
+  // Values first, definition last - the same interruption story category deletion tells.
+  const cleared = clearFieldValues(pageStore, String(project.slug), key, () => false);
+  database.prepare("DELETE FROM project_fields WHERE project_id = ? AND key = ?").run(projectId, key);
+  return cleared;
 }
 
 function clearFieldValues(
@@ -730,12 +740,15 @@ export function deleteChapter(
   if (!project) return false;
   const projectSlug = String(project.slug);
   if (!chapterStore.get(projectSlug, slug)) return false;
-  chapterStore.remove(projectSlug, slug);
+  // Pages are released before the chapter file goes: interrupted here, the chapter
+  // still exists and a second delete finishes the job, rather than pages pointing at
+  // a chapter that no longer does.
   const now = new Date().toISOString();
   pageStore.list(projectSlug).forEach((page) => {
     if (page.chapter !== slug) return;
     pageStore.save(projectSlug, { ...page, chapter: null, updatedAt: now });
   });
+  chapterStore.remove(projectSlug, slug);
   return true;
 }
 
