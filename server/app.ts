@@ -2119,9 +2119,11 @@ export function createGrimoireServer(options: Options) {
           changes: [{ field: "question", from: null, to: summarize(result.body) }],
         });
       }
-      json(response, 200, {
-        thread: result === "unchanged" ? findThread(database, projectId, page.id, answeredMatch[2]) : result,
-      });
+      // The no-op path re-reads the thread, and it can have vanished in the gap;
+      // the client's type says thread, so the honest answer to a missing one is 404.
+      const thread = result === "unchanged" ? findThread(database, projectId, page.id, answeredMatch[2]) : result;
+      if (!thread) throw new HttpError(404, "Thread not found");
+      json(response, 200, { thread });
       broadcast(projectId, "work", requestClientId(request));
       return;
     }
