@@ -415,6 +415,20 @@ const searchSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
 });
 
+/** Query strings validate through zod like every body does; hand-rolled parsing drifted. */
+const activityQuerySchema = z.object({
+  entity: z
+    .string()
+    .regex(/^[0-9a-z-]{1,64}$/i, "Invalid activity filter")
+    .optional(),
+  before: z.coerce.number().int().min(1).optional(),
+  limit: z.coerce.number().int().min(1).optional(),
+});
+
+const eventsQuerySchema = z.object({
+  client: z.string().max(100).optional(),
+});
+
 /**
  * One chapter is open at a time, so the second one has to be an explicit decision.
  * The interface turns this into a single confirm that closes the current chapter first.
@@ -1924,7 +1938,7 @@ export function createGrimoireServer(options: Options) {
     if (method === "GET" && url.pathname === "/api/events") {
       const user = requireUser(context);
       const projectId = requireProject(context, user);
-      const clientId = url.searchParams.get("client")?.slice(0, 100) ?? "";
+      const clientId = eventsQuerySchema.parse(Object.fromEntries(url.searchParams)).client ?? "";
       response.statusCode = 200;
       response.setHeader("Content-Type", "text/event-stream; charset=utf-8");
       response.setHeader("Cache-Control", "no-cache, no-transform");
@@ -1952,17 +1966,16 @@ export function createGrimoireServer(options: Options) {
     if (method === "GET" && url.pathname === "/api/activity") {
       const user = requireUser(context);
       const projectId = requireProject(context, user);
-      const entity = url.searchParams.get("entity");
-      if (entity && !/^[0-9a-z-]{1,64}$/i.test(entity)) throw new HttpError(400, "Invalid activity filter");
+      const query = activityQuerySchema.parse(Object.fromEntries(url.searchParams));
       // The project-wide history is the owner's tool; per-entity history stays
       // available to every member because the page dialog shows it inline.
-      if (!entity && !userOwnsProject(database, user, projectId)) {
+      if (!query.entity && !userOwnsProject(database, user, projectId)) {
         throw new HttpError(403, "Only the project owner can open the project history");
       }
       const page = listAuditEvents(database, projectId, {
-        entityId: entity ?? undefined,
-        before: readPositiveInteger(url.searchParams.get("before")),
-        limit: readPositiveInteger(url.searchParams.get("limit")) ?? AUDIT_PAGE_SIZE,
+        entityId: query.entity,
+        before: query.before,
+        limit: query.limit ?? AUDIT_PAGE_SIZE,
       });
       json(response, 200, page);
       return;
@@ -2970,12 +2983,6 @@ function requireAdmin(context: RequestContext): User {
 function previewEntityId(value: string | null): string | null {
   if (value === null) return null;
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value) ? value : null;
-}
-
-function readPositiveInteger(value: string | null): number | undefined {
-  if (value === null) return undefined;
-  const parsed = Number(value);
-  return Number.isSafeInteger(parsed) && parsed >= 1 ? parsed : undefined;
 }
 
 async function readRaw(request: IncomingMessage, limit: number): Promise<Buffer> {

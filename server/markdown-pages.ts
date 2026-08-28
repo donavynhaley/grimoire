@@ -139,7 +139,11 @@ export class MarkdownPageStore {
   restore(projectSlug: string, page: StoredPage): void {
     const archivePath = this.archivePath(projectSlug, page.id);
     if (!existsSync(archivePath)) throw new Error(`Archived page file does not exist: ${archivePath}`);
-    moveRecord(archivePath, this.activePath(projectSlug, page.id), serializePage({ ...page, archivedAt: null }));
+    moveRecord(
+      archivePath,
+      this.activePath(projectSlug, page.id),
+      serializePage({ ...page, archivedAt: null }),
+    );
   }
 
   remove(projectSlug: string, pageId: string): void {

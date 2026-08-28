@@ -133,7 +133,7 @@ export function revokeAgentToken(database: DatabaseSync, projectId: string, toke
   const result = database
     .prepare("UPDATE agent_tokens SET revoked_at = ? WHERE id = ? AND project_id = ? AND revoked_at IS NULL")
     .run(new Date().toISOString(), tokenId, projectId);
-  return Number(result.changes) > 0;
+  return Number(result.changes) === 1;
 }
 
 /**

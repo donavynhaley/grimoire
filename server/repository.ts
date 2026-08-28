@@ -1465,14 +1465,15 @@ export function setProjectGithub(
   input: { repo?: string; token?: string },
 ): void {
   const now = new Date().toISOString();
+  // Archived projects refuse every browser, and their settings hold still with them.
   if (input.repo !== undefined) {
     database
-      .prepare("UPDATE projects SET github_repo = ?, updated_at = ? WHERE id = ?")
+      .prepare("UPDATE projects SET github_repo = ?, updated_at = ? WHERE id = ? AND archived_at IS NULL")
       .run(input.repo, now, projectId);
   }
   if (input.token !== undefined) {
     database
-      .prepare("UPDATE projects SET github_token = ?, updated_at = ? WHERE id = ?")
+      .prepare("UPDATE projects SET github_token = ?, updated_at = ? WHERE id = ? AND archived_at IS NULL")
       .run(input.token, now, projectId);
   }
 }
@@ -1481,13 +1482,13 @@ export function githubStatusesForProject(
   database: DatabaseSync,
   projectId: string,
 ): Map<string, PageGithubStatus> {
-  const rows = database
-    .prepare(
-      "SELECT page_id, state, pr_number, pr_title, pr_url, checked_at FROM github_link_status WHERE project_id = ?",
-    )
-    .all(projectId) as Array<Record<string, unknown>>;
+  const statuses = rows(
+    database,
+    "SELECT page_id, state, pr_number, pr_title, pr_url, checked_at FROM github_link_status WHERE project_id = ?",
+    projectId,
+  );
   return new Map(
-    rows.map((value) => [
+    statuses.map((value) => [
       String(value.page_id),
       {
         state: String(value.state) as PageGithubStatus["state"],
@@ -1619,9 +1620,9 @@ export function nextChapterAfter(
 
 export function setEstimatesEnabled(database: DatabaseSync, projectId: string, enabled: boolean): boolean {
   const result = database
-    .prepare("UPDATE projects SET estimates_enabled = ?, updated_at = ? WHERE id = ?")
+    .prepare("UPDATE projects SET estimates_enabled = ?, updated_at = ? WHERE id = ? AND archived_at IS NULL")
     .run(enabled ? 1 : 0, new Date().toISOString(), projectId);
-  return Number(result.changes) > 0;
+  return Number(result.changes) === 1;
 }
 
 export function estimatesEnabled(database: DatabaseSync, projectId: string): boolean {
@@ -1654,14 +1655,15 @@ export function setProjectRecap(
   input: { webhook?: string; onClose?: boolean },
 ): void {
   const now = new Date().toISOString();
+  // The same stillness the other settings keep: an archived project cannot be reconfigured.
   if (input.webhook !== undefined) {
     database
-      .prepare("UPDATE projects SET discord_webhook = ?, updated_at = ? WHERE id = ?")
+      .prepare("UPDATE projects SET discord_webhook = ?, updated_at = ? WHERE id = ? AND archived_at IS NULL")
       .run(input.webhook, now, projectId);
   }
   if (input.onClose !== undefined) {
     database
-      .prepare("UPDATE projects SET recap_on_close = ?, updated_at = ? WHERE id = ?")
+      .prepare("UPDATE projects SET recap_on_close = ?, updated_at = ? WHERE id = ? AND archived_at IS NULL")
       .run(input.onClose ? 1 : 0, now, projectId);
   }
 }
