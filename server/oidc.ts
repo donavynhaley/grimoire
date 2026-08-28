@@ -190,11 +190,22 @@ export function parseEmailDomains(value: string | undefined): string[] {
     .filter(Boolean);
 }
 
-/** Whether an address is one the operator said may sign in. An empty list means anybody may. */
-export function emailDomainAllowed(email: string, allowed: string[]): boolean {
+/**
+ * Whether an address is one the operator said may sign in. An empty list means anybody may.
+ *
+ * An entry with an `@` in it names one person; an entry without names a domain and takes its
+ * subdomains with it. Both, because a domain is the right unit exactly when the provider is
+ * your organisation's and the wrong one when it is not: somebody pointing this at a personal
+ * Google account has a domain of `gmail.com`, and allowing that allows everybody alive. For
+ * them the useful list is two or three addresses, so that is a list they can write.
+ */
+export function emailAllowed(email: string, allowed: string[]): boolean {
   if (allowed.length === 0) return true;
-  const domain = email.split("@")[1]?.toLowerCase() ?? "";
-  return allowed.some((candidate) => domain === candidate || domain.endsWith(`.${candidate}`));
+  const address = email.trim().toLowerCase();
+  const domain = address.split("@")[1] ?? "";
+  return allowed.some((entry) =>
+    entry.includes("@") ? address === entry : domain === entry || domain.endsWith(`.${entry}`),
+  );
 }
 
 /** What the provider told us about the person, reduced to what an account needs. */

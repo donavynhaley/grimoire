@@ -96,7 +96,7 @@ import {
   type OidcFetcher,
   type OidcIdentity,
 } from "./oidc";
-import { emailDomainAllowed, oidcSettingsView, OidcProviders, resolveOidc, saveOidcSettings } from "./oidc-settings";
+import { emailAllowed, oidcSettingsView, OidcProviders, resolveOidc, saveOidcSettings } from "./oidc-settings";
 import { findOidcLink, linkOidcIdentity, oidcLinkForUser, touchOidcLink } from "./oidc-identities";
 import {
   AgentRateLimiter,
@@ -2449,7 +2449,7 @@ export function createGrimoireServer(options: Options) {
   ): Promise<User> {
     // Checked before anything is matched or made, because it is the answer to the one thing
     // auto-registration cannot answer on its own: a provider that is not only your team.
-    if (!emailDomainAllowed(identity.email, config.allowedEmailDomains)) {
+    if (!emailAllowed(identity.email, config.allowedEmailDomains)) {
       throw new HttpError(403, "That email address is not on a domain this Grimoire accepts.");
     }
     /*

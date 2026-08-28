@@ -2,7 +2,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { countOidcLinks } from "./oidc-identities";
 import type { OidcSettings, OidcSource } from "../shared/types";
 import {
-  emailDomainAllowed,
+  emailAllowed,
   OidcProvider,
   parseEmailDomains,
   parseIssuerInput,
@@ -225,4 +225,4 @@ export class OidcProviders {
   }
 }
 
-export { emailDomainAllowed };
+export { emailAllowed };

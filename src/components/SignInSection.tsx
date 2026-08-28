@@ -278,7 +278,7 @@ export function SignInSection({ run }: { run: SettingsRun }) {
       </div>
 
       <div className="settings-row">
-        <label className="field-label" htmlFor="settings-oidc-domains">Allowed email domains</label>
+        <label className="field-label" htmlFor="settings-oidc-domains">Who may sign in</label>
         <div className="settings-input">
           <input
             disabled={managed}
@@ -286,15 +286,28 @@ export function SignInSection({ run }: { run: SettingsRun }) {
             name="oidcAllowedEmailDomains"
             onBlur={() => { if (!managed && domains.trim() !== settings.allowedEmailDomains) void save({ allowedEmailDomains: domains.trim() }); }}
             onChange={(event) => setDomains(event.target.value)}
-            placeholder="example.com"
+            placeholder="example.com  or  you@gmail.com"
             value={domains}
           />
         </div>
         <p className="settings-summary">
           {domains.trim()
-            ? "Only these domains may sign in, whatever your provider says."
-            : "Empty means any address your provider vouches for. Worth filling in if that provider is not only your team - a Google or a shared tenant."}
+            ? "Only these may sign in, whatever your provider says. A domain covers everyone on it; an address covers one person."
+            : "Empty means anyone your provider vouches for."}
         </p>
+        {/*
+          The one warning worth interrupting somebody for. Pointed at a provider that is not
+          only their team - a personal Google most of all - the empty default means the whole
+          internet, and the domain of a personal account is no restriction at all.
+        */}
+        {!domains.trim() && settings.autoRegister && (
+          <p className="settings-summary warning-note" role="status">
+            Anyone with an account at your provider will get a Grimoire account. That is what you
+            want if the provider is only your team. If it is Google or another shared one, list
+            the addresses that may in — a personal account&apos;s domain is <code>gmail.com</code>,
+            which is everybody.
+          </p>
+        )}
       </div>
 
       <div className="settings-row">

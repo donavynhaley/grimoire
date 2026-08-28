@@ -64,10 +64,21 @@ For somebody with no account yet, there are two settings and they answer differe
 pointed Grimoire at their own identity provider has already decided who is allowed in, and
 making each of them also click an invitation link is asking the same question twice.
 
-**Allowed email domains** is the guard that makes that safe. Left empty, anybody your provider
-vouches for can sign in. That is right when the provider is only your team. It is wrong the
-moment the provider is shared — pointed at Google, or at a tenant that is not only yours, the
-default means *anybody with an account there*. Naming your domains closes that.
+**Who may sign in** is the guard that makes that safe. Left empty, anybody your provider vouches
+for can sign in. That is right when the provider is only your team. It is wrong the moment the
+provider is shared — pointed at Google, or at a tenant that is not only yours, the default means
+*anybody with an account there*.
+
+The box takes both, mixed freely. An entry with an `@` names one person; an entry without names a
+domain and covers its subdomains too:
+
+```
+team.example.test  owner@example.com
+```
+
+Which unit you want depends on whose provider it is. A domain is right when the domain is yours.
+For a personal account it is meaningless — `gmail.com` is not a restriction — so there, list
+addresses.
 
 Turn auto-registration off to keep Grimoire invitation-only: the provider then signs in accounts
 that already exist, and an invitation link is still what creates a new one.
@@ -195,13 +206,36 @@ Provider address: `https://id.example.com`
 ### Google
 
 Create an **OAuth 2.0 Client ID** of type *Web application* in the Google Cloud console, with
-the address above as an authorized redirect URI.
+the redirect address above as an authorized redirect URI.
 
 Provider address: `https://accounts.google.com`
 
-**Set allowed email domains.** Google will vouch for every Google account there is, so without
-that list, auto-registration means anybody at all. This is the single most important setting on
-that screen if you point Grimoire at Google, and it is the one nobody thinks about.
+**List who may sign in, by address.** This is the most important setting on that screen if you
+point Grimoire at Google, and the easiest to get wrong. Google vouches for every Google account
+in existence, so an empty list plus auto-registration means anybody at all. And restricting by
+*domain* does nothing for a personal account, because that domain is `gmail.com` — everybody.
+Put your own address, and your teammates', in the box:
+
+```
+you@gmail.com  someone.else@gmail.com
+```
+
+A domain is the right unit only when the domain is yours: a Workspace tenant, where
+`yourcompany.com` means your company.
+
+Google's redirect URI rules constrain where you can run this:
+
+- `https://` anywhere — your tunnel or reverse-proxy hostname, which is the normal case
+- `http://localhost:PORT` and `http://127.0.0.1:PORT` — allowed, for trying it on your own machine
+- **not** `http://192.168.x.x:PORT` or any other raw IP — Google refuses these, so a homelab box
+  reached by its LAN address cannot be a redirect target. Put it behind a hostname with TLS, or
+  test over loopback.
+
+On a personal Google account the consent screen can only be **External**. Left in *Testing* it
+works immediately as long as you add yourself under *Test users*; the seven-day token expiry that
+mode imposes does not reach Grimoire, because Grimoire exchanges the code once and then keeps its
+own session. Publishing needs no verification for `openid email profile`, which are not sensitive
+scopes.
 
 Google is also the reason Grimoire accepts a scheme-less issuer in an identity token: Google
 documents its tokens as carrying either `https://accounts.google.com` or the bare

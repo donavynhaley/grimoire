@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { OidcSettings, OidcProviderDescription } from "../../shared/types";
-import { oidcConfigFromEnvironment } from "../../server/oidc";
+import { emailAllowed, oidcConfigFromEnvironment } from "../../server/oidc";
 import { bootstrap, ownerAccount, startTestServer } from "./test-server";
 import { fakeProvider, ISSUER } from "./oidc-provider";
 
@@ -241,6 +241,36 @@ describe("reading a provider out of the environment", () => {
       GRIMOIRE_OIDC_ALLOWED_EMAIL_DOMAINS: "@team.example.test, example.org",
     });
     expect(config?.allowedEmailDomains).toEqual(["team.example.test", "example.org"]);
+  });
+});
+
+describe("who the allow list lets through", () => {
+  it("lets anybody through when nobody said otherwise", () => {
+    expect(emailAllowed("anyone@example.com", [])).toBe(true);
+  });
+
+  it("takes a domain, and its subdomains with it", () => {
+    expect(emailAllowed("alan@team.example.test", ["team.example.test"])).toBe(true);
+    expect(emailAllowed("alan@team.example.test", ["team.example.test"])).toBe(true);
+    expect(emailAllowed("alan@example.com", ["team.example.test"])).toBe(false);
+    // Not a suffix match on the raw string: "notteam.example.test" is somebody else's domain.
+    expect(emailAllowed("alan@notteam.example.test", ["team.example.test"])).toBe(false);
+  });
+
+  it("takes one person, which is the only useful list for a personal provider account", () => {
+    // Pointed at Google, the domain of a personal account is gmail.com - allowing that allows
+    // everybody alive, so naming the two or three addresses is the list that means anything.
+    const allowed = ["owner@example.com", "alan@team.example.test"];
+    expect(emailAllowed("owner@example.com", allowed)).toBe(true);
+    expect(emailAllowed("owner@example.com", allowed)).toBe(true);
+    expect(emailAllowed("somebody.else@gmail.com", allowed)).toBe(false);
+  });
+
+  it("mixes the two, because an organisation with a couple of guests is the normal case", () => {
+    const allowed = ["team.example.test", "owner@example.com"];
+    expect(emailAllowed("anyone@team.example.test", allowed)).toBe(true);
+    expect(emailAllowed("owner@example.com", allowed)).toBe(true);
+    expect(emailAllowed("stranger@gmail.com", allowed)).toBe(false);
   });
 
   it("refuses a half-written configuration rather than starting without the button", () => {
