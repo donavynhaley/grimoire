@@ -30,9 +30,16 @@ import {
  *
  * Duplicated rather than imported because this package ships to npm on its own and takes no
  * dependency on the application source. The server is the one that enforces it; this copy only
- * saves an agent a round trip to be told the same thing. They must move together.
+ * saves an agent a round trip to be told the same thing. They must move together - and the
+ * repo's mcp-contract test fails the suite when either drifts.
  */
-const BODY_MAX_LENGTH = 50_000;
+export const BODY_MAX_LENGTH = 50_000;
+
+/** Mirrors `DISCUSSION_BODY_MAX_LENGTH` in shared/types.ts, under the same contract test. */
+export const DISCUSSION_BODY_MAX_LENGTH = 4_000;
+
+/** Mirrors the package.json version; the contract test keeps the two saying the same thing. */
+export const MCP_VERSION = "0.3.0";
 
 /** What a field patch looks like coming from an agent. `null` clears one. */
 const fieldPatch = z
@@ -66,7 +73,7 @@ export type ServerOptions = {
 export function createServer(client: GrimoireClient, options: ServerOptions = {}): McpServer {
   const writable = options.scope !== "read";
   const server = new McpServer(
-    { name: "grimoire", version: "0.3.0" },
+    { name: "grimoire", version: MCP_VERSION },
     {
       instructions:
         "Grimoire is a small collaborative work board. A unit of work is a page, and pages sit " +
@@ -479,7 +486,7 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
           .string()
           .trim()
           .min(1)
-          .max(4000)
+          .max(DISCUSSION_BODY_MAX_LENGTH)
           .describe(
             "What you want to say. Plain prose; one message, not a transcript. Write @ and " +
               "somebody's name, exactly as grimoire_board gives it, to address them - Grimoire " +
@@ -520,7 +527,7 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
           .string()
           .trim()
           .min(1)
-          .max(4000)
+          .max(DISCUSSION_BODY_MAX_LENGTH)
           .describe("Your answer. @ and a member's name addresses them, as in a new thread."),
       },
     },

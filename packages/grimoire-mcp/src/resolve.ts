@@ -1,4 +1,6 @@
-import type { Board, FieldValue, Page, ProjectField } from "./client.js";
+import { PAGE_COLUMNS, type Board, type FieldValue, type Page, type ProjectField } from "./client.js";
+
+export { PAGE_COLUMNS };
 
 /**
  * Turning what an agent says into what the API needs.
@@ -33,9 +35,6 @@ const COLUMN_NAMES: Record<string, string> = {
   complete: "done",
   completed: "done",
 };
-
-/** The board's columns in reading order; the render loop and the labels share it. */
-export const PAGE_COLUMNS = ["backlog", "ready", "in_progress", "review", "done"] as const;
 
 const COLUMN_LABELS: Record<(typeof PAGE_COLUMNS)[number], string> = {
   backlog: "Backlog",

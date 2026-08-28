@@ -7,6 +7,13 @@
  * and because one process is meant to own a project directory at a time.
  */
 
+/**
+ * The board's columns in reading order - the vocabulary every page speaks. Mirrors
+ * PAGE_STATUSES in the server's shared/types.ts under the repo's mcp-contract test.
+ */
+export const PAGE_COLUMNS = ["backlog", "ready", "in_progress", "review", "done"] as const;
+export type PageColumn = (typeof PAGE_COLUMNS)[number];
+
 export type FieldValue = string | number | boolean;
 
 export type ProjectField = {
@@ -46,7 +53,7 @@ export type Page = {
   /** Values for the project's own fields. Absent keys were never filled in. */
   fields: Record<string, FieldValue>;
   blockedBy: string[];
-  status: string;
+  status: PageColumn;
   position: number;
   assigneeId: string | null;
   assigneeName: string | null;
