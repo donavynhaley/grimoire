@@ -80,7 +80,8 @@ describe("setting up a provider from the settings screen", () => {
       method: "POST",
       body: JSON.stringify({ issuer: "https://not-a-provider.example.com" }),
     });
-    expect(probed.response.status).toBe(200);
+    // An upstream failure answers like one; this was the one route that said no with a 200.
+    expect(probed.response.status).toBe(502);
     expect(probed.body.error).toContain("openid-configuration");
 
     const refused = await server.request<{ error?: string }>("/api/auth/oidc/probe", {

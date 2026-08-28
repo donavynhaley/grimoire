@@ -346,6 +346,9 @@ function DiscordSection({
     void run(() => onSetWebhook(next), "The webhook could not be saved");
   };
 
+  // Deliberately not through `run`: posting a recap saves nothing, and the section's own
+  // line - success or refusal - is the whole answer. The shared strip saying "saved" on
+  // top of it would be two status voices announcing one act.
   const postNow = async (slug: string, name: string) => {
     setPosted(null);
     try {

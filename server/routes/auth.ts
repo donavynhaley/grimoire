@@ -358,12 +358,11 @@ export function authRoutes(app: AppContext): Route[] {
         try {
           json(context.response, 200, { provider: await probe.describe() });
         } catch (error) {
-          if (error instanceof OidcError) {
-            json(context.response, 200, { error: error.message });
-            return;
-          }
+          // A failed probe is an upstream failure and answers like one - this was the one
+          // route in the product that said no with a 200.
+          if (error instanceof OidcError) throw new HttpError(502, error.message);
           console.error("oidc probe failed", error);
-          json(context.response, 200, { error: "That address could not be reached from the server." });
+          throw new HttpError(502, "That address could not be reached from the server.");
         }
       },
     },

@@ -203,13 +203,20 @@ export function saveOidcSettings(
  * answer is a description or a reason, never a thrown error, so a wrong address is something
  * the screen can say out loud rather than a failure it has to guess at.
  */
-export function probeOidcProvider(
+export async function probeOidcProvider(
   issuer: string,
 ): Promise<{ provider?: OidcProviderDescription; error?: string }> {
-  return request<{ provider?: OidcProviderDescription; error?: string }>("/api/auth/oidc/probe", {
-    method: "POST",
-    body: JSON.stringify({ issuer }),
-  });
+  try {
+    return await request<{ provider: OidcProviderDescription }>("/api/auth/oidc/probe", {
+      method: "POST",
+      body: JSON.stringify({ issuer }),
+    });
+  } catch (error) {
+    // A refused probe is an answer the screen shows in place, not a failure to throw
+    // past it - the server says why, and the why is the whole point of the button.
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
 }
 
 /** The owner's restore list: every project that has been archived, newest first. */
