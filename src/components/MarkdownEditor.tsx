@@ -6,7 +6,7 @@ import { EditorSelection, EditorState, type Extension } from "@codemirror/state"
 import { EditorView, keymap, placeholder as placeholderExtension } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import { GFM } from "@lezer/markdown";
-import { livePreview } from "./live-preview";
+import { livePreview } from "../lib/live-preview";
 
 export type MarkdownEditorHandle = {
   /** Focuses the surface, optionally putting the caret at a source offset. */

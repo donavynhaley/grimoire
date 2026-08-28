@@ -3,8 +3,8 @@ import type { DiscussionMessage, DiscussionThread, Member } from "../../shared/t
 import { DISCUSSION_BODY_MAX_LENGTH } from "../../shared/types";
 import { Avatar } from "./Avatar";
 import { Growing } from "./Growing";
-import { relativeLabel } from "./activity-copy";
-import { withMentions } from "./mention-text";
+import { relativeLabel } from "../lib/activity-copy";
+import { withMentions } from "../lib/mention-text";
 
 /**
  * The conversation on a page, in a column of its own beside the writing.

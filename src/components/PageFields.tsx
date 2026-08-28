@@ -1,20 +1,14 @@
 import { useRef, useState } from "react";
 import type { FieldValue, PageFields as PageFieldValues, ProjectField } from "../../shared/types";
 import { Growing } from "./Growing";
-import { useDismissOnOutside } from "./use-dismiss-on-outside";
+import { useDismissOnOutside } from "../hooks/use-dismiss-on-outside";
+import { fieldValueText } from "../lib/field-text";
 
 type Props = {
   fields: ProjectField[];
   values: PageFieldValues;
   onUpdate: (input: Record<string, unknown>) => Promise<void>;
 };
-
-/** What a value looks like once it is only being read. */
-export function fieldValueText(field: ProjectField, value: FieldValue | undefined): string {
-  if (value === undefined) return "—";
-  if (field.type === "checkbox") return value ? "yes" : "no";
-  return String(value);
-}
 
 /**
  * The project's own fields, on one page.

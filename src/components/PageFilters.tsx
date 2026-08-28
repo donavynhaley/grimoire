@@ -7,8 +7,8 @@ import {
   toggleFacet,
   type FacetContext,
   type FacetSelection,
-} from "./page-facets";
-import { useDismissOnOutside } from "./use-dismiss-on-outside";
+} from "../lib/page-facets";
+import { useDismissOnOutside } from "../hooks/use-dismiss-on-outside";
 
 type Props = {
   /** Already narrowed by the controls outside this panel, so the counts agree with the board. */

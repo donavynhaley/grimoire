@@ -6,7 +6,7 @@ import {
   type ProjectField,
   PAGE_STATUS_LABELS,
 } from "../../shared/types";
-import { fieldValueText } from "./PageFields";
+import { fieldValueText } from "./field-text";
 
 /**
  * Which values of each property the board is narrowed to.

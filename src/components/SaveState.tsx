@@ -1,5 +1,5 @@
 import type { AuditEvent } from "../../shared/types";
-import type { ContentEditor } from "./use-content-editor";
+import type { ContentEditor } from "../hooks/use-content-editor";
 
 /**
  * The autosave line, plus the two moments where someone else is in the same record:

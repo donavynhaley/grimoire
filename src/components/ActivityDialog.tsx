@@ -15,8 +15,8 @@ import {
   ENTITY_LABELS,
   eventText,
   timeLabel,
-} from "./activity-copy";
-import { useTypingFocus } from "./use-typing-focus";
+} from "../lib/activity-copy";
+import { useTypingFocus } from "../hooks/use-typing-focus";
 
 const PAGE_SIZE = 60;
 

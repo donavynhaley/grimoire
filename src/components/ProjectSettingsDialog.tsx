@@ -20,7 +20,7 @@ import { FieldsSection, type FieldActions } from "./FieldsSection";
 import { AgentAccessSection } from "./AgentAccessSection";
 import { SignInSection } from "./SignInSection";
 import { TeamSection } from "./TeamSection";
-import { type SettingsRun, useSettingsAction } from "./use-settings-action";
+import { type SettingsRun, useSettingsAction } from "../hooks/use-settings-action";
 
 export const SETTINGS_SECTIONS = [
   "general",

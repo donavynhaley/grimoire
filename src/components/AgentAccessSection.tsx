@@ -2,8 +2,8 @@ import { type FormEvent, useEffect, useState } from "react";
 import type { AgentToken, AgentTokenScope } from "../../shared/types";
 import { agentTokenIsLive, agentTokens, issueAgentToken, revokeAgentToken } from "../api/client";
 import { ConfirmInline } from "./ConfirmInline";
-import { dayLabel } from "./chapter-dates";
-import type { SettingsRun } from "./use-settings-action";
+import { dayLabel } from "../lib/chapter-dates";
+import type { SettingsRun } from "../hooks/use-settings-action";
 
 type Props = {
   run: SettingsRun;

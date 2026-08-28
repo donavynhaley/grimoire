@@ -3,12 +3,12 @@ import type { Idea, IdeaState, IdeaWorkspace } from "../../shared/types";
 import { ConfirmInline } from "./ConfirmInline";
 import { SaveState } from "./SaveState";
 import { NotesField } from "./NotesField";
-import { plainTextFromMarkdown } from "./markdown-text";
+import { plainTextFromMarkdown } from "../lib/markdown-text";
 import { Drawer } from "./Drawer";
-import { useContentEditor } from "./use-content-editor";
-import { useFlip } from "./use-flip";
-import { type DragPoint, gapIndexIn, pointWithin, usePointerDrag } from "./use-pointer-drag";
-import { useTypingFocus } from "./use-typing-focus";
+import { useContentEditor } from "../hooks/use-content-editor";
+import { useFlip } from "../hooks/use-flip";
+import { type DragPoint, gapIndexIn, pointWithin, usePointerDrag } from "../hooks/use-pointer-drag";
+import { useTypingFocus } from "../hooks/use-typing-focus";
 
 /** Shortlist first, so a point inside it is read as a rank rather than as the layout behind it. */
 const IDEA_STATES = ["shortlist", "inbox", "parked"] as const satisfies readonly IdeaState[];

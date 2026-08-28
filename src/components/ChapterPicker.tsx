@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { Page, Chapter } from "../../shared/types";
-import { chapterWhen } from "./chapter-dates";
+import { chapterWhen } from "../lib/chapter-dates";
 import { Growing } from "./Growing";
-import { useDismissOnOutside } from "./use-dismiss-on-outside";
+import { useDismissOnOutside } from "../hooks/use-dismiss-on-outside";
 
 /**
  * What the board is narrowed to: every page, one chapter, or the pages nobody has placed.

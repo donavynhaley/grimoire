@@ -9,7 +9,7 @@ import {
   toggleFacet,
   UNSET,
   type FacetContext,
-} from "../../src/components/page-facets";
+} from "../../src/lib/page-facets";
 
 const NOW = new Date("2026-08-22T12:00:00.000Z");
 

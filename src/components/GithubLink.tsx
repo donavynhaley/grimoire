@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Page } from "../../shared/types";
 import { openPullRequests, type OpenPullRequest } from "../api/client";
 import { Growing } from "./Growing";
-import { useDismissOnOutside } from "./use-dismiss-on-outside";
+import { useDismissOnOutside } from "../hooks/use-dismiss-on-outside";
 
 type Props = {
   github: Page["github"];

@@ -7,10 +7,10 @@ import {
   type Member,
   type ProjectCategory,
 } from "../../shared/types";
-import { categoryDisplay, categoryStyle } from "./category-style";
-import { plainTextFromMarkdown } from "./markdown-text";
-import { pageText } from "./page-search";
-import { useTypingFocus } from "./use-typing-focus";
+import { categoryDisplay, categoryStyle } from "../lib/category-style";
+import { plainTextFromMarkdown } from "../lib/markdown-text";
+import { pageText } from "../lib/page-search";
+import { useTypingFocus } from "../hooks/use-typing-focus";
 import { Growing } from "./Growing";
 
 type Props = {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useCoarsePointer } from "./use-coarse-pointer";
-import { useDialogEscape } from "./use-dialog-escape";
+import { useCoarsePointer } from "../hooks/use-coarse-pointer";
+import { useDialogEscape } from "../hooks/use-dialog-escape";
 
 /** Dragged this far down, the sheet is being dismissed rather than nudged. */
 const DISMISS_DISTANCE = 96;

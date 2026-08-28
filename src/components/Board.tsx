@@ -27,10 +27,10 @@ import {
   facetPredicate,
   type FacetContext,
   type FacetSelection,
-} from "./page-facets";
+} from "../lib/page-facets";
 import { type ChapterActions } from "./ChaptersSection";
 import { type ChapterFilter, ChapterPicker, NO_CHAPTER } from "./ChapterPicker";
-import { chapterWhen } from "./chapter-dates";
+import { chapterWhen } from "../lib/chapter-dates";
 import { DoneHistoryDialog } from "./DoneHistoryDialog";
 import { type ProjectActions, ProjectMenu } from "./ProjectMenu";
 import {
@@ -41,12 +41,12 @@ import {
 } from "./ProjectSettingsDialog";
 import { type CapturePageInput, QuickCapture } from "./QuickCapture";
 import { SearchDialog } from "./SearchDialog";
-import { categoryColorStyle } from "./category-style";
-import { plainTextFromMarkdown } from "./markdown-text";
-import { compareCompletion } from "./page-order";
+import { categoryColorStyle } from "../lib/category-style";
+import { plainTextFromMarkdown } from "../lib/markdown-text";
+import { compareCompletion } from "../lib/page-order";
 import { IdeasBoard } from "./IdeasBoard";
-import { useFlip } from "./use-flip";
-import { type DragPoint, gapIndexIn, pointWithin, usePointerDrag } from "./use-pointer-drag";
+import { useFlip } from "../hooks/use-flip";
+import { type DragPoint, gapIndexIn, pointWithin, usePointerDrag } from "../hooks/use-pointer-drag";
 import packageJson from "../../package.json";
 
 const BOARD_STATUSES = ["ready", "in_progress", "review", "done"] as const satisfies readonly PageStatus[];

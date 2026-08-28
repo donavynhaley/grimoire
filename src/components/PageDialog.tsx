@@ -18,12 +18,12 @@ import { PageFieldsEditor } from "./PageFields";
 import { otherEditorName, SaveState } from "./SaveState";
 import { Growing } from "./Growing";
 import { NotesField } from "./NotesField";
-import { describeChange, describeEvent, relativeLabel } from "./activity-copy";
-import { categoryColorStyle, categoryStyle } from "./category-style";
+import { describeChange, describeEvent, relativeLabel } from "../lib/activity-copy";
+import { categoryColorStyle, categoryStyle } from "../lib/category-style";
 import { DiscussionSection } from "./DiscussionSection";
 import { Drawer } from "./Drawer";
 import { GithubLink } from "./GithubLink";
-import { useContentEditor } from "./use-content-editor";
+import { useContentEditor } from "../hooks/use-content-editor";
 
 const PAGE_HISTORY_LIMIT = 6;
 

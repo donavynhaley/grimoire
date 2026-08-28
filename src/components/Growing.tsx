@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { useHeightSwap } from "./use-height-swap";
+import { useHeightSwap } from "../hooks/use-height-swap";
 
 /**
  * A box that travels between its sizes instead of jumping between them.

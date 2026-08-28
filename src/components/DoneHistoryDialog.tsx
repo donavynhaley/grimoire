@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
 import { Drawer } from "./Drawer";
 import { type Page, type PageCategory, type Member, type ProjectCategory } from "../../shared/types";
-import { categoryDisplay, categoryStyle } from "./category-style";
-import { compareCompletion } from "./page-order";
-import { pageText } from "./page-search";
-import { useTypingFocus } from "./use-typing-focus";
+import { categoryDisplay, categoryStyle } from "../lib/category-style";
+import { compareCompletion } from "../lib/page-order";
+import { pageText } from "../lib/page-search";
+import { useTypingFocus } from "../hooks/use-typing-focus";
 
 type Props = {
   busy: boolean;

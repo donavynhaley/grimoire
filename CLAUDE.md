@@ -23,7 +23,7 @@ Wrap the container whose height changes, not the thing appearing inside it. The
 container is the one element present in both states, so it has a height to travel
 from; a child that only exists once it is open has nothing to grow out of.
 
-`Growing` is a thin wrapper over `useHeightSwap` (`src/components/use-height-swap.ts`),
+`Growing` is a thin wrapper over `useHeightSwap` (`src/hooks/use-height-swap.ts`),
 which shares the timing and the reduced-motion behaviour of `useFlip`: 190ms on
 `cubic-bezier(0.2, 0.7, 0.2, 1)`, skipped entirely when the system asks for reduced
 motion. It animates real layout rather than a transform, so everything below the box

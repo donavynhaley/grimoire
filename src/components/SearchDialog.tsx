@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Drawer } from "./Drawer";
 import { SEARCH_GROUPS, type SearchGroup, type SearchHit, type SearchResults } from "../../shared/types";
 import { ApiError, search as searchProject } from "../api/client";
-import { categoryColorStyle } from "./category-style";
-import { useTypingFocus } from "./use-typing-focus";
+import { categoryColorStyle } from "../lib/category-style";
+import { useTypingFocus } from "../hooks/use-typing-focus";
 
 const GROUP_LABELS: Record<SearchGroup, string> = {
   active: "Active board",

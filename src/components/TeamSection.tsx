@@ -3,7 +3,7 @@ import type { Member, User, ProjectRole } from "../../shared/types";
 import { Avatar } from "./Avatar";
 import { ConfirmInline } from "./ConfirmInline";
 import { Growing } from "./Growing";
-import type { SettingsRun } from "./use-settings-action";
+import type { SettingsRun } from "../hooks/use-settings-action";
 
 type Props = {
   currentUser: User;

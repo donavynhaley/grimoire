@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import type { AuditChange, AuditEvent, AwayState, BoardWorkspace } from "../../shared/types";
 import { Avatar } from "./Avatar";
 import { Growing } from "./Growing";
-import { dayLabel } from "./activity-copy";
+import { dayLabel } from "../lib/activity-copy";
 
 const VISIBLE_LINES = 5;
 

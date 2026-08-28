@@ -18,8 +18,8 @@ import {
   type ProjectField,
   PAGE_STATUS_LABELS,
 } from "../../shared/types";
-import { categoryColorStyle } from "./category-style";
-import { useTypingFocus } from "./use-typing-focus";
+import { categoryColorStyle } from "../lib/category-style";
+import { useTypingFocus } from "../hooks/use-typing-focus";
 
 export type CapturePageInput = {
   title: string;

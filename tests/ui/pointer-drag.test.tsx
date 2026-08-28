@@ -2,7 +2,7 @@
 
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { usePointerDrag } from "../../src/components/use-pointer-drag";
+import { usePointerDrag } from "../../src/hooks/use-pointer-drag";
 
 afterEach(cleanup);
 

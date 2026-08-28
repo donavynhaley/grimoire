@@ -6,7 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Page, ProjectCategory, ProjectField } from "../../shared/types";
 import { PageFilters } from "../../src/components/PageFilters";
-import type { FacetContext, FacetSelection } from "../../src/components/page-facets";
+import type { FacetContext, FacetSelection } from "../../src/lib/page-facets";
 
 afterEach(cleanup);
 

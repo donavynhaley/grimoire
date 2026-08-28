@@ -1,4 +1,4 @@
-import { initials } from "./initials";
+import { initials } from "../lib/initials";
 
 type Props = {
   name: string;

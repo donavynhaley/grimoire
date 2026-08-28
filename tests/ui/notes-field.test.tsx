@@ -6,7 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { uploadImage } from "../../src/api/client";
 import { NotesField } from "../../src/components/NotesField";
-import { plainTextFromMarkdown } from "../../src/components/markdown-text";
+import { plainTextFromMarkdown } from "../../src/lib/markdown-text";
 
 vi.mock("../../src/api/client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../src/api/client")>();

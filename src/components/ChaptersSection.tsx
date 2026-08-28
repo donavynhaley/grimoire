@@ -2,8 +2,8 @@ import { type FormEvent, useState } from "react";
 import type { Page, Chapter, ChapterVelocity } from "../../shared/types";
 import { ConfirmInline } from "./ConfirmInline";
 import { Growing } from "./Growing";
-import { chapterWhen, dayLabel } from "./chapter-dates";
-import type { SettingsRun } from "./use-settings-action";
+import { chapterWhen, dayLabel } from "../lib/chapter-dates";
+import type { SettingsRun } from "../hooks/use-settings-action";
 
 export type ChapterActions = {
   create: (input: { name: string; startsOn?: string | null; endsOn?: string | null }) => Promise<void>;
