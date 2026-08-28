@@ -1772,17 +1772,16 @@ export function createGrimoireServer(options: Options) {
         clientId,
         projectId,
         response,
-        keepAlive: setInterval(() => response.write(": keepalive\n\n"), 25_000),
+        keepAlive: setInterval(() => sendEvent(client, ": keepalive\n\n"), 25_000),
         userId: user.id,
       };
       eventClients.add(client);
       broadcastPresence(projectId);
-      const remove = () => {
-        clearInterval(client.keepAlive);
-        eventClients.delete(client);
-        broadcastPresence(projectId);
-      };
-      response.once("close", remove);
+      // A dead socket reports itself as a stream 'error', and an 'error' with no
+      // listener is an uncaught exception - so the listener is attached the moment
+      // the stream exists, not left to the next write to discover.
+      response.on("error", () => dropEventClient(client));
+      response.once("close", () => dropEventClient(client));
       return;
     }
 
@@ -2633,11 +2632,30 @@ export function createGrimoireServer(options: Options) {
     return value ? publicUser(value) : null;
   }
 
+  /**
+   * A write to a half-closed stream can throw on the writer's stack, which would
+   * turn one dead browser into a failed request - or, from the keep-alive timer,
+   * into a dead process. The stream's own death is the disconnect, so the client
+   * is dropped and everything else carries on.
+   */
+  function sendEvent(client: EventClient, message: string): void {
+    try {
+      client.response.write(message);
+    } catch {
+      dropEventClient(client);
+    }
+  }
+
+  function dropEventClient(client: EventClient): void {
+    clearInterval(client.keepAlive);
+    if (eventClients.delete(client)) broadcastPresence(client.projectId);
+  }
+
   function broadcast(projectId: string, scope: WorkspaceScope, excludedClientId: string | null): void {
     const message = `event: workspace\ndata: ${JSON.stringify({ scope })}\n\n`;
     for (const client of eventClients) {
       if (client.projectId !== projectId || (excludedClientId && client.clientId === excludedClientId)) continue;
-      client.response.write(message);
+      sendEvent(client, message);
     }
   }
 
@@ -2654,7 +2672,7 @@ export function createGrimoireServer(options: Options) {
     const message = `event: presence\ndata: ${JSON.stringify({ online: [...online] })}\n\n`;
     for (const client of eventClients) {
       if (client.projectId !== projectId) continue;
-      client.response.write(message);
+      sendEvent(client, message);
     }
   }
 
@@ -2665,15 +2683,23 @@ export function createGrimoireServer(options: Options) {
       clearInterval(client.keepAlive);
       eventClients.delete(client);
       affected.add(client.projectId);
-      client.response.end();
+      endEventStream(client);
     }
     for (const projectId of affected) broadcastPresence(projectId);
+  }
+
+  function endEventStream(client: EventClient): void {
+    try {
+      client.response.end();
+    } catch {
+      client.response.destroy();
+    }
   }
 
   function closeEventStreams(): void {
     for (const client of eventClients) {
       clearInterval(client.keepAlive);
-      client.response.end();
+      endEventStream(client);
     }
     eventClients.clear();
   }
