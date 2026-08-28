@@ -206,16 +206,17 @@ function normalizeIdeaPositions(ideaStore: MarkdownIdeaStore, projectSlug: strin
 }
 
 function publicIdea(value: StoredIdea, members: ReturnType<typeof membersForProject>): Idea {
+  // The same grace pages and chapters extend: a creator the project no longer
+  // knows keeps their written email as a name rather than failing the garden.
   const creator = members.find((member) => member.email.toLowerCase() === value.createdBy.toLowerCase());
-  if (!creator) throw new Error(`Idea ${value.id} references a non-member creator`);
   return {
     id: value.id,
     title: value.title,
     description: value.description,
     state: value.state,
     position: value.position,
-    createdById: creator.id,
-    createdByName: creator.name,
+    createdById: creator ? creator.id : "",
+    createdByName: creator ? creator.name : value.createdBy,
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
   };

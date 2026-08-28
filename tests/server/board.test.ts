@@ -369,5 +369,32 @@ describe("body length", () => {
 
     expect(response.status).toBe(400);
   });
+
+  it("serves a board whose file names people the project does not know", async () => {
+    const server = await startTestServer();
+    await bootstrap(server);
+    const created = await server.request<{ page: Page }>("/api/pages", {
+      method: "POST",
+      body: JSON.stringify({ title: "Edited from outside", description: "" }),
+    });
+
+    // An external editor can write any address into a page file. That is
+    // ordinary weather for a directory of Markdown, and it must cost that page
+    // its assignee - not the whole project its board.
+    const path = join(server.pagesDirectory, "wizard-simulator", "pages", `${created.body.page.id}.md`);
+    const rewritten = readFileSync(path, "utf8")
+      .replace("assignee: null", "assignee: stranger@example.com")
+      .replace(`created_by: ${ownerAccount.email}`, "created_by: departed@example.com");
+    writeFileSync(path, rewritten);
+
+    const workspace = await board(server);
+    const page = workspace.pages.find((candidate) => candidate.id === created.body.page.id);
+    expect(page).toMatchObject({
+      assigneeId: null,
+      assigneeName: null,
+      createdById: "",
+      createdByName: "departed@example.com",
+    });
+  });
 });
 

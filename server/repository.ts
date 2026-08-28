@@ -1213,13 +1213,15 @@ function publicPage(
   /** Whose unread count this is. Absent where a read is not on anyone's behalf. */
   reader?: { id: string; unseen?: Map<string, number>; mentions?: Map<string, number> },
 ): Page {
+  // Page files are edited outside Grimoire, so a name the project does not know is
+  // ordinary weather, not corruption. An unknown assignee reads as unassigned and an
+  // unknown creator keeps the written email as their name - throwing here would let
+  // one odd file take the entire board down, since getBoard serializes every page.
   const assignee = value.assignee
-    ? members.find((member) => member.email.toLowerCase() === value.assignee?.toLowerCase())
+    ? members.find((member) => member.email.toLowerCase() === value.assignee?.toLowerCase()) ?? null
     : null;
   const currentCreator = members.find((member) => member.email.toLowerCase() === value.createdBy.toLowerCase());
   const historicalCreator = currentCreator ?? findUserByEmail(database, value.createdBy);
-  if (value.assignee && !assignee) throw new Error(`Page ${value.id} references a non-member assignee`);
-  if (!historicalCreator) throw new Error(`Page ${value.id} references an unknown creator`);
   return {
     id: value.id,
     title: value.title,
@@ -1232,8 +1234,8 @@ function publicPage(
     position: value.position,
     assigneeId: assignee?.id ?? null,
     assigneeName: assignee?.name ?? null,
-    createdById: String(historicalCreator.id),
-    createdByName: String(historicalCreator.name),
+    createdById: historicalCreator ? String(historicalCreator.id) : "",
+    createdByName: historicalCreator ? String(historicalCreator.name) : value.createdBy,
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
     completedAt: value.completedAt,
