@@ -130,6 +130,7 @@ import { MarkdownIdeaStore } from "./markdown-ideas";
 import type { EventClient, Options, RequestContext, WorkspaceScope } from "./app-types";
 import { agentMayReach } from "./agent-policy";
 import { boardRoutes } from "./routes/board";
+import { fileRoutes } from "./routes/files";
 import { requireAdmin, requireUser, type AppContext } from "./routes/context";
 import { matchRoute, type Route } from "./routes/route";
 import {
@@ -283,7 +284,7 @@ export function createGrimoireServer(options: Options) {
     broadcastPresence,
     disconnectUserEvents,
   };
-  const routes: Route[] = [...boardRoutes(appContext)];
+  const routes: Route[] = [...boardRoutes(appContext), ...fileRoutes(appContext)];
 
   /**
    * The board following the code: linked pages are brought up to date with GitHub on an
@@ -827,47 +828,6 @@ export function createGrimoireServer(options: Options) {
       avatarStore.remove(user.id);
       json(response, 200, { ok: true });
       broadcast(projectId, "work", requestClientId(request));
-      return;
-    }
-
-    const avatarMatch = url.pathname.match(/^\/api\/avatars\/([^/]+)$/);
-    if (method === "GET" && avatarMatch) {
-      requireUser(context);
-      if (!/^[0-9a-f-]{36}$/i.test(avatarMatch[1]!)) throw new HttpError(404, "Profile picture not found");
-      const avatar = avatarStore.get(avatarMatch[1]!);
-      if (!avatar) throw new HttpError(404, "Profile picture not found");
-      response.setHeader("Cache-Control", "private, max-age=31536000, immutable");
-      sendFile(response, avatar.path, avatar.contentType);
-      return;
-    }
-
-    if (method === "POST" && url.pathname === "/api/images") {
-      const user = requireUser(context);
-      const slug = projectSlug(database, requireProject(context, user));
-      if (!slug) throw new HttpError(404, "Board not found");
-      const data = await readRaw(request, IMAGE_SIZE_LIMIT);
-      const imageType = sniffImageType(data);
-      if (!imageType) throw new HttpError(400, "Notes images must be a PNG, JPEG, WebP, or GIF image");
-      const name = imageStore.save(slug, data, imageType);
-      json(response, 201, { name });
-      return;
-    }
-
-    const imageMatch = url.pathname.match(/^\/api\/images\/([^/]+)$/);
-    if (method === "GET" && imageMatch) {
-      const user = requireUser(context);
-      const slug = projectSlug(database, requireProject(context, user));
-      let imageName: string;
-      try {
-        imageName = decodeURIComponent(imageMatch[1]!);
-      } catch {
-        throw new HttpError(404, "Image not found");
-      }
-      const image = slug ? imageStore.get(slug, imageName) : null;
-      if (!image) throw new HttpError(404, "Image not found");
-      response.setHeader("X-Content-Type-Options", "nosniff");
-      response.setHeader("Cache-Control", "private, max-age=31536000, immutable");
-      sendFile(response, image.path, image.contentType);
       return;
     }
 
