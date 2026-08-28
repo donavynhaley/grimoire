@@ -136,7 +136,7 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
   // switch causes - reopens exactly where the reader was, and a link can point at a section.
   const [settingsSection, setSettingsSection] = useState<SettingsSection | null>(() => {
     const requested = new URLSearchParams(location.search).get("settings");
-    return (settingsSectionsFor(board.viewerIsOwner) as readonly string[]).includes(requested ?? "")
+    return (settingsSectionsFor(board.viewerIsOwner, board.currentUser.role === "admin") as readonly string[]).includes(requested ?? "")
       ? (requested as SettingsSection)
       : null;
   });

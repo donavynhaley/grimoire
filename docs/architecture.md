@@ -438,6 +438,45 @@ While a refusal is unresolved the editor writes nothing at all and will not clos
 This is also what protects edits made outside Grimoire.
 A body rewritten directly in the Markdown file survives a rename made in the browser, because the rename never carries a description, and a browser rewriting the same body is refused against the external text.
 
+## Signing in
+
+There is one session, and everything that creates one creates the same one: an opaque token, stored only as a sha256 hash, in the same cookie with the same age.
+A provider sign-in ends at the same `setSession` a password sign-in ends at, so nothing downstream — membership, authorship, presence, the activity log — knows or needs to know which door somebody came through.
+
+Single sign-on is authorization code with PKCE against the provider's discovery document, written on Node's own crypto rather than a client library.
+That is a deliberate cost. It keeps the dependency list short enough to read and the image a single small container, which is most of the argument for self-hosting Grimoire at all.
+
+The identity token is verified against the provider's published keys even though it arrives over TLS from the provider itself: the signature is what makes the claims evidence rather than something a misrouted or relayed response could put in front of us.
+Issuer, audience, expiry, and a nonce that ties the token to the browser that began the flow are all checked, and an unknown key id earns exactly one refetch of the key set, because that is what a rotation looks like.
+The state travels twice — in the redirect and in a short-lived cookie scoped to the callback route — so a callback completed in somebody else's browser cannot be handed to a colleague to quietly sign them into the wrong account.
+The verifier, nonce and pending state are held in memory, because a flow that outlives a restart is a flow nobody is still waiting on, and persisting it would mean writing a secret to disk to save somebody a click.
+
+The provider is configured from a screen, and the settings live in a single row of `oidc_settings` rather than only in the environment.
+That is a deliberate reversal of where this kind of configuration usually goes, and the reason is that the environment is a bad place to iterate: getting a provider working takes two or three attempts even when everything is right, and each of those attempts should not be a redeploy.
+The environment still wins wherever it says anything, so a deployment that describes itself in a file keeps doing that and the screen goes read-only rather than pretending to be live — two places that can disagree about what is in force is worse than either place alone.
+The provider is therefore resolved per request rather than held from boot, and one built provider is cached against the configuration that produced it so the discovery document and signing keys are not refetched on every sign-in.
+
+The screen is shaped by how these setups actually fail. They fail on a redirect address that does not match to the character, so it is shown, exactly, ready to copy, rather than described. They fail on a handful of endpoint URLs somebody transcribes, so those are read from the provider instead of asked for. And they fail silently, hours later, when somebody first tries to sign in — so the same call that fills the screen in also reports what it found, and says plainly that it has not checked the client id and secret, because nothing short of a real sign-in does.
+
+Three spellings of an issuer are accepted, because providers hand people all three and call them the same thing: with a trailing slash, without, and as the full discovery URL. The last one carries a real consequence. The specification's anti-spoofing rule is that a document fetched from the well-known path under an issuer must name that issuer, and it is enforced — but only when the issuer is what built the URL. An operator who pasted a discovery URL outright has already chosen the document, and holding them to that check would refuse every provider that does not sit at the standard path.
+
+An account is matched by email, which is what makes turning single sign-on on a non-event for an installation that already has people in it.
+That match is then recorded in `oidc_identities`, against the issuer the verified token asserts and the subject id it carries, and it is what answers the question on every sign-in afterwards.
+Email and subject are doing two different jobs and it matters that different values do them: an address is what somebody already recognises about a colleague, which is what lets the first provider sign-in land on the account they already had, and it is also a thing people change — which is exactly what a durable identity must not be.
+An installation that re-derived the link from email every time would hand somebody a second, empty account on the day they changed their address, and lose everything they had done.
+So the provider is treated as the authority on its own people's addresses and the Grimoire account follows, with two refusals rather than guesses: an address another account already answers to is a merge, and which history survives a merge is a person's decision; and a different subject presenting a linked account's address is refused because either guess signs somebody in as somebody else.
+The issuer is stored beside the subject because a subject id means nothing except under the provider that minted it, so swapping providers leaves old links inert rather than letting a colliding id inherit an account.
+A link is a claim about which account somebody is and never a reason to admit them: membership is still checked afterwards, so removing somebody from every project stops their provider sign-in exactly as it stops their password sign-in.
+Creating one is the case that needed a decision. Grimoire is invitation-only, and a provider vouching for somebody is not by itself a reason to put them on a board — but a team that has just pointed Grimoire at their own identity provider has already said who is allowed in, and making each of them also follow an invitation link asks that question twice. So auto-registration is on by default, and the guard that makes it safe is an allowed-domain list: without one the default means anybody your provider vouches for, which is your team when the provider is yours and the entire internet when it is Google's. An invitation still creates an account whatever that setting says.
+The account gets a password hash of something unguessable rather than a marker, so a sign-in attempt against it costs exactly what every other attempt costs and cannot be told apart by timing.
+The first-run account is always made with a password and never through a provider, because it is the account that can never be locked out, and a provider that has gone down should not be able to take an installation with it.
+
+Failed password attempts are metered with token buckets, in memory, for the same reason agent writes are: the thing being prevented is a run of guesses against a process that is up.
+Two buckets, sized differently on purpose. The source address is the tight one and is the actual wall; the account is the loose one, because it is the bucket an attacker can aim, and a lockout cheap enough to trip is a way to keep somebody out of their own board.
+Only failures spend, so a right answer is never refused for having followed wrong ones.
+Unlike an agent credential, the key here is chosen by whoever is knocking, so the map is swept: a bucket that has fully refilled is indistinguishable from one that never existed, and those are the ones that go.
+Whether a forwarded address is believed is a deployment fact rather than a preference, so it is configured rather than guessed — wrong in one direction every visitor shares one allowance, wrong in the other the limit is free to step around.
+
 ## Agent access
 
 Grimoire already had the API an agent needs, and lacked only a way for something without a browser to say who it is.

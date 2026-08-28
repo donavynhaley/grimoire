@@ -1,10 +1,14 @@
 import { resolve } from "node:path";
 import { createGrimoireServer } from "./app";
+import { oidcConfigFromEnvironment } from "./oidc";
 import { resolveServerPort } from "../shared/config";
 
 const port = resolveServerPort(process.env);
 const host = process.env.HOST ?? "127.0.0.1";
 const production = process.env.NODE_ENV === "production";
+// A misconfigured provider stops the process rather than starting without its sign-in button,
+// because a missing button looks exactly like a provider that is merely slow to appear.
+const oidc = oidcConfigFromEnvironment(process.env);
 const app = createGrimoireServer({
   // The root is a storage location the operator chooses rather than product vocabulary, so
   // its default stays where existing installs already keep their files - repointing a live
@@ -17,10 +21,15 @@ const app = createGrimoireServer({
   databasePath: resolve(process.env.GRIMOIRE_DATABASE ?? "data/grimoire.sqlite"),
   production,
   staticDirectory: production ? resolve("dist") : undefined,
+  oidc,
+  // Whether a reverse proxy or tunnel in front of Grimoire is writing the forwarded headers.
+  // It decides whose sign-in attempts are counted together, so it is asked rather than guessed.
+  trustProxy: /^(1|true|yes)$/i.test(process.env.GRIMOIRE_TRUST_PROXY ?? ""),
 });
 
 app.server.listen(port, host, () => {
   console.log(`grimoire server listening on http://${host}:${port}`);
+  if (oidc) console.log(`grimoire single sign-on enabled via ${oidc.issuer}`);
 });
 
 function shutdown() {

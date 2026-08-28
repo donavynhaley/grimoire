@@ -1,0 +1,46 @@
+# A real OpenID Connect provider, for trying Grimoire's single sign-on locally.
+#
+# Dex is a CNCF project and a genuine provider - real discovery document, real signing keys,
+# real RS256 tokens - which is the point. A stub proves the code you wrote against the stub.
+#
+# Started by compose.dex.yaml. See docs/single-sign-on.md.
+
+issuer: http://127.0.0.1:5556/dex
+
+storage:
+  type: memory
+
+web:
+  http: 0.0.0.0:5556
+
+oauth2:
+  # Nobody needs to approve their own test sign-in.
+  skipApprovalScreen: true
+
+staticClients:
+  - id: grimoire
+    name: Grimoire
+    secret: grimoire-client-secret
+    # Must match the redirect address the Sign-in settings screen shows, character for
+    # character. 8080 is the port compose.yaml serves Grimoire on.
+    redirectURIs:
+      - http://127.0.0.1:8080/api/auth/oidc/callback
+      - http://localhost:8080/api/auth/oidc/callback
+      - http://127.0.0.1:5173/api/auth/oidc/callback
+
+enablePasswordDB: true
+staticPasswords:
+  # Both sign in with the password "dex-test-password". The hashes are bcrypt at cost 12,
+  # because Dex refuses anything under cost 10 - which is worth knowing before it answers a
+  # login attempt with "Internal Server Error" and no explanation.
+  #
+  # Regenerate with:
+  #   docker run --rm httpd:alpine htpasswd -BbnC 12 user 'your-password'
+  - email: "admin@example.com"
+    hash: "$2y$12$D71rIs3oCQIzPhZfieIdCe3TeHDN8Q/1UYkrEnWKXxjpnYqumDGbW"
+    username: "Admin"
+    userID: "dex-user-1"
+  - email: "newcomer@example.com"
+    hash: "$2y$12$D71rIs3oCQIzPhZfieIdCe3TeHDN8Q/1UYkrEnWKXxjpnYqumDGbW"
+    username: "Newcomer"
+    userID: "dex-user-2"

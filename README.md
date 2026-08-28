@@ -277,6 +277,26 @@ The account that creates a project is written in as its owning member, and that 
 
 An installation created before these were separate is reconciled once on the first start after upgrading: the first account becomes the admin, every other account becomes a plain member, and each project is handed to whoever created it. Owner rows on projects somebody did not create are dropped, because the old promotion wrote the role across every membership a person held rather than the one project it was granted on.
 
+## Signing in
+
+Grimoire signs people in with an email and a password, and it always will. Accounts are invitation-only: the owner of a project makes a link, and the person who follows it makes their account on it.
+
+**Single sign-on is included, it is free, and it is a screen rather than a redeploy.** Open Settings → Sign-in as the admin, paste your provider's address, and press check: Grimoire reads the provider's own configuration and tells you what it found. Add the client id and secret — the two things no provider will tell us — and turn it on. Any OpenID Connect provider works, because Grimoire talks the protocol rather than a list of vendors: Authentik, Keycloak, Authelia, Pocket ID, Entra, Google.
+
+That screen shows the redirect address to register with your provider, ready to copy. It is the value these setups get wrong more than any other, and it is not a value anybody should have to work out from their own hostname, port, and proxy.
+
+The same settings can be pinned in the environment for a deployment that describes itself in a file. Anything set there wins, and the screen becomes read-only and says so, so the two can never disagree. See [docs/single-sign-on.md](docs/single-sign-on.md) for a walkthrough per provider.
+
+The flow is authorization code with PKCE. The code is exchanged server to server, so no token passes through the browser, and the identity token is checked against the provider's published signing keys before a word of it is believed — issuer, audience, expiry, and the nonce that ties it to the browser that started the sign-in.
+
+An account is found by email. Somebody who has been signing in with a password keeps their history, their memberships, and their name the moment single sign-on is turned on; the provider signs them in, it does not replace them, and their password keeps working beside it. That first match is then written down against the provider's own id for them, so somebody whose address changes at the provider stays the person they were here instead of quietly getting a second, empty account on the day they changed it. Somebody with no account gets one on first sign-in, because a team that has pointed Grimoire at their own provider has already said who is allowed in, and asking each of them to also click an invitation link is asking the same question twice. Name your **allowed email domains** whenever that provider is not only your team — pointed at Google or a shared tenant, the default means anybody with an account there. Turning auto-registration off keeps Grimoire invitation-only.
+
+Password sign-in is never disabled by configuring a provider, and the first-run account is always made with a password. That account is the one that can never be locked out of its own instance, and an identity provider that has gone down should not be able to take an installation with it.
+
+Failed sign-ins are rate limited, counted both against the address they came from and against the account they name. The address count is the tight one, and the account count is deliberately loose — anybody who knows a colleague's email could otherwise spend that colleague's allowance on purpose and keep them out of their own board. Behind a reverse proxy or a tunnel, set `GRIMOIRE_TRUST_PROXY=1` so the count follows the visitor rather than the proxy.
+
+Every response carries a Content-Security-Policy. The build ships no inline script and Grimoire calls nothing off its own origin, so script may only come from Grimoire itself and a page has nowhere to load an injected one from.
+
 ## Agent access
 
 A project can let something without a browser write in it, which is how an AI agent reaches Grimoire.
@@ -333,6 +353,10 @@ npm run test:e2e
 The end-to-end suite holds the app against a real Chromium as both an emulated Pixel and a desktop: touch drags, tap-based moves, sheet gestures, and the desktop presentation those must not disturb.
 
 The test suite covers authentication, secure password changes, single-use invitations, member removal, Markdown persistence, legacy migration, external edits, live project events, presence, the activity log, the active deck, Backlog search, project-wide search, completion history, reversible archives and promotions, categories, page dependencies, assignments, filtering, idea ranking, ordering, drag-and-drop interaction, Markdown note rendering, pasted note images, concurrent editing and refused overwrites, the while-you-were-away digest, markers, and seen cursor, chapters including the per-project gate, the single open chapter, closing a chapter with and without rollover, per-chapter velocity, and the compatibility of page files with a build that predates chapters, and agent access including project pinning, revoked and expired credentials, archived projects suspending their credentials, read-only scopes, the routes no credential may reach, a session outranking a bearer header, rate limited writes that survive a backwards clock step, use tracking on reads, credential events in the log under their own entity type, agent attribution rendered in the activity, page history and away surfaces, and attribution surviving both revocation and a rebuild of the activity log.
+It also covers signing in through an identity provider against a provider that signs real tokens with a real key, so the refusals below are the actual checking answering rather than a stub: a matched account keeping its own name and role, an unknown email refused, an invitation creating an account and still being single use, auto-registration landing somebody on a project, an address outside the allowed domains refused, an unverified email refused, a callback that did not start in this browser, a sign-in completed twice, a token issued for another application, answering another sign-in, expired, or signed with a key the provider never published, a return path that tries to name another origin, and the route being closed to agent credentials.
+It covers the linking that makes turning single sign-on on safe on an installation that already has people in it: a password account signed in and keeping its own name and role, an address matched however it was capitalised, the password still working afterwards, an address changed at the provider following the person rather than stranding them, a change onto an address another account uses refused rather than merged, a second provider person claiming a linked account refused, a created account remembered the same way, somebody off every project refused link or no link, and the link recorded under the issuer the token asserts rather than the address somebody typed.
+It covers setting that provider up as well: the redirect address the screen hands you, reading a provider's own configuration rather than transcribing it, a trailing slash and a pasted discovery URL naming the same provider, an address that is not a provider answering with a reason instead of a failure, a sign-in configured and working without a restart, a saved secret surviving every other edit on the screen, the screen being the admin's rather than a project owner's, the environment winning and saying so, and the whole surface closed to agent credentials.
+Alongside those, the sign-in rate limit's separate allowances per address, its refusal to believe a forwarded address nobody vouched for, its survival of a backwards clock step, the cap on how many keys it will remember, and the content security policy on both the API and the page.
 
 ## Self-hosting
 
@@ -343,6 +367,7 @@ docker compose up -d --build
 The Compose configuration exposes Grimoire on port `8080` and persists both SQLite identity data and Markdown pages in the local `data` directory.
 Place Grimoire behind a TLS-enabled reverse proxy before inviting collaborators over the internet.
 Production session cookies are marked Secure and require HTTPS.
+Set `GRIMOIRE_TRUST_PROXY=1` when you do, so a failed sign-in is counted against the visitor rather than against the proxy every visitor arrives through.
 
 Back up the `data` directory to preserve accounts, work, and ideas.
 Do not run multiple Grimoire containers against the same SQLite file or project directory.

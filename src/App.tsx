@@ -493,8 +493,19 @@ export function App() {
     return <AuthScreen mode="setup" onAuthenticated={onAuthenticated} />;
   }
   if (sessionState.status === "anonymous") {
-    const invite = new URLSearchParams(location.search).get("invite") ?? undefined;
-    return <AuthScreen inviteCode={invite} mode={invite ? "register" : "login"} onAuthenticated={onAuthenticated} />;
+    const parameters = new URLSearchParams(location.search);
+    const invite = parameters.get("invite") ?? undefined;
+    return (
+      <AuthScreen
+        inviteCode={invite}
+        mode={invite ? "register" : "login"}
+        onAuthenticated={onAuthenticated}
+        oidc={sessionState.oidc}
+        // A provider sign-in that failed comes back as a redirect carrying its reason, since
+        // there is no fetch left to reject by the time the browser is here again.
+        providerError={parameters.get("signin_error") ?? undefined}
+      />
+    );
   }
   if (!board) return null;
   if (projectOpening) {

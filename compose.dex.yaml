@@ -1,0 +1,32 @@
+# An identity provider to develop against.
+#
+#   docker compose -f compose.dex.yaml up -d
+#
+# Then set Grimoire's provider address to http://127.0.0.1:5556/dex, with client id
+# "grimoire" and secret "grimoire-client-secret", and sign in as admin@example.com with
+# the password "dex-test-password". See docs/single-sign-on.md.
+#
+# Separate from compose.yaml on purpose: Grimoire does not need an identity provider to
+# run, and nobody self-hosting it should be handed one they did not ask for.
+
+name: grimoire-dex
+
+services:
+  dex:
+    image: ghcr.io/dexidp/dex:latest
+    restart: unless-stopped
+    command: dex serve /etc/dex/config.yaml
+    ports:
+      - "127.0.0.1:5556:5556"
+    volumes:
+      - ./ops/dex-config.yaml:/etc/dex/config.yaml:ro
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - --spider
+        - -q
+        - http://127.0.0.1:5556/dex/.well-known/openid-configuration
+      interval: 10s
+      timeout: 3s
+      retries: 5

@@ -8,6 +8,8 @@ import type {
   DiscussionThread,
   EditConflict,
   IdeaWorkspace,
+  OidcProviderDescription,
+  OidcSettings,
   SearchResults,
   SessionState,
 } from "../../shared/types";
@@ -156,6 +158,32 @@ export type GithubVerification =
 
 export function verifyGithub(): Promise<GithubVerification> {
   return request<GithubVerification>("/api/github/verify", { method: "POST", body: "{}" });
+}
+
+/** How this installation signs people in, as the admin's setup screen reads and writes it. */
+export function oidcSettings(): Promise<{ settings: OidcSettings }> {
+  return request<{ settings: OidcSettings }>("/api/auth/oidc/settings");
+}
+
+export function saveOidcSettings(input: Partial<OidcSettings> & { clientSecret?: string }): Promise<{ settings: OidcSettings }> {
+  return request<{ settings: OidcSettings }>("/api/auth/oidc/settings", {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+/**
+ * Asks a provider to describe itself, before anything about it is saved.
+ *
+ * One call does the filling in and the checking, because they are the same question. The
+ * answer is a description or a reason, never a thrown error, so a wrong address is something
+ * the screen can say out loud rather than a failure it has to guess at.
+ */
+export function probeOidcProvider(issuer: string): Promise<{ provider?: OidcProviderDescription; error?: string }> {
+  return request<{ provider?: OidcProviderDescription; error?: string }>("/api/auth/oidc/probe", {
+    method: "POST",
+    body: JSON.stringify({ issuer }),
+  });
 }
 
 /** The owner's restore list: every project that has been archived, newest first. */

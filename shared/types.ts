@@ -23,10 +23,82 @@ export type User = {
   avatarUrl?: string | null;
 };
 
-export type SessionState =
-  | { status: "setup_required" }
-  | { status: "anonymous" }
-  | { status: "authenticated"; user: User };
+/**
+ * The other door, when the operator has opened one.
+ *
+ * Present on every session answer rather than only the signed-out ones, so the sign-in screen
+ * knows what to offer before anybody has an account and nothing has to ask a second time.
+ */
+export type SignInProviders = {
+  oidc?: {
+    label: string;
+    /**
+     * Set when the provider publishes its own button, which then overrides the label.
+     *
+     * Not a style preference: Google requires a particular wording and an unmodified mark, and
+     * the button somebody has been taught to recognise is part of what makes handing over an
+     * account feel safe rather than like a phishing page.
+     */
+    brand?: "google";
+  };
+};
+
+export type SessionState = SignInProviders &
+  ({ status: "setup_required" } | { status: "anonymous" } | { status: "authenticated"; user: User });
+
+/** Where the provider's settings are read from. The environment wins where it says anything. */
+export type OidcSource = "environment" | "settings" | "none";
+
+/**
+ * The provider as the admin's setup screen sees it.
+ *
+ * The client secret is never among these. `clientSecretSet` is the whole of what the screen
+ * needs - whether to say "a secret is saved" or to ask for one - and a secret that is written
+ * once and never read back cannot be leaked by a screenshot of the page it was set on.
+ */
+export type OidcSettings = {
+  source: OidcSource;
+  enabled: boolean;
+  issuer: string;
+  clientId: string;
+  clientSecretSet: boolean;
+  scopes: string;
+  label: string;
+  autoRegister: boolean;
+  allowedEmailDomains: string;
+  redirectUri: string;
+  signupProject: string;
+  /**
+   * The address to register with the provider.
+   *
+   * Shown rather than described, because a redirect URI that does not match to the character
+   * is the single most common way an OpenID setup fails, and every deployment shape - a
+   * tunnel, a reverse proxy, a port that is not the default - is a chance to get it wrong.
+   */
+  callbackUrl: string;
+  /**
+   * How many accounts have signed in through this provider and been recorded as its people.
+   *
+   * Counted against the issuer in force, so pointing Grimoire at a different provider says
+   * nobody is linked yet rather than counting links the new provider never made.
+   */
+  linkedAccounts: number;
+  updatedAt: string | null;
+};
+
+/** What a provider says about itself when asked, which is what fills the screen in. */
+export type OidcProviderDescription = {
+  issuer: string;
+  discoveryUrl: string;
+  authorizationEndpoint: string;
+  tokenEndpoint: string;
+  userinfoEndpoint: string | null;
+  jwksUri: string | null;
+  signingAlgorithms: string[];
+  supportsPkce: boolean;
+  scopesSupported: string[];
+  signingKeyCount: number;
+};
 
 export type Member = User & {
   /**

@@ -14,6 +14,20 @@ services:
       PORT: 8080
       GRIMOIRE_DATABASE: /app/data/grimoire.sqlite
       GRIMOIRE_PAGES_DIRECTORY: /app/data/cards
+      # The tunnel is the only thing that reaches this container, and it forwards the visitor's
+      # address. Without this every sign-in would be counted against the tunnel itself.
+      GRIMOIRE_TRUST_PROXY: "1"
+      # Blank unless set in .env, which is how an installation running on passwords alone
+      # starts with no provider rather than with a broken one.
+      GRIMOIRE_OIDC_ISSUER: ${GRIMOIRE_OIDC_ISSUER:-}
+      GRIMOIRE_OIDC_CLIENT_ID: ${GRIMOIRE_OIDC_CLIENT_ID:-}
+      GRIMOIRE_OIDC_CLIENT_SECRET: ${GRIMOIRE_OIDC_CLIENT_SECRET:-}
+      GRIMOIRE_OIDC_LABEL: ${GRIMOIRE_OIDC_LABEL:-}
+      GRIMOIRE_OIDC_REDIRECT_URI: ${GRIMOIRE_OIDC_REDIRECT_URI:-}
+      GRIMOIRE_OIDC_SCOPES: ${GRIMOIRE_OIDC_SCOPES:-}
+      GRIMOIRE_OIDC_AUTO_REGISTER: ${GRIMOIRE_OIDC_AUTO_REGISTER:-}
+      GRIMOIRE_OIDC_ALLOWED_EMAIL_DOMAINS: ${GRIMOIRE_OIDC_ALLOWED_EMAIL_DOMAINS:-}
+      GRIMOIRE_OIDC_SIGNUP_PROJECT: ${GRIMOIRE_OIDC_SIGNUP_PROJECT:-}
     expose:
       - "8080"
     volumes:
