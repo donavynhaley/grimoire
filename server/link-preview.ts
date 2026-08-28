@@ -56,7 +56,9 @@ export function ideaPreview(input: {
   const { authorName, idea, projectName } = input;
   return {
     accent: DEFAULT_ACCENT,
-    details: ["Idea garden", ideaStanding(idea), authorName].filter((value): value is string => value !== null),
+    details: ["Idea garden", ideaStanding(idea), authorName].filter(
+      (value): value is string => value !== null,
+    ),
     projectName,
     title: idea.title,
   };

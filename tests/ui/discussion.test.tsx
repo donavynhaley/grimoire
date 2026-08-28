@@ -39,7 +39,9 @@ function message(authorId: string, authorName: string, body: string, agentName: 
   };
 }
 
-function thread(overrides: Partial<DiscussionThread> & { body: string; authorId: string; authorName: string }): DiscussionThread {
+function thread(
+  overrides: Partial<DiscussionThread> & { body: string; authorId: string; authorName: string },
+): DiscussionThread {
   return {
     ...message(overrides.authorId, overrides.authorName, overrides.body),
     id: overrides.id ?? `t-${overrides.body.slice(0, 8)}`,
@@ -145,7 +147,10 @@ describe("the discussion on a page", () => {
     mountWith([thread({ authorId: THEM, authorName: "Maren", body: "Whose clock?" })], board);
     const user = await openPage(board);
 
-    expect(within(aside()).getByRole("button", { name: /Discussion/ })).toHaveAttribute("aria-pressed", "true");
+    expect(within(aside()).getByRole("button", { name: /Discussion/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
     expect(within(aside()).getByRole("button", { name: "Details" })).toHaveAttribute("aria-pressed", "false");
 
     await user.click(within(aside()).getByRole("button", { name: "Details" }));
@@ -166,7 +171,10 @@ describe("the discussion on a page", () => {
 
     cleanup();
     const read = boardFixture();
-    read.pages.forEach((page) => { page.unseenMessages = 0; page.openThreads = 5; });
+    read.pages.forEach((page) => {
+      page.unseenMessages = 0;
+      page.openThreads = 5;
+    });
     mountWith([], read);
     await openPage(read, { discussion: false });
     // Five open threads you have already read are not news.
@@ -191,10 +199,13 @@ describe("the discussion on a page", () => {
   it("says the word and the count in exactly one place", async () => {
     const board = boardFixture();
     board.pages[1]!.unseenMessages = 2;
-    mountWith([
-      thread({ authorId: THEM, authorName: "Maren", body: "One?" }),
-      thread({ authorId: THEM, authorName: "Maren", body: "Two?" }),
-    ], board);
+    mountWith(
+      [
+        thread({ authorId: THEM, authorName: "Maren", body: "One?" }),
+        thread({ authorId: THEM, authorName: "Maren", body: "Two?" }),
+      ],
+      board,
+    );
     await openPage(board);
 
     // The switch is the label, the count, and the way in and out. A heading inside the column
@@ -238,17 +249,20 @@ describe("the discussion on a page", () => {
   it("folds what has been answered away until it is asked for", async () => {
     const board = boardFixture();
     const now = new Date().toISOString();
-    mountWith([
-      thread({ authorId: THEM, authorName: "Maren", body: "Still deciding this one" }),
-      thread({
-        authorId: THEM,
-        authorName: "Maren",
-        body: "Settled a while ago",
-        answeredAt: now,
-        answeredById: ME,
-        answeredByName: "Donavyn",
-      }),
-    ], board);
+    mountWith(
+      [
+        thread({ authorId: THEM, authorName: "Maren", body: "Still deciding this one" }),
+        thread({
+          authorId: THEM,
+          authorName: "Maren",
+          body: "Settled a while ago",
+          answeredAt: now,
+          answeredById: ME,
+          answeredByName: "Donavyn",
+        }),
+      ],
+      board,
+    );
     const user = await openPage(board);
 
     const discussion = section();
@@ -261,10 +275,13 @@ describe("the discussion on a page", () => {
 
   it("says nothing about whose turn it is", async () => {
     const board = boardFixture();
-    mountWith([
-      thread({ id: "t-theirs", authorId: THEM, authorName: "Maren", body: "Asked of you" }),
-      thread({ id: "t-mine", authorId: ME, authorName: "Donavyn", body: "Asked by you" }),
-    ], board);
+    mountWith(
+      [
+        thread({ id: "t-theirs", authorId: THEM, authorName: "Maren", body: "Asked of you" }),
+        thread({ id: "t-mine", authorId: ME, authorName: "Donavyn", body: "Asked by you" }),
+      ],
+      board,
+    );
     await openPage(board);
 
     // A conversation between two people about one page does not need to be told who should
@@ -278,14 +295,17 @@ describe("the discussion on a page", () => {
 
   it("names the agent beside the person it wrote for", async () => {
     const board = boardFixture();
-    mountWith([
-      thread({
-        authorId: THEM,
-        authorName: "Maren",
-        body: "Deployed to dev; smoke tests green.",
-        agentName: "Planning agent",
-      } as Partial<DiscussionThread> & { body: string; authorId: string; authorName: string }),
-    ], board);
+    mountWith(
+      [
+        thread({
+          authorId: THEM,
+          authorName: "Maren",
+          body: "Deployed to dev; smoke tests green.",
+          agentName: "Planning agent",
+        } as Partial<DiscussionThread> & { body: string; authorId: string; authorName: string }),
+      ],
+      board,
+    );
     await openPage(board);
 
     const discussion = section();
@@ -345,9 +365,10 @@ describe("the discussion on a page", () => {
 
   it("replies into the thread that was asked, not a new one", async () => {
     const board = boardFixture();
-    const calls = mountWith([
-      thread({ id: "t-clock", authorId: THEM, authorName: "Maren", body: "Whose clock?" }),
-    ], board);
+    const calls = mountWith(
+      [thread({ id: "t-clock", authorId: THEM, authorName: "Maren", body: "Whose clock?" })],
+      board,
+    );
     const user = await openPage(board);
 
     await user.click(within(section()).getByRole("button", { name: "reply" }));
@@ -361,9 +382,10 @@ describe("the discussion on a page", () => {
 
   it("marks a thread answered", async () => {
     const board = boardFixture();
-    const calls = mountWith([
-      thread({ id: "t-open", authorId: THEM, authorName: "Maren", body: "Whose clock?" }),
-    ], board);
+    const calls = mountWith(
+      [thread({ id: "t-open", authorId: THEM, authorName: "Maren", body: "Whose clock?" })],
+      board,
+    );
     const user = await openPage(board);
 
     await user.click(within(section()).getByRole("button", { name: "answered" }));
@@ -372,17 +394,19 @@ describe("the discussion on a page", () => {
     expect(posted?.body).toEqual({ answered: true });
   });
 
-
   it("lights up your own name and leaves everyone else's quiet", async () => {
     const board = boardFixture();
-    mountWith([
-      thread({
-        authorId: THEM,
-        authorName: "Maren",
-        body: "@Donavyn can you take this? @Maren has Saturday.",
-        mentions: [ME, THEM],
-      } as Partial<DiscussionThread> & { body: string; authorId: string; authorName: string }),
-    ], board);
+    mountWith(
+      [
+        thread({
+          authorId: THEM,
+          authorName: "Maren",
+          body: "@Donavyn can you take this? @Maren has Saturday.",
+          mentions: [ME, THEM],
+        } as Partial<DiscussionThread> & { body: string; authorId: string; authorName: string }),
+      ],
+      board,
+    );
     await openPage(board);
 
     const marks = [...document.querySelectorAll(".mention")];
@@ -394,9 +418,10 @@ describe("the discussion on a page", () => {
 
   it("leaves a name nobody resolved as plain text", async () => {
     const board = boardFixture();
-    mountWith([
-      thread({ authorId: THEM, authorName: "Maren", body: "@Nobody is on this project.", mentions: [] }),
-    ], board);
+    mountWith(
+      [thread({ authorId: THEM, authorName: "Maren", body: "@Nobody is on this project.", mentions: [] })],
+      board,
+    );
     await openPage(board);
 
     expect(document.querySelector(".mention")).toBeNull();
@@ -446,12 +471,9 @@ describe("the discussion on a page", () => {
     expect(document.querySelector(".mention-picker")).toBeNull();
   });
 
-
   it("backs out of a reply without closing the page", async () => {
     const board = boardFixture();
-    mountWith([
-      thread({ id: "t-clock", authorId: THEM, authorName: "Maren", body: "Whose clock?" }),
-    ], board);
+    mountWith([thread({ id: "t-clock", authorId: THEM, authorName: "Maren", body: "Whose clock?" })], board);
     const user = await openPage(board);
 
     await user.click(within(section()).getByRole("button", { name: "reply" }));
@@ -501,7 +523,9 @@ describe("the discussion on a page", () => {
     // Assigned synchronously by the executor, but the compiler cannot see that, so it starts
     // as a callable no-op rather than null.
     let release = () => {};
-    const held = new Promise<void>((resolve) => { release = resolve; });
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
 
     vi.stubGlobal("fetch", (input: RequestInfo | URL, init: RequestInit = {}) => {
       const url = requestUrl(input);
@@ -515,7 +539,8 @@ describe("the discussion on a page", () => {
       if (/^\/api\/pages\/[^/]+\/discussion/.test(url)) return held.then(() => response({ threads: [] }));
       if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
       if (url.startsWith("/api/agent-tokens")) return response({ tokens: [] });
-      if (url.startsWith("/api/session")) return response({ status: "authenticated", user: board.currentUser });
+      if (url.startsWith("/api/session"))
+        return response({ status: "authenticated", user: board.currentUser });
       return response(board);
     });
     render(<App />);
@@ -539,7 +564,8 @@ describe("the discussion on a page", () => {
       if (/^\/api\/pages\/[^/]+\/discussion/.test(url)) return Promise.reject(new Error("offline"));
       if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
       if (url.startsWith("/api/agent-tokens")) return response({ tokens: [] });
-      if (url.startsWith("/api/session")) return response({ status: "authenticated", user: board.currentUser });
+      if (url.startsWith("/api/session"))
+        return response({ status: "authenticated", user: board.currentUser });
       return response(board);
     });
     render(<App />);

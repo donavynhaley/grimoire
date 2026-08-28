@@ -4,7 +4,10 @@ import { fakeProvider, ISSUER } from "./oidc-provider";
 
 type Server = Awaited<ReturnType<typeof startTestServer>>;
 
-async function beginSignIn(server: Server, query = ""): Promise<{ state: string; nonce: string; cookie: string }> {
+async function beginSignIn(
+  server: Server,
+  query = "",
+): Promise<{ state: string; nonce: string; cookie: string }> {
   const started = await server.fetchRaw(`/api/auth/oidc${query}`, { redirect: "manual" });
   expect(started.status).toBe(302);
   const destination = new URL(started.headers.get("location")!);
@@ -29,7 +32,9 @@ function sessionCookie(response: Response): string | null {
 }
 
 function refusal(response: Response): string {
-  return new URL(response.headers.get("location")!, "http://localhost").searchParams.get("signin_error") ?? "";
+  return (
+    new URL(response.headers.get("location")!, "http://localhost").searchParams.get("signin_error") ?? ""
+  );
 }
 
 /** Signs in through the provider once, as whoever the claims say. */
@@ -52,7 +57,10 @@ async function whoIs(server: Server, cookie: string) {
 describe("linking a provider identity to an account somebody already had", () => {
   it("signs a password account in and keeps everything about it", async () => {
     const provider = fakeProvider();
-    const server = await startTestServer(undefined, { oidc: provider.settings, oidcFetcher: provider.fetcher });
+    const server = await startTestServer(undefined, {
+      oidc: provider.settings,
+      oidcFetcher: provider.fetcher,
+    });
     const created = await bootstrap(server);
     void created;
     const before = await whoIs(server, server.cookie());
@@ -73,18 +81,26 @@ describe("linking a provider identity to an account somebody already had", () =>
 
   it("matches an address however it was capitalised at either end", async () => {
     const provider = fakeProvider();
-    const server = await startTestServer(undefined, { oidc: provider.settings, oidcFetcher: provider.fetcher });
+    const server = await startTestServer(undefined, {
+      oidc: provider.settings,
+      oidcFetcher: provider.fetcher,
+    });
     await bootstrap(server);
     const before = await whoIs(server, server.cookie());
 
-    const landed = await signInThrough(server, provider, "code-1", { email: ownerAccount.email.toUpperCase() });
+    const landed = await signInThrough(server, provider, "code-1", {
+      email: ownerAccount.email.toUpperCase(),
+    });
     const after = await whoIs(server, sessionCookie(landed)!);
     expect(after.user.id).toBe(before.user.id);
   });
 
   it("leaves the password working, so both doors reach the one account", async () => {
     const provider = fakeProvider();
-    const server = await startTestServer(undefined, { oidc: provider.settings, oidcFetcher: provider.fetcher });
+    const server = await startTestServer(undefined, {
+      oidc: provider.settings,
+      oidcFetcher: provider.fetcher,
+    });
     await bootstrap(server);
     const before = await whoIs(server, server.cookie());
 
@@ -101,7 +117,10 @@ describe("linking a provider identity to an account somebody already had", () =>
 
   it("follows somebody whose address changed at the provider, instead of stranding them", async () => {
     const provider = fakeProvider();
-    const server = await startTestServer(undefined, { oidc: provider.settings, oidcFetcher: provider.fetcher });
+    const server = await startTestServer(undefined, {
+      oidc: provider.settings,
+      oidcFetcher: provider.fetcher,
+    });
     await bootstrap(server);
     const before = await whoIs(server, server.cookie());
 
@@ -123,7 +142,10 @@ describe("linking a provider identity to an account somebody already had", () =>
 
   it("will not walk an account onto an address another account already uses", async () => {
     const provider = fakeProvider({ config: { autoRegister: true } });
-    const server = await startTestServer(undefined, { oidc: provider.settings, oidcFetcher: provider.fetcher });
+    const server = await startTestServer(undefined, {
+      oidc: provider.settings,
+      oidcFetcher: provider.fetcher,
+    });
     await bootstrap(server);
 
     // A second account, made through the provider.
@@ -148,7 +170,10 @@ describe("linking a provider identity to an account somebody already had", () =>
 
   it("refuses a second provider person claiming an account the first one holds", async () => {
     const provider = fakeProvider();
-    const server = await startTestServer(undefined, { oidc: provider.settings, oidcFetcher: provider.fetcher });
+    const server = await startTestServer(undefined, {
+      oidc: provider.settings,
+      oidcFetcher: provider.fetcher,
+    });
     await bootstrap(server);
 
     await signInThrough(server, provider, "code-1", { email: ownerAccount.email, sub: "provider-subject-1" });
@@ -165,13 +190,22 @@ describe("linking a provider identity to an account somebody already had", () =>
 
   it("remembers a created account too, not only a matched one", async () => {
     const provider = fakeProvider({ config: { autoRegister: true } });
-    const server = await startTestServer(undefined, { oidc: provider.settings, oidcFetcher: provider.fetcher });
+    const server = await startTestServer(undefined, {
+      oidc: provider.settings,
+      oidcFetcher: provider.fetcher,
+    });
     await bootstrap(server);
 
-    const first = await signInThrough(server, provider, "code-1", { email: "alan@team.example.test", sub: "made-here" });
+    const first = await signInThrough(server, provider, "code-1", {
+      email: "alan@team.example.test",
+      sub: "made-here",
+    });
     const made = await whoIs(server, sessionCookie(first)!);
 
-    const renamed = await signInThrough(server, provider, "code-2", { email: "alan@example.org", sub: "made-here" });
+    const renamed = await signInThrough(server, provider, "code-2", {
+      email: "alan@example.org",
+      sub: "made-here",
+    });
     const after = await whoIs(server, sessionCookie(renamed)!);
     expect(after.user.id).toBe(made.user.id);
     expect(after.user.email).toBe("alan@example.org");
@@ -179,10 +213,16 @@ describe("linking a provider identity to an account somebody already had", () =>
 
   it("stops signing somebody in once they are off every project, link or no link", async () => {
     const provider = fakeProvider({ config: { autoRegister: true } });
-    const server = await startTestServer(undefined, { oidc: provider.settings, oidcFetcher: provider.fetcher });
+    const server = await startTestServer(undefined, {
+      oidc: provider.settings,
+      oidcFetcher: provider.fetcher,
+    });
     await bootstrap(server);
 
-    const first = await signInThrough(server, provider, "code-1", { email: "alan@team.example.test", sub: "made-here" });
+    const first = await signInThrough(server, provider, "code-1", {
+      email: "alan@team.example.test",
+      sub: "made-here",
+    });
     const made = await whoIs(server, sessionCookie(first)!);
 
     const removed = await server.request(`/api/members/${made.user.id}`, { method: "DELETE" });
@@ -191,14 +231,20 @@ describe("linking a provider identity to an account somebody already had", () =>
     // A recorded link is a claim about which account somebody is, never a reason to let them
     // in: the account is still there and still theirs, and it now reaches nothing. Password
     // sign-in refuses this exactly the same way.
-    const again = await signInThrough(server, provider, "code-2", { email: "alan@team.example.test", sub: "made-here" });
+    const again = await signInThrough(server, provider, "code-2", {
+      email: "alan@team.example.test",
+      sub: "made-here",
+    });
     expect(refusal(again)).toContain("not on any project");
     expect(sessionCookie(again)).toBeNull();
   });
 
   it("tells the admin how many accounts sign in this way", async () => {
     const provider = fakeProvider({ config: { autoRegister: true } });
-    const server = await startTestServer(undefined, { oidc: provider.settings, oidcFetcher: provider.fetcher });
+    const server = await startTestServer(undefined, {
+      oidc: provider.settings,
+      oidcFetcher: provider.fetcher,
+    });
     await bootstrap(server);
 
     const before = await server.request<{ settings: { linkedAccounts: number } }>("/api/auth/oidc/settings");

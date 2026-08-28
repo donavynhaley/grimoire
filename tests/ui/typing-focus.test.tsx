@@ -13,7 +13,12 @@ function stubPointer(coarse: boolean) {
   Object.defineProperty(window, "matchMedia", {
     configurable: true,
     writable: true,
-    value: (query: string) => ({ matches: coarse, media: query, addEventListener() {}, removeEventListener() {} }),
+    value: (query: string) => ({
+      matches: coarse,
+      media: query,
+      addEventListener() {},
+      removeEventListener() {},
+    }),
   });
 }
 

@@ -16,13 +16,16 @@ export function useTypingFocus<T extends HTMLElement>(options: { always?: boolea
   const { always = false } = options;
   const claimed = useRef(false);
 
-  return useCallback((node: T | null) => {
-    // A ref callback runs again on every re-render this element survives; the field should
-    // only be claimed when it first appears, never stolen back mid-edit.
-    if (!node || claimed.current) return;
-    claimed.current = true;
-    const coarse = window.matchMedia?.("(pointer: coarse)").matches ?? false;
-    if (coarse && !always) return;
-    node.focus({ preventScroll: true });
-  }, [always]);
+  return useCallback(
+    (node: T | null) => {
+      // A ref callback runs again on every re-render this element survives; the field should
+      // only be claimed when it first appears, never stolen back mid-edit.
+      if (!node || claimed.current) return;
+      claimed.current = true;
+      const coarse = window.matchMedia?.("(pointer: coarse)").matches ?? false;
+      if (coarse && !always) return;
+      node.focus({ preventScroll: true });
+    },
+    [always],
+  );
 }

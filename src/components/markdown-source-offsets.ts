@@ -36,7 +36,12 @@ export function rehypeSourceOffsets() {
  * Returns null when the click cannot be placed, and the caller keeps its
  * caret-at-the-end behaviour.
  */
-export function sourceOffsetFromPoint(view: HTMLElement, source: string, x: number, y: number): number | null {
+export function sourceOffsetFromPoint(
+  view: HTMLElement,
+  source: string,
+  x: number,
+  y: number,
+): number | null {
   const caret = caretFromPoint(x, y);
   if (!caret) return null;
 

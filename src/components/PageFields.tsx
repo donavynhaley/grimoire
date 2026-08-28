@@ -68,7 +68,9 @@ export function PageFieldsEditor({ fields, values, onUpdate }: Props) {
                 className={values[field.key] === undefined ? "choice active" : "choice"}
                 onClick={() => void set(field.key, null)}
                 type="button"
-              >none</button>
+              >
+                none
+              </button>
               {field.options.map((option) => (
                 <button
                   aria-label={`Set ${field.label} to ${option}`}
@@ -76,7 +78,9 @@ export function PageFieldsEditor({ fields, values, onUpdate }: Props) {
                   key={option}
                   onClick={() => void set(field.key, option)}
                   type="button"
-                >{option}</button>
+                >
+                  {option}
+                </button>
               ))}
             </div>
           ) : field.type === "checkbox" ? (
@@ -86,19 +90,25 @@ export function PageFieldsEditor({ fields, values, onUpdate }: Props) {
                 className={values[field.key] === true ? "choice active" : "choice"}
                 onClick={() => void set(field.key, true)}
                 type="button"
-              >yes</button>
+              >
+                yes
+              </button>
               <button
                 aria-label={`Set ${field.label} to no`}
                 className={values[field.key] === false ? "choice active" : "choice"}
                 onClick={() => void set(field.key, false)}
                 type="button"
-              >no</button>
+              >
+                no
+              </button>
               <button
                 aria-label={`Clear ${field.label}`}
                 className={values[field.key] === undefined ? "choice active" : "choice"}
                 onClick={() => void set(field.key, null)}
                 type="button"
-              >none</button>
+              >
+                none
+              </button>
             </div>
           ) : editingKey === field.key ? (
             <input
@@ -108,7 +118,10 @@ export function PageFieldsEditor({ fields, values, onUpdate }: Props) {
               onBlur={() => commitDraft(field)}
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === "Enter") { event.preventDefault(); commitDraft(field); }
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  commitDraft(field);
+                }
                 if (event.key === "Escape") setEditingKey(null);
               }}
               placeholder={field.type === "date" ? "YYYY-MM-DD" : ""}
@@ -126,7 +139,9 @@ export function PageFieldsEditor({ fields, values, onUpdate }: Props) {
                   setEditingKey(field.key);
                 }}
                 type="button"
-              >change</button>
+              >
+                change
+              </button>
             </div>
           )}
         </Growing>
@@ -153,7 +168,11 @@ const MIN_LIST = 96;
  * rests at, and the search is a layer on top of it. It is a popover entering rather than a
  * section unfolding, which is the case the height rule leaves to CSS.
  */
-function SearchableChoice({ field, onSet, value }: {
+function SearchableChoice({
+  field,
+  onSet,
+  value,
+}: {
   field: ProjectField;
   onSet: (value: string | null) => void;
   value: FieldValue | undefined;
@@ -215,7 +234,9 @@ function SearchableChoice({ field, onSet, value }: {
           className="rail-change"
           onClick={() => (searching ? close() : open())}
           type="button"
-        >change</button>
+        >
+          change
+        </button>
       </div>
       {searching && (
         <div
@@ -252,7 +273,10 @@ function SearchableChoice({ field, onSet, value }: {
               <button
                 aria-label={`Set ${field.label} to ${option}`}
                 key={option}
-                onClick={() => { onSet(option); close(); }}
+                onClick={() => {
+                  onSet(option);
+                  close();
+                }}
                 type="button"
               >
                 <span>{option === value ? <strong>{option} ✓</strong> : <strong>{option}</strong>}</span>
@@ -262,9 +286,20 @@ function SearchableChoice({ field, onSet, value }: {
           </div>
           <div className="field-search-actions">
             {value !== undefined && (
-              <button className="text-button" onClick={() => { onSet(null); close(); }} type="button">clear</button>
+              <button
+                className="text-button"
+                onClick={() => {
+                  onSet(null);
+                  close();
+                }}
+                type="button"
+              >
+                clear
+              </button>
             )}
-            <button className="text-button" onClick={close} type="button">cancel</button>
+            <button className="text-button" onClick={close} type="button">
+              cancel
+            </button>
           </div>
         </div>
       )}

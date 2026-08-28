@@ -60,9 +60,14 @@ describe("project images", () => {
     });
     const { renameSync } = await import("node:fs");
     const imagesDirectory = join(server.pagesDirectory, "wizard-simulator", "images");
-    renameSync(join(imagesDirectory, uploaded.body.name), join(imagesDirectory, "Pasted image 20260807183045.png"));
+    renameSync(
+      join(imagesDirectory, uploaded.body.name),
+      join(imagesDirectory, "Pasted image 20260807183045.png"),
+    );
 
-    const served = await server.fetchRaw(`/api/images/${encodeURIComponent("Pasted image 20260807183045.png")}`);
+    const served = await server.fetchRaw(
+      `/api/images/${encodeURIComponent("Pasted image 20260807183045.png")}`,
+    );
     expect(served.status).toBe(200);
     expect(served.headers.get("content-type")).toBe("image/png");
   });
@@ -104,7 +109,10 @@ describe("project images", () => {
 
     const anonymousRead = await fetch(`${server.baseUrl}/api/images/${uploaded.body.name}`);
     expect(anonymousRead.status).toBe(401);
-    const anonymousUpload = await fetch(`${server.baseUrl}/api/images`, { method: "POST", body: ONE_PIXEL_PNG });
+    const anonymousUpload = await fetch(`${server.baseUrl}/api/images`, {
+      method: "POST",
+      body: ONE_PIXEL_PNG,
+    });
     expect(anonymousUpload.status).toBe(401);
   });
 });

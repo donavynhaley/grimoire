@@ -29,7 +29,9 @@ const STRIKETHROUGH = Decoration.mark({ class: "cm-lp-strikethrough" });
 const INLINE_CODE = Decoration.mark({ class: "cm-lp-code" });
 const QUOTE_LINE = Decoration.line({ class: "cm-lp-quote" });
 const CODE_LINE = Decoration.line({ class: "cm-lp-code-line" });
-const HEADING_LINES = [1, 2, 3, 4, 5, 6].map((level) => Decoration.line({ class: `cm-lp-heading cm-lp-h${level}` }));
+const HEADING_LINES = [1, 2, 3, 4, 5, 6].map((level) =>
+  Decoration.line({ class: `cm-lp-heading cm-lp-h${level}` }),
+);
 
 class ImageWidget extends WidgetType {
   constructor(
@@ -43,8 +45,13 @@ class ImageWidget extends WidgetType {
   }
 
   override eq(other: ImageWidget): boolean {
-    return other.src === this.src && other.alt === this.alt && other.width === this.width
-      && other.height === this.height && other.block === this.block;
+    return (
+      other.src === this.src &&
+      other.alt === this.alt &&
+      other.width === this.width &&
+      other.height === this.height &&
+      other.block === this.block
+    );
   }
 
   override toDOM(): HTMLElement {
@@ -68,7 +75,10 @@ class ImageWidget extends WidgetType {
  * aimed at the brackets stops against them instead of entering them.
  */
 class TaskWidget extends WidgetType {
-  constructor(readonly checked: boolean, readonly from: number) {
+  constructor(
+    readonly checked: boolean,
+    readonly from: number,
+  ) {
     super();
   }
 
@@ -85,7 +95,9 @@ class TaskWidget extends WidgetType {
       event.preventDefault();
       const marker = view.state.doc.sliceString(this.from, this.from + 3);
       if (!/^\[[ xX]\]$/.test(marker)) return;
-      view.dispatch({ changes: { from: this.from, to: this.from + 3, insert: this.checked ? "[ ]" : "[x]" } });
+      view.dispatch({
+        changes: { from: this.from, to: this.from + 3, insert: this.checked ? "[ ]" : "[x]" },
+      });
     });
     return box;
   }
@@ -142,7 +154,11 @@ type TableModel = { rows: string[][]; alignments: (string | null)[] };
  * first.
  */
 class TableWidget extends WidgetType {
-  constructor(readonly source: string, readonly from: number, readonly to: number) {
+  constructor(
+    readonly source: string,
+    readonly from: number,
+    readonly to: number,
+  ) {
     super();
   }
 
@@ -213,7 +229,10 @@ class TableWidget extends WidgetType {
         adder.append(
           control("+", "Add a column", "cm-lp-table-add", () => {
             rewrite(
-              { rows: model.rows.map((cells) => [...padRow(cells, columns), ""]), alignments: [...model.alignments, null] },
+              {
+                rows: model.rows.map((cells) => [...padRow(cells, columns), ""]),
+                alignments: [...model.alignments, null],
+              },
               0,
               columns,
             );
@@ -232,7 +251,11 @@ class TableWidget extends WidgetType {
     wrapper.append(table);
     wrapper.append(
       control("+", "Add a row", "cm-lp-table-add-row", () => {
-        rewrite({ rows: [...model.rows, new Array(columns).fill("")], alignments: model.alignments }, model.rows.length, 0);
+        rewrite(
+          { rows: [...model.rows, new Array(columns).fill("")], alignments: model.alignments },
+          model.rows.length,
+          0,
+        );
       }),
     );
     return wrapper;
@@ -244,7 +267,12 @@ class TableWidget extends WidgetType {
 }
 
 function splitRow(row: string): string[] {
-  return row.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim());
+  return row
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim());
 }
 
 function columnAlignments(delimiter: string): (string | null)[] {
@@ -285,7 +313,10 @@ function serializeTable(model: TableModel): string {
   const widths = Array.from({ length: columns }, (_, column) =>
     model.rows.reduce((widest, row) => Math.max(widest, (row[column] ?? "").length), 3),
   );
-  const line = (cells: string[]) => `| ${padRow(cells, columns).map((cell, column) => cell.padEnd(widths[column]!)).join(" | ")} |`;
+  const line = (cells: string[]) =>
+    `| ${padRow(cells, columns)
+      .map((cell, column) => cell.padEnd(widths[column]!))
+      .join(" | ")} |`;
   const delimiter = `| ${widths
     .map((width, column) => {
       const alignment = model.alignments[column];
@@ -389,7 +420,10 @@ function build(state: EditorState, focused: boolean): Built {
         const last = state.doc.lineAt(Math.min(node.to, state.doc.length));
         const source = state.doc.sliceString(first.from, last.to);
         decorations.push(
-          Decoration.replace({ widget: new TableWidget(source, first.from, last.to), block: true }).range(first.from, last.to),
+          Decoration.replace({ widget: new TableWidget(source, first.from, last.to), block: true }).range(
+            first.from,
+            last.to,
+          ),
         );
         atomic.push(HIDDEN.range(first.from, last.to));
         claimed.push([first.from, last.to]);
@@ -399,7 +433,9 @@ function build(state: EditorState, focused: boolean): Built {
       if (node.name === "HorizontalRule") {
         if (show) return undefined;
         const line = state.doc.lineAt(node.from);
-        decorations.push(Decoration.replace({ widget: new RuleWidget(), block: true }).range(line.from, line.to));
+        decorations.push(
+          Decoration.replace({ widget: new RuleWidget(), block: true }).range(line.from, line.to),
+        );
         atomic.push(HIDDEN.range(line.from, line.to));
         claimed.push([line.from, line.to]);
         return false;
@@ -439,7 +475,9 @@ function build(state: EditorState, focused: boolean): Built {
       // From here down is syntax that only exists to produce what is already drawn.
       if (node.name === "TaskMarker") {
         const checked = /[xX]/.test(state.doc.sliceString(node.from, node.to));
-        decorations.push(Decoration.replace({ widget: new TaskWidget(checked, node.from) }).range(node.from, node.to));
+        decorations.push(
+          Decoration.replace({ widget: new TaskWidget(checked, node.from) }).range(node.from, node.to),
+        );
         return false;
       }
 
@@ -472,7 +510,13 @@ function build(state: EditorState, focused: boolean): Built {
 
       if (node.name === "Link") {
         const url = urlOf(state, node.node);
-        if (url) decorations.push(Decoration.mark({ class: "cm-lp-link", attributes: { "data-href": url } }).range(node.from, node.to));
+        if (url)
+          decorations.push(
+            Decoration.mark({ class: "cm-lp-link", attributes: { "data-href": url } }).range(
+              node.from,
+              node.to,
+            ),
+          );
         for (const child of childrenOf(node.node)) {
           if (child.name === "LinkMark" || child.name === "URL" || child.name === "LinkTitle") {
             decorations.push(HIDDEN.range(child.from, child.to));
@@ -489,8 +533,9 @@ function build(state: EditorState, focused: boolean): Built {
         const line = state.doc.lineAt(node.from);
         const alone = line.text.trim() === state.doc.sliceString(node.from, node.to).trim();
         decorations.push(
-          Decoration.replace({ widget: new ImageWidget(url, altOf(state, node.node), undefined, undefined, alone) })
-            .range(node.from, node.to),
+          Decoration.replace({
+            widget: new ImageWidget(url, altOf(state, node.node), undefined, undefined, alone),
+          }).range(node.from, node.to),
         );
         atomic.push(HIDDEN.range(node.from, node.to));
         return false;
@@ -513,7 +558,10 @@ function build(state: EditorState, focused: boolean): Built {
     const line = state.doc.lineAt(start);
     const alone = line.text.trim() === match[0];
     decorations.push(
-      Decoration.replace({ widget: new ImageWidget(match[1]!.trim(), alt, width, height, alone) }).range(start, end),
+      Decoration.replace({ widget: new ImageWidget(match[1]!.trim(), alt, width, height, alone) }).range(
+        start,
+        end,
+      ),
     );
     atomic.push(HIDDEN.range(start, end));
   }

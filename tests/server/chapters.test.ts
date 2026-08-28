@@ -158,7 +158,10 @@ describe("chapters", () => {
       await createChapter(server, { name: "First Brew" });
 
       const directory = join(server.pagesDirectory, "wizard-simulator", "chapters");
-      writeFileSync(join(directory, "second-brew.md"), readFileSync(chapterFile(server, "first-brew"), "utf8"));
+      writeFileSync(
+        join(directory, "second-brew.md"),
+        readFileSync(chapterFile(server, "first-brew"), "utf8"),
+      );
 
       const { response } = await server.request("/api/board");
       expect(response.status).toBe(500);
@@ -328,7 +331,9 @@ describe("chapters", () => {
       const pageId = created.body.page.id;
 
       await server.request(`/api/pages/${pageId}`, { method: "DELETE" });
-      const restored = await server.request<{ page: Page }>(`/api/pages/${pageId}/restore`, { method: "POST" });
+      const restored = await server.request<{ page: Page }>(`/api/pages/${pageId}/restore`, {
+        method: "POST",
+      });
 
       expect(restored.response.status).toBe(200);
       expect(restored.body.page.chapter).toBe("first-brew");
@@ -552,12 +557,19 @@ describe("widening the audit entity types", () => {
       .run("user-1", "Donavyn", "owner@example.com", "hash", "owner", "2026-08-01T00:00:00.000Z");
     legacy
       .prepare("INSERT INTO projects (id, name, slug, created_at, updated_at) VALUES (?,?,?,?,?)")
-      .run("project-1", "Wizard Simulator", "wizard-simulator", "2026-08-01T00:00:00.000Z", "2026-08-01T00:00:00.000Z");
+      .run(
+        "project-1",
+        "Wizard Simulator",
+        "wizard-simulator",
+        "2026-08-01T00:00:00.000Z",
+        "2026-08-01T00:00:00.000Z",
+      );
     const insert = legacy.prepare(
       `INSERT INTO audit_events (id, project_id, actor_id, actor_name, entity_type, entity_id, entity_title, action, created_at)
        VALUES (?, 'project-1', 'user-1', 'Donavyn', 'page', ?, ?, 'created', '2026-08-01T00:00:00.000Z')`,
     );
-    for (let index = 1; index <= 5; index += 1) insert.run(`event-${index}`, `page-${index}`, `Page ${index}`);
+    for (let index = 1; index <= 5; index += 1)
+      insert.run(`event-${index}`, `page-${index}`, `Page ${index}`);
     legacy
       .prepare("INSERT INTO seen_cursors VALUES ('project-1', 'user-1', 3, '2026-08-01T00:00:00.000Z')")
       .run();
@@ -584,14 +596,14 @@ describe("widening the audit entity types", () => {
          VALUES ('event-next', 'project-1', 'user-1', 'Donavyn', 'chapter', 'first-brew', 'First Brew', 'created', '2026-08-02T00:00:00.000Z')`,
       )
       .run();
-    const next = migrated.prepare("SELECT MAX(sequence) AS value FROM audit_events").get() as { value: number };
+    const next = migrated.prepare("SELECT MAX(sequence) AS value FROM audit_events").get() as {
+      value: number;
+    };
     expect(Number(next.value)).toBe(6);
 
     // Exactly one sqlite_sequence row. Two would let AUTOINCREMENT reissue a sequence that a
     // reader has already been marked as having seen - the corruption the rebuild guards against.
-    const tracked = migrated
-      .prepare("SELECT seq FROM sqlite_sequence WHERE name = 'audit_events'")
-      .all();
+    const tracked = migrated.prepare("SELECT seq FROM sqlite_sequence WHERE name = 'audit_events'").all();
     expect(tracked).toHaveLength(1);
 
     // The indexes the log pages through are rebuilt with the table.

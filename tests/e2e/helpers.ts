@@ -23,13 +23,20 @@ export async function signIn(page: Page): Promise<void> {
 }
 
 /** Puts a page on the board through the API, which is faster and quieter than typing it in. */
-export async function seedPage(page: Page, title: string, status: "ready" | "in_progress" | "review" | "backlog"): Promise<void> {
+export async function seedPage(
+  page: Page,
+  title: string,
+  status: "ready" | "in_progress" | "review" | "backlog",
+): Promise<void> {
   const response = await page.request.post("/api/pages", { data: { title, status } });
   if (!response.ok()) throw new Error(`seed failed: ${response.status()} ${await response.text()}`);
 }
 
 /** Signs in, seeds any pages the test needs, and lands on a settled board. */
-export async function openBoard(page: Page, pages: Array<{ title: string; status: "ready" | "in_progress" | "review" | "backlog" }> = []): Promise<void> {
+export async function openBoard(
+  page: Page,
+  pages: Array<{ title: string; status: "ready" | "in_progress" | "review" | "backlog" }> = [],
+): Promise<void> {
   await signIn(page);
   for (const item of pages) await seedPage(page, item.title, item.status);
   await page.goto("/");
@@ -52,7 +59,10 @@ export async function swipe(
 ): Promise<void> {
   const cdp = await page.context().newCDPSession(page);
   try {
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: from.x, y: from.y, id: 1 }] });
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [{ x: from.x, y: from.y, id: 1 }],
+    });
     if (holdMs > 0) await page.waitForTimeout(holdMs);
     for (let step = 1; step <= steps; step += 1) {
       const x = from.x + ((to.x - from.x) * step) / steps;
@@ -76,7 +86,9 @@ export async function swipe(
 export async function centerOf(target: Locator, moving: Locator = target): Promise<{ x: number; y: number }> {
   // `moving` is whichever ancestor actually carries the animation - a grabber holds still
   // inside a sheet that is still rising.
-  await moving.evaluate((node) => Promise.all(node.getAnimations({ subtree: true }).map((a) => a.finished.catch(() => undefined))));
+  await moving.evaluate((node) =>
+    Promise.all(node.getAnimations({ subtree: true }).map((a) => a.finished.catch(() => undefined))),
+  );
   const box = await target.boundingBox();
   if (!box) throw new Error("no box for gesture target");
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };

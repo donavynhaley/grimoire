@@ -32,7 +32,10 @@ export function isCalendarDay(value: string): boolean {
 
 const metadataSchema = z
   .object({
-    slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(60),
+    slug: z
+      .string()
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+      .max(60),
     name: z.string().trim().min(1).max(80),
     state: z.enum(CHAPTER_STATES),
     position: z.number().int().min(0),
@@ -44,7 +47,12 @@ const metadataSchema = z
     closed_at: z.string().refine(isTimestamp, "closed_at must be an ISO timestamp").nullable().optional(),
     carried_pages: z.number().int().min(0).nullable().optional(),
     carried_estimate: z.number().finite().min(0).nullable().optional(),
-    carried_to: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(60).nullable().optional(),
+    carried_to: z
+      .string()
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+      .max(60)
+      .nullable()
+      .optional(),
     delivered_pages: z.number().int().min(0).nullable().optional(),
     delivered_estimate: z.number().finite().min(0).nullable().optional(),
   })
@@ -133,7 +141,8 @@ export class MarkdownChapterStore {
   }
 
   private projectDirectory(projectSlug: string): string {
-    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(projectSlug)) throw new Error(`Invalid project slug: ${projectSlug}`);
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(projectSlug))
+      throw new Error(`Invalid project slug: ${projectSlug}`);
     return join(this.rootDirectory, projectSlug);
   }
 }

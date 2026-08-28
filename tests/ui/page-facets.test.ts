@@ -20,7 +20,14 @@ const categories: ProjectCategory[] = [
 ];
 
 const fields: ProjectField[] = [
-  { key: "priority", label: "Priority", type: "select", options: ["Critical", "High", "Low"], position: 0, showOnTile: true },
+  {
+    key: "priority",
+    label: "Priority",
+    type: "select",
+    options: ["Critical", "High", "Low"],
+    position: 0,
+    showOnTile: true,
+  },
   { key: "needs-art", label: "Needs art", type: "checkbox", options: [], position: 1, showOnTile: false },
 ];
 
@@ -60,7 +67,13 @@ const pages: Page[] = [
     estimate: 8,
     blockedBy: ["a"],
     github: { kind: "pr", number: 12 },
-    githubStatus: { state: "open", prNumber: 12, prTitle: "Rework", prUrl: "https://example.com/12", checkedAt: NOW.toISOString() },
+    githubStatus: {
+      state: "open",
+      prNumber: 12,
+      prTitle: "Rework",
+      prUrl: "https://example.com/12",
+      checkedAt: NOW.toISOString(),
+    },
   }),
   page({ id: "c", category: "audio", status: "ready", fields: { priority: "High" }, updatedAt: LAST_WEEK }),
   page({ id: "d", category: null, status: "done", createdById: "priya", createdByName: "Priya Raghavan" }),
@@ -70,7 +83,8 @@ const context: FacetContext = { categories, fields, estimatesEnabled: true, now:
 const facetsOf = (selection = {}) => buildFacets(pages, selection, context);
 const find = (key: string, selection = {}) => facetsOf(selection).find((facet) => facet.key === key);
 const idsOf = (key: string, selection = {}) => find(key, selection)?.values.map((value) => value.id);
-const keep = (selection: Record<string, string[]>) => pages.filter(facetPredicate(selection, context)).map((p) => p.id);
+const keep = (selection: Record<string, string[]>) =>
+  pages.filter(facetPredicate(selection, context)).map((p) => p.id);
 
 describe("what the board can be filtered by", () => {
   it("offers the project's own vocabulary before the properties every project shares", () => {
@@ -130,7 +144,11 @@ describe("what the board can be filtered by", () => {
   });
 
   it("names whoever wrote the page, which only the pages themselves carry", () => {
-    expect(find("createdBy")?.values.map((value) => value.label).sort()).toEqual(["Maren Voss", "Priya Raghavan"]);
+    expect(
+      find("createdBy")
+        ?.values.map((value) => value.label)
+        .sort(),
+    ).toEqual(["Maren Voss", "Priya Raghavan"]);
   });
 });
 
@@ -169,13 +187,21 @@ describe("the counts beside each value", () => {
   it("leaves a property's own ticks out of its count, so a second value can be added", () => {
     // Ticking Code must not reduce Audio to zero, or there would be no way to ask for both.
     const category = find("category", { category: ["code"] });
-    expect(category?.values.map((value) => `${value.id}=${value.count}`)).toEqual(["code=2", "audio=1", "none=1"]);
+    expect(category?.values.map((value) => `${value.id}=${value.count}`)).toEqual([
+      "code=2",
+      "audio=1",
+      "none=1",
+    ]);
   });
 
   it("keeps a ticked value visible after it stops matching, so it can be unticked", () => {
     const selection = { category: ["audio"], "field:priority": ["Critical"] };
     const priority = find("field:priority", selection);
-    expect(priority?.values.find((value) => value.id === "Critical")).toEqual({ id: "Critical", label: "Critical", count: 0 });
+    expect(priority?.values.find((value) => value.id === "Critical")).toEqual({
+      id: "Critical",
+      label: "Critical",
+      count: 0,
+    });
   });
 });
 

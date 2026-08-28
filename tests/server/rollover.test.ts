@@ -35,10 +35,13 @@ async function page(server: TestServer, input: Record<string, unknown>) {
 }
 
 async function close(server: TestServer, slug: string, rollover?: string) {
-  return server.request<{ chapter: Chapter; carried: { pages: number; estimate: number; to: string | null } }>(
-    `/api/chapters/${slug}/close`,
-    { method: "POST", body: JSON.stringify(rollover === undefined ? {} : { rollover }) },
-  );
+  return server.request<{
+    chapter: Chapter;
+    carried: { pages: number; estimate: number; to: string | null };
+  }>(`/api/chapters/${slug}/close`, {
+    method: "POST",
+    body: JSON.stringify(rollover === undefined ? {} : { rollover }),
+  });
 }
 
 describe("closing a chapter over unfinished work", () => {
@@ -50,8 +53,16 @@ describe("closing a chapter over unfinished work", () => {
     const next = await chapter(server, "Second Brew");
 
     const delivered = await page(server, { title: "Delivered work", chapter: open.slug, estimate: 3 });
-    await server.request(`/api/pages/${delivered.id}`, { method: "PATCH", body: JSON.stringify({ status: "done" }) });
-    const carried = await page(server, { title: "Unfinished work", chapter: open.slug, estimate: 5, status: "in_progress" });
+    await server.request(`/api/pages/${delivered.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "done" }),
+    });
+    const carried = await page(server, {
+      title: "Unfinished work",
+      chapter: open.slug,
+      estimate: 5,
+      status: "in_progress",
+    });
 
     const { body } = await close(server, open.slug, "next");
     expect(body.carried).toEqual({ pages: 1, estimate: 5, to: next.slug });
@@ -74,7 +85,12 @@ describe("closing a chapter over unfinished work", () => {
     await project(server);
     const open = await chapter(server, "First Brew", "open");
     await chapter(server, "Second Brew");
-    const staying = await page(server, { title: "Unfinished work", chapter: open.slug, estimate: 2, status: "ready" });
+    const staying = await page(server, {
+      title: "Unfinished work",
+      chapter: open.slug,
+      estimate: 2,
+      status: "ready",
+    });
 
     const { body } = await close(server, open.slug, "keep");
     expect(body.carried).toEqual({ pages: 1, estimate: 2, to: null });
@@ -100,7 +116,9 @@ describe("closing a chapter over unfinished work", () => {
     const second = await chapter(server, "Fourth Brew", "open");
     const aimed = await page(server, { title: "Aimed work", chapter: second.slug, status: "ready" });
     await close(server, second.slug, third.slug);
-    expect((await board(server)).pages.find((candidate) => candidate.id === aimed.id)!.chapter).toBe(third.slug);
+    expect((await board(server)).pages.find((candidate) => candidate.id === aimed.id)!.chapter).toBe(
+      third.slug,
+    );
   });
 
   it("refuses to roll onward when there is nowhere planned to roll to", async () => {
@@ -113,7 +131,9 @@ describe("closing a chapter over unfinished work", () => {
     const { response } = await close(server, only.slug, "next");
     expect(response.status).toBe(400);
     // Refusing left the chapter open rather than half-closing it.
-    expect((await board(server)).chapters.find((candidate) => candidate.slug === only.slug)!.state).toBe("open");
+    expect((await board(server)).chapters.find((candidate) => candidate.slug === only.slug)!.state).toBe(
+      "open",
+    );
   });
 
   it("refuses to close a chapter twice", async () => {
@@ -135,9 +155,9 @@ describe("closing a chapter over unfinished work", () => {
     await page(server, { title: "Unfinished work", chapter: open.slug, estimate: 8, status: "ready" });
     await close(server, open.slug, "next");
 
-    const { body } = await server.request<{ events: Array<{ entityType: string; changes: Array<{ field: string; to: string | null }> }> }>(
-      "/api/activity?limit=10",
-    );
+    const { body } = await server.request<{
+      events: Array<{ entityType: string; changes: Array<{ field: string; to: string | null }> }>;
+    }>("/api/activity?limit=10");
     const closing = body.events.find((event) => event.entityType === "chapter");
     expect(closing?.changes).toContainEqual(expect.objectContaining({ field: "state", to: "closed" }));
     expect(closing?.changes).toContainEqual(
@@ -154,7 +174,10 @@ describe("velocity", () => {
     const open = await chapter(server, "First Brew", "open");
 
     const done = await page(server, { title: "Finished", chapter: open.slug, estimate: 3 });
-    await server.request(`/api/pages/${done.id}`, { method: "PATCH", body: JSON.stringify({ status: "done" }) });
+    await server.request(`/api/pages/${done.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "done" }),
+    });
     await page(server, { title: "Still going", chapter: open.slug, estimate: 5, status: "in_progress" });
     // A page nobody estimated is counted as unestimated rather than as nothing.
     await page(server, { title: "Unestimated", chapter: open.slug, status: "ready" });
@@ -180,11 +203,17 @@ describe("velocity", () => {
 
     for (const estimate of [3, 5]) {
       const done = await page(server, { title: `Finished ${estimate}`, chapter: open.slug, estimate });
-      await server.request(`/api/pages/${done.id}`, { method: "PATCH", body: JSON.stringify({ status: "done" }) });
+      await server.request(`/api/pages/${done.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "done" }),
+      });
     }
     // A page finished but never estimated still counts as a page delivered.
     const unestimated = await page(server, { title: "Finished, unestimated", chapter: open.slug });
-    await server.request(`/api/pages/${unestimated.id}`, { method: "PATCH", body: JSON.stringify({ status: "done" }) });
+    await server.request(`/api/pages/${unestimated.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "done" }),
+    });
     await page(server, { title: "Unfinished", chapter: open.slug, estimate: 2, status: "ready" });
 
     await close(server, open.slug, "next");
@@ -202,7 +231,10 @@ describe("velocity", () => {
     const open = await chapter(server, "First Brew", "open");
     await chapter(server, "Second Brew");
     const done = await page(server, { title: "Finished work", chapter: open.slug, estimate: 5 });
-    await server.request(`/api/pages/${done.id}`, { method: "PATCH", body: JSON.stringify({ status: "done" }) });
+    await server.request(`/api/pages/${done.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "done" }),
+    });
 
     await close(server, open.slug, "next");
     const before = (await board(server)).velocity.find((entry) => entry.slug === open.slug)!;
@@ -221,10 +253,18 @@ describe("velocity", () => {
     await project(server);
     const first = await chapter(server, "First Brew", "open");
     const second = await chapter(server, "Second Brew");
-    const carried = await page(server, { title: "Carried work", chapter: first.slug, estimate: 5, status: "in_progress" });
+    const carried = await page(server, {
+      title: "Carried work",
+      chapter: first.slug,
+      estimate: 5,
+      status: "in_progress",
+    });
 
     await close(server, first.slug, "next");
-    await server.request(`/api/pages/${carried.id}`, { method: "PATCH", body: JSON.stringify({ status: "done" }) });
+    await server.request(`/api/pages/${carried.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "done" }),
+    });
 
     const after = await board(server);
     const firstVelocity = after.velocity.find((entry) => entry.slug === first.slug)!;
@@ -243,10 +283,16 @@ describe("velocity", () => {
     await chapter(server, "First Brew", "open");
     expect((await board(server)).velocity).toEqual([]);
 
-    await server.request(`/api/projects/${projectId}`, { method: "PATCH", body: JSON.stringify({ estimatesEnabled: true }) });
+    await server.request(`/api/projects/${projectId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ estimatesEnabled: true }),
+    });
     expect((await board(server)).velocity).toHaveLength(1);
 
-    await server.request(`/api/projects/${projectId}`, { method: "PATCH", body: JSON.stringify({ chaptersEnabled: false }) });
+    await server.request(`/api/projects/${projectId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ chaptersEnabled: false }),
+    });
     expect((await board(server)).velocity).toEqual([]);
   });
 });
@@ -273,7 +319,6 @@ describe("estimates", () => {
     expect(off.body.project.estimatesEnabled).toBe(false);
     expect((await board(server)).project.estimatesEnabled).toBe(false);
   });
-
 
   it("keeps the estimate in the page's own file, and clears it with null", async () => {
     const server = await startTestServer();

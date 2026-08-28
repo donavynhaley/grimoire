@@ -65,8 +65,21 @@ describe("the one settings surface", () => {
 
     const settings = await openSettings(user);
     const rail = within(settings).getByRole("navigation", { name: "Settings sections" });
-    expect(within(rail).getAllByRole("button").map((button) => button.textContent)).toEqual([
-      "General", "Categories", "Page fields", "Chapters", "GitHub", "Discord", "Team", "Agent access", "Sign-in", "Danger zone",
+    expect(
+      within(rail)
+        .getAllByRole("button")
+        .map((button) => button.textContent),
+    ).toEqual([
+      "General",
+      "Categories",
+      "Page fields",
+      "Chapters",
+      "GitHub",
+      "Discord",
+      "Team",
+      "Agent access",
+      "Sign-in",
+      "Danger zone",
     ]);
   });
 
@@ -80,7 +93,9 @@ describe("the one settings surface", () => {
 
     const settings = await openSettings(user);
     const rail = within(settings).getByRole("navigation", { name: "Settings sections" });
-    const sections = within(rail).getAllByRole("button").map((button) => button.textContent);
+    const sections = within(rail)
+      .getAllByRole("button")
+      .map((button) => button.textContent);
     expect(sections).toContain("Agent access");
     expect(sections).not.toContain("Sign-in");
   });
@@ -172,10 +187,12 @@ describe("the one settings surface", () => {
     await user.type(within(settings).getByLabelText("Email address"), "alan@example.com");
     await user.click(within(settings).getByRole("button", { name: "add" }));
 
-    await waitFor(() => expect(calls.find((call) => call.url === "/api/members")).toMatchObject({
-      method: "POST",
-      body: { email: "alan@example.com" },
-    }));
+    await waitFor(() =>
+      expect(calls.find((call) => call.url === "/api/members")).toMatchObject({
+        method: "POST",
+        body: { email: "alan@example.com" },
+      }),
+    );
   });
 
   it("reorders a field with the position the server already stored", async () => {
@@ -183,8 +200,22 @@ describe("the one settings surface", () => {
     const board = {
       ...boardFixture(),
       fields: [
-        { key: "priority", label: "Priority", type: "select" as const, options: ["p0", "p1"], position: 0, showOnTile: true },
-        { key: "estimate", label: "Estimate", type: "number" as const, options: [], position: 1, showOnTile: false },
+        {
+          key: "priority",
+          label: "Priority",
+          type: "select" as const,
+          options: ["p0", "p1"],
+          position: 0,
+          showOnTile: true,
+        },
+        {
+          key: "estimate",
+          label: "Estimate",
+          type: "number" as const,
+          options: [],
+          position: 1,
+          showOnTile: false,
+        },
       ],
     };
     const calls = mountWith({ board });

@@ -55,7 +55,9 @@ describe("multiple projects", () => {
 
     const archived = await server.request(`/api/projects/${created.body.project.id}`, { method: "DELETE" });
     expect(archived.response.status).toBe(200);
-    expect((await server.request<{ projects: ProjectSummary[] }>("/api/projects")).body.projects).toHaveLength(1);
+    expect(
+      (await server.request<{ projects: ProjectSummary[] }>("/api/projects")).body.projects,
+    ).toHaveLength(1);
     const gone = await server.request("/api/board", {
       headers: { "x-grimoire-project": created.body.project.id },
     });
@@ -67,7 +69,9 @@ describe("multiple projects", () => {
     await bootstrap(server);
     const only = (await server.request<{ projects: ProjectSummary[] }>("/api/projects")).body.projects[0];
 
-    const refused = await server.request<{ error: string }>(`/api/projects/${only!.id}`, { method: "DELETE" });
+    const refused = await server.request<{ error: string }>(`/api/projects/${only!.id}`, {
+      method: "DELETE",
+    });
     expect(refused.response.status).toBe(409);
     expect(refused.body.error).toContain("last project");
   });
@@ -98,9 +102,9 @@ describe("multiple projects", () => {
     });
     await server.request(`/api/projects/${created.body.project.id}`, { method: "DELETE" });
 
-    const archived = await server.request<{ projects: Array<{ id: string; name: string; archivedAt: string }> }>(
-      "/api/projects/archived",
-    );
+    const archived = await server.request<{
+      projects: Array<{ id: string; name: string; archivedAt: string }>;
+    }>("/api/projects/archived");
     expect(archived.response.status).toBe(200);
     expect(archived.body.projects).toEqual([
       expect.objectContaining({ id: created.body.project.id, name: "Familiar Tycoon" }),
@@ -114,9 +118,9 @@ describe("multiple projects", () => {
 
     // The board answers again, and the archived list is empty: nothing was lost in between.
     expect((await board(server, created.body.project.id)).project.name).toBe("Familiar Tycoon");
-    expect(
-      (await server.request<{ projects: unknown[] }>("/api/projects/archived")).body.projects,
-    ).toEqual([]);
+    expect((await server.request<{ projects: unknown[] }>("/api/projects/archived")).body.projects).toEqual(
+      [],
+    );
   });
 
   it("refuses to restore a project that is not archived", async () => {
@@ -178,7 +182,12 @@ describe("project categories", () => {
       body: JSON.stringify({ name: "Playtesting", color: "#d87578" }),
     });
     expect(created.response.status).toBe(201);
-    expect(created.body.category).toEqual({ slug: "playtesting", name: "Playtesting", color: "#d87578", position: 10 });
+    expect(created.body.category).toEqual({
+      slug: "playtesting",
+      name: "Playtesting",
+      color: "#d87578",
+      position: 10,
+    });
 
     const duplicate = await server.request("/api/categories", {
       method: "POST",
@@ -196,7 +205,12 @@ describe("project categories", () => {
       method: "PATCH",
       body: JSON.stringify({ name: "QA", color: "#9ccc9c" }),
     });
-    expect(updated.body.category).toEqual({ slug: "playtesting", name: "QA", color: "#9ccc9c", position: 10 });
+    expect(updated.body.category).toEqual({
+      slug: "playtesting",
+      name: "QA",
+      color: "#9ccc9c",
+      position: 10,
+    });
 
     const removed = await server.request("/api/categories/playtesting", { method: "DELETE" });
     expect(removed.response.status).toBe(200);

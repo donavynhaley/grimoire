@@ -16,7 +16,10 @@ async function login(server: TestServer, account: { email: string; password: str
 
 /** Invites and registers Maren, leaving the session signed in as her. */
 async function registerMember(server: TestServer) {
-  const invite = await server.request<{ code: string }>("/api/invites", { method: "POST", body: JSON.stringify({}) });
+  const invite = await server.request<{ code: string }>("/api/invites", {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
   await server.request("/api/auth/register", {
     method: "POST",
     body: JSON.stringify({ ...MEMBER, inviteCode: invite.body.code }),
@@ -189,8 +192,9 @@ describe("member roles", () => {
         body: JSON.stringify({ name: "Payments", color: "#8bb9c9" }),
       });
       expect(created.response.status).toBe(201);
-      expect((await server.request<{ project: { name: string } }>("/api/board")).body.project.name)
-        .toBe("Wizard Simulator");
+      expect((await server.request<{ project: { name: string } }>("/api/board")).body.project.name).toBe(
+        "Wizard Simulator",
+      );
     });
 
     it("leaves someone else's archived project off her restore list, and refuses the restore", async () => {
@@ -268,8 +272,9 @@ describe("adding someone who already has an account", () => {
 
     // Before: the project may as well not exist to her.
     await login(server, MEMBER);
-    expect((await server.request("/api/board", { headers: { "x-grimoire-project": second } })).response.status)
-      .toBe(404);
+    expect(
+      (await server.request("/api/board", { headers: { "x-grimoire-project": second } })).response.status,
+    ).toBe(404);
 
     await login(server, ownerAccount);
     const added = await add(server, MEMBER.email, second);
@@ -284,8 +289,11 @@ describe("adding someone who already has an account", () => {
     expect(board.body.project.name).toBe("Familiar Tycoon");
     // Added, not promoted: the two are separate decisions, made from the same place.
     expect(board.body.viewerIsOwner).toBe(false);
-    expect((await server.request<{ projects: { name: string }[] }>("/api/projects")).body.projects
-      .map((project) => project.name).sort()).toEqual(["Familiar Tycoon", "Wizard Simulator"]);
+    expect(
+      (await server.request<{ projects: { name: string }[] }>("/api/projects")).body.projects
+        .map((project) => project.name)
+        .sort(),
+    ).toEqual(["Familiar Tycoon", "Wizard Simulator"]);
   });
 
   it("says which of the two went wrong, rather than failing the same way twice", async () => {

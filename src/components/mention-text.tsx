@@ -32,10 +32,7 @@ export function withMentions(
    * something the unread count disagreed with.
    */
   const escaped = named.map((member) => member.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-  const pattern = new RegExp(
-    `(?<![\\p{L}\\p{N}_@])@(?:${escaped.join("|")})(?![\\p{L}\\p{N}_'-])`,
-    "giu",
-  );
+  const pattern = new RegExp(`(?<![\\p{L}\\p{N}_@])@(?:${escaped.join("|")})(?![\\p{L}\\p{N}_'-])`, "giu");
 
   const nodes: React.ReactNode[] = [];
   let cursor = 0;
@@ -45,10 +42,7 @@ export function withMentions(
     const written = match[0];
     const member = named.find((candidate) => `@${candidate.name}`.toLowerCase() === written.toLowerCase());
     nodes.push(
-      <span
-        className={member?.id === currentUserId ? "mention you" : "mention"}
-        key={`${at}-${written}`}
-      >
+      <span className={member?.id === currentUserId ? "mention you" : "mention"} key={`${at}-${written}`}>
         {written}
       </span>,
     );

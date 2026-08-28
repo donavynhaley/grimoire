@@ -3,7 +3,15 @@ import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { dirname, extname, join, normalize, resolve, sep } from "node:path";
 import { z, ZodError } from "zod";
-import { BODY_MAX_LENGTH, DISCUSSION_BODY_MAX_LENGTH, FIELD_TYPES, PAGE_STATUSES, type PageGithubLink, type PageStatus, type User } from "../shared/types";
+import {
+  BODY_MAX_LENGTH,
+  DISCUSSION_BODY_MAX_LENGTH,
+  FIELD_TYPES,
+  PAGE_STATUSES,
+  type PageGithubLink,
+  type PageStatus,
+  type User,
+} from "../shared/types";
 import {
   findThread,
   listDiscussion,
@@ -14,7 +22,16 @@ import {
   setThreadAnswered,
 } from "./discussion";
 import { buildRecap, discordPoster, postRecap, recapMessages, type DiscordPoster } from "./recap";
-import { forgetOpenPullRequests, githubApiFetcher, listOpenPullRequests, normalizeRepo, parseGithubReference, syncProjectGithub, verifyRepoAccess, type GithubFetcher } from "./github";
+import {
+  forgetOpenPullRequests,
+  githubApiFetcher,
+  listOpenPullRequests,
+  normalizeRepo,
+  parseGithubReference,
+  syncProjectGithub,
+  verifyRepoAccess,
+  type GithubFetcher,
+} from "./github";
 import { createProject, createWizardSimulatorProject, openDatabase } from "./database";
 import {
   archivePage,
@@ -96,7 +113,13 @@ import {
   type OidcFetcher,
   type OidcIdentity,
 } from "./oidc";
-import { emailAllowed, oidcSettingsView, OidcProviders, resolveOidc, saveOidcSettings } from "./oidc-settings";
+import {
+  emailAllowed,
+  oidcSettingsView,
+  OidcProviders,
+  resolveOidc,
+  saveOidcSettings,
+} from "./oidc-settings";
 import { findOidcLink, linkOidcIdentity, oidcLinkForUser, touchOidcLink } from "./oidc-identities";
 import {
   AgentRateLimiter,
@@ -115,7 +138,8 @@ import { createIdea, findIdea, getIdeas, promoteIdea, undoPromotion, updateIdea 
 import { MarkdownIdeaStore } from "./markdown-ideas";
 import { searchProject } from "./search";
 import { applyLinkPreview, pagePreview, ideaPreview, type LinkPreview } from "./link-preview";
-import { CHAPTER_STATE_LABELS,
+import {
+  CHAPTER_STATE_LABELS,
   PAGE_COLUMN_LABELS,
   AUDIT_PAGE_SIZE,
   pageChanges,
@@ -192,12 +216,21 @@ type EventClient = {
 
 const accountSchema = z.object({
   name: z.string().trim().min(2).max(80),
-  email: z.string().trim().email().max(254).transform((value) => value.toLowerCase()),
+  email: z
+    .string()
+    .trim()
+    .email()
+    .max(254)
+    .transform((value) => value.toLowerCase()),
   password: z.string().min(12).max(256),
 });
 
 const loginSchema = z.object({
-  email: z.string().trim().email().transform((value) => value.toLowerCase()),
+  email: z
+    .string()
+    .trim()
+    .email()
+    .transform((value) => value.toLowerCase()),
   password: z.string().min(1).max(256),
 });
 
@@ -244,8 +277,14 @@ const oidcProbeSchema = z.object({
 });
 
 const pageStatus = z.enum(["backlog", "ready", "in_progress", "review", "done"]);
-const categorySlug = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(40);
-const chapterSlug = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(60);
+const categorySlug = z
+  .string()
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+  .max(40);
+const chapterSlug = z
+  .string()
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+  .max(60);
 const calendarDay = z.string().refine(isCalendarDay, "Expected a YYYY-MM-DD day");
 /**
  * Values for the project's own fields, as a patch. `null` clears one; an absent key is left
@@ -253,7 +292,10 @@ const calendarDay = z.string().refine(isCalendarDay, "Expected a YYYY-MM-DD day"
  * because only the project knows what `priority` is allowed to say.
  */
 const pageFieldPatch = z.record(
-  z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(40),
+  z
+    .string()
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+    .max(40),
   z.union([z.string().trim().max(200), z.number().finite(), z.boolean(), z.null()]),
 );
 const pageSchema = z.object({
@@ -421,7 +463,8 @@ function agentMayReach(method: string, pathname: string): "read" | "write" | nul
     return null;
   }
   if (method === "POST" && (pathname === "/api/pages" || pathname === "/api/ideas")) return "write";
-  if (method === "PATCH" && (AGENT_PAGE_PATH.test(pathname) || AGENT_IDEA_PATH.test(pathname))) return "write";
+  if (method === "PATCH" && (AGENT_PAGE_PATH.test(pathname) || AGENT_IDEA_PATH.test(pathname)))
+    return "write";
   /*
    * Opening a thread and replying to one are the two writes an agent is most obviously good
    * for: reporting what it did, and answering when asked. Both are additions to a page that a
@@ -432,7 +475,8 @@ function agentMayReach(method: string, pathname: string): "read" | "write" | nul
    * delete what was said. An agent that could close the question it raised could report its
    * own work settled, and the one judgement a discussion carries would stop meaning anything.
    */
-  if (method === "POST" && (AGENT_DISCUSSION_PATH.test(pathname) || AGENT_REPLY_PATH.test(pathname))) return "write";
+  if (method === "POST" && (AGENT_DISCUSSION_PATH.test(pathname) || AGENT_REPLY_PATH.test(pathname)))
+    return "write";
   // Marking a conversation read is a claim about a person's attention, and an agent has none.
   return null;
 }
@@ -450,7 +494,9 @@ export function createGrimoireServer(options: Options) {
   // exactly one derivation - the same as a known one. Hashing the placeholder inside
   // the request would spend a second derivation, and that difference is measurable.
   const placeholderPasswordHash = hashPassword(createOpaqueToken());
-  const pageStore = new MarkdownPageStore(options.pagesDirectory ?? join(dirname(options.databasePath), "pages"));
+  const pageStore = new MarkdownPageStore(
+    options.pagesDirectory ?? join(dirname(options.databasePath), "pages"),
+  );
   const ideaStore = new MarkdownIdeaStore(pageStore.rootDirectory);
   const chapterStore = new MarkdownChapterStore(pageStore.rootDirectory);
   const imageStore = new ProjectImageStore(pageStore.rootDirectory);
@@ -469,8 +515,14 @@ export function createGrimoireServer(options: Options) {
   // runaway loop, and persisting it would mean a write on every request to limit writes.
   const writeLimiter = new AgentRateLimiter();
   // Password guesses, counted against where they came from and against the account they name.
-  const loginAddressLimiter = new LoginRateLimiter({ burst: LOGIN_ADDRESS_BURST, perMinute: LOGIN_ADDRESS_PER_MINUTE });
-  const loginAccountLimiter = new LoginRateLimiter({ burst: LOGIN_ACCOUNT_BURST, perMinute: LOGIN_ACCOUNT_PER_MINUTE });
+  const loginAddressLimiter = new LoginRateLimiter({
+    burst: LOGIN_ADDRESS_BURST,
+    perMinute: LOGIN_ADDRESS_PER_MINUTE,
+  });
+  const loginAccountLimiter = new LoginRateLimiter({
+    burst: LOGIN_ACCOUNT_BURST,
+    perMinute: LOGIN_ACCOUNT_PER_MINUTE,
+  });
   const trustProxy = options.trustProxy ?? false;
   const environmentOidc = options.oidc ?? null;
   const oidcProviders = new OidcProviders(options.oidcFetcher ?? oidcHttpFetcher);
@@ -494,7 +546,17 @@ export function createGrimoireServer(options: Options) {
     pageStore,
     chapterStore,
     fetcher: options.githubFetcher ?? githubApiFetcher,
-    onMoved: ({ projectId, page, from, to }: { projectId: string; page: { id: string; title: string }; from: string; to: string }) => {
+    onMoved: ({
+      projectId,
+      page,
+      from,
+      to,
+    }: {
+      projectId: string;
+      page: { id: string; title: string };
+      from: string;
+      to: string;
+    }) => {
       recordAuditEvent(database, {
         projectId,
         actor: { id: null, name: "GitHub" },
@@ -502,11 +564,13 @@ export function createGrimoireServer(options: Options) {
         entityId: page.id,
         entityTitle: page.title,
         action: "moved",
-        changes: [{
-          field: "column",
-          from: PAGE_COLUMN_LABELS[from as PageStatus],
-          to: PAGE_COLUMN_LABELS[to as PageStatus],
-        }],
+        changes: [
+          {
+            field: "column",
+            from: PAGE_COLUMN_LABELS[from as PageStatus],
+            to: PAGE_COLUMN_LABELS[to as PageStatus],
+          },
+        ],
       });
     },
     onChanged: (projectId: string) => broadcast(projectId, "work", null),
@@ -528,7 +592,10 @@ export function createGrimoireServer(options: Options) {
     const members = membersForProject(database, projectId);
     // Everything closed before this one, which is what an average is taken across.
     const previous = chapters.filter(
-      (candidate) => candidate.slug !== slug && candidate.closedAt !== null && candidate.closedAt < (chapter.closedAt ?? "9999"),
+      (candidate) =>
+        candidate.slug !== slug &&
+        candidate.closedAt !== null &&
+        candidate.closedAt < (chapter.closedAt ?? "9999"),
     );
     return buildRecap(
       chapter,
@@ -540,7 +607,10 @@ export function createGrimoireServer(options: Options) {
   }
 
   /** Posts a chapter's recap, and says plainly why it did not when it did not. */
-  async function sendRecap(projectId: string, slug: string): Promise<{ sent: number; failed: number } | "no_webhook" | "not_found"> {
+  async function sendRecap(
+    projectId: string,
+    slug: string,
+  ): Promise<{ sent: number; failed: number } | "no_webhook" | "not_found"> {
     const config = projectRecapConfig(database, projectId);
     if (!config.webhook) return "no_webhook";
     const recap = recapFor(projectId, slug);
@@ -576,7 +646,12 @@ export function createGrimoireServer(options: Options) {
       if (error instanceof EditConflictError) {
         // The stored record travels with the refusal so the editor can show the
         // collision without asking for it again.
-        json(response, 409, { error: error.message, conflict: true, field: error.field, current: error.current });
+        json(response, 409, {
+          error: error.message,
+          conflict: true,
+          field: error.field,
+          current: error.current,
+        });
         return;
       }
       if (error instanceof PageDependencyError) {
@@ -707,8 +782,20 @@ export function createGrimoireServer(options: Options) {
         throw error;
       }
       const user = withAvatar(publicUser(findUserById(database, userId)!));
-      auditAs(user, { projectId, entityType: "project", entityId: projectId, entityTitle: "Wizard Simulator", action: "created" });
-      auditAs(user, { projectId, entityType: "member", entityId: userId, entityTitle: user.name, action: "joined" });
+      auditAs(user, {
+        projectId,
+        entityType: "project",
+        entityId: projectId,
+        entityTitle: "Wizard Simulator",
+        action: "created",
+      });
+      auditAs(user, {
+        projectId,
+        entityType: "member",
+        entityId: userId,
+        entityTitle: user.name,
+        action: "joined",
+      });
       setSession(response, userId);
       json(response, 201, { user });
       return;
@@ -772,7 +859,10 @@ export function createGrimoireServer(options: Options) {
       // The state also rides in a cookie, so a callback has to arrive in the same browser that
       // started the flow. Without it an attacker who completed their own sign-in could hand
       // somebody a callback link and quietly land them in the attacker's account.
-      appendCookie(response, `${OIDC_STATE_COOKIE}=${secrets.state}; Path=/api/auth/oidc; HttpOnly; SameSite=Lax; Max-Age=600${options.production ? "; Secure" : ""}`);
+      appendCookie(
+        response,
+        `${OIDC_STATE_COOKIE}=${secrets.state}; Path=/api/auth/oidc; HttpOnly; SameSite=Lax; Max-Age=600${options.production ? "; Secure" : ""}`,
+      );
       response.statusCode = 302;
       response.setHeader("Location", destination);
       response.setHeader("Cache-Control", "no-store");
@@ -784,7 +874,10 @@ export function createGrimoireServer(options: Options) {
       const { config: oidcConfig } = currentOidc();
       if (!oidcConfig) throw new HttpError(404, "No sign-in provider is configured");
       const oidc = oidcProviders.for(oidcConfig);
-      appendCookie(response, `${OIDC_STATE_COOKIE}=; Path=/api/auth/oidc; HttpOnly; SameSite=Lax; Max-Age=0${options.production ? "; Secure" : ""}`);
+      appendCookie(
+        response,
+        `${OIDC_STATE_COOKIE}=; Path=/api/auth/oidc; HttpOnly; SameSite=Lax; Max-Age=0${options.production ? "; Secure" : ""}`,
+      );
       const state = url.searchParams.get("state") ?? "";
       const cookieState = readCookie(request, OIDC_STATE_COOKIE);
       const pending = state && cookieState === state ? pendingSignIns.claim(state) : null;
@@ -795,7 +888,11 @@ export function createGrimoireServer(options: Options) {
       // The provider says no by redirecting back with a reason rather than by failing.
       const refusal = url.searchParams.get("error");
       if (refusal) {
-        redirectToSignIn(response, pending.returnTo, `The sign-in provider refused the request (${refusal}).`);
+        redirectToSignIn(
+          response,
+          pending.returnTo,
+          `The sign-in provider refused the request (${refusal}).`,
+        );
         return;
       }
       const code = url.searchParams.get("code");
@@ -836,7 +933,8 @@ export function createGrimoireServer(options: Options) {
     }
 
     if (method === "POST" && url.pathname === "/api/auth/logout") {
-      if (context.sessionToken) database.prepare("DELETE FROM sessions WHERE token_hash = ?").run(hashToken(context.sessionToken));
+      if (context.sessionToken)
+        database.prepare("DELETE FROM sessions WHERE token_hash = ?").run(hashToken(context.sessionToken));
       clearSession(response);
       json(response, 200, { ok: true });
       return;
@@ -1022,15 +1120,18 @@ export function createGrimoireServer(options: Options) {
 
     if (method === "POST" && url.pathname === "/api/auth/register") {
       const input = registerSchema.parse(await readJson(request));
-      const invite = database.prepare("SELECT * FROM invites WHERE code_hash = ?").get(hashToken(input.inviteCode)) as
-        | Record<string, string | null>
-        | undefined;
+      const invite = database
+        .prepare("SELECT * FROM invites WHERE code_hash = ?")
+        .get(hashToken(input.inviteCode)) as Record<string, string | null> | undefined;
       if (!invite || invite.used_by || String(invite.expires_at) <= new Date().toISOString()) {
         throw new HttpError(409, "Invitation is invalid or has already been used");
       }
-      if (findUserByEmail(database, input.email)) throw new HttpError(409, "An account already uses this email");
+      if (findUserByEmail(database, input.email))
+        throw new HttpError(409, "An account already uses this email");
       const invitedProject = invite.project_id
-        ? database.prepare("SELECT id FROM projects WHERE id = ? AND archived_at IS NULL").get(String(invite.project_id))
+        ? database
+            .prepare("SELECT id FROM projects WHERE id = ? AND archived_at IS NULL")
+            .get(String(invite.project_id))
         : undefined;
       if (!invitedProject) throw new HttpError(409, "Invitation project no longer exists");
       const projectId = String(invite.project_id);
@@ -1041,10 +1142,14 @@ export function createGrimoireServer(options: Options) {
       database.exec("BEGIN IMMEDIATE");
       try {
         database
-          .prepare("INSERT INTO users (id, name, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, 'member', ?)")
+          .prepare(
+            "INSERT INTO users (id, name, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, 'member', ?)",
+          )
           .run(userId, input.name, input.email, passwordHash, now);
         database
-          .prepare("INSERT INTO project_members (project_id, user_id, role, created_at) VALUES (?, ?, 'member', ?)")
+          .prepare(
+            "INSERT INTO project_members (project_id, user_id, role, created_at) VALUES (?, ?, 'member', ?)",
+          )
           .run(projectId, userId, now);
         const update = database
           .prepare("UPDATE invites SET used_by = ? WHERE id = ? AND used_by IS NULL")
@@ -1056,7 +1161,13 @@ export function createGrimoireServer(options: Options) {
         throw error;
       }
       const user = withAvatar(publicUser(findUserById(database, userId)!));
-      auditAs(user, { projectId, entityType: "member", entityId: userId, entityTitle: user.name, action: "joined" });
+      auditAs(user, {
+        projectId,
+        entityType: "member",
+        entityId: userId,
+        entityTitle: user.name,
+        action: "joined",
+      });
       setSession(response, userId);
       json(response, 201, { user });
       broadcast(projectId, "work", null);
@@ -1067,7 +1178,11 @@ export function createGrimoireServer(options: Options) {
       const user = requireUser(context);
       const projectId = requireProject(context, user);
       const config = projectGithubConfig(database, projectId);
-      const pulls = await listOpenPullRequests(options.githubFetcher ?? githubApiFetcher, config.repo, config.token);
+      const pulls = await listOpenPullRequests(
+        options.githubFetcher ?? githubApiFetcher,
+        config.repo,
+        config.token,
+      );
       json(response, 200, { pulls });
       return;
     }
@@ -1100,7 +1215,11 @@ export function createGrimoireServer(options: Options) {
       const projectId = requireProjectOwner(context, user, "Only the owner can check the GitHub connection");
       await readJson(request);
       const config = projectGithubConfig(database, projectId);
-      const verdict = await verifyRepoAccess(options.githubFetcher ?? githubApiFetcher, config.repo, config.token);
+      const verdict = await verifyRepoAccess(
+        options.githubFetcher ?? githubApiFetcher,
+        config.repo,
+        config.token,
+      );
       json(response, 200, verdict);
       return;
     }
@@ -1137,7 +1256,13 @@ export function createGrimoireServer(options: Options) {
         database.exec("ROLLBACK");
         throw error;
       }
-      audit(context, { projectId, entityType: "member", entityId: null, entityTitle: "invitation link", action: "invited" });
+      audit(context, {
+        projectId,
+        entityType: "member",
+        entityId: null,
+        entityTitle: "invitation link",
+        action: "invited",
+      });
       json(response, 201, { code, expiresAt: expires.toISOString() });
       return;
     }
@@ -1155,7 +1280,13 @@ export function createGrimoireServer(options: Options) {
       // but the installation: there was nobody else a project could belong to.
       const input = projectSchema.parse(await readJson(request));
       const projectId = createProject(database, user.id, input.name);
-      audit(context, { projectId, entityType: "project", entityId: projectId, entityTitle: input.name, action: "created" });
+      audit(context, {
+        projectId,
+        entityType: "project",
+        entityId: projectId,
+        entityTitle: input.name,
+        action: "created",
+      });
       json(response, 201, { project: { id: projectId, name: input.name } });
       return;
     }
@@ -1231,7 +1362,11 @@ export function createGrimoireServer(options: Options) {
         const was = projectRecapConfig(database, projectId).onClose;
         if (was !== input.recapOnClose) {
           setProjectRecap(database, projectId, { onClose: input.recapOnClose });
-          changes.push({ field: "recap on close", from: was ? "on" : "off", to: input.recapOnClose ? "on" : "off" });
+          changes.push({
+            field: "recap on close",
+            from: was ? "on" : "off",
+            to: input.recapOnClose ? "on" : "off",
+          });
         }
       }
       if (input.githubRepo !== undefined) {
@@ -1376,7 +1511,9 @@ export function createGrimoireServer(options: Options) {
         entityId: issued.token.id,
         entityTitle: input.name,
         action: "created",
-        changes: [{ field: "scope", from: null, to: input.scope === "write" ? "read and write" : "read only" }],
+        changes: [
+          { field: "scope", from: null, to: input.scope === "write" ? "read and write" : "read only" },
+        ],
       });
       // The only time the secret leaves the server. Nothing stores it but the holder.
       json(response, 201, { token: issued.token, secret: issued.secret });
@@ -1408,7 +1545,8 @@ export function createGrimoireServer(options: Options) {
       const projectId = requireProjectOwner(context, user, "Only the owner can manage categories");
       const input = categoryCreateSchema.parse(await readJson(request));
       const result = createCategory(database, projectId, input);
-      if (result === "invalid_name") throw new HttpError(400, "The category needs a name with letters or numbers");
+      if (result === "invalid_name")
+        throw new HttpError(400, "The category needs a name with letters or numbers");
       if (result === "exists") throw new HttpError(409, "A category with this name already exists");
       audit(context, {
         projectId,
@@ -1427,14 +1565,20 @@ export function createGrimoireServer(options: Options) {
       const user = requireUser(context);
       const projectId = requireProjectOwner(context, user, "Only the owner can manage categories");
       const input = categoryUpdateSchema.parse(await readJson(request));
-      const previous = categoriesForProject(database, projectId).find((value) => value.slug === categoryMatch[1]!);
+      const previous = categoriesForProject(database, projectId).find(
+        (value) => value.slug === categoryMatch[1]!,
+      );
       const category = updateCategory(database, projectId, categoryMatch[1]!, input);
       if (!category) throw new HttpError(404, "Category not found");
       const categoryEdits = previous
         ? [
-          ...(previous.name === category.name ? [] : [{ field: "name", from: previous.name, to: category.name }]),
-          ...(previous.color === category.color ? [] : [{ field: "color", from: previous.color, to: category.color }]),
-        ]
+            ...(previous.name === category.name
+              ? []
+              : [{ field: "name", from: previous.name, to: category.name }]),
+            ...(previous.color === category.color
+              ? []
+              : [{ field: "color", from: previous.color, to: category.color }]),
+          ]
         : [];
       if (categoryEdits.length > 0) {
         audit(context, {
@@ -1454,7 +1598,9 @@ export function createGrimoireServer(options: Options) {
     if (method === "DELETE" && categoryMatch) {
       const user = requireUser(context);
       const projectId = requireProjectOwner(context, user, "Only the owner can manage categories");
-      const removed = categoriesForProject(database, projectId).find((value) => value.slug === categoryMatch[1]!);
+      const removed = categoriesForProject(database, projectId).find(
+        (value) => value.slug === categoryMatch[1]!,
+      );
       if (!deleteCategory(database, pageStore, projectId, categoryMatch[1]!)) {
         throw new HttpError(404, "Category not found");
       }
@@ -1478,7 +1624,8 @@ export function createGrimoireServer(options: Options) {
       const projectId = requireProjectOwner(context, user, "Only an owner can manage fields");
       const input = fieldCreateSchema.parse(await readJson(request));
       const result = createField(database, projectId, input);
-      if (result === "invalid_label") throw new HttpError(400, "The field needs a name with letters or numbers");
+      if (result === "invalid_label")
+        throw new HttpError(400, "The field needs a name with letters or numbers");
       if (result === "needs_options") throw new HttpError(400, "A choice field needs at least one option");
       if (result === "exists") throw new HttpError(409, "A field with this name already exists");
       audit(context, {
@@ -1508,17 +1655,29 @@ export function createGrimoireServer(options: Options) {
       }
       const edits = before
         ? [
-          ...(before.label === result.field.label ? [] : [{ field: "name", from: before.label, to: result.field.label }]),
-          ...(before.type === result.field.type ? [] : [{ field: "type", from: before.type, to: result.field.type }]),
-          ...(before.options.join(", ") === result.field.options.join(", ")
-            ? []
-            : [{ field: "options", from: before.options.join(", "), to: result.field.options.join(", ") }]),
-          ...(before.showOnTile === result.field.showOnTile
-            ? []
-            : [{ field: "on tiles", from: before.showOnTile ? "yes" : "no", to: result.field.showOnTile ? "yes" : "no" }]),
-          // Said out loud, because withdrawing an option silently emptied pages nobody touched.
-          ...(result.cleared > 0 ? [{ field: "pages cleared", from: null, to: String(result.cleared) }] : []),
-        ]
+            ...(before.label === result.field.label
+              ? []
+              : [{ field: "name", from: before.label, to: result.field.label }]),
+            ...(before.type === result.field.type
+              ? []
+              : [{ field: "type", from: before.type, to: result.field.type }]),
+            ...(before.options.join(", ") === result.field.options.join(", ")
+              ? []
+              : [{ field: "options", from: before.options.join(", "), to: result.field.options.join(", ") }]),
+            ...(before.showOnTile === result.field.showOnTile
+              ? []
+              : [
+                  {
+                    field: "on tiles",
+                    from: before.showOnTile ? "yes" : "no",
+                    to: result.field.showOnTile ? "yes" : "no",
+                  },
+                ]),
+            // Said out loud, because withdrawing an option silently emptied pages nobody touched.
+            ...(result.cleared > 0
+              ? [{ field: "pages cleared", from: null, to: String(result.cleared) }]
+              : []),
+          ]
         : [];
       if (edits.length > 0) {
         audit(context, {
@@ -1561,7 +1720,8 @@ export function createGrimoireServer(options: Options) {
       const input = chapterCreateSchema.parse(await readJson(request));
       const result = createChapter(database, chapterStore, projectId, user.id, input);
       if (!result) throw new HttpError(404, "Project not found");
-      if (result === "invalid_name") throw new HttpError(400, "The chapter needs a name with letters or numbers");
+      if (result === "invalid_name")
+        throw new HttpError(400, "The chapter needs a name with letters or numbers");
       if (result === "exists") throw new HttpError(409, "A chapter with this name already exists");
       if (result === "already_open") throw new HttpError(409, ALREADY_OPEN_MESSAGE);
       audit(context, {
@@ -1583,8 +1743,9 @@ export function createGrimoireServer(options: Options) {
       const projectId = requireProjectOwner(context, user, "Only the owner can manage chapters");
       requireChaptersEnabled(projectId);
       const input = chapterUpdateSchema.parse(await readJson(request));
-      const before = chaptersForProject(database, chapterStore, projectId)
-        .find((chapter) => chapter.slug === chapterMatch[1]!);
+      const before = chaptersForProject(database, chapterStore, projectId).find(
+        (chapter) => chapter.slug === chapterMatch[1]!,
+      );
       const result = updateChapter(database, chapterStore, projectId, chapterMatch[1]!, input);
       if (!result) throw new HttpError(404, "Project not found");
       if (result === "not_found") throw new HttpError(404, "Chapter not found");
@@ -1634,11 +1795,12 @@ export function createGrimoireServer(options: Options) {
       if (result === "already_closed") throw new HttpError(409, "That chapter is already closed");
       if (result === "no_target") throw new HttpError(400, "That chapter cannot take the work");
 
-      const carriedWord = result.carried.pages === 0
-        ? "nothing unfinished"
-        : `${result.carried.pages} page${result.carried.pages === 1 ? "" : "s"}${
-          result.carried.estimate > 0 ? ` (${result.carried.estimate})` : ""
-        }`;
+      const carriedWord =
+        result.carried.pages === 0
+          ? "nothing unfinished"
+          : `${result.carried.pages} page${result.carried.pages === 1 ? "" : "s"}${
+              result.carried.estimate > 0 ? ` (${result.carried.estimate})` : ""
+            }`;
       audit(context, {
         projectId,
         entityType: "chapter",
@@ -1646,13 +1808,18 @@ export function createGrimoireServer(options: Options) {
         entityTitle: result.chapter.name,
         action: "updated",
         changes: [
-          { field: "state", from: CHAPTER_STATE_LABELS[before?.state ?? "open"], to: CHAPTER_STATE_LABELS.closed },
+          {
+            field: "state",
+            from: CHAPTER_STATE_LABELS[before?.state ?? "open"],
+            to: CHAPTER_STATE_LABELS.closed,
+          },
           {
             field: "carried over",
             from: null,
-            to: carryTo === undefined || result.carried.pages === 0
-              ? carriedWord
-              : `${carriedWord} to ${carryTo ?? "no chapter"}`,
+            to:
+              carryTo === undefined || result.carried.pages === 0
+                ? carriedWord
+                : `${carriedWord} to ${carryTo ?? "no chapter"}`,
           },
         ],
       });
@@ -1673,8 +1840,9 @@ export function createGrimoireServer(options: Options) {
       const user = requireUser(context);
       const projectId = requireProjectOwner(context, user, "Only the owner can manage chapters");
       requireChaptersEnabled(projectId);
-      const removed = chaptersForProject(database, chapterStore, projectId)
-        .find((chapter) => chapter.slug === chapterMatch[1]!);
+      const removed = chaptersForProject(database, chapterStore, projectId).find(
+        (chapter) => chapter.slug === chapterMatch[1]!,
+      );
       const released = pagesInChapter(database, pageStore, projectId, chapterMatch[1]!);
       if (!deleteChapter(database, pageStore, chapterStore, projectId, chapterMatch[1]!)) {
         throw new HttpError(404, "Chapter not found");
@@ -1752,7 +1920,9 @@ export function createGrimoireServer(options: Options) {
       const user = requireUser(context);
       await readJson(request);
       const projectId = requireProjectOwner(context, user, "Only the project owner can remove members");
-      const removedMember = membersForProject(database, projectId).find((value) => value.id === memberMatch[1]!);
+      const removedMember = membersForProject(database, projectId).find(
+        (value) => value.id === memberMatch[1]!,
+      );
       const result = removeProjectMember(database, pageStore, projectId, memberMatch[1]!);
       if (result === "owner") throw new HttpError(409, "The project owner cannot be removed");
       if (result === "admin") throw new HttpError(409, "The admin cannot be removed");
@@ -1863,7 +2033,11 @@ export function createGrimoireServer(options: Options) {
       const user = requireUser(context);
       const projectId = requireProject(context, user);
       const input = searchSchema.parse(Object.fromEntries(url.searchParams));
-      json(response, 200, searchProject(database, pageStore, chapterStore, ideaStore, projectId, input.q, input.limit));
+      json(
+        response,
+        200,
+        searchProject(database, pageStore, chapterStore, ideaStore, projectId, input.q, input.limit),
+      );
       return;
     }
 
@@ -1906,7 +2080,13 @@ export function createGrimoireServer(options: Options) {
         ideaSchema.parse(await readJson(request)),
       );
       if (!idea) throw new HttpError(404, "Idea garden not found");
-      audit(context, { projectId, entityType: "idea", entityId: idea.id, entityTitle: idea.title, action: "created" });
+      audit(context, {
+        projectId,
+        entityType: "idea",
+        entityId: idea.id,
+        entityTitle: idea.title,
+        action: "created",
+      });
       json(response, 201, { idea });
       broadcast(projectId, "ideas", requestClientId(request));
       return;
@@ -1955,7 +2135,13 @@ export function createGrimoireServer(options: Options) {
       const projectId = requireProject(context, user);
       const idea = undoPromotion(database, pageStore, ideaStore, projectId, promotionUndoMatch[1]!);
       if (!idea) throw new HttpError(404, "Promoted idea not found");
-      audit(context, { projectId, entityType: "idea", entityId: idea.id, entityTitle: idea.title, action: "restored" });
+      audit(context, {
+        projectId,
+        entityType: "idea",
+        entityId: idea.id,
+        entityTitle: idea.title,
+        action: "restored",
+      });
       json(response, 200, { idea });
       broadcast(projectId, "both", requestClientId(request));
       return;
@@ -1979,7 +2165,14 @@ export function createGrimoireServer(options: Options) {
         const action = changeAction(changes);
         // Reranking the shortlist changes nothing a reader would look for.
         if (action) {
-          audit(context, { projectId, entityType: "idea", entityId: idea.id, entityTitle: idea.title, action, changes });
+          audit(context, {
+            projectId,
+            entityType: "idea",
+            entityId: idea.id,
+            entityTitle: idea.title,
+            action,
+            changes,
+          });
         }
       }
       json(response, 200, { idea });
@@ -1994,7 +2187,13 @@ export function createGrimoireServer(options: Options) {
       await readJson(request);
       const page = restorePage(database, pageStore, projectId, pageRestoreMatch[1]!);
       if (!page) throw new HttpError(404, "Archived page not found");
-      audit(context, { projectId, entityType: "page", entityId: page.id, entityTitle: page.title, action: "restored" });
+      audit(context, {
+        projectId,
+        entityType: "page",
+        entityId: page.id,
+        entityTitle: page.title,
+        action: "restored",
+      });
       json(response, 200, { page });
       broadcast(projectId, "work", requestClientId(request));
       return;
@@ -2125,7 +2324,8 @@ export function createGrimoireServer(options: Options) {
       }
       // The no-op path re-reads the thread, and it can have vanished in the gap;
       // the client's type says thread, so the honest answer to a missing one is 404.
-      const thread = result === "unchanged" ? findThread(database, projectId, page.id, answeredMatch[2]!) : result;
+      const thread =
+        result === "unchanged" ? findThread(database, projectId, page.id, answeredMatch[2]!) : result;
       if (!thread) throw new HttpError(404, "Thread not found");
       json(response, 200, { thread });
       broadcast(projectId, "work", requestClientId(request));
@@ -2187,7 +2387,14 @@ export function createGrimoireServer(options: Options) {
         const action = changeAction(changes);
         // Reordering inside one column changes nothing a reader would look for.
         if (action) {
-          audit(context, { projectId, entityType: "page", entityId: page.id, entityTitle: page.title, action, changes });
+          audit(context, {
+            projectId,
+            entityType: "page",
+            entityId: page.id,
+            entityTitle: page.title,
+            action,
+            changes,
+          });
         }
       }
       json(response, 200, { page: settled });
@@ -2255,7 +2462,9 @@ export function createGrimoireServer(options: Options) {
     return {
       categoryName: (slug) => {
         if (slug === null) return "uncategorized";
-        categories ??= new Map(categoriesForProject(database, projectId).map((value) => [value.slug, value.name]));
+        categories ??= new Map(
+          categoriesForProject(database, projectId).map((value) => [value.slug, value.name]),
+        );
         return categories.get(slug) ?? slug;
       },
       chapterName: (slug) => {
@@ -2311,9 +2520,10 @@ export function createGrimoireServer(options: Options) {
             assigneeName: memberName(page.assignee),
             page,
             categories: categoriesForProject(database, String(project.id)),
-            chapterName: page.chapter && chaptersEnabled(database, String(project.id))
-              ? chapterStore.get(slug, page.chapter)?.name ?? null
-              : null,
+            chapterName:
+              page.chapter && chaptersEnabled(database, String(project.id))
+                ? (chapterStore.get(slug, page.chapter)?.name ?? null)
+                : null,
             projectName,
           });
         }
@@ -2438,9 +2648,17 @@ export function createGrimoireServer(options: Options) {
    */
   function oidcRedirectUri(request: IncomingMessage, url: URL, config: OidcConfig | null): string {
     if (config?.redirectUri) return config.redirectUri;
-    const forwardedProtocol = trustProxy ? String(request.headers["x-forwarded-proto"] ?? "").split(",")[0]!.trim() : "";
+    const forwardedProtocol = trustProxy
+      ? String(request.headers["x-forwarded-proto"] ?? "")
+          .split(",")[0]!
+          .trim()
+      : "";
     const protocol = forwardedProtocol || (options.production ? "https" : url.protocol.replace(":", ""));
-    const forwardedHost = trustProxy ? String(request.headers["x-forwarded-host"] ?? "").split(",")[0]!.trim() : "";
+    const forwardedHost = trustProxy
+      ? String(request.headers["x-forwarded-host"] ?? "")
+          .split(",")[0]!
+          .trim()
+      : "";
     const host = forwardedHost || request.headers.host || url.host;
     return `${protocol}://${host}/api/auth/oidc/callback`;
   }
@@ -2497,14 +2715,21 @@ export function createGrimoireServer(options: Options) {
       if (claimed && claimed.subject !== identity.subject) {
         // Two of the provider's people naming one Grimoire account. Refused rather than
         // guessed at, because whichever way it were guessed somebody signs in as somebody else.
-        throw new HttpError(409, "Another account at your provider is already signed in to this Grimoire account.");
+        throw new HttpError(
+          409,
+          "Another account at your provider is already signed in to this Grimoire account.",
+        );
       }
       linkOidcIdentity(database, identity.issuer, identity.subject, user.id);
       return requireOnAProject(existing);
     }
 
     const invite = inviteCode ? findUsableInvite(inviteCode) : null;
-    const projectId = invite ? String(invite.project_id) : config.autoRegister ? signupProjectId(config) : null;
+    const projectId = invite
+      ? String(invite.project_id)
+      : config.autoRegister
+        ? signupProjectId(config)
+        : null;
     if (!projectId) {
       throw new HttpError(
         403,
@@ -2525,10 +2750,14 @@ export function createGrimoireServer(options: Options) {
     database.exec("BEGIN IMMEDIATE");
     try {
       database
-        .prepare("INSERT INTO users (id, name, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, 'member', ?)")
+        .prepare(
+          "INSERT INTO users (id, name, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, 'member', ?)",
+        )
         .run(userId, name, identity.email, passwordHash, now);
       database
-        .prepare("INSERT INTO project_members (project_id, user_id, role, created_at) VALUES (?, ?, 'member', ?)")
+        .prepare(
+          "INSERT INTO project_members (project_id, user_id, role, created_at) VALUES (?, ?, 'member', ?)",
+        )
         .run(projectId, userId, now);
       if (invite) {
         const update = database
@@ -2544,7 +2773,13 @@ export function createGrimoireServer(options: Options) {
 
     linkOidcIdentity(database, identity.issuer, identity.subject, userId);
     const user = withAvatar(publicUser(findUserById(database, userId)!));
-    auditAs(user, { projectId, entityType: "member", entityId: userId, entityTitle: user.name, action: "joined" });
+    auditAs(user, {
+      projectId,
+      entityType: "member",
+      entityId: userId,
+      entityTitle: user.name,
+      action: "joined",
+    });
     broadcast(projectId, "work", null);
     return user;
   }
@@ -2578,21 +2813,23 @@ export function createGrimoireServer(options: Options) {
     database.prepare("UPDATE users SET email = ? WHERE id = ?").run(email, user.id);
     const projectId = defaultProjectIdForUser(database, user);
     if (projectId) {
-      auditAs({ ...user, email }, {
-        projectId,
-        entityType: "member",
-        entityId: user.id,
-        entityTitle: user.name,
-        action: "updated",
-      });
+      auditAs(
+        { ...user, email },
+        {
+          projectId,
+          entityType: "member",
+          entityId: user.id,
+          entityTitle: user.name,
+          action: "updated",
+        },
+      );
     }
   }
 
   /** An invitation that is still worth something: unused, unexpired, and on a live project. */
   function findUsableInvite(code: string): Record<string, string | null> | null {
     const invite = database.prepare("SELECT * FROM invites WHERE code_hash = ?").get(hashToken(code)) as
-      | Record<string, string | null>
-      | undefined;
+      Record<string, string | null> | undefined;
     if (!invite || invite.used_by || String(invite.expires_at) <= new Date().toISOString()) return null;
     if (!invite.project_id) return null;
     const project = database
@@ -2621,7 +2858,9 @@ export function createGrimoireServer(options: Options) {
     const now = new Date();
     const expires = new Date(now.getTime() + SESSION_AGE_SECONDS * 1000);
     database
-      .prepare("INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)")
+      .prepare(
+        "INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)",
+      )
       .run(randomUUID(), userId, hashToken(token), expires.toISOString(), now.toISOString());
     const secure = options.production ? "; Secure" : "";
     appendCookie(
@@ -2669,7 +2908,8 @@ export function createGrimoireServer(options: Options) {
   function broadcast(projectId: string, scope: WorkspaceScope, excludedClientId: string | null): void {
     const message = `event: workspace\ndata: ${JSON.stringify({ scope })}\n\n`;
     for (const client of eventClients) {
-      if (client.projectId !== projectId || (excludedClientId && client.clientId === excludedClientId)) continue;
+      if (client.projectId !== projectId || (excludedClientId && client.clientId === excludedClientId))
+        continue;
       sendEvent(client, message);
     }
   }
@@ -2745,7 +2985,8 @@ function requireUser(context: RequestContext): User {
  */
 function requireAdmin(context: RequestContext): User {
   const user = requireUser(context);
-  if (user.role !== "admin") throw new HttpError(403, "Only the Grimoire admin can change how people sign in");
+  if (user.role !== "admin")
+    throw new HttpError(403, "Only the Grimoire admin can change how people sign in");
   return user;
 }
 
@@ -2853,7 +3094,8 @@ function applySecurityHeaders(response: ServerResponse): void {
  */
 function appendCookie(response: ServerResponse, value: string): void {
   const existing = response.getHeader("Set-Cookie");
-  const cookies = existing === undefined ? [] : Array.isArray(existing) ? existing.map(String) : [String(existing)];
+  const cookies =
+    existing === undefined ? [] : Array.isArray(existing) ? existing.map(String) : [String(existing)];
   response.setHeader("Set-Cookie", [...cookies, value]);
 }
 

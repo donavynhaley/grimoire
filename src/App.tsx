@@ -1,6 +1,35 @@
 import { useCallback, useEffect, useState } from "react";
-import type { AwayState, BoardWorkspace, FieldType, PageStatus, IdeaState, IdeaWorkspace, SessionState, User, ProjectRole } from "../shared/types";
-import { activity as loadActivity, ApiError, away as loadAway, board as loadBoard, discussion as loadDiscussion, editConflict, ideas as loadIdeas, liveEventsUrl, markDiscussionSeen, markSeen, mutate, openThread, replyToThread, request, session, setActiveProjectId, setThreadAnswered, uploadAvatar } from "./api/client";
+import type {
+  AwayState,
+  BoardWorkspace,
+  FieldType,
+  PageStatus,
+  IdeaState,
+  IdeaWorkspace,
+  SessionState,
+  User,
+  ProjectRole,
+} from "../shared/types";
+import {
+  activity as loadActivity,
+  ApiError,
+  away as loadAway,
+  board as loadBoard,
+  discussion as loadDiscussion,
+  editConflict,
+  ideas as loadIdeas,
+  liveEventsUrl,
+  markDiscussionSeen,
+  markSeen,
+  mutate,
+  openThread,
+  replyToThread,
+  request,
+  session,
+  setActiveProjectId,
+  setThreadAnswered,
+  uploadAvatar,
+} from "./api/client";
 import { AuthScreen } from "./components/AuthScreen";
 import { Board } from "./components/Board";
 import type { CapturePageInput } from "./components/QuickCapture";
@@ -70,8 +99,12 @@ export function App() {
           }
         }
       })
-      .catch((value) => alive && setError(value instanceof Error ? value.message : "Could not reach Grimoire"));
-    return () => { alive = false; };
+      .catch(
+        (value) => alive && setError(value instanceof Error ? value.message : "Could not reach Grimoire"),
+      );
+    return () => {
+      alive = false;
+    };
   }, []);
 
   // The away boundary is captured once per project session: what the digest and
@@ -89,7 +122,9 @@ export function App() {
       .catch(() => {
         // The board works without its welcome-back decoration.
       });
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [advanceSeen, board?.project.id, sessionState?.status]);
 
   useEffect(() => {
@@ -193,8 +228,7 @@ export function App() {
     }
   };
 
-  const createPage = (input: CapturePageInput) =>
-    perform(() => mutate("/api/pages", "POST", input));
+  const createPage = (input: CapturePageInput) => perform(() => mutate("/api/pages", "POST", input));
 
   /**
    * A refused save is the editor's business, not the banner's.
@@ -204,7 +238,11 @@ export function App() {
    * collided with, in the editor holding the text. So the canonical state is reloaded and
    * the refusal is rethrown for the dialog to answer.
    */
-  const performEdit = async (change: () => Promise<unknown>, reload: () => Promise<void>, message: string) => {
+  const performEdit = async (
+    change: () => Promise<unknown>,
+    reload: () => Promise<void>,
+    message: string,
+  ) => {
     setBusy(true);
     setError("");
     try {
@@ -319,7 +357,11 @@ export function App() {
 
   const createIdea = (input: { title: string }) => performIdea(() => mutate("/api/ideas", "POST", input));
   const updateIdea = (id: string, input: Record<string, unknown>) =>
-    performEdit(() => mutate(`/api/ideas/${id}`, "PATCH", input), refreshIdeas, "The idea could not be saved");
+    performEdit(
+      () => mutate(`/api/ideas/${id}`, "PATCH", input),
+      refreshIdeas,
+      "The idea could not be saved",
+    );
   const promoteIdea = async (id: string) => {
     const title = ideas?.ideas.find((idea) => idea.id === id)?.title ?? "idea";
     await performIdea(() => mutate(`/api/ideas/${id}/promote`, "POST"));
@@ -447,8 +489,7 @@ export function App() {
     });
   };
 
-  const restoreProject = (id: string) =>
-    performSettings(() => mutate(`/api/projects/${id}/restore`, "POST"));
+  const restoreProject = (id: string) => performSettings(() => mutate(`/api/projects/${id}/restore`, "POST"));
 
   const createCategory = (input: { name: string; color: string }) =>
     performSettings(() => mutate("/api/categories", "POST", input));
@@ -474,7 +515,9 @@ export function App() {
 
   const deleteChapter = (slug: string) => performSettings(() => mutate(`/api/chapters/${slug}`, "DELETE"));
   const setChaptersEnabled = (enabled: boolean) =>
-    performSettings(() => mutate(`/api/projects/${board?.project.id}`, "PATCH", { chaptersEnabled: enabled }));
+    performSettings(() =>
+      mutate(`/api/projects/${board?.project.id}`, "PATCH", { chaptersEnabled: enabled }),
+    );
 
   const logout = async () => {
     await request("/api/auth/logout", { method: "POST", body: JSON.stringify({}) });
@@ -484,10 +527,23 @@ export function App() {
   };
 
   if (error && !sessionState) {
-    return <div className="loading-screen"><span className="brand-mark">g</span><p>{error}</p><button className="quiet-button" onClick={() => location.reload()} type="button">retry</button></div>;
+    return (
+      <div className="loading-screen">
+        <span className="brand-mark">g</span>
+        <p>{error}</p>
+        <button className="quiet-button" onClick={() => location.reload()} type="button">
+          retry
+        </button>
+      </div>
+    );
   }
   if (!sessionState || (sessionState.status === "authenticated" && !board)) {
-    return <div className="loading-screen"><span className="brand-mark pulse">g</span><p>opening grimoire...</p></div>;
+    return (
+      <div className="loading-screen">
+        <span className="brand-mark pulse">g</span>
+        <p>opening grimoire...</p>
+      </div>
+    );
   }
   if (sessionState.status === "setup_required") {
     return <AuthScreen mode="setup" onAuthenticated={onAuthenticated} />;
@@ -509,20 +565,39 @@ export function App() {
   }
   if (!board) return null;
   if (projectOpening) {
-    return <div className="loading-screen"><span className="brand-mark pulse">g</span><p>opening project...</p></div>;
+    return (
+      <div className="loading-screen">
+        <span className="brand-mark pulse">g</span>
+        <p>opening project...</p>
+      </div>
+    );
   }
 
   return (
     <>
-      {error && <div className="error-banner global-error" role="alert">{error}<button aria-label="Dismiss error" onClick={() => setError("")} type="button">×</button></div>}
-      {undoNotice && <UndoToast notice={undoNotice} onDismiss={dismissUndo} onUndo={() => void undoLastChange()} />}
+      {error && (
+        <div className="error-banner global-error" role="alert">
+          {error}
+          <button aria-label="Dismiss error" onClick={() => setError("")} type="button">
+            ×
+          </button>
+        </div>
+      )}
+      {undoNotice && (
+        <UndoToast notice={undoNotice} onDismiss={dismissUndo} onUndo={() => void undoLastChange()} />
+      )}
       <Board
         away={awayState}
         board={board}
         busy={busy}
         categoryActions={{ create: createCategory, update: updateCategory, remove: deleteCategory }}
         fieldActions={{ create: createField, update: updateField, remove: deleteField }}
-        chapterActions={{ create: createChapter, update: updateChapter, close: closeChapter, remove: deleteChapter }}
+        chapterActions={{
+          create: createChapter,
+          update: updateChapter,
+          close: closeChapter,
+          remove: deleteChapter,
+        }}
         ideas={ideas}
         key={board.project.id}
         onChangeAvatar={changeAvatar}
@@ -552,19 +627,34 @@ export function App() {
         onUpdate={updatePage}
         onUpdateIdea={updateIdea}
         onViewChange={changeView}
-        projectActions={{ select: selectProject, create: createProject, rename: renameProject, archive: archiveProject }}
+        projectActions={{
+          select: selectProject,
+          create: createProject,
+          rename: renameProject,
+          archive: archiveProject,
+        }}
         projectSettingsActions={{
           rename: (name) => renameProject(board.project.id, name),
           setDescription: (description) => describeProject(board.project.id, description),
           setChaptersEnabled,
           setEstimatesEnabled: (enabled) =>
-            performSettings(() => mutate(`/api/projects/${board.project.id}`, "PATCH", { estimatesEnabled: enabled })),
+            performSettings(() =>
+              mutate(`/api/projects/${board.project.id}`, "PATCH", { estimatesEnabled: enabled }),
+            ),
           setDiscordWebhook: (webhook) =>
-            performSettings(() => mutate(`/api/projects/${board.project.id}`, "PATCH", { discordWebhook: webhook })),
+            performSettings(() =>
+              mutate(`/api/projects/${board.project.id}`, "PATCH", { discordWebhook: webhook }),
+            ),
           setRecapOnClose: (enabled) =>
-            performSettings(() => mutate(`/api/projects/${board.project.id}`, "PATCH", { recapOnClose: enabled })),
-          setGithubRepo: (repo) => performSettings(() => mutate(`/api/projects/${board.project.id}`, "PATCH", { githubRepo: repo })),
-          setGithubToken: (token) => performSettings(() => mutate(`/api/projects/${board.project.id}`, "PATCH", { githubToken: token })),
+            performSettings(() =>
+              mutate(`/api/projects/${board.project.id}`, "PATCH", { recapOnClose: enabled }),
+            ),
+          setGithubRepo: (repo) =>
+            performSettings(() => mutate(`/api/projects/${board.project.id}`, "PATCH", { githubRepo: repo })),
+          setGithubToken: (token) =>
+            performSettings(() =>
+              mutate(`/api/projects/${board.project.id}`, "PATCH", { githubToken: token }),
+            ),
           archive: () => archiveProject(board.project.id),
           restore: restoreProject,
         }}
@@ -587,10 +677,14 @@ function applyOptimisticPageUpdate(
   input = safeInput;
   const targetStatus = (input.status as PageStatus | undefined) ?? current.status;
   const targetPosition = typeof input.position === "number" ? input.position : current.position;
-  const completedAt = targetStatus === "done"
-    ? current.status === "done" ? current.completedAt : new Date().toISOString()
-    : null;
-  const assigneeId = input.assigneeId === undefined ? current.assigneeId : (input.assigneeId as string | null);
+  const completedAt =
+    targetStatus === "done"
+      ? current.status === "done"
+        ? current.completedAt
+        : new Date().toISOString()
+      : null;
+  const assigneeId =
+    input.assigneeId === undefined ? current.assigneeId : (input.assigneeId as string | null);
   const assignee = board.members.find((member) => member.id === assigneeId);
   const remaining = board.pages.filter((page) => page.id !== id);
   const targetPages = remaining
@@ -608,9 +702,6 @@ function applyOptimisticPageUpdate(
   const reordered = targetPages.map((page, position) => ({ ...page, position }));
   return {
     ...board,
-    pages: [
-      ...remaining.filter((page) => page.status !== targetStatus),
-      ...reordered,
-    ],
+    pages: [...remaining.filter((page) => page.status !== targetStatus), ...reordered],
   };
 }

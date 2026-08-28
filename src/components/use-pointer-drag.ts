@@ -160,28 +160,31 @@ export function usePointerDrag({ onMove, onDrop, onCancel, onLift }: Options) {
     if (scrolling.current === null) scrolling.current = requestAnimationFrame(edgeScroll);
   }, [edgeScroll]);
 
-  const start = useCallback((event: ReactPointerEvent<HTMLElement>, id: string) => {
-    // A secondary mouse button is a context menu, and a second finger during a drag is not
-    // a second drag.
-    if (event.button !== 0 || pending.current) return;
-    dragged.current = false;
-    const node = event.currentTarget;
-    const rect = node.getBoundingClientRect();
-    const coarse = event.pointerType !== "mouse";
-    latest.current = { x: event.clientX, y: event.clientY };
-    pending.current = {
-      id,
-      pointerId: event.pointerId,
-      coarse,
-      originX: event.clientX,
-      originY: event.clientY,
-      rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
-      node,
-      timer: null,
-      lifted: false,
-    };
-    if (coarse) pending.current.timer = window.setTimeout(beginLift, HOLD_MS);
-  }, [beginLift]);
+  const start = useCallback(
+    (event: ReactPointerEvent<HTMLElement>, id: string) => {
+      // A secondary mouse button is a context menu, and a second finger during a drag is not
+      // a second drag.
+      if (event.button !== 0 || pending.current) return;
+      dragged.current = false;
+      const node = event.currentTarget;
+      const rect = node.getBoundingClientRect();
+      const coarse = event.pointerType !== "mouse";
+      latest.current = { x: event.clientX, y: event.clientY };
+      pending.current = {
+        id,
+        pointerId: event.pointerId,
+        coarse,
+        originX: event.clientX,
+        originY: event.clientY,
+        rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+        node,
+        timer: null,
+        lifted: false,
+      };
+      if (coarse) pending.current.timer = window.setTimeout(beginLift, HOLD_MS);
+    },
+    [beginLift],
+  );
 
   useEffect(() => {
     const move = (event: PointerEvent) => {
@@ -201,7 +204,11 @@ export function usePointerDrag({ onMove, onDrop, onCancel, onLift }: Options) {
         return;
       }
 
-      setLift((value) => (value ? { ...value, dx: event.clientX - current.originX, dy: event.clientY - current.originY } : value));
+      setLift((value) =>
+        value
+          ? { ...value, dx: event.clientX - current.originX, dy: event.clientY - current.originY }
+          : value,
+      );
       handlers.current.onMove(latest.current);
     };
 

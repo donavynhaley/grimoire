@@ -2,8 +2,20 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, unlinkSyn
 import { basename, join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
-import { PAGE_STATUSES, type PageGithubLink, type PageCategory, type PageFields, type PageStatus } from "../shared/types";
-import { isTimestamp, parseMarkdown, serializeMarkdown, writeAtomic, type FrontmatterValue } from "./markdown-files";
+import {
+  PAGE_STATUSES,
+  type PageGithubLink,
+  type PageCategory,
+  type PageFields,
+  type PageStatus,
+} from "../shared/types";
+import {
+  isTimestamp,
+  parseMarkdown,
+  serializeMarkdown,
+  writeAtomic,
+  type FrontmatterValue,
+} from "./markdown-files";
 
 export type StoredPage = {
   id: string;
@@ -32,8 +44,18 @@ const metadataSchema = z
   .object({
     id: z.string().uuid(),
     title: z.string().trim().min(1).max(240),
-    category: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(40).nullable().optional(),
-    chapter: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(60).nullable().optional(),
+    category: z
+      .string()
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+      .max(40)
+      .nullable()
+      .optional(),
+    chapter: z
+      .string()
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+      .max(60)
+      .nullable()
+      .optional(),
     fields: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
     blocked_by: z.array(z.string().uuid()).optional(),
     unblocked_cards: z.array(z.string().uuid()).optional(),
@@ -43,13 +65,21 @@ const metadataSchema = z
     created_by: z.string().email(),
     created_at: z.string().refine(isTimestamp, "created_at must be an ISO timestamp"),
     updated_at: z.string().refine(isTimestamp, "updated_at must be an ISO timestamp"),
-    completed_at: z.string().refine(isTimestamp, "completed_at must be an ISO timestamp").nullable().optional(),
+    completed_at: z
+      .string()
+      .refine(isTimestamp, "completed_at must be an ISO timestamp")
+      .nullable()
+      .optional(),
     archived_at: z.string().refine(isTimestamp, "archived_at must be an ISO timestamp").nullable().optional(),
     estimate: z.number().finite().min(0).max(100_000).nullable().optional(),
     github: z
       .union([
         z.object({ kind: z.literal("pr"), number: z.number().int().min(1), repo: z.string().optional() }),
-        z.object({ kind: z.literal("branch"), name: z.string().min(1).max(200), repo: z.string().optional() }),
+        z.object({
+          kind: z.literal("branch"),
+          name: z.string().min(1).max(200),
+          repo: z.string().optional(),
+        }),
       ])
       .nullable()
       .optional(),
@@ -214,10 +244,10 @@ export class MarkdownPageStore {
   }
 
   private projectDirectory(projectSlug: string): string {
-    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(projectSlug)) throw new Error(`Invalid project slug: ${projectSlug}`);
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(projectSlug))
+      throw new Error(`Invalid project slug: ${projectSlug}`);
     return join(this.rootDirectory, projectSlug);
   }
-
 }
 
 function parsePage(markdown: string): StoredPage {

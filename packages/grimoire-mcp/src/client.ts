@@ -23,8 +23,7 @@ export type ProjectField = {
  * takes no dependency on the application source. They must move together.
  */
 export type PageGithubLink =
-  | { kind: "pr"; number: number; repo?: string }
-  | { kind: "branch"; name: string; repo?: string };
+  { kind: "pr"; number: number; repo?: string } | { kind: "branch"; name: string; repo?: string };
 
 /** What GitHub last said about a linked page, cached server-side between polls. */
 export type PageGithubStatus = {
@@ -183,19 +182,21 @@ export class GrimoireClient {
       throw new ConflictError(body.field, body.current);
     }
     if (!response.ok) {
-      let message = typeof body === "object" && body !== null && "error" in body
-        ? String((body as { error: unknown }).error)
-        : `Grimoire returned ${response.status}`;
+      let message =
+        typeof body === "object" && body !== null && "error" in body
+          ? String((body as { error: unknown }).error)
+          : `Grimoire returned ${response.status}`;
       // Validation refusals carry field-level issues; dropping them would leave the agent
       // with a bare "Invalid request" and nothing to correct.
-      const details = typeof body === "object" && body !== null && "details" in body
-        ? (body as { details: unknown }).details
-        : null;
+      const details =
+        typeof body === "object" && body !== null && "details" in body
+          ? (body as { details: unknown }).details
+          : null;
       if (Array.isArray(details) && details.length > 0) {
         const issues = details
           .map((issue) => {
             const at = Array.isArray((issue as { path?: unknown }).path)
-              ? ((issue as { path: unknown[] }).path.join(".") || "request")
+              ? (issue as { path: unknown[] }).path.join(".") || "request"
               : "request";
             return `- ${at}: ${String((issue as { message?: unknown }).message ?? "invalid")}`;
           })
@@ -229,7 +230,9 @@ export class GrimoireClient {
    * to work from.
    */
   discussion(pageId: string): Promise<{ threads: DiscussionThread[] }> {
-    return this.request<{ threads: DiscussionThread[] }>(`/api/pages/${encodeURIComponent(pageId)}/discussion`);
+    return this.request<{ threads: DiscussionThread[] }>(
+      `/api/pages/${encodeURIComponent(pageId)}/discussion`,
+    );
   }
 
   openThread(pageId: string, body: string): Promise<{ thread: DiscussionThread }> {

@@ -158,7 +158,9 @@ describe("authentication", () => {
       }),
     });
     const memberId = registration.body.user.id;
-    const memberBoard = await server.request<{ members: Array<{ id: string; projectRole: string }> }>("/api/board");
+    const memberBoard = await server.request<{ members: Array<{ id: string; projectRole: string }> }>(
+      "/api/board",
+    );
     // Owning the project is a project role now; the account beside it says only "admin".
     const ownerId = memberBoard.body.members.find((member) => member.projectRole === "owner")!.id;
 

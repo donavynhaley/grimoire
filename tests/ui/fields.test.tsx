@@ -231,7 +231,8 @@ describe("page fields", () => {
     // Clicking elsewhere is the way out people reach for before they find the cancel.
     await user.click(screen.getByLabelText("Page properties"));
     await waitFor(() =>
-      expect(screen.queryByRole("dialog", { name: "Choose a Region" })).not.toBeInTheDocument());
+      expect(screen.queryByRole("dialog", { name: "Choose a Region" })).not.toBeInTheDocument(),
+    );
   });
 
   it("filters a searchable choice's capture picker by typing", async () => {

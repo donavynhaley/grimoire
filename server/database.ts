@@ -139,7 +139,9 @@ export function createProject(database: DatabaseSync, ownerId: string, name: str
       .prepare("INSERT INTO projects (id, name, slug, created_at, updated_at) VALUES (?, ?, ?, ?, ?)")
       .run(projectId, name, projectSlug, now, now);
     database
-      .prepare("INSERT INTO project_members (project_id, user_id, role, created_at) VALUES (?, ?, 'owner', ?)")
+      .prepare(
+        "INSERT INTO project_members (project_id, user_id, role, created_at) VALUES (?, ?, 'owner', ?)",
+      )
       .run(projectId, ownerId, now);
     seedDefaultCategories(database, projectId, now);
     database.exec("COMMIT");
@@ -391,9 +393,10 @@ function widenAuditEntityTypes(database: DatabaseSync): void {
   if (AUDIT_ENTITY_TYPES.every((value) => existing.sql!.includes(`'${value}'`))) return;
 
   const highWater = Number(
-    (database.prepare("SELECT seq FROM sqlite_sequence WHERE name = 'audit_events'").get() as
-      | { seq?: number }
-      | undefined)?.seq ?? 0,
+    (
+      database.prepare("SELECT seq FROM sqlite_sequence WHERE name = 'audit_events'").get() as
+        { seq?: number } | undefined
+    )?.seq ?? 0,
   );
 
   // A pragma is a no-op inside a transaction, so the guard is lifted around the whole swap.
@@ -424,18 +427,18 @@ function widenAuditEntityTypes(database: DatabaseSync): void {
     // table would let AUTOINCREMENT hand out a sequence a reader has already been marked as
     // having seen, which is the exact corruption this whole routine exists to prevent.
     const tracked = Number(
-      (database
-        .prepare("SELECT COUNT(*) AS rows FROM sqlite_sequence WHERE name = 'audit_events'")
-        .get() as { rows: number }).rows,
+      (
+        database
+          .prepare("SELECT COUNT(*) AS rows FROM sqlite_sequence WHERE name = 'audit_events'")
+          .get() as { rows: number }
+      ).rows,
     );
     if (tracked > 0) {
       database
         .prepare("UPDATE sqlite_sequence SET seq = ? WHERE name = 'audit_events' AND seq < ?")
         .run(highWater, highWater);
     } else if (highWater > 0) {
-      database
-        .prepare("INSERT INTO sqlite_sequence (name, seq) VALUES ('audit_events', ?)")
-        .run(highWater);
+      database.prepare("INSERT INTO sqlite_sequence (name, seq) VALUES ('audit_events', ?)").run(highWater);
     }
     const violations = database.prepare("PRAGMA foreign_key_check").all();
     if (violations.length > 0) throw new Error("Rebuilding audit_events would break a foreign key");
@@ -449,9 +452,9 @@ function widenAuditEntityTypes(database: DatabaseSync): void {
 }
 
 function tableColumns(database: DatabaseSync, table: string): string[] {
-  return (database.prepare(`SELECT name FROM pragma_table_info(?)`).all(table) as Array<{ name: string }>).map(
-    (row) => String(row.name),
-  );
+  return (
+    database.prepare(`SELECT name FROM pragma_table_info(?)`).all(table) as Array<{ name: string }>
+  ).map((row) => String(row.name));
 }
 
 /**

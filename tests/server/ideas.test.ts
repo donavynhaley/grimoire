@@ -23,16 +23,13 @@ describe("idea garden", () => {
 
     expect(created.response.status).toBe(201);
     expect(created.body.idea).toMatchObject({ state: "inbox", position: 0, createdByName: "Donavyn" });
-    expect((await ideas(server)).ideas).toEqual([expect.objectContaining({ title: created.body.idea.title })]);
+    expect((await ideas(server)).ideas).toEqual([
+      expect.objectContaining({ title: created.body.idea.title }),
+    ]);
     const workspace = (await server.request<BoardWorkspace>("/api/board")).body;
     expect(workspace.pages).toEqual([]);
 
-    const path = join(
-      server.pagesDirectory,
-      "wizard-simulator",
-      "ideas",
-      `${created.body.idea.id}.md`,
-    );
+    const path = join(server.pagesDirectory, "wizard-simulator", "ideas", `${created.body.idea.id}.md`);
     expect(readFileSync(path, "utf8")).toContain("state: inbox");
     expect(readFileSync(path, "utf8")).toContain("Keep the behavior surprising but readable.");
   });
@@ -92,12 +89,7 @@ describe("idea garden", () => {
     const board = (await server.request<BoardWorkspace>("/api/board")).body;
     expect(board.pages).toEqual([expect.objectContaining({ id: promoted.body.page.id })]);
 
-    const activePath = join(
-      server.pagesDirectory,
-      "wizard-simulator",
-      "ideas",
-      `${created.body.idea.id}.md`,
-    );
+    const activePath = join(server.pagesDirectory, "wizard-simulator", "ideas", `${created.body.idea.id}.md`);
     const archivedPath = join(
       server.pagesDirectory,
       "wizard-simulator",

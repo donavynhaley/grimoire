@@ -1,5 +1,15 @@
 import { type FormEvent, Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { type AuditPage, type AwayState, type BoardWorkspace, type DiscussionThread, type Page, type PageStatus, type IdeaState, type IdeaWorkspace, type ProjectRole } from "../../shared/types";
+import {
+  type AuditPage,
+  type AwayState,
+  type BoardWorkspace,
+  type DiscussionThread,
+  type Page,
+  type PageStatus,
+  type IdeaState,
+  type IdeaWorkspace,
+  type ProjectRole,
+} from "../../shared/types";
 import { AccountDialog } from "./AccountDialog";
 import { ActivityDialog } from "./ActivityDialog";
 import { Avatar } from "./Avatar";
@@ -10,7 +20,13 @@ import { type CategoryActions } from "./CategoriesSection";
 import { type FieldActions } from "./FieldsSection";
 import { PageFieldChips } from "./PageFields";
 import { PageFilters } from "./PageFilters";
-import { decodeFacets, encodeFacets, facetPredicate, type FacetContext, type FacetSelection } from "./page-facets";
+import {
+  decodeFacets,
+  encodeFacets,
+  facetPredicate,
+  type FacetContext,
+  type FacetSelection,
+} from "./page-facets";
 import { type ChapterActions } from "./ChaptersSection";
 import { type ChapterFilter, ChapterPicker, NO_CHAPTER } from "./ChapterPicker";
 import { chapterWhen } from "./chapter-dates";
@@ -88,7 +104,45 @@ type Props = {
   onViewChange: (view: "work" | "ideas") => Promise<void>;
 };
 
-export function Board({ away, board, busy, categoryActions, chapterActions, fieldActions, ideas, online, projectActions, projectSettingsActions, revision, view, onCreate, onUpdate, onArchive, onAddMember, onCreateInvite, onCreateIdea, onChangeAvatar, onChangeName, onChangePassword, onLoadActivity, onLoadDiscussion, onAsk, onReply, onSetAnswered, onSeeDiscussion, onLogout, onMoveBacklogToNext, onPromoteIdea, onRemoveAvatar, onChangeMemberRole, onRemoveMember, onRestorePage, onSurfaceError, onUpdateIdea, onViewChange }: Props) {
+export function Board({
+  away,
+  board,
+  busy,
+  categoryActions,
+  chapterActions,
+  fieldActions,
+  ideas,
+  online,
+  projectActions,
+  projectSettingsActions,
+  revision,
+  view,
+  onCreate,
+  onUpdate,
+  onArchive,
+  onAddMember,
+  onCreateInvite,
+  onCreateIdea,
+  onChangeAvatar,
+  onChangeName,
+  onChangePassword,
+  onLoadActivity,
+  onLoadDiscussion,
+  onAsk,
+  onReply,
+  onSetAnswered,
+  onSeeDiscussion,
+  onLogout,
+  onMoveBacklogToNext,
+  onPromoteIdea,
+  onRemoveAvatar,
+  onChangeMemberRole,
+  onRemoveMember,
+  onRestorePage,
+  onSurfaceError,
+  onUpdateIdea,
+  onViewChange,
+}: Props) {
   const [addingTo, setAddingTo] = useState<PageStatus | null>(null);
   const [columnTitle, setColumnTitle] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -136,7 +190,9 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
   // switch causes - reopens exactly where the reader was, and a link can point at a section.
   const [settingsSection, setSettingsSection] = useState<SettingsSection | null>(() => {
     const requested = new URLSearchParams(location.search).get("settings");
-    return (settingsSectionsFor(board.viewerIsOwner, board.currentUser.role === "admin") as readonly string[]).includes(requested ?? "")
+    return (
+      settingsSectionsFor(board.viewerIsOwner, board.currentUser.role === "admin") as readonly string[]
+    ).includes(requested ?? "")
       ? (requested as SettingsSection)
       : null;
   });
@@ -151,7 +207,8 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
     const ids = new Set<string>();
     if (!away || awayDismissed) return ids;
     for (const event of away.events) {
-      if (event.entityType === "page" && event.entityId && !openedUnseen.has(event.entityId)) ids.add(event.entityId);
+      if (event.entityType === "page" && event.entityId && !openedUnseen.has(event.entityId))
+        ids.add(event.entityId);
     }
     return ids;
   }, [away, awayDismissed, openedUnseen]);
@@ -197,9 +254,10 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
     if (requested) return null;
     return board.chapters.find((value) => value.state === "open")?.slug ?? null;
   });
-  const selectedChapter = chapter === null || chapter === NO_CHAPTER
-    ? undefined
-    : board.chapters.find((value) => value.slug === chapter);
+  const selectedChapter =
+    chapter === null || chapter === NO_CHAPTER
+      ? undefined
+      : board.chapters.find((value) => value.slug === chapter);
   // A chapter that was deleted, or a gate switched off, must not leave the board filtered
   // to something the reader can no longer see or reach.
   useEffect(() => {
@@ -207,7 +265,7 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
     if (!chaptersOn || !board.chapters.some((value) => value.slug === chapter)) setChapter(null);
   }, [board.chapters, chapter, chaptersOn]);
   const selectedPage = board.pages.find((page) => page.id === selectedId) ?? null;
-  const movingPage = moving ? board.pages.find((page) => page.id === moving) ?? null : null;
+  const movingPage = moving ? (board.pages.find((page) => page.id === moving) ?? null) : null;
 
   // A page put down by tap is put down by Escape too, the same key that calls off a drag.
   useEffect(() => {
@@ -247,14 +305,14 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
     [board.categories],
   );
   const categoryName = (slug: string | null) =>
-    slug === null ? "uncategorized" : categoriesBySlug.get(slug)?.name ?? slug;
+    slug === null ? "uncategorized" : (categoriesBySlug.get(slug)?.name ?? slug);
   const normalizedQuery = query.trim().toLowerCase();
   const chaptersBySlug = useMemo(
     () => new Map(board.chapters.map((value) => [value.slug, value])),
     [board.chapters],
   );
   const chapterName = (slug: string | null) =>
-    slug === null ? "no chapter" : chaptersBySlug.get(slug)?.name ?? slug;
+    slug === null ? "no chapter" : (chaptersBySlug.get(slug)?.name ?? slug);
   /**
    * The board as the bar's own controls leave it, before the filter panel has its say.
    *
@@ -263,13 +321,20 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
    * currently hiding, while still respecting the chapter, the people, and the search.
    */
   const pagesBeforeFacets = useMemo(
-    () => board.pages.filter((page) => {
-      if (chapter === NO_CHAPTER && page.chapter !== null) return false;
-      if (chapter !== null && chapter !== NO_CHAPTER && page.chapter !== chapter) return false;
-      if (people.size > 0 && !people.has(page.assigneeId ?? "unassigned")) return false;
-      if (normalizedQuery && !`${page.title}\n${page.description}\n${categoryName(page.category)}\n${chapterName(page.chapter)}\n${page.assigneeName ?? "unassigned"}`.toLowerCase().includes(normalizedQuery)) return false;
-      return true;
-    }),
+    () =>
+      board.pages.filter((page) => {
+        if (chapter === NO_CHAPTER && page.chapter !== null) return false;
+        if (chapter !== null && chapter !== NO_CHAPTER && page.chapter !== chapter) return false;
+        if (people.size > 0 && !people.has(page.assigneeId ?? "unassigned")) return false;
+        if (
+          normalizedQuery &&
+          !`${page.title}\n${page.description}\n${categoryName(page.category)}\n${chapterName(page.chapter)}\n${page.assigneeName ?? "unassigned"}`
+            .toLowerCase()
+            .includes(normalizedQuery)
+        )
+          return false;
+        return true;
+      }),
     [board.pages, categoriesBySlug, chapter, chaptersBySlug, normalizedQuery, people],
   );
   const matchesFacets = useMemo(() => facetPredicate(facets, facetContext), [facetContext, facets]);
@@ -277,13 +342,18 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
     () => pagesBeforeFacets.filter(matchesFacets),
     [matchesFacets, pagesBeforeFacets],
   );
-  const activeCount = filteredPages.filter((page) => page.status === "ready" || page.status === "in_progress" || page.status === "review").length;
+  const activeCount = filteredPages.filter(
+    (page) => page.status === "ready" || page.status === "in_progress" || page.status === "review",
+  ).length;
   const backlogPages = board.pages.filter((page) => page.status === "backlog");
   const completedPages = board.pages.filter((page) => page.status === "done");
   const offBoardMatches = useMemo(
     () => ({
       backlog: filteredPages.filter((page) => page.status === "backlog").length,
-      completed: Math.max(0, filteredPages.filter((page) => page.status === "done").length - DONE_COLUMN_LIMIT),
+      completed: Math.max(
+        0,
+        filteredPages.filter((page) => page.status === "done").length - DONE_COLUMN_LIMIT,
+      ),
     }),
     [filteredPages],
   );
@@ -310,7 +380,16 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
 
   useEffect(() => {
     const useKeyboardShortcut = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.repeat || event.isComposing || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (
+        event.defaultPrevented ||
+        event.repeat ||
+        event.isComposing ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey
+      )
+        return;
       const target = event.target;
       // An open dialog owns the keyboard: a board shortcut fired underneath one would
       // act on a surface the reader cannot see.
@@ -430,9 +509,10 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
       return;
     }
     const home = shell.querySelector(".workspace-capture");
-    const target = input.status === "backlog"
-      ? shell.querySelector(".library-trigger")
-      : shell.querySelector(`.column-${input.status}`);
+    const target =
+      input.status === "backlog"
+        ? shell.querySelector(".library-trigger")
+        : shell.querySelector(`.column-${input.status}`);
     if (!home || !target) {
       setLanded(input.status);
       return;
@@ -530,17 +610,27 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
    * a position. Without that step a drop into a filtered column would renumber the pages
    * hidden behind the filter.
    */
-  const positionFor = (id: string, status: PageStatus, hint: { status: PageStatus; index: number } | null) => {
+  const positionFor = (
+    id: string,
+    status: PageStatus,
+    hint: { status: PageStatus; index: number } | null,
+  ) => {
     const column = board.pages.filter((page) => page.status === status).sort(comparePosition);
     const without = column.filter((page) => page.id !== id);
     if (!hint || hint.status !== status || status === "backlog") return { column, position: without.length };
-    const visibleBase = pagesByStatus[status as (typeof BOARD_STATUSES)[number]].filter((page) => page.id !== id);
+    const visibleBase = pagesByStatus[status as (typeof BOARD_STATUSES)[number]].filter(
+      (page) => page.id !== id,
+    );
     const anchor = visibleBase[Math.min(hint.index, visibleBase.length)];
     const anchored = anchor ? without.findIndex((page) => page.id === anchor.id) : -1;
     return { column, position: anchored >= 0 ? anchored : without.length };
   };
 
-  const placePage = async (id: string, status: PageStatus, hint: { status: PageStatus; index: number } | null) => {
+  const placePage = async (
+    id: string,
+    status: PageStatus,
+    hint: { status: PageStatus; index: number } | null,
+  ) => {
     const current = board.pages.find((page) => page.id === id);
     if (!current) return;
     const { column, position } = positionFor(id, status, hint);
@@ -580,7 +670,7 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
   };
 
   const liftedPage = pointerDrag.lift
-    ? board.pages.find((page) => page.id === pointerDrag.lift?.id) ?? null
+    ? (board.pages.find((page) => page.id === pointerDrag.lift?.id) ?? null)
     : null;
 
   return (
@@ -591,8 +681,24 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
           <span className="brand-word">grimoire</span>
           <span className="app-version">v{packageJson.version}</span>
           <nav className="workspace-tabs" aria-label="Project spaces">
-            <button aria-current={view === "work" ? "page" : undefined} aria-label="work" onClick={() => void onViewChange("work")} title="Work (1)" type="button">work <kbd aria-hidden="true">1</kbd></button>
-            <button aria-current={view === "ideas" ? "page" : undefined} aria-label="ideas" onClick={() => void onViewChange("ideas")} title="Ideas (2)" type="button">ideas <kbd aria-hidden="true">2</kbd></button>
+            <button
+              aria-current={view === "work" ? "page" : undefined}
+              aria-label="work"
+              onClick={() => void onViewChange("work")}
+              title="Work (1)"
+              type="button"
+            >
+              work <kbd aria-hidden="true">1</kbd>
+            </button>
+            <button
+              aria-current={view === "ideas" ? "page" : undefined}
+              aria-label="ideas"
+              onClick={() => void onViewChange("ideas")}
+              title="Ideas (2)"
+              type="button"
+            >
+              ideas <kbd aria-hidden="true">2</kbd>
+            </button>
           </nav>
         </div>
         <div className="board-project">
@@ -601,7 +707,14 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
             activityBadge={unseenCount}
             busy={busy}
             isOwner={board.viewerIsOwner}
-            onOpenActivity={isOwner ? () => { setActivityOpen(true); setActivityVisited(true); } : undefined}
+            onOpenActivity={
+              isOwner
+                ? () => {
+                    setActivityOpen(true);
+                    setActivityVisited(true);
+                  }
+                : undefined
+            }
             onOpenSettings={() => setSettingsSection("general")}
             onOpenTeam={() => setSettingsSection("team")}
             project={board.project}
@@ -618,7 +731,10 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
           {isOwner && (
             <button
               className="quiet-button activity-trigger"
-              onClick={() => { setActivityOpen(true); setActivityVisited(true); }}
+              onClick={() => {
+                setActivityOpen(true);
+                setActivityVisited(true);
+              }}
               type="button"
             >
               activity
@@ -641,12 +757,29 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
             title="Search (/)"
             type="button"
           >
-            <span aria-hidden="true">⌕</span><span className="search-trigger-label">search</span>
+            <span aria-hidden="true">⌕</span>
+            <span className="search-trigger-label">search</span>
           </button>
           {/* A shortcut into the one settings surface, landing on its Team section. */}
-          <button className="quiet-button team-trigger" onClick={() => setSettingsSection("team")} type="button">team</button>
-          <button aria-label={`Open account settings for ${board.currentUser.name}`} className="account-button" onClick={() => setAccountOpen(true)} title="Account settings" type="button">
-            <Avatar avatarUrl={board.currentUser.avatarUrl} className="avatar current" name={board.currentUser.name} />
+          <button
+            className="quiet-button team-trigger"
+            onClick={() => setSettingsSection("team")}
+            type="button"
+          >
+            team
+          </button>
+          <button
+            aria-label={`Open account settings for ${board.currentUser.name}`}
+            className="account-button"
+            onClick={() => setAccountOpen(true)}
+            title="Account settings"
+            type="button"
+          >
+            <Avatar
+              avatarUrl={board.currentUser.avatarUrl}
+              className="avatar current"
+              name={board.currentUser.name}
+            />
             <span>{board.currentUser.name}</span>
           </button>
         </div>
@@ -660,269 +793,418 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
           that have opened everywhere are otherwise unexplained. */}
       {movingPage && (
         <div className="moving-bar" role="status">
-          <span>Moving <strong>{movingPage.title}</strong> — choose where it goes</span>
-          <button className="text-button" onClick={() => setMoving(null)} type="button">cancel <kbd aria-hidden="true">esc</kbd></button>
+          <span>
+            Moving <strong>{movingPage.title}</strong> — choose where it goes
+          </span>
+          <button className="text-button" onClick={() => setMoving(null)} type="button">
+            cancel <kbd aria-hidden="true">esc</kbd>
+          </button>
         </div>
       )}
 
-      {view === "work" ? <main className="board-main">
-        <div className="board-intro">
-          <div>
-            {/* A chapter names itself and says when it runs in one sentence. That is the whole
+      {view === "work" ? (
+        <main className="board-main">
+          <div className="board-intro">
+            <div>
+              {/* A chapter names itself and says when it runs in one sentence. That is the whole
                 reporting surface: no chart, no percentage, nothing to keep up to date. */}
-            <h2>{selectedChapter ? selectedChapter.name : `${activeCount} active page${activeCount === 1 ? "" : "s"}`}</h2>
-            {selectedChapter && (
-              <p className="chapter-line">
-                {activeCount} active page{activeCount === 1 ? "" : "s"}
-                {/* The chapter's own reserve belongs in its sentence. Repeating it beneath the
+              <h2>
+                {selectedChapter
+                  ? selectedChapter.name
+                  : `${activeCount} active page${activeCount === 1 ? "" : "s"}`}
+              </h2>
+              {selectedChapter && (
+                <p className="chapter-line">
+                  {activeCount} active page{activeCount === 1 ? "" : "s"}
+                  {/* The chapter's own reserve belongs in its sentence. Repeating it beneath the
                     filters put a second count next to the Backlog pill that already carries one. */}
-                {offBoardMatches.backlog > 0 && <> <span aria-hidden="true">·</span> {offBoardMatches.backlog} in backlog</>}
-                {chapterWhen(selectedChapter) && <> <span aria-hidden="true">·</span> <em>{chapterWhen(selectedChapter)}</em></>}
-              </p>
-            )}
-            {selectedChapter?.description && (
-              <p className="chapter-intent">{plainTextFromMarkdown(selectedChapter.description)}</p>
-            )}
-          </div>
-          <QuickCapture busy={busy} categories={board.categories} chapters={chaptersOn ? board.chapters : []} fields={board.fields} members={board.members} onCreate={capturePage} />
-        </div>
-
-        <div className="work-filters" aria-label="Work filters">
-          <button
-            aria-label={moving
-              ? `Move ${board.pages.find((page) => page.id === moving)?.title ?? "page"} to the backlog`
-              : `Open backlog, ${backlogPages.length} page${backlogPages.length === 1 ? "" : "s"}`}
-            className={`library-trigger ${drag ? "drop-ready" : ""} ${dropHint?.status === "backlog" ? "drop-over" : ""} ${moving ? "move-target" : ""} ${landed === "backlog" ? "landed" : ""}`}
-            onClick={() => { if (moving) void placeMoving("backlog", 0); else setBacklogOpen(true); }}
-            ref={backlogNode}
-            title="Backlog (B)"
-            type="button"
-          >
-            <span>Backlog</span><strong>{backlogPages.length}</strong><kbd aria-hidden="true">B</kbd>
-          </button>
-          {chaptersOn && (
-            <ChapterPicker
-              pages={board.pages}
-              chapters={board.chapters}
-              isOwner={isOwner}
-              onChange={changeChapter}
-              onManage={() => setSettingsSection("chapters")}
-              onMakeCurrent={makeChapterCurrent}
-              value={chapter}
+                  {offBoardMatches.backlog > 0 && (
+                    <>
+                      {" "}
+                      <span aria-hidden="true">·</span> {offBoardMatches.backlog} in backlog
+                    </>
+                  )}
+                  {chapterWhen(selectedChapter) && (
+                    <>
+                      {" "}
+                      <span aria-hidden="true">·</span> <em>{chapterWhen(selectedChapter)}</em>
+                    </>
+                  )}
+                </p>
+              )}
+              {selectedChapter?.description && (
+                <p className="chapter-intent">{plainTextFromMarkdown(selectedChapter.description)}</p>
+              )}
+            </div>
+            <QuickCapture
+              busy={busy}
+              categories={board.categories}
+              chapters={chaptersOn ? board.chapters : []}
+              fields={board.fields}
+              members={board.members}
+              onCreate={capturePage}
             />
-          )}
-          <label className="page-search">
-            <span className="sr-only">Search pages</span>
-            <input aria-label="Search pages" name="pageSearch" onChange={(event) => changeQuery(event.target.value)} placeholder="Search pages..." type="search" value={query} />
-          </label>
-          {/* Everything else a page can be narrowed by, next to the people it can be narrowed to. */}
-          <PageFilters
-            context={facetContext}
-            onChange={changeFacets}
-            pages={pagesBeforeFacets}
-            selection={facets}
-          />
-          <div className="people-filters">
-            <button aria-pressed={people.has("unassigned")} className={people.has("unassigned") ? "active" : ""} onClick={() => togglePerson("unassigned")} type="button">unassigned</button>
-            {board.members.map((member) => {
-              const isCurrentUser = member.id === board.currentUser.id;
-              return (
-                <button
-                  aria-label={isCurrentUser ? "Filter to my work" : `Filter by ${member.name}`}
-                  aria-pressed={people.has(member.id)}
-                  className={`${people.has(member.id) ? "active" : ""} ${isCurrentUser ? "self-filter" : ""}`}
-                  key={member.id}
-                  onClick={() => togglePerson(member.id)}
-                  type="button"
-                >
-                  {isCurrentUser && <span className="self-filter-label">me</span>}
-                  {/* The self chip clips its contents and slides on toggle, so the glow stays off it. */}
-                  <Avatar
-                    avatarUrl={member.avatarUrl}
-                    className="avatar tiny"
-                    name={member.name}
-                    online={!isCurrentUser && online.has(member.id)}
-                    title={online.has(member.id) ? `${member.name} (online)` : member.name}
-                  />
-                </button>
-              );
-            })}
           </div>
-        </div>
 
-        {/* The board can only draw four columns, so a filter that found nothing here has
-            not searched the project. This says where the rest of the matches are. */}
-        {/* Only a search needs this: it reports matches the four columns cannot show and offers
-            the way to reach them. A chapter's own counts live in its line above the filters. */}
-        {normalizedQuery && (
-          <div className="off-board-hint">
-            {offBoardMatches.backlog > 0 && (
-              <span>{offBoardMatches.backlog} in Backlog</span>
-            )}
-            {offBoardMatches.completed > 0 && (
-              <span>{offBoardMatches.completed} more completed</span>
-            )}
-            <button className="text-button search-everything" onClick={() => setSearchOpen(true)} type="button">
-              search everything <kbd aria-hidden="true">/</kbd>
+          <div className="work-filters" aria-label="Work filters">
+            <button
+              aria-label={
+                moving
+                  ? `Move ${board.pages.find((page) => page.id === moving)?.title ?? "page"} to the backlog`
+                  : `Open backlog, ${backlogPages.length} page${backlogPages.length === 1 ? "" : "s"}`
+              }
+              className={`library-trigger ${drag ? "drop-ready" : ""} ${dropHint?.status === "backlog" ? "drop-over" : ""} ${moving ? "move-target" : ""} ${landed === "backlog" ? "landed" : ""}`}
+              onClick={() => {
+                if (moving) void placeMoving("backlog", 0);
+                else setBacklogOpen(true);
+              }}
+              ref={backlogNode}
+              title="Backlog (B)"
+              type="button"
+            >
+              <span>Backlog</span>
+              <strong>{backlogPages.length}</strong>
+              <kbd aria-hidden="true">B</kbd>
             </button>
-          </div>
-        )}
-
-        <div className="kanban" aria-label={`${board.project.name} board`} ref={kanbanRef}>
-          {BOARD_STATUSES.map((status) => {
-            const pages = pagesByStatus[status];
-            // Whichever way a page was picked up, it leaves the flow of its column so the
-            // gaps being offered are the ones that will exist once it lands.
-            const liftedId = drag?.id ?? moving;
-            const basePages = liftedId ? pages.filter((page) => page.id !== liftedId) : pages;
-            const hintIndex = drag && dropHint?.status === status ? Math.min(dropHint.index, basePages.length) : null;
-            const placeholder = drag
-              ? <div aria-hidden="true" className="drop-placeholder" data-flip-id="drop-placeholder" style={{ height: drag.height }} />
-              : null;
-            const visibleStatusCount = filteredPages.filter((page) => page.status === status).length;
-            return (
-              <section
-                aria-label={columnNames[status]}
-                className={`kanban-column column-${status} ${landed === status ? "landed" : ""} ${moving ? "moving-open" : ""}`}
-                key={status}
-                ref={(node) => {
-                  if (node) columnNodes.current.set(status, node);
-                  else columnNodes.current.delete(status);
-                }}
+            {chaptersOn && (
+              <ChapterPicker
+                pages={board.pages}
+                chapters={board.chapters}
+                isOwner={isOwner}
+                onChange={changeChapter}
+                onManage={() => setSettingsSection("chapters")}
+                onMakeCurrent={makeChapterCurrent}
+                value={chapter}
+              />
+            )}
+            <label className="page-search">
+              <span className="sr-only">Search pages</span>
+              <input
+                aria-label="Search pages"
+                name="pageSearch"
+                onChange={(event) => changeQuery(event.target.value)}
+                placeholder="Search pages..."
+                type="search"
+                value={query}
+              />
+            </label>
+            {/* Everything else a page can be narrowed by, next to the people it can be narrowed to. */}
+            <PageFilters
+              context={facetContext}
+              onChange={changeFacets}
+              pages={pagesBeforeFacets}
+              selection={facets}
+            />
+            <div className="people-filters">
+              <button
+                aria-pressed={people.has("unassigned")}
+                className={people.has("unassigned") ? "active" : ""}
+                onClick={() => togglePerson("unassigned")}
+                type="button"
               >
-                <header className="column-header">
-                  <div><span className="column-dot" /><h3>{columnNames[status]}</h3></div>
-                  <span className="column-count">{status === "done" && visibleStatusCount > DONE_COLUMN_LIMIT ? `${pages.length} of ${visibleStatusCount}` : visibleStatusCount}</span>
-                </header>
-                <div className="page-list">
-                  {movingPage && <MoveSlot index={0} onPlace={placeMoving} status={status} statusName={columnNames[status]} title={movingPage.title} />}
-                  {pages.map((page) => {
-                    const hidden = liftedId === page.id;
-                    const slot = hidden ? -1 : basePages.findIndex((candidate) => candidate.id === page.id);
-                    const blockers = page.blockedBy
-                      .map((id) => board.pages.find((candidate) => candidate.id === id))
-                      .filter((candidate): candidate is Page => Boolean(candidate && candidate.status !== "done"));
-                    const category = page.category ? categoriesBySlug.get(page.category) : undefined;
-                    const preview = page.description ? plainTextFromMarkdown(page.description) : "";
-                    const unseen = unseenPageIds.has(page.id);
-                    return (
-                      <Fragment key={page.id}>
-                      {!hidden && slot === hintIndex && placeholder}
-                      <article
-                        className={`board-page ${page.category ? "" : "category-none"} ${hidden ? "drag-hidden" : ""} ${unseen ? "unseen" : ""}`}
-                        data-flip-id={page.id}
-                        onPointerDown={(event) => pointerDrag.start(event, page.id)}
-                        style={category ? ({ "--category-color": category.color } as React.CSSProperties) : undefined}
-                      >
-                        <button
-                          aria-label={`Move ${page.title}`}
-                          aria-pressed={moving === page.id}
-                          className="drag-grip"
-                          onClick={() => {
-                            if (pointerDrag.consumeClick()) return;
-                            setMoving((current) => (current === page.id ? null : page.id));
-                          }}
-                          title={`Move ${page.title}`}
-                          type="button"
-                        >⠿</button>
-                        <button
-                          aria-label={`Open ${page.title}${preview ? `. ${preview}` : ""}. ${categoryName(page.category)}. ${blockers.length ? `Blocked by ${blockers.map((blocker) => blocker.title).join(", ")}. ` : ""}${page.assigneeName ?? "unassigned"}${unseen ? ". Changed while you were away" : ""}`}
-                          className="page-open"
-                          onClick={() => { if (!pointerDrag.consumeClick()) setSelectedId(page.id); }}
-                          type="button"
-                        >
-                          {(page.category || blockers.length > 0 || page.github || page.openThreads > 0 || (board.project.estimatesEnabled && page.estimate !== null)) && <span className="page-signals">
-                            {page.category && <span className="category-pill">{categoryName(page.category)}</span>}
-                            {blockers.length > 0 && <span className="page-blocked">blocked by {blockers.length}</span>}
-                            {board.project.estimatesEnabled && page.estimate !== null && (
-                              <span className="estimate-pill" title={`Estimated at ${page.estimate}`}>{page.estimate}</span>
-                            )}
-                            {/*
+                unassigned
+              </button>
+              {board.members.map((member) => {
+                const isCurrentUser = member.id === board.currentUser.id;
+                return (
+                  <button
+                    aria-label={isCurrentUser ? "Filter to my work" : `Filter by ${member.name}`}
+                    aria-pressed={people.has(member.id)}
+                    className={`${people.has(member.id) ? "active" : ""} ${isCurrentUser ? "self-filter" : ""}`}
+                    key={member.id}
+                    onClick={() => togglePerson(member.id)}
+                    type="button"
+                  >
+                    {isCurrentUser && <span className="self-filter-label">me</span>}
+                    {/* The self chip clips its contents and slides on toggle, so the glow stays off it. */}
+                    <Avatar
+                      avatarUrl={member.avatarUrl}
+                      className="avatar tiny"
+                      name={member.name}
+                      online={!isCurrentUser && online.has(member.id)}
+                      title={online.has(member.id) ? `${member.name} (online)` : member.name}
+                    />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* The board can only draw four columns, so a filter that found nothing here has
+            not searched the project. This says where the rest of the matches are. */}
+          {/* Only a search needs this: it reports matches the four columns cannot show and offers
+            the way to reach them. A chapter's own counts live in its line above the filters. */}
+          {normalizedQuery && (
+            <div className="off-board-hint">
+              {offBoardMatches.backlog > 0 && <span>{offBoardMatches.backlog} in Backlog</span>}
+              {offBoardMatches.completed > 0 && <span>{offBoardMatches.completed} more completed</span>}
+              <button
+                className="text-button search-everything"
+                onClick={() => setSearchOpen(true)}
+                type="button"
+              >
+                search everything <kbd aria-hidden="true">/</kbd>
+              </button>
+            </div>
+          )}
+
+          <div className="kanban" aria-label={`${board.project.name} board`} ref={kanbanRef}>
+            {BOARD_STATUSES.map((status) => {
+              const pages = pagesByStatus[status];
+              // Whichever way a page was picked up, it leaves the flow of its column so the
+              // gaps being offered are the ones that will exist once it lands.
+              const liftedId = drag?.id ?? moving;
+              const basePages = liftedId ? pages.filter((page) => page.id !== liftedId) : pages;
+              const hintIndex =
+                drag && dropHint?.status === status ? Math.min(dropHint.index, basePages.length) : null;
+              const placeholder = drag ? (
+                <div
+                  aria-hidden="true"
+                  className="drop-placeholder"
+                  data-flip-id="drop-placeholder"
+                  style={{ height: drag.height }}
+                />
+              ) : null;
+              const visibleStatusCount = filteredPages.filter((page) => page.status === status).length;
+              return (
+                <section
+                  aria-label={columnNames[status]}
+                  className={`kanban-column column-${status} ${landed === status ? "landed" : ""} ${moving ? "moving-open" : ""}`}
+                  key={status}
+                  ref={(node) => {
+                    if (node) columnNodes.current.set(status, node);
+                    else columnNodes.current.delete(status);
+                  }}
+                >
+                  <header className="column-header">
+                    <div>
+                      <span className="column-dot" />
+                      <h3>{columnNames[status]}</h3>
+                    </div>
+                    <span className="column-count">
+                      {status === "done" && visibleStatusCount > DONE_COLUMN_LIMIT
+                        ? `${pages.length} of ${visibleStatusCount}`
+                        : visibleStatusCount}
+                    </span>
+                  </header>
+                  <div className="page-list">
+                    {movingPage && (
+                      <MoveSlot
+                        index={0}
+                        onPlace={placeMoving}
+                        status={status}
+                        statusName={columnNames[status]}
+                        title={movingPage.title}
+                      />
+                    )}
+                    {pages.map((page) => {
+                      const hidden = liftedId === page.id;
+                      const slot = hidden ? -1 : basePages.findIndex((candidate) => candidate.id === page.id);
+                      const blockers = page.blockedBy
+                        .map((id) => board.pages.find((candidate) => candidate.id === id))
+                        .filter((candidate): candidate is Page =>
+                          Boolean(candidate && candidate.status !== "done"),
+                        );
+                      const category = page.category ? categoriesBySlug.get(page.category) : undefined;
+                      const preview = page.description ? plainTextFromMarkdown(page.description) : "";
+                      const unseen = unseenPageIds.has(page.id);
+                      return (
+                        <Fragment key={page.id}>
+                          {!hidden && slot === hintIndex && placeholder}
+                          <article
+                            className={`board-page ${page.category ? "" : "category-none"} ${hidden ? "drag-hidden" : ""} ${unseen ? "unseen" : ""}`}
+                            data-flip-id={page.id}
+                            onPointerDown={(event) => pointerDrag.start(event, page.id)}
+                            style={
+                              category
+                                ? ({ "--category-color": category.color } as React.CSSProperties)
+                                : undefined
+                            }
+                          >
+                            <button
+                              aria-label={`Move ${page.title}`}
+                              aria-pressed={moving === page.id}
+                              className="drag-grip"
+                              onClick={() => {
+                                if (pointerDrag.consumeClick()) return;
+                                setMoving((current) => (current === page.id ? null : page.id));
+                              }}
+                              title={`Move ${page.title}`}
+                              type="button"
+                            >
+                              ⠿
+                            </button>
+                            <button
+                              aria-label={`Open ${page.title}${preview ? `. ${preview}` : ""}. ${categoryName(page.category)}. ${blockers.length ? `Blocked by ${blockers.map((blocker) => blocker.title).join(", ")}. ` : ""}${page.assigneeName ?? "unassigned"}${unseen ? ". Changed while you were away" : ""}`}
+                              className="page-open"
+                              onClick={() => {
+                                if (!pointerDrag.consumeClick()) setSelectedId(page.id);
+                              }}
+                              type="button"
+                            >
+                              {(page.category ||
+                                blockers.length > 0 ||
+                                page.github ||
+                                page.openThreads > 0 ||
+                                (board.project.estimatesEnabled && page.estimate !== null)) && (
+                                <span className="page-signals">
+                                  {page.category && (
+                                    <span className="category-pill">{categoryName(page.category)}</span>
+                                  )}
+                                  {blockers.length > 0 && (
+                                    <span className="page-blocked">blocked by {blockers.length}</span>
+                                  )}
+                                  {board.project.estimatesEnabled && page.estimate !== null && (
+                                    <span className="estimate-pill" title={`Estimated at ${page.estimate}`}>
+                                      {page.estimate}
+                                    </span>
+                                  )}
+                                  {/*
                               Only unanswered threads are worth a tile: a page whose questions
                               have all been answered looks exactly as it did before anyone
                               asked one.
                             */}
-                            {page.openThreads > 0 && (
-                              <span
-                                className="discussion-pill"
-                                title={page.openThreads === 1 ? "1 open thread" : `${page.openThreads} open threads`}
-                              >
-                                {page.openThreads} open
+                                  {page.openThreads > 0 && (
+                                    <span
+                                      className="discussion-pill"
+                                      title={
+                                        page.openThreads === 1
+                                          ? "1 open thread"
+                                          : `${page.openThreads} open threads`
+                                      }
+                                    >
+                                      {page.openThreads} open
+                                    </span>
+                                  )}
+                                  {page.github && (
+                                    <span
+                                      className={`github-pill github-state-${page.githubStatus?.state ?? "unchecked"}`}
+                                    >
+                                      {page.githubStatus?.prNumber
+                                        ? `#${page.githubStatus.prNumber}`
+                                        : page.github.kind === "pr"
+                                          ? `#${page.github.number}`
+                                          : `⎇ ${page.github.name}`}
+                                    </span>
+                                  )}
+                                </span>
+                              )}
+                              <strong>{page.title}</strong>
+                              {preview && <p>{preview}</p>}
+                              <PageFieldChips fields={board.fields} values={page.fields} />
+                              <span className={`assignee ${page.assigneeId ? "assigned" : ""}`}>
+                                {page.assigneeName ? (
+                                  <>
+                                    <Avatar
+                                      avatarUrl={
+                                        board.members.find((member) => member.id === page.assigneeId)
+                                          ?.avatarUrl
+                                      }
+                                      className="avatar tiny"
+                                      name={page.assigneeName}
+                                    />
+                                    {page.assigneeName}
+                                  </>
+                                ) : (
+                                  "unassigned"
+                                )}
                               </span>
-                            )}
-                            {page.github && (
-                              <span className={`github-pill github-state-${page.githubStatus?.state ?? "unchecked"}`}>
-                                {page.githubStatus?.prNumber
-                                  ? `#${page.githubStatus.prNumber}`
-                                  : page.github.kind === "pr" ? `#${page.github.number}` : `⎇ ${page.github.name}`}
-                              </span>
-                            )}
-                          </span>}
-                          <strong>{page.title}</strong>
-                          {preview && <p>{preview}</p>}
-                          <PageFieldChips fields={board.fields} values={page.fields} />
-                          <span className={`assignee ${page.assigneeId ? "assigned" : ""}`}>
-                            {page.assigneeName ? <>
-                              <Avatar
-                                avatarUrl={board.members.find((member) => member.id === page.assigneeId)?.avatarUrl}
-                                className="avatar tiny"
-                                name={page.assigneeName}
-                              />
-                              {page.assigneeName}
-                            </> : "unassigned"}
-                          </span>
-                        </button>
-                      </article>
-                      {movingPage && !hidden && <MoveSlot index={slot + 1} onPlace={placeMoving} status={status} statusName={columnNames[status]} title={movingPage.title} />}
-                      </Fragment>
-                    );
-                  })}
-                  {hintIndex !== null && hintIndex === basePages.length && placeholder}
-                  {pages.length === 0 && hintIndex === null && !movingPage && <div className="empty-column">{status === "done" ? "completed work appears here" : "drop a page here"}</div>}
-                </div>
-                {status === "done" && completedPages.length > DONE_COLUMN_LIMIT && (
-                  <button
-                    aria-label={`Search all completed work, ${completedPages.length} pages`}
-                    className="library-trigger completed-trigger"
-                    onClick={() => setHistoryOpen(true)}
-                    type="button"
-                  >
-                    <span>all completed</span><strong>{completedPages.length}</strong>
-                  </button>
-                )}
-                {status !== "done" && (addingTo === status ? (
-                  <form className="column-add-form" onSubmit={(event) => void createColumnPage(event, status)}>
-                    <label className="sr-only" htmlFor={`new-${status}`}>New {columnNames[status]} page</label>
-                    <input
-                      autoFocus
-                      id={`new-${status}`}
-                      name={`new-${status}`}
-                      onChange={(event) => setColumnTitle(event.target.value)}
-                      onKeyDown={(event) => { if (event.key === "Escape") setAddingTo(null); }}
-                      placeholder="Page title"
-                      value={columnTitle}
-                    />
-                    <div><button className="primary-button compact" disabled={!columnTitle.trim()} type="submit">add</button><button className="text-button" onClick={() => setAddingTo(null)} type="button">cancel</button></div>
-                  </form>
-                ) : (
-                  <button className="add-to-column" onClick={() => { setAddingTo(status); setColumnTitle(""); }} type="button">+ add page</button>
-                ))}
-              </section>
-            );
-          })}
-        </div>
-      </main> : (
-        ideas ? (
-          <IdeasBoard
-            busy={busy}
-            openIdea={openIdea}
-            unseenIdeaIds={unseenIdeaIds}
-            workspace={ideas}
-            onCreate={onCreateIdea}
-            onPromote={onPromoteIdea}
-            onUpdate={onUpdateIdea}
-          />
-        ) : <main className="ideas-main"><p className="ideas-loading">opening the idea garden...</p></main>
+                            </button>
+                          </article>
+                          {movingPage && !hidden && (
+                            <MoveSlot
+                              index={slot + 1}
+                              onPlace={placeMoving}
+                              status={status}
+                              statusName={columnNames[status]}
+                              title={movingPage.title}
+                            />
+                          )}
+                        </Fragment>
+                      );
+                    })}
+                    {hintIndex !== null && hintIndex === basePages.length && placeholder}
+                    {pages.length === 0 && hintIndex === null && !movingPage && (
+                      <div className="empty-column">
+                        {status === "done" ? "completed work appears here" : "drop a page here"}
+                      </div>
+                    )}
+                  </div>
+                  {status === "done" && completedPages.length > DONE_COLUMN_LIMIT && (
+                    <button
+                      aria-label={`Search all completed work, ${completedPages.length} pages`}
+                      className="library-trigger completed-trigger"
+                      onClick={() => setHistoryOpen(true)}
+                      type="button"
+                    >
+                      <span>all completed</span>
+                      <strong>{completedPages.length}</strong>
+                    </button>
+                  )}
+                  {status !== "done" &&
+                    (addingTo === status ? (
+                      <form
+                        className="column-add-form"
+                        onSubmit={(event) => void createColumnPage(event, status)}
+                      >
+                        <label className="sr-only" htmlFor={`new-${status}`}>
+                          New {columnNames[status]} page
+                        </label>
+                        <input
+                          autoFocus
+                          id={`new-${status}`}
+                          name={`new-${status}`}
+                          onChange={(event) => setColumnTitle(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Escape") setAddingTo(null);
+                          }}
+                          placeholder="Page title"
+                          value={columnTitle}
+                        />
+                        <div>
+                          <button
+                            className="primary-button compact"
+                            disabled={!columnTitle.trim()}
+                            type="submit"
+                          >
+                            add
+                          </button>
+                          <button className="text-button" onClick={() => setAddingTo(null)} type="button">
+                            cancel
+                          </button>
+                        </div>
+                      </form>
+                    ) : (
+                      <button
+                        className="add-to-column"
+                        onClick={() => {
+                          setAddingTo(status);
+                          setColumnTitle("");
+                        }}
+                        type="button"
+                      >
+                        + add page
+                      </button>
+                    ))}
+                </section>
+              );
+            })}
+          </div>
+        </main>
+      ) : ideas ? (
+        <IdeasBoard
+          busy={busy}
+          openIdea={openIdea}
+          unseenIdeaIds={unseenIdeaIds}
+          workspace={ideas}
+          onCreate={onCreateIdea}
+          onPromote={onPromoteIdea}
+          onUpdate={onUpdateIdea}
+        />
+      ) : (
+        <main className="ideas-main">
+          <p className="ideas-loading">opening the idea garden...</p>
+        </main>
       )}
 
       {searchOpen && (
@@ -946,7 +1228,10 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
           githubRepo={board.project.githubRepo}
           members={board.members}
           revision={revision}
-          onArchive={async () => { await onArchive(selectedPage.id); setSelectedId(null); }}
+          onArchive={async () => {
+            await onArchive(selectedPage.id);
+            setSelectedId(null);
+          }}
           onClose={() => setSelectedId(null)}
           onLoadActivity={onLoadActivity}
           onLoadDiscussion={onLoadDiscussion}
@@ -981,7 +1266,10 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
           members={board.members}
           onClose={() => setBacklogOpen(false)}
           onMoveToNext={onMoveBacklogToNext}
-          onOpenPage={(id) => { setBacklogOpen(false); setSelectedId(id); }}
+          onOpenPage={(id) => {
+            setBacklogOpen(false);
+            setSelectedId(id);
+          }}
           onSetChapter={(id, value) => onUpdate(id, { chapter: value })}
           targetChapter={chaptersOn && chapter !== NO_CHAPTER ? chapter : null}
         />
@@ -993,10 +1281,16 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
           categories={board.categories}
           members={board.members}
           onClose={() => setHistoryOpen(false)}
-          onOpenPage={(id) => { setHistoryOpen(false); setSelectedId(id); }}
+          onOpenPage={(id) => {
+            setHistoryOpen(false);
+            setSelectedId(id);
+          }}
           onReopen={async (id) => {
             setHistoryOpen(false);
-            await onUpdate(id, { status: "ready", position: board.pages.filter((page) => page.status === "ready").length });
+            await onUpdate(id, {
+              status: "ready",
+              position: board.pages.filter((page) => page.status === "ready").length,
+            });
           }}
         />
       )}
@@ -1065,10 +1359,17 @@ export function Board({ away, board, busy, categoryActions, chapterActions, fiel
             transform: `translate(${pointerDrag.lift.dx}px, ${pointerDrag.lift.dy}px)`,
           }}
         >
-          <span className="page-open"><strong>{liftedPage.title}</strong></span>
+          <span className="page-open">
+            <strong>{liftedPage.title}</strong>
+          </span>
         </div>
       )}
-      {busy && <div className="saving-indicator"><span className="connection-dot" />saving</div>}
+      {busy && (
+        <div className="saving-indicator">
+          <span className="connection-dot" />
+          saving
+        </div>
+      )}
     </div>
   );
 }
@@ -1087,7 +1388,13 @@ type CaptureFlight = {
  * These are ordinary buttons, which is the whole point: the gap a mouse finds by hovering
  * over it is the same gap a finger finds by tapping it and a keyboard finds by tabbing to it.
  */
-function MoveSlot({ index, onPlace, status, statusName, title }: {
+function MoveSlot({
+  index,
+  onPlace,
+  status,
+  statusName,
+  title,
+}: {
   index: number;
   onPlace: (status: PageStatus, index: number) => Promise<void>;
   status: PageStatus;

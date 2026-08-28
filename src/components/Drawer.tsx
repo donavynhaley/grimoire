@@ -84,9 +84,18 @@ export function Drawer({ className, backdropClassName = "", labelledBy, label, o
     return (
       <div
         className={`modal-backdrop ${backdropClassName}`.trim()}
-        onMouseDown={(event) => { if (event.target === event.currentTarget) void onClose(); }}
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) void onClose();
+        }}
       >
-        <section aria-label={label} aria-labelledby={labelledBy} aria-modal="true" className={className} ref={panel} role="dialog">
+        <section
+          aria-label={label}
+          aria-labelledby={labelledBy}
+          aria-modal="true"
+          className={className}
+          ref={panel}
+          role="dialog"
+        >
           {children}
         </section>
       </div>
@@ -96,7 +105,9 @@ export function Drawer({ className, backdropClassName = "", labelledBy, label, o
   return (
     <div
       className={`modal-backdrop drawer-backdrop ${backdropClassName}`.trim()}
-      onPointerDown={(event) => { if (event.target === event.currentTarget) void onClose(); }}
+      onPointerDown={(event) => {
+        if (event.target === event.currentTarget) void onClose();
+      }}
     >
       <section
         aria-label={label}

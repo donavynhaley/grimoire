@@ -14,7 +14,9 @@ test.describe("grimoire in one hand", () => {
     await openBoard(page);
     // The capture field exists and is one tap away, but it has not taken the screen.
     await expect(page.getByLabel("Capture work page")).toBeVisible();
-    const focusedOnLoad = await page.evaluate(() => document.activeElement === document.body || document.activeElement === null);
+    const focusedOnLoad = await page.evaluate(
+      () => document.activeElement === document.body || document.activeElement === null,
+    );
     expect(focusedOnLoad).toBe(true);
   });
 
@@ -24,7 +26,9 @@ test.describe("grimoire in one hand", () => {
     await page.getByRole("button", { name: "Move Carve the moving staircase" }).tap();
     await expect(page.getByRole("status")).toContainText("Moving");
 
-    await page.getByRole("button", { name: "Place Carve the moving staircase in In progress, position 1" }).tap();
+    await page
+      .getByRole("button", { name: "Place Carve the moving staircase in In progress, position 1" })
+      .tap();
     await expect(page.getByRole("status")).toHaveCount(0);
     await expect(
       page.getByRole("region", { name: "In progress" }).getByText("Carve the moving staircase"),

@@ -1,10 +1,23 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import { IDEA_STATES, type Page, type Idea, type IdeaState, type IdeaWorkspace, type User } from "../shared/types";
+import {
+  IDEA_STATES,
+  type Page,
+  type Idea,
+  type IdeaState,
+  type IdeaWorkspace,
+  type User,
+} from "../shared/types";
 import { MarkdownPageStore } from "./markdown-pages";
 import { MarkdownChapterStore } from "./markdown-chapters";
 import { MarkdownIdeaStore, type StoredIdea } from "./markdown-ideas";
-import { PageDependencyError, createPage, membersForProject, projectById, requireUnchangedContent } from "./repository";
+import {
+  PageDependencyError,
+  createPage,
+  membersForProject,
+  projectById,
+  requireUnchangedContent,
+} from "./repository";
 
 type IdeaInput = {
   title: string;
@@ -187,7 +200,9 @@ export function undoPromotion(
     updatedAt: new Date().toISOString(),
   };
   ideaStore.restore(projectSlug, restored);
-  const ideas = ideaStore.list(projectSlug).filter((idea) => idea.id !== restored.id && idea.state === restored.state);
+  const ideas = ideaStore
+    .list(projectSlug)
+    .filter((idea) => idea.id !== restored.id && idea.state === restored.state);
   ideas.splice(Math.max(0, Math.min(restored.position, ideas.length)), 0, restored);
   ideas.forEach((idea, position) => {
     if (idea.position !== position) ideaStore.save(projectSlug, { ...idea, position });

@@ -25,8 +25,9 @@ export function buildRecap(
 ): ChapterRecap {
   const mine = pages.filter((page) => page.chapter === chapter.slug);
   const delivered = chapter.deliveredPages ?? mine.filter((page) => page.status === "done").length;
-  const deliveredEstimate = chapter.deliveredEstimate
-    ?? mine.filter((page) => page.status === "done").reduce((sum, page) => sum + (page.estimate ?? 0), 0);
+  const deliveredEstimate =
+    chapter.deliveredEstimate ??
+    mine.filter((page) => page.status === "done").reduce((sum, page) => sum + (page.estimate ?? 0), 0);
 
   /*
    * Who delivered what, counted from the pages themselves rather than the activity log.
@@ -126,31 +127,32 @@ export function recapMessages(recap: ChapterRecap, estimatesOn: boolean): string
   lines.push(`**Overall completion:** ${Math.round(completion * 100)}% ${bar(completion)}`);
   lines.push(
     `📈 **Delivered:** ${recap.delivered} page${recap.delivered === 1 ? "" : "s"}` +
-    `${change(recap.delivered, recap.averageDelivered, "pages")}`,
+      `${change(recap.delivered, recap.averageDelivered, "pages")}`,
   );
   if (estimatesOn) {
     lines.push(
       `🎯 **Velocity:** ${recap.deliveredEstimate} pts` +
-      `${change(recap.deliveredEstimate, recap.averageDeliveredEstimate, "pts")}`,
+        `${change(recap.deliveredEstimate, recap.averageDeliveredEstimate, "pts")}`,
     );
   }
   if (recap.carriedPages > 0) {
     const where = recap.carriedTo ? ` into ${recap.carriedTo}` : " onward";
     lines.push(
       `↪️ **Carried:** ${recap.carriedPages} page${recap.carriedPages === 1 ? "" : "s"}` +
-      `${estimatesOn && recap.carriedEstimate > 0 ? ` (${recap.carriedEstimate} pts)` : ""}${where}`,
+        `${estimatesOn && recap.carriedEstimate > 0 ? ` (${recap.carriedEstimate} pts)` : ""}${where}`,
     );
   }
   lines.push("");
   lines.push(
     `🏁 Done overall: ${recap.project.done} · 📋 Backlog: ${recap.project.backlog} · ` +
-    `🎯 Total scope: ${recap.project.total}`,
+      `🎯 Total scope: ${recap.project.total}`,
   );
 
   const messages = [lines.join("\n")];
 
   for (const person of recap.byPerson) {
-    const head = `💪 **${person.name}** — ${person.shipped} shipped` +
+    const head =
+      `💪 **${person.name}** — ${person.shipped} shipped` +
       `${estimatesOn && person.shippedEstimate > 0 ? ` (${person.shippedEstimate} pts)` : ""}` +
       ` · ${person.inFlight} in flight`;
     const titles = person.titles.map((title) => `• ${title}`).join("\n");

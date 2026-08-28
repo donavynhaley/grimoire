@@ -1,6 +1,13 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { ConflictError, GrimoireClient, GrimoireError, type Board, type DiscussionThread, type Page } from "./client.js";
+import {
+  ConflictError,
+  GrimoireClient,
+  GrimoireError,
+  type Board,
+  type DiscussionThread,
+  type Page,
+} from "./client.js";
 import {
   ResolutionError,
   categoryName,
@@ -88,7 +95,7 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
             "too. Those are deliberately left to a person. Before rewriting a page's title or " +
             "notes, read them with grimoire_read_page and pass what you read as expectedTitle or " +
             "expectedNotes."
-        : "This credential is read-only: you can read the board, search, list ideas, and read " +
+          : "This credential is read-only: you can read the board, search, list ideas, and read " +
             "the discussion on any page, and nothing here can write. Ask the project owner for " +
             "a write-scoped credential if this agent should create or edit work, or report in " +
             "a page's discussion."),
@@ -144,7 +151,9 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
             `${hit.assigneeName ? ` · ${hit.assigneeName}` : ""}` +
             `\n  id: ${hit.id}${hit.snippet ? `\n  ${hit.snippet}` : ""}`,
         );
-        return text(`${results.total} match${results.total === 1 ? "" : "es"} for "${query}":\n${lines.join("\n")}`);
+        return text(
+          `${results.total} match${results.total === 1 ? "" : "es"} for "${query}":\n${lines.join("\n")}`,
+        );
       } catch (error) {
         return failure(error);
       }
@@ -192,7 +201,10 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
         if (ideas.length === 0) return text("The idea garden is empty.");
         return text(
           ideas
-            .map((idea) => `- [${idea.state}] ${idea.title}\n  id: ${idea.id}${idea.description ? `\n  ${firstLine(idea.description)}` : ""}`)
+            .map(
+              (idea) =>
+                `- [${idea.state}] ${idea.title}\n  id: ${idea.id}${idea.description ? `\n  ${firstLine(idea.description)}` : ""}`,
+            )
             .join("\n"),
         );
       } catch (error) {
@@ -200,7 +212,6 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
       }
     },
   );
-
 
   server.registerTool(
     "grimoire_read_discussion",
@@ -256,7 +267,7 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
           .describe("Backlog, Up Next, In progress, Review or Done. Defaults to Backlog."),
         category: z.string().optional().describe("A category name that exists in this project."),
         chapter: z.string().optional().describe("A chapter name, if the project uses chapters."),
-        assignee: z.string().optional().describe("A member's name or email, or \"me\"."),
+        assignee: z.string().optional().describe('A member\'s name or email, or "me".'),
         blockedBy: z
           .array(z.string())
           .max(20)
@@ -313,9 +324,9 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
           .optional()
           .describe("The notes you read before deciding to rewrite them, verbatim from grimoire_read_page."),
         column: z.string().optional().describe("Move it to another column."),
-        category: z.string().optional().describe("A category name, or \"none\" to clear it."),
-        chapter: z.string().optional().describe("A chapter name, or \"none\" to clear it."),
-        assignee: z.string().optional().describe("A member's name or email, \"me\", or \"nobody\"."),
+        category: z.string().optional().describe('A category name, or "none" to clear it.'),
+        chapter: z.string().optional().describe('A chapter name, or "none" to clear it.'),
+        assignee: z.string().optional().describe('A member\'s name or email, "me", or "nobody".'),
         blockedBy: z.array(z.string()).max(20).optional().describe("Replaces the blocker list."),
         fields: fieldPatch.optional(),
         github: z
@@ -324,7 +335,7 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
           .nullable()
           .optional()
           .describe(
-            "The GitHub work this page is tied to: a pull request URL, \"#123\", a branch URL, " +
+            'The GitHub work this page is tied to: a pull request URL, "#123", a branch URL, ' +
               "or a branch name. Pass null to unlink. Grimoire then tracks it - the page moves " +
               "itself to Review when the pull request opens and to Done when it merges, so " +
               "linking is usually better than moving the page by hand.",
@@ -411,7 +422,9 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
         const target = resolvePage(board, page);
         const status = resolveStatus(column);
         const { page: moved } = await client.updatePage(target.id, { status });
-        return text(`Moved "${moved.title}" from ${columnLabel(target.status)} to ${columnLabel(moved.status)}.`);
+        return text(
+          `Moved "${moved.title}" from ${columnLabel(target.status)} to ${columnLabel(moved.status)}.`,
+        );
       } catch (error) {
         return failure(error);
       }
@@ -619,7 +632,10 @@ function renderBoard(board: Board): string {
   if (board.fields && board.fields.length > 0) {
     sections.push(
       `Fields: ${board.fields
-        .map((field) => `${field.label} (${field.type === "select" || field.type === "search-select" ? field.options.join(" | ") : field.type})`)
+        .map(
+          (field) =>
+            `${field.label} (${field.type === "select" || field.type === "search-select" ? field.options.join(" | ") : field.type})`,
+        )
         .join(", ")}`,
     );
   }

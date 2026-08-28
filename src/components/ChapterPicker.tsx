@@ -23,13 +23,11 @@ type Props = {
   value: ChapterFilter;
 };
 
-
 export function ChapterPicker({ pages, chapters, isOwner, onChange, onManage, onMakeCurrent, value }: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  const selected = value === null || value === NO_CHAPTER
-    ? undefined
-    : chapters.find((chapter) => chapter.slug === value);
+  const selected =
+    value === null || value === NO_CHAPTER ? undefined : chapters.find((chapter) => chapter.slug === value);
 
   useEffect(() => {
     if (!open) return;
@@ -62,8 +60,13 @@ export function ChapterPicker({ pages, chapters, isOwner, onChange, onManage, on
     if (!open) setShowClosed(viewingClosed);
   }, [open, viewingClosed]);
 
-  const label = value === NO_CHAPTER ? "No chapter" : selected?.name ?? "All work";
-  const when = value === NO_CHAPTER ? `${unplaced} unplaced` : selected ? chapterWhen(selected) : `${pages.length} pages`;
+  const label = value === NO_CHAPTER ? "No chapter" : (selected?.name ?? "All work");
+  const when =
+    value === NO_CHAPTER
+      ? `${unplaced} unplaced`
+      : selected
+        ? chapterWhen(selected)
+        : `${pages.length} pages`;
 
   const choose = (next: ChapterFilter) => {
     onChange(next);
@@ -92,7 +95,10 @@ export function ChapterPicker({ pages, chapters, isOwner, onChange, onManage, on
         role="menuitem"
         type="button"
       >
-        <span className="chapter-option-name">{name}{sub && <span className="chapter-option-sub">{sub}</span>}</span>
+        <span className="chapter-option-name">
+          {name}
+          {sub && <span className="chapter-option-sub">{sub}</span>}
+        </span>
         <span className="chapter-option-count">{count}</span>
       </button>
       {makeCurrent && isOwner && (
@@ -102,7 +108,9 @@ export function ChapterPicker({ pages, chapters, isOwner, onChange, onManage, on
           onClick={() => void onMakeCurrent(makeCurrent)}
           title={current ? `Closes ${current.name} first` : undefined}
           type="button"
-        >make current</button>
+        >
+          make current
+        </button>
       )}
     </div>
   );
@@ -120,22 +128,46 @@ export function ChapterPicker({ pages, chapters, isOwner, onChange, onManage, on
         <span aria-hidden="true" className="chapter-dot" />
         <span className="chapter-trigger-name">{label}</span>
         {when && <span className="chapter-trigger-when">{when}</span>}
-        <span aria-hidden="true" className="chapter-trigger-caret">▾</span>
+        <span aria-hidden="true" className="chapter-trigger-caret">
+          ▾
+        </span>
       </button>
       {open && (
         <div aria-label="Chapters" className="chapter-panel" role="menu">
-          {option("all", "All work", `${chapters.length} chapter${chapters.length === 1 ? "" : "s"}`, pages.length, null, false)}
+          {option(
+            "all",
+            "All work",
+            `${chapters.length} chapter${chapters.length === 1 ? "" : "s"}`,
+            pages.length,
+            null,
+            false,
+          )}
           {current && (
             <>
               <p className="chapter-group-label">current</p>
-              {option(current.slug, current.name, chapterWhen(current), countIn(current.slug), current.slug, true)}
+              {option(
+                current.slug,
+                current.name,
+                chapterWhen(current),
+                countIn(current.slug),
+                current.slug,
+                true,
+              )}
             </>
           )}
           {planned.length > 0 && (
             <>
               <p className="chapter-group-label">planned</p>
               {planned.map((chapter) =>
-                option(chapter.slug, chapter.name, chapterWhen(chapter), countIn(chapter.slug), chapter.slug, false, chapter.slug),
+                option(
+                  chapter.slug,
+                  chapter.name,
+                  chapterWhen(chapter),
+                  countIn(chapter.slug),
+                  chapter.slug,
+                  false,
+                  chapter.slug,
+                ),
               )}
             </>
           )}
@@ -149,11 +181,22 @@ export function ChapterPicker({ pages, chapters, isOwner, onChange, onManage, on
               >
                 <span>earlier</span>
                 <span className="chapter-group-count">{closed.length}</span>
-                <span aria-hidden="true" className="chapter-group-caret">{showClosed ? "▾" : "▸"}</span>
+                <span aria-hidden="true" className="chapter-group-caret">
+                  {showClosed ? "▾" : "▸"}
+                </span>
               </button>
-              {showClosed && closed.map((chapter) =>
-                option(chapter.slug, chapter.name, chapterWhen(chapter), countIn(chapter.slug), chapter.slug, false, chapter.slug),
-              )}
+              {showClosed &&
+                closed.map((chapter) =>
+                  option(
+                    chapter.slug,
+                    chapter.name,
+                    chapterWhen(chapter),
+                    countIn(chapter.slug),
+                    chapter.slug,
+                    false,
+                    chapter.slug,
+                  ),
+                )}
             </Growing>
           )}
           <div className="chapter-panel-foot">
@@ -161,10 +204,15 @@ export function ChapterPicker({ pages, chapters, isOwner, onChange, onManage, on
             {isOwner && (
               <button
                 className="chapter-manage"
-                onClick={() => { setOpen(false); onManage(); }}
+                onClick={() => {
+                  setOpen(false);
+                  onManage();
+                }}
                 role="menuitem"
                 type="button"
-              >Manage chapters…</button>
+              >
+                Manage chapters…
+              </button>
             )}
           </div>
         </div>

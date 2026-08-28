@@ -43,7 +43,11 @@ describe("project search", () => {
 
     await addPage(server, { title: "Reagent rarity colours", status: "ready" });
     await addPage(server, { title: "Weather system affects reagent potency", status: "backlog" });
-    await addPage(server, { title: "First playable brewing loop", status: "done" }, "Three reagents in, one potion out.");
+    await addPage(
+      server,
+      { title: "First playable brewing loop", status: "done" },
+      "Three reagents in, one potion out.",
+    );
     await addIdea(server, "Seasonal reagents that appear one week a year", "shortlist");
     const archived = await addPage(server, { title: "Reagent shelf prototype", status: "backlog" });
     await server.request(`/api/pages/${archived.id}`, { method: "DELETE" });

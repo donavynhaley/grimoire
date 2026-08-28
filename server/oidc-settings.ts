@@ -80,7 +80,9 @@ export function saveOidcSettings(database: DatabaseSync, input: OidcSettingsInpu
     label: input.label === undefined ? current.label : input.label.trim(),
     auto_register: input.autoRegister === undefined ? current.auto_register : input.autoRegister ? 1 : 0,
     allowed_email_domains:
-      input.allowedEmailDomains === undefined ? current.allowed_email_domains : input.allowedEmailDomains.trim(),
+      input.allowedEmailDomains === undefined
+        ? current.allowed_email_domains
+        : input.allowedEmailDomains.trim(),
     redirect_uri: input.redirectUri === undefined ? current.redirect_uri : input.redirectUri.trim(),
     signup_project: input.signupProject === undefined ? current.signup_project : input.signupProject.trim(),
     updated_at: new Date().toISOString(),

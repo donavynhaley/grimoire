@@ -1,6 +1,15 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, createEvent, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  createEvent,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "../../src/App";
@@ -49,7 +58,12 @@ function layOutColumn(column: Element, top = 200, rowHeight = 50) {
       const cards = Array.from(column.querySelectorAll("article.board-page:not(.drag-hidden)"));
       const index = cards.indexOf(this);
       if (index >= 0) {
-        return domRect({ left: 0, right: 500, top: top + index * rowHeight, bottom: top + (index + 1) * rowHeight });
+        return domRect({
+          left: 0,
+          right: 500,
+          top: top + index * rowHeight,
+          bottom: top + (index + 1) * rowHeight,
+        });
       }
     }
     return domRect({ left: 0, right: 0, top: 0, bottom: 0 });
@@ -198,7 +212,9 @@ describe("Grimoire board", () => {
 
     const navigation = await screen.findByRole("navigation", { name: "Project spaces" });
     expect(navigation.parentElement).toHaveClass("brand-lockup");
-    expect(screen.getByRole("heading", { name: "Wizard Simulator" }).closest(".board-project")).not.toBeNull();
+    expect(
+      screen.getByRole("heading", { name: "Wizard Simulator" }).closest(".board-project"),
+    ).not.toBeNull();
     expect(screen.getByText("v0.6.1")).toBeInTheDocument();
   });
 
@@ -216,7 +232,9 @@ describe("Grimoire board", () => {
       pages: [],
     };
     let finishOpening!: (value: Response) => void;
-    const opening = new Promise<Response>((resolve) => { finishOpening = resolve; });
+    const opening = new Promise<Response>((resolve) => {
+      finishOpening = resolve;
+    });
     const fetchMock = authenticatedFetch(initial).mockImplementationOnce(() => opening);
     stubFetch(fetchMock);
 
@@ -322,7 +340,10 @@ describe("Grimoire board", () => {
     expect(await within(backlog).findByText(page.title)).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(
       `/api/pages/${page.id}`,
-      expect.objectContaining({ method: "PATCH", body: JSON.stringify({ status: "backlog", position: page.position }) }),
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ status: "backlog", position: page.position }),
+      }),
     );
   });
 
@@ -394,19 +415,21 @@ describe("Grimoire board", () => {
     await userEvent.click(screen.getByRole("option", { name: "Donavyn" }));
     await userEvent.keyboard("{Enter}");
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
-      "/api/pages",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({
-          title: second.title,
-          category: "code",
-          chapter: null,
-          assigneeId: donavyn.id,
-          status: "ready",
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/pages",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            title: second.title,
+            category: "code",
+            chapter: null,
+            assigneeId: donavyn.id,
+            status: "ready",
+          }),
         }),
-      }),
-    ));
+      ),
+    );
 
     await userEvent.type(input, "Sketch the tavern");
     await userEvent.click(screen.getByRole("button", { name: "Start fresh with default settings" }));
@@ -444,19 +467,21 @@ describe("Grimoire board", () => {
     await userEvent.keyboard("{Enter}");
     await userEvent.keyboard("{Enter}");
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
-      "/api/pages",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({
-          title: created.title,
-          category: "ui",
-          chapter: null,
-          assigneeId: initial.currentUser.id,
-          status: "in_progress",
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/pages",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            title: created.title,
+            category: "ui",
+            chapter: null,
+            assigneeId: initial.currentUser.id,
+            status: "in_progress",
+          }),
         }),
-      }),
-    ));
+      ),
+    );
   });
 
   it("moves a page by dropping it into another column", async () => {
@@ -529,7 +554,12 @@ describe("Grimoire board", () => {
       assigneeId: null,
       assigneeName: null,
     };
-    const readyB = { ...readyA, id: "00000000-0000-4000-8000-000000000032", title: "Ready page B", position: 1 };
+    const readyB = {
+      ...readyA,
+      id: "00000000-0000-4000-8000-000000000032",
+      title: "Ready page B",
+      position: 1,
+    };
     initial.pages = [backlogPage, progressPage, readyA, readyB];
     const moved = { ...progressPage, status: "ready" as const, position: 1 };
     const fetchMock = authenticatedFetch(initial)
@@ -544,7 +574,13 @@ describe("Grimoire board", () => {
     // card's midpoint and short of the second's: the gap between them.
     layOutColumn(column);
 
-    fireEvent.pointerDown(dragged, { pointerId: 1, pointerType: "mouse", button: 0, clientX: 10, clientY: 400 });
+    fireEvent.pointerDown(dragged, {
+      pointerId: 1,
+      pointerType: "mouse",
+      button: 0,
+      clientX: 10,
+      clientY: 400,
+    });
     fireEvent.pointerMove(window, { pointerId: 1, pointerType: "mouse", clientX: 100, clientY: 260 });
     expect(dragged).toHaveClass("drag-hidden");
 
@@ -573,7 +609,9 @@ describe("Grimoire board", () => {
     const fetchMock = authenticatedFetch(initial)
       .mockImplementationOnce(() => response(ideas))
       .mockImplementationOnce(() => response({ idea: parkedIdea }))
-      .mockImplementationOnce(() => response({ ...ideas, ideas: [ideas.ideas[0], parkedIdea, ideas.ideas[2]] }));
+      .mockImplementationOnce(() =>
+        response({ ...ideas, ideas: [ideas.ideas[0], parkedIdea, ideas.ideas[2]] }),
+      );
     stubFetch(fetchMock);
 
     render(<App />);
@@ -675,7 +713,9 @@ describe("Grimoire board", () => {
       position: index,
       completedAt: `2026-08-${String(index + 1).padStart(2, "0")}T12:00:00.000Z`,
     }));
-    stubFetch(authenticatedFetch({ ...initial, pages: [initial.pages[0]!, initial.pages[1]!, ...completed] }));
+    stubFetch(
+      authenticatedFetch({ ...initial, pages: [initial.pages[0]!, initial.pages[1]!, ...completed] }),
+    );
 
     render(<App />);
     const done = await screen.findByRole("region", { name: "Done" });
@@ -696,7 +736,9 @@ describe("Grimoire board", () => {
       position: index,
       completedAt: `2026-08-${String(index + 1).padStart(2, "0")}T12:00:00.000Z`,
     }));
-    stubFetch(authenticatedFetch({ ...initial, pages: [initial.pages[0]!, initial.pages[1]!, ...completed] }));
+    stubFetch(
+      authenticatedFetch({ ...initial, pages: [initial.pages[0]!, initial.pages[1]!, ...completed] }),
+    );
 
     render(<App />);
     const done = await screen.findByRole("region", { name: "Done" });
@@ -905,7 +947,10 @@ describe("Grimoire board", () => {
       title: idea.title,
       description: idea.description,
     };
-    const promotedIdeas = { ...ideaWorkspace, ideas: ideaWorkspace.ideas.filter((candidate) => candidate.id !== idea.id) };
+    const promotedIdeas = {
+      ...ideaWorkspace,
+      ideas: ideaWorkspace.ideas.filter((candidate) => candidate.id !== idea.id),
+    };
     const promotedBoard = { ...initial, pages: [...initial.pages, promotedPage] };
     const fetchMock = authenticatedFetch(initial)
       .mockImplementationOnce(() => response(ideaWorkspace))
@@ -974,7 +1019,10 @@ describe("Grimoire board", () => {
     expect(screen.getByText("owner@example.com")).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText("Current password"), "correct horse wizard tower");
     await userEvent.type(screen.getByLabelText(/^New password/i), "an even newer secure wizard password");
-    await userEvent.type(screen.getByLabelText("Confirm new password"), "an even newer secure wizard password");
+    await userEvent.type(
+      screen.getByLabelText("Confirm new password"),
+      "an even newer secure wizard password",
+    );
     await userEvent.click(screen.getByRole("button", { name: "change password" }));
 
     await waitFor(() => expect(screen.getByText("password changed")).toBeInTheDocument());
@@ -996,7 +1044,9 @@ describe("Grimoire board", () => {
     const updated = {
       ...initial,
       currentUser: renamed,
-      members: initial.members.map((member) => (member.id === renamed.id ? { ...member, name: "Dono" } : member)),
+      members: initial.members.map((member) =>
+        member.id === renamed.id ? { ...member, name: "Dono" } : member,
+      ),
     };
     const fetchMock = authenticatedFetch(initial)
       .mockImplementationOnce(() => response({ user: renamed }))
@@ -1016,7 +1066,9 @@ describe("Grimoire board", () => {
       "/api/account/name",
       expect.objectContaining({ method: "POST", body: JSON.stringify({ name: "Dono" }) }),
     );
-    expect(await screen.findByRole("button", { name: /open account settings for Dono/i })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: /open account settings for Dono/i }),
+    ).toBeInTheDocument();
   });
 
   it("lets the owner remove a member from the team dialog", async () => {
@@ -1025,9 +1077,9 @@ describe("Grimoire board", () => {
     const updated = {
       ...initial,
       members: initial.members.filter((member) => member.id !== removedMember.id),
-      pages: initial.pages.map((page) => page.assigneeId === removedMember.id
-        ? { ...page, assigneeId: null, assigneeName: null }
-        : page),
+      pages: initial.pages.map((page) =>
+        page.assigneeId === removedMember.id ? { ...page, assigneeId: null, assigneeName: null } : page,
+      ),
     };
     const fetchMock = authenticatedFetch(initial)
       .mockImplementationOnce(() => response({ ok: true }))
@@ -1037,7 +1089,9 @@ describe("Grimoire board", () => {
     render(<App />);
     await userEvent.click(await screen.findByRole("button", { name: "team" }));
 
-    expect(screen.queryByRole("button", { name: `Remove ${initial.currentUser.name}` })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: `Remove ${initial.currentUser.name}` }),
+    ).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: `Remove ${removedMember.name}` }));
     await userEvent.click(screen.getByRole("button", { name: `Confirm remove ${removedMember.name}` }));
 
@@ -1054,7 +1108,9 @@ describe("Grimoire board", () => {
     const updated = {
       ...initial,
       members: initial.members.map((member) =>
-        member.id === promoted.id ? { ...member, role: "owner" as const, projectRole: "owner" as const } : member,
+        member.id === promoted.id
+          ? { ...member, role: "owner" as const, projectRole: "owner" as const }
+          : member,
       ),
     };
     const fetchMock = authenticatedFetch(initial)
@@ -1066,7 +1122,9 @@ describe("Grimoire board", () => {
     await userEvent.click(await screen.findByRole("button", { name: "team" }));
 
     // An owner is never offered a control that would change their own role.
-    expect(screen.queryByRole("button", { name: `Make ${initial.currentUser.name} a member` })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: `Make ${initial.currentUser.name} a member` }),
+    ).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: `Make ${promoted.name} an owner` }));
 
     expect(fetchMock).toHaveBeenCalledWith(
@@ -1102,7 +1160,9 @@ describe("Grimoire board", () => {
     const capture = screen.getByLabelText("Capture an idea");
     expect(capture).toHaveFocus();
     expect(capture.closest("form")).toHaveClass("workspace-capture");
-    expect(screen.queryByText("save possibility without growing the backlog", { exact: false })).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("save possibility without growing the backlog", { exact: false }),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Shortlist" })).toHaveTextContent(
       "Spells are assembled from drawn rune sequences",
     );
@@ -1125,7 +1185,9 @@ describe("Grimoire board", () => {
     const shortlisted = { ...captured, state: "shortlist" as const, position: 1 };
     const afterShortlist = {
       ...ideaWorkspace,
-      ideas: [...ideaWorkspace.ideas, shortlisted].filter((idea) => idea.id !== captured.id || idea === shortlisted),
+      ideas: [...ideaWorkspace.ideas, shortlisted].filter(
+        (idea) => idea.id !== captured.id || idea === shortlisted,
+      ),
     };
     const fetchMock = authenticatedFetch(initial)
       .mockImplementationOnce(() => response(ideaWorkspace))
@@ -1230,12 +1292,14 @@ describe("Grimoire board", () => {
     const page = initial.pages.find((candidate) => candidate.status === "in_progress")!;
     stubFetch(authenticatedFetch(initial), {
       hasMore: false,
-      events: [auditFixture({
-        action: "updated",
-        entityId: page.id,
-        entityTitle: page.title,
-        changes: [{ field: "assignee", from: "unassigned", to: "Maren" }],
-      })],
+      events: [
+        auditFixture({
+          action: "updated",
+          entityId: page.id,
+          entityTitle: page.title,
+          changes: [{ field: "assignee", from: "unassigned", to: "Maren" }],
+        }),
+      ],
     });
 
     render(<App />);
@@ -1276,9 +1340,11 @@ describe("Grimoire board", () => {
     await waitFor(() => expect(presenceListener).not.toBeNull());
 
     act(() => {
-      presenceListener!(new MessageEvent("presence", {
-        data: JSON.stringify({ online: [initial.members[1]!.id] }),
-      }));
+      presenceListener!(
+        new MessageEvent("presence", {
+          data: JSON.stringify({ online: [initial.members[1]!.id] }),
+        }),
+      );
     });
 
     await waitFor(() => expect(maren.querySelector(".avatar")).toHaveClass("online"));

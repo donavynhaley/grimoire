@@ -119,7 +119,8 @@ export class MarkdownIdeaStore {
   }
 
   private projectDirectory(projectSlug: string): string {
-    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(projectSlug)) throw new Error(`Invalid project slug: ${projectSlug}`);
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(projectSlug))
+      throw new Error(`Invalid project slug: ${projectSlug}`);
     return join(this.rootDirectory, projectSlug);
   }
 }

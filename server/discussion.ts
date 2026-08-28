@@ -98,7 +98,11 @@ const SELECT_MESSAGES = `SELECT page_discussion.*,
  * millisecond still come back in the order they were actually written rather than whichever
  * order SQLite feels like today.
  */
-export function listDiscussion(database: DatabaseSync, projectId: string, pageId: string): DiscussionThread[] {
+export function listDiscussion(
+  database: DatabaseSync,
+  projectId: string,
+  pageId: string,
+): DiscussionThread[] {
   const values = database.prepare(SELECT_MESSAGES).all(projectId, pageId) as Row[];
   const threads = new Map<string, DiscussionThread>();
   for (const value of values) {
@@ -108,9 +112,10 @@ export function listDiscussion(database: DatabaseSync, projectId: string, pageId
       replies: [],
       answeredAt: value.answered_at === null ? null : String(value.answered_at),
       answeredById: value.answered_by === null ? null : String(value.answered_by),
-      answeredByName: value.answered_by_name === null || value.answered_by_name === undefined
-        ? null
-        : String(value.answered_by_name),
+      answeredByName:
+        value.answered_by_name === null || value.answered_by_name === undefined
+          ? null
+          : String(value.answered_by_name),
     });
   }
   for (const value of values) {
@@ -198,7 +203,12 @@ export function unseenCounts(database: DatabaseSync, projectId: string, userId: 
 }
 
 /** The same count for one page, for a read that did not gather the whole board. */
-export function unseenCount(database: DatabaseSync, projectId: string, pageId: string, userId: string): number {
+export function unseenCount(
+  database: DatabaseSync,
+  projectId: string,
+  pageId: string,
+  userId: string,
+): number {
   return unseenCounts(database, projectId, userId).get(pageId) ?? 0;
 }
 
@@ -225,7 +235,11 @@ export function markSeen(database: DatabaseSync, projectId: string, pageId: stri
  * A subset of `unseenCounts` by construction: it walks the same rows and keeps the ones with
  * a mention row pointing at this person.
  */
-export function unseenMentionCounts(database: DatabaseSync, projectId: string, userId: string): Map<string, number> {
+export function unseenMentionCounts(
+  database: DatabaseSync,
+  projectId: string,
+  userId: string,
+): Map<string, number> {
   const values = database
     .prepare(
       `SELECT page_discussion.page_id AS page_id, COUNT(*) AS unseen
@@ -247,7 +261,12 @@ export function unseenMentionCounts(database: DatabaseSync, projectId: string, u
 }
 
 /** The same count for one page. */
-export function unseenMentionCount(database: DatabaseSync, projectId: string, pageId: string, userId: string): number {
+export function unseenMentionCount(
+  database: DatabaseSync,
+  projectId: string,
+  pageId: string,
+  userId: string,
+): number {
   return unseenMentionCounts(database, projectId, userId).get(pageId) ?? 0;
 }
 
@@ -281,7 +300,16 @@ export function openThread(
       `INSERT INTO page_discussion (id, project_id, page_id, parent_id, author_id, author_name, agent_token_id, body, created_at)
        VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?)`,
     )
-    .run(id, projectId, pageId, author.id, author.name, author.agentTokenId ?? null, body, new Date().toISOString());
+    .run(
+      id,
+      projectId,
+      pageId,
+      author.id,
+      author.name,
+      author.agentTokenId ?? null,
+      body,
+      new Date().toISOString(),
+    );
   saveMentions(database, id, mentions);
   return findThread(database, projectId, pageId, id) as DiscussionThread;
 }

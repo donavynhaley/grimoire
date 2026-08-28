@@ -146,7 +146,9 @@ describe("agent access", () => {
         // Owning the project is what draws the owner surfaces, not the account beside it.
         viewerIsOwner: false,
         members: board.members.map((member) =>
-          member.id === board.currentUser.id ? { ...member, role: "member" as const, projectRole: "member" as const } : member,
+          member.id === board.currentUser.id
+            ? { ...member, role: "member" as const, projectRole: "member" as const }
+            : member,
         ),
       },
     });
@@ -241,7 +243,8 @@ describe("agent access", () => {
       if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
       if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
       if (url.startsWith("/api/seen")) return response({ ok: true });
-      if (url.startsWith("/api/session")) return response({ status: "authenticated", user: board.currentUser });
+      if (url.startsWith("/api/session"))
+        return response({ status: "authenticated", user: board.currentUser });
       return response(board);
     });
     render(<App />);

@@ -27,7 +27,10 @@ async function loginMember(server: TestServer) {
 
 /** Invites and registers Maren, leaving the session signed in as her. */
 async function registerMember(server: TestServer) {
-  const invite = await server.request<{ code: string }>("/api/invites", { method: "POST", body: JSON.stringify({}) });
+  const invite = await server.request<{ code: string }>("/api/invites", {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
   await server.request("/api/auth/register", {
     method: "POST",
     body: JSON.stringify({ ...MEMBER, inviteCode: invite.body.code }),
@@ -35,10 +38,12 @@ async function registerMember(server: TestServer) {
 }
 
 async function createPage(server: TestServer, title: string): Promise<Page> {
-  return (await server.request<{ page: Page }>("/api/pages", {
-    method: "POST",
-    body: JSON.stringify({ title, status: "ready" }),
-  })).body.page;
+  return (
+    await server.request<{ page: Page }>("/api/pages", {
+      method: "POST",
+      body: JSON.stringify({ title, status: "ready" }),
+    })
+  ).body.page;
 }
 
 describe("while you were away", () => {
@@ -117,7 +122,9 @@ describe("while you were away", () => {
 
     const database = new DatabaseSync(server.databasePath, { readOnly: true });
     try {
-      const rows = database.prepare("SELECT COUNT(*) AS count FROM seen_cursors WHERE user_id = ?").get(memberId) as {
+      const rows = database
+        .prepare("SELECT COUNT(*) AS count FROM seen_cursors WHERE user_id = ?")
+        .get(memberId) as {
         count: number;
       };
       expect(Number(rows.count)).toBe(0);

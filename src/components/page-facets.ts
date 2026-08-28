@@ -1,4 +1,10 @@
-import { PAGE_STATUSES, type Page, type PageStatus, type ProjectCategory, type ProjectField } from "../../shared/types";
+import {
+  PAGE_STATUSES,
+  type Page,
+  type PageStatus,
+  type ProjectCategory,
+  type ProjectField,
+} from "../../shared/types";
 import { fieldValueText } from "./PageFields";
 
 /**
@@ -93,7 +99,7 @@ function facetProperties({ categories, fields, estimatesEnabled, now }: FacetCon
       key: "category",
       label: "Category",
       valueOf: (page) => page.category ?? UNSET,
-      labelOf: (id) => (id === UNSET ? "uncategorized" : categoryNames.get(id) ?? id),
+      labelOf: (id) => (id === UNSET ? "uncategorized" : (categoryNames.get(id) ?? id)),
       order: categories.map((category) => category.slug),
     },
     {
@@ -142,8 +148,8 @@ function facetProperties({ categories, fields, estimatesEnabled, now }: FacetCon
     {
       key: "github",
       label: "GitHub",
-      valueOf: (page) => (page.github ? page.githubStatus?.state ?? "linked" : UNSET),
-      labelOf: (id) => (id === UNSET ? "not linked" : githubNames[id] ?? id),
+      valueOf: (page) => (page.github ? (page.githubStatus?.state ?? "linked") : UNSET),
+      labelOf: (id) => (id === UNSET ? "not linked" : (githubNames[id] ?? id)),
       order: ["open", "draft", "merged", "closed", "missing", "unchecked", "linked"],
     },
     {
@@ -202,10 +208,15 @@ export function buildFacets(pages: Page[], selection: FacetSelection, context: F
   for (const property of properties) {
     const ticked = selection[property.key]?.length ?? 0;
     if (ticked === 0 && !worthOffering(pages, property)) continue;
-    const others = properties.filter((candidate) => candidate.key !== property.key && selection[candidate.key]?.length);
-    const candidates = others.length === 0
-      ? pages
-      : pages.filter((page) => others.every((other) => selection[other.key]!.includes(other.valueOf(page))));
+    const others = properties.filter(
+      (candidate) => candidate.key !== property.key && selection[candidate.key]?.length,
+    );
+    const candidates =
+      others.length === 0
+        ? pages
+        : pages.filter((page) =>
+            others.every((other) => selection[other.key]!.includes(other.valueOf(page))),
+          );
 
     const counts = new Map<string, number>();
     for (const page of candidates) {
@@ -217,7 +228,7 @@ export function buildFacets(pages: Page[], selection: FacetSelection, context: F
     if (counts.size === 0) continue;
 
     const label = (id: string) =>
-      property.key === "createdBy" ? creators.get(id) ?? "someone who left" : property.labelOf(id);
+      property.key === "createdBy" ? (creators.get(id) ?? "someone who left") : property.labelOf(id);
     const values = [...counts].map(([id, count]) => ({ id, label: label(id), count }));
     values.sort(compareValues(property));
     facets.push({ key: property.key, label: property.label, values });
@@ -296,7 +307,11 @@ export function decodeFacets(raw: string | null): FacetSelection {
     const divider = part.indexOf("=");
     if (divider === -1) continue;
     const key = part.slice(0, divider);
-    const values = part.slice(divider + 1).split(",").filter(Boolean).map(safeDecode);
+    const values = part
+      .slice(divider + 1)
+      .split(",")
+      .filter(Boolean)
+      .map(safeDecode);
     if (key && values.length) selection[key] = values;
   }
   return selection;

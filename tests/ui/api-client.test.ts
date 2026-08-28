@@ -66,7 +66,11 @@ describe("the api client", () => {
   it("decodes an edit conflict, and only an edit conflict", async () => {
     respond(JSON.stringify({ conflict: true, field: "description", current: "theirs" }), { status: 409 });
     const failure = await failureOf(request("/api/pages/1"));
-    expect(editConflict<string>(failure)).toEqual({ conflict: true, field: "description", current: "theirs" });
+    expect(editConflict<string>(failure)).toEqual({
+      conflict: true,
+      field: "description",
+      current: "theirs",
+    });
 
     respond(JSON.stringify({ error: "They are already on this project" }), { status: 409 });
     const plain = await failureOf(request("/api/members"));

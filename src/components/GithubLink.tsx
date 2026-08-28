@@ -21,7 +21,10 @@ type Props = {
  */
 function stateWord(state: string, kind: "pr" | "branch"): string {
   if (state !== "unchecked") {
-    return { open: "open", draft: "draft", merged: "merged", closed: "closed", missing: "not found" }[state] ?? state;
+    return (
+      { open: "open", draft: "draft", merged: "merged", closed: "closed", missing: "not found" }[state] ??
+      state
+    );
   }
   return kind === "branch" ? "no PR yet" : "checking...";
 }
@@ -61,24 +64,33 @@ export function GithubLink({ github, status, repo, onUpdate }: Props) {
     let alive = true;
     setLoading(true);
     openPullRequests()
-      .then((answer) => { if (alive) setPulls(answer.pulls); })
+      .then((answer) => {
+        if (alive) setPulls(answer.pulls);
+      })
       // A project with no repository, or one GitHub will not answer for, simply offers no
       // suggestions. The field still takes anything written into it.
       .catch(() => undefined)
-      .finally(() => { if (alive) setLoading(false); });
-    return () => { alive = false; };
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
   }, [open]);
 
   const typed = query.trim();
   const needle = typed.toLowerCase().replace(/^#/, "");
   const matches = needle
-    ? pulls.filter((pull) =>
-      String(pull.number).startsWith(needle) ||
-      pull.title.toLowerCase().includes(needle) ||
-      pull.branch.toLowerCase().includes(needle))
+    ? pulls.filter(
+        (pull) =>
+          String(pull.number).startsWith(needle) ||
+          pull.title.toLowerCase().includes(needle) ||
+          pull.branch.toLowerCase().includes(needle),
+      )
     : pulls;
   // Something typed that is not simply one of the offered numbers is a choice of its own.
-  const offersTyped = typed !== "" && !matches.some((pull) => `#${pull.number}` === typed || String(pull.number) === typed);
+  const offersTyped =
+    typed !== "" && !matches.some((pull) => `#${pull.number}` === typed || String(pull.number) === typed);
 
   const choose = async (reference: string) => {
     setRefused(false);
@@ -100,11 +112,12 @@ export function GithubLink({ github, status, repo, onUpdate }: Props) {
   if (!repo && !github) return null;
 
   const state = status?.state ?? "unchecked";
-  const label = github === null
-    ? "Not linked"
-    : github.kind === "pr" || status?.prNumber
-      ? `#${status?.prNumber ?? (github.kind === "pr" ? github.number : "?")}`
-      : `⎇ ${github.name}`;
+  const label =
+    github === null
+      ? "Not linked"
+      : github.kind === "pr" || status?.prNumber
+        ? `#${status?.prNumber ?? (github.kind === "pr" ? github.number : "?")}`
+        : `⎇ ${github.name}`;
 
   return (
     <Growing className="dialog-section page-github">
@@ -121,13 +134,22 @@ export function GithubLink({ github, status, repo, onUpdate }: Props) {
             <span className="github-trigger-label">{label}</span>
             {github && <span className="github-trigger-state">{stateWord(state, github.kind)}</span>}
             {status?.prTitle && <span className="github-trigger-title">{status.prTitle}</span>}
-            <span aria-hidden="true" className="github-trigger-caret">▾</span>
+            <span aria-hidden="true" className="github-trigger-caret">
+              ▾
+            </span>
           </button>
           {status?.prUrl && (
-            <a className="github-open-link" href={status.prUrl} rel="noreferrer" target="_blank">open on GitHub ↗</a>
+            <a className="github-open-link" href={status.prUrl} rel="noreferrer" target="_blank">
+              open on GitHub ↗
+            </a>
           )}
           {github && (
-            <button aria-label="Unlink from GitHub" className="rail-change" onClick={() => void onUpdate({ github: null })} type="button">
+            <button
+              aria-label="Unlink from GitHub"
+              className="rail-change"
+              onClick={() => void onUpdate({ github: null })}
+              type="button"
+            >
               unlink
             </button>
           )}
@@ -173,15 +195,18 @@ export function GithubLink({ github, status, repo, onUpdate }: Props) {
                     {pull.state === "draft" && <span className="github-draft-tag">draft</span>}
                   </span>
                   <strong className="github-option-title">{pull.title}</strong>
-                  <small className="github-option-meta">⎇ {pull.branch}{pull.author ? ` · ${pull.author}` : ""}</small>
+                  <small className="github-option-meta">
+                    ⎇ {pull.branch}
+                    {pull.author ? ` · ${pull.author}` : ""}
+                  </small>
                 </button>
               ))}
 
               {loading && matches.length === 0 && <p className="github-empty">Asking GitHub...</p>}
               {!loading && pulls.length === 0 && !typed && (
                 <p className="github-empty">
-                  No open pull requests to offer. Type a branch or paste a link, or set the
-                  repository in project settings.
+                  No open pull requests to offer. Type a branch or paste a link, or set the repository in
+                  project settings.
                 </p>
               )}
               {!loading && pulls.length > 0 && matches.length === 0 && !typed && (

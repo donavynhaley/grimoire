@@ -59,7 +59,13 @@ function linkedBoard(): BoardWorkspace {
   board.pages[1] = {
     ...board.pages[1]!,
     github: { kind: "pr", number: 41 },
-    githubStatus: { state: "open", prNumber: 41, prTitle: "Hold the circle", prUrl: "https://github.com/wizards/simulator/pull/41", checkedAt: "2026-08-18T12:00:00Z" },
+    githubStatus: {
+      state: "open",
+      prNumber: 41,
+      prTitle: "Hold the circle",
+      prUrl: "https://github.com/wizards/simulator/pull/41",
+      checkedAt: "2026-08-18T12:00:00Z",
+    },
   };
   return board;
 }
@@ -112,7 +118,8 @@ describe("the connection check", () => {
       if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
       if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
       if (url.startsWith("/api/agent-tokens")) return response({ tokens: [] });
-      if (url.startsWith("/api/session")) return response({ status: "authenticated", user: board.currentUser });
+      if (url.startsWith("/api/session"))
+        return response({ status: "authenticated", user: board.currentUser });
       return response(board);
     });
     render(<App />);
@@ -128,7 +135,9 @@ describe("the connection check", () => {
     expect(screen.getByText(/Pull requests: read-only/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "check the connection" }));
-    expect(await screen.findByRole("status")).toHaveTextContent("Connected: wizards/simulator (private repository).");
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Connected: wizards/simulator (private repository).",
+    );
     expect(calls).toEqual(["/api/github/verify"]);
   });
 });
@@ -174,8 +183,22 @@ describe("a page's GitHub row", () => {
     const user = userEvent.setup();
     const board = configuredBoard();
     const calls = mountWith(board, 200, [
-      { number: 21, title: "Rework the circle", url: "u21", state: "open", branch: "feat/circle", author: "maren" },
-      { number: 20, title: "Half-finished idea", url: "u20", state: "draft", branch: "feat/idea", author: "mira" },
+      {
+        number: 21,
+        title: "Rework the circle",
+        url: "u21",
+        state: "open",
+        branch: "feat/circle",
+        author: "maren",
+      },
+      {
+        number: 20,
+        title: "Half-finished idea",
+        url: "u20",
+        state: "draft",
+        branch: "feat/idea",
+        author: "mira",
+      },
     ]);
 
     await user.click(await screen.findByText(board.pages[1]!.title));
@@ -205,12 +228,22 @@ describe("a page's GitHub row", () => {
     const user = userEvent.setup();
     const board = configuredBoard();
     const calls = mountWith(board, 200, [
-      { number: 21, title: "Rework the circle", url: "u21", state: "open", branch: "feat/circle", author: "maren" },
+      {
+        number: 21,
+        title: "Rework the circle",
+        url: "u21",
+        state: "open",
+        branch: "feat/circle",
+        author: "maren",
+      },
     ]);
 
     await user.click(await screen.findByText(board.pages[1]!.title));
     await user.click(screen.getByRole("button", { name: /Not linked/ }));
-    await user.type(screen.getByLabelText("Search pull requests, or type a branch"), "feat/nothing-suggested");
+    await user.type(
+      screen.getByLabelText("Search pull requests, or type a branch"),
+      "feat/nothing-suggested",
+    );
     // Nothing matches it, so it is offered as its own choice rather than second-guessed.
     await user.click(screen.getByRole("button", { name: /Use .*feat\/nothing-suggested.* as written/ }));
     await waitFor(() =>
@@ -226,8 +259,10 @@ describe("a page's GitHub row", () => {
     const calls = mountWith(board);
 
     await user.click(await screen.findByText(board.pages[1]!.title));
-    expect(screen.getByRole("link", { name: "open on GitHub ↗" }))
-      .toHaveAttribute("href", "https://github.com/wizards/simulator/pull/41");
+    expect(screen.getByRole("link", { name: "open on GitHub ↗" })).toHaveAttribute(
+      "href",
+      "https://github.com/wizards/simulator/pull/41",
+    );
     // The trigger says which pull request, how it stands, and what it is called.
     const trigger = screen.getByRole("button", { name: /#41/ });
     expect(trigger).toHaveTextContent("#41");

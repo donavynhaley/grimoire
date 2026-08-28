@@ -33,7 +33,13 @@ const MARKDOWN_COMPONENTS: Components = { a: ExternalLink, img: EmbeddedImage };
 export function MarkdownView({ markdown }: { markdown: string }) {
   return (
     <div className="markdown-body">
-      <Markdown components={MARKDOWN_COMPONENTS} rehypePlugins={REHYPE_PLUGINS} remarkPlugins={REMARK_PLUGINS}>{markdown}</Markdown>
+      <Markdown
+        components={MARKDOWN_COMPONENTS}
+        rehypePlugins={REHYPE_PLUGINS}
+        remarkPlugins={REMARK_PLUGINS}
+      >
+        {markdown}
+      </Markdown>
     </div>
   );
 }
@@ -74,7 +80,17 @@ type Props = {
  * begins over the notes rather than over the caret, and a placeholder token holds the
  * spot while the upload runs so typing during it never misplaces the embed.
  */
-export function NotesField({ label, editLabel, addImageLabel = "Add an image", editorLabel, placeholder, rows, fill = false, value, onChange }: Props) {
+export function NotesField({
+  label,
+  editLabel,
+  addImageLabel = "Add an image",
+  editorLabel,
+  placeholder,
+  rows,
+  fill = false,
+  value,
+  onChange,
+}: Props) {
   const [pendingUploads, setPendingUploads] = useState(0);
   const [uploadFailed, setUploadFailed] = useState(false);
   const [dropActive, setDropActive] = useState(false);
@@ -154,9 +170,15 @@ export function NotesField({ label, editLabel, addImageLabel = "Add an image", e
       <div className="notes-head">
         <span>{label}</span>
         <span className="notes-tools">
-          {pendingUploads > 0 && <span aria-live="polite" className="notes-upload">uploading image...</span>}
+          {pendingUploads > 0 && (
+            <span aria-live="polite" className="notes-upload">
+              uploading image...
+            </span>
+          )}
           {pendingUploads === 0 && uploadFailed && (
-            <span aria-live="polite" className="notes-upload failed">image upload failed</span>
+            <span aria-live="polite" className="notes-upload failed">
+              image upload failed
+            </span>
           )}
           {/*
             An image could only arrive by paste or by drop, and a phone can comfortably do

@@ -13,5 +13,9 @@ export function Avatar({ name, avatarUrl, className = "avatar", online = false, 
   if (avatarUrl) {
     return <img alt="" className={`${classes} photo`} src={avatarUrl} title={title} />;
   }
-  return <span className={classes} title={title}>{initials(name)}</span>;
+  return (
+    <span className={classes} title={title}>
+      {initials(name)}
+    </span>
+  );
 }

@@ -65,7 +65,8 @@ export function SearchDialog({ initialQuery, onClose, onOpenPage, onOpenIdea, on
         })
         .catch((error) => {
           // An aborted request is just a newer keystroke winning.
-          if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) return;
+          if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError"))
+            return;
           setFailed(error instanceof ApiError || error instanceof Error);
           setResults(null);
         });
@@ -78,15 +79,13 @@ export function SearchDialog({ initialQuery, onClose, onOpenPage, onOpenIdea, on
 
   const grouped = useMemo(() => {
     const hits = results?.query === trimmed ? results.hits : [];
-    return SEARCH_GROUPS.map((group) => ({ group, hits: hits.filter((hit) => hit.group === group) }))
-      .filter((section) => section.hits.length > 0);
+    return SEARCH_GROUPS.map((group) => ({ group, hits: hits.filter((hit) => hit.group === group) })).filter(
+      (section) => section.hits.length > 0,
+    );
   }, [results, trimmed]);
 
   // Archived pages cannot be opened, so they are not part of the keyboard walk either.
-  const openable = useMemo(
-    () => grouped.flatMap((section) => section.hits).filter(canOpen),
-    [grouped],
-  );
+  const openable = useMemo(() => grouped.flatMap((section) => section.hits).filter(canOpen), [grouped]);
 
   useEffect(() => {
     if (active >= openable.length) setActive(0);
@@ -145,34 +144,51 @@ export function SearchDialog({ initialQuery, onClose, onOpenPage, onOpenIdea, on
   const hidden = results && results.query === trimmed ? results.total - results.hits.length : 0;
 
   return (
-    <Drawer backdropClassName="search-backdrop" className="search-dialog" label="Search everything" onClose={onClose}>
+    <Drawer
+      backdropClassName="search-backdrop"
+      className="search-dialog"
+      label="Search everything"
+      onClose={onClose}
+    >
       <div className="search-input">
-        <span aria-hidden="true" className="search-glyph">/</span>
-        <label className="sr-only" htmlFor="global-search">Search pages, notes, ideas, and archived work</label>
+        <span aria-hidden="true" className="search-glyph">
+          /
+        </span>
+        <label className="sr-only" htmlFor="global-search">
+          Search pages, notes, ideas, and archived work
+        </label>
         <input
           id="global-search"
           name="globalSearch"
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={onKeyDown}
           placeholder="Search pages, notes, ideas, archived work..."
-          ref={(node) => { inputRef.current = node; focusForTyping(node); }}
+          ref={(node) => {
+            inputRef.current = node;
+            focusForTyping(node);
+          }}
           type="search"
           value={query}
         />
-        <button aria-label="Close search" className="icon-button" onClick={onClose} type="button">×</button>
+        <button aria-label="Close search" className="icon-button" onClick={onClose} type="button">
+          ×
+        </button>
       </div>
 
       <div aria-live="polite" className="search-results" ref={listRef}>
         {!trimmed && (
           <p className="search-hint">
-            Everything is in here: every column, the backlog, the idea garden, completed work, and pages that were archived.
+            Everything is in here: every column, the backlog, the idea garden, completed work, and pages that
+            were archived.
           </p>
         )}
         {failed && <p className="search-hint">Search could not be reached. Try again in a moment.</p>}
         {showEmpty && <p className="search-hint">Nothing in this project mentions “{trimmed}”.</p>}
         {grouped.map((section) => (
           <div className="search-group" key={section.group}>
-            <p className="search-group-label">{GROUP_LABELS[section.group]} <span>{section.hits.length}</span></p>
+            <p className="search-group-label">
+              {GROUP_LABELS[section.group]} <span>{section.hits.length}</span>
+            </p>
             {section.hits.map((hit) => {
               const index = openable.indexOf(hit);
               const openableHit = index >= 0;
@@ -183,8 +199,14 @@ export function SearchDialog({ initialQuery, onClose, onOpenPage, onOpenIdea, on
                     {hit.category && (
                       <span
                         className="category-pill"
-                        style={hit.categoryColor ? ({ "--category-color": hit.categoryColor } as React.CSSProperties) : undefined}
-                      >{hit.category}</span>
+                        style={
+                          hit.categoryColor
+                            ? ({ "--category-color": hit.categoryColor } as React.CSSProperties)
+                            : undefined
+                        }
+                      >
+                        {hit.category}
+                      </span>
                     )}
                     <strong>{hit.title}</strong>
                     <span className="search-hit-where">{hit.where}</span>
@@ -199,7 +221,9 @@ export function SearchDialog({ initialQuery, onClose, onOpenPage, onOpenIdea, on
                   onClick={() => open(hit)}
                   onMouseEnter={() => setActive(index)}
                   type="button"
-                >{body}</button>
+                >
+                  {body}
+                </button>
               ) : (
                 <div className={className} key={hit.id}>
                   {body}
@@ -210,19 +234,32 @@ export function SearchDialog({ initialQuery, onClose, onOpenPage, onOpenIdea, on
                     disabled={restoring !== null}
                     onClick={() => void restore(hit.id)}
                     type="button"
-                  >{restoring === hit.id ? "restoring..." : "restore"}</button>
+                  >
+                    {restoring === hit.id ? "restoring..." : "restore"}
+                  </button>
                 </div>
               );
             })}
           </div>
         ))}
-        {hidden > 0 && <p className="search-hint">{hidden} more match{hidden === 1 ? "" : "es"}. Narrow the search to reach them.</p>}
+        {hidden > 0 && (
+          <p className="search-hint">
+            {hidden} more match{hidden === 1 ? "" : "es"}. Narrow the search to reach them.
+          </p>
+        )}
       </div>
 
       <div className="search-foot">
-        <span><kbd>↑</kbd><kbd>↓</kbd> to move</span>
-        <span><kbd>enter</kbd> to open</span>
-        <span><kbd>esc</kbd> to close</span>
+        <span>
+          <kbd>↑</kbd>
+          <kbd>↓</kbd> to move
+        </span>
+        <span>
+          <kbd>enter</kbd> to open
+        </span>
+        <span>
+          <kbd>esc</kbd> to close
+        </span>
       </div>
     </Drawer>
   );

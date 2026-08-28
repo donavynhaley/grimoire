@@ -1,5 +1,14 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 
 export type ProjectImageType = "image/png" | "image/jpeg" | "image/webp" | "image/gif";
@@ -85,7 +94,8 @@ export class ProjectImageStore {
   }
 
   private imagesDirectory(projectSlug: string): string {
-    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(projectSlug)) throw new Error(`Invalid project slug: ${projectSlug}`);
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(projectSlug))
+      throw new Error(`Invalid project slug: ${projectSlug}`);
     return join(this.rootDirectory, projectSlug, "images");
   }
 }

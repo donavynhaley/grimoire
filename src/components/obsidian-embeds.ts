@@ -22,7 +22,8 @@ export function remarkObsidianEmbeds() {
       const replacements: PhrasingContent[] = [];
       let consumed = 0;
       for (const match of matches) {
-        if (match.index > consumed) replacements.push({ type: "text", value: value.slice(consumed, match.index) });
+        if (match.index > consumed)
+          replacements.push({ type: "text", value: value.slice(consumed, match.index) });
         replacements.push(embedImage(match[1]!.trim(), match[2]?.trim()));
         consumed = match.index + match[0].length;
       }

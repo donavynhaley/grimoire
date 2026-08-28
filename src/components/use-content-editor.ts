@@ -115,7 +115,10 @@ export function useContentEditor({ remote, resetKey, save }: Options): ContentEd
    */
   const commit = useCallback((): Promise<boolean> => {
     const next = queueRef.current.then(write, write);
-    queueRef.current = next.then(() => true, () => true);
+    queueRef.current = next.then(
+      () => true,
+      () => true,
+    );
     return next;
   }, [write]);
 

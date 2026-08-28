@@ -23,13 +23,18 @@ export function EditorState({ editor, who }: { editor: ContentEditor; who: strin
         <div className="conflict-bar" role="alert">
           <div className="conflict-copy">
             <strong>
-              {who ?? "Someone"} changed {conflict.field === "title" ? "this title" : "these notes"} while you were writing
+              {who ?? "Someone"} changed {conflict.field === "title" ? "this title" : "these notes"} while you
+              were writing
             </strong>
             <p className="conflict-theirs">{conflict.theirs || "(empty)"}</p>
           </div>
           <div className="conflict-actions">
-            <button className="quiet-button" onClick={editor.useTheirs} type="button">use theirs</button>
-            <button className="primary-button compact" onClick={editor.keepMine} type="button">keep mine</button>
+            <button className="quiet-button" onClick={editor.useTheirs} type="button">
+              use theirs
+            </button>
+            <button className="primary-button compact" onClick={editor.keepMine} type="button">
+              keep mine
+            </button>
           </div>
         </div>
       )}

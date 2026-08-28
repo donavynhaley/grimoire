@@ -51,7 +51,12 @@ export function SignInSection({ run }: { run: SettingsRun }) {
     };
   }, []);
 
-  if (!settings) return <div className="settings-section"><p className="chapters-note">Reading the sign-in settings...</p></div>;
+  if (!settings)
+    return (
+      <div className="settings-section">
+        <p className="chapters-note">Reading the sign-in settings...</p>
+      </div>
+    );
 
   const managed = settings.source === "environment";
 
@@ -84,7 +89,8 @@ export function SignInSection({ run }: { run: SettingsRun }) {
       setProbe(result.provider ?? { error: result.error ?? "That address could not be read." });
       // A provider that answered is worth keeping even before the rest is filled in, so a
       // half-finished setup survives closing the dialog.
-      if (result.provider) await save({ issuer: address, label: label.trim() || new URL(result.provider.issuer).hostname });
+      if (result.provider)
+        await save({ issuer: address, label: label.trim() || new URL(result.provider.issuer).hostname });
     } catch {
       setProbe({ error: "The check itself failed. Try again in a moment." });
     }
@@ -92,7 +98,9 @@ export function SignInSection({ run }: { run: SettingsRun }) {
 
   const copyCallback = async () => {
     try {
-      await navigator.clipboard.writeText(managed ? settings.callbackUrl : settings.redirectUri || `${location.origin}/api/auth/oidc/callback`);
+      await navigator.clipboard.writeText(
+        managed ? settings.callbackUrl : settings.redirectUri || `${location.origin}/api/auth/oidc/callback`,
+      );
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -106,8 +114,8 @@ export function SignInSection({ run }: { run: SettingsRun }) {
     <div className="settings-section">
       <div className="github-intro">
         <p className="chapters-note">
-          Let people sign in with the identity provider you already run. Password sign-in stays
-          where it is: this adds a second way in, and never takes the first one away.
+          Let people sign in with the identity provider you already run. Password sign-in stays where it is:
+          this adds a second way in, and never takes the first one away.
         </p>
         <button
           aria-expanded={showingSetup}
@@ -116,19 +124,26 @@ export function SignInSection({ run }: { run: SettingsRun }) {
           onClick={() => setShowingSetup((showing) => !showing)}
           title="How do I set this up?"
           type="button"
-        >?</button>
+        >
+          ?
+        </button>
       </div>
 
       <Growing className="github-setup-fold">
         {showingSetup && (
           <ol className="github-setup">
             <li>
-              In your provider, create an application - Authentik calls it a <em>Provider</em>, Keycloak
-              a <em>Client</em> - of type <strong>OpenID Connect</strong>, confidential, using the
-              authorization code flow.
+              In your provider, create an application - Authentik calls it a <em>Provider</em>, Keycloak a{" "}
+              <em>Client</em> - of type <strong>OpenID Connect</strong>, confidential, using the authorization
+              code flow.
             </li>
-            <li>Give it the redirect address below. It has to match exactly, including the scheme and any port.</li>
-            <li>Paste the provider&apos;s address here and press check. Everything else is read from the provider.</li>
+            <li>
+              Give it the redirect address below. It has to match exactly, including the scheme and any port.
+            </li>
+            <li>
+              Paste the provider&apos;s address here and press check. Everything else is read from the
+              provider.
+            </li>
             <li>Paste the client id and secret it gave you, then turn it on.</li>
           </ol>
         )}
@@ -136,8 +151,8 @@ export function SignInSection({ run }: { run: SettingsRun }) {
 
       {managed && (
         <p className="settings-summary managed-note" role="status">
-          This provider is configured in the environment, so it is changed there rather than here.
-          What follows is what the server is using.
+          This provider is configured in the environment, so it is changed there rather than here. What
+          follows is what the server is using.
         </p>
       )}
 
@@ -154,67 +169,90 @@ export function SignInSection({ run }: { run: SettingsRun }) {
           </button>
         </div>
         <p className="settings-summary">
-          Register this with your provider, exactly as it reads. It is the address you are
-          reaching Grimoire at now; if your team uses a different one, set{" "}
-          <code>GRIMOIRE_OIDC_REDIRECT_URI</code> to that.
+          Register this with your provider, exactly as it reads. It is the address you are reaching Grimoire
+          at now; if your team uses a different one, set <code>GRIMOIRE_OIDC_REDIRECT_URI</code> to that.
         </p>
       </div>
 
       <div className="settings-row">
-        <label className="field-label" htmlFor="settings-oidc-issuer">Provider address</label>
+        <label className="field-label" htmlFor="settings-oidc-issuer">
+          Provider address
+        </label>
         <div className="settings-input">
           <input
             disabled={managed}
             id="settings-oidc-issuer"
             name="oidcIssuer"
             onChange={(event) => setIssuer(event.target.value)}
-            onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void check(); } }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void check();
+              }
+            }}
             placeholder="https://id.example.com"
             value={issuer}
           />
           {!managed && (
-            <button className="quiet-button" disabled={!issuer.trim() || probe === "checking"} onClick={() => void check()} type="button">
+            <button
+              className="quiet-button"
+              disabled={!issuer.trim() || probe === "checking"}
+              onClick={() => void check()}
+              type="button"
+            >
               {probe === "checking" ? "checking..." : "check"}
             </button>
           )}
         </div>
         <p className="settings-summary">
-          The issuer, or its <code>.well-known/openid-configuration</code> URL if your provider
-          keeps it somewhere else.
+          The issuer, or its <code>.well-known/openid-configuration</code> URL if your provider keeps it
+          somewhere else.
         </p>
-        {probe !== null && probe !== "checking" && (
-          "error" in probe ? (
-            <p className="github-check-result failed" role="status">{probe.error}</p>
+        {probe !== null &&
+          probe !== "checking" &&
+          ("error" in probe ? (
+            <p className="github-check-result failed" role="status">
+              {probe.error}
+            </p>
           ) : (
             <div className="provider-report" role="status">
               <p className="github-check-result ok">Answered as {probe.issuer}.</p>
               <ul>
-                <li>Sign-in at <code>{probe.authorizationEndpoint}</code></li>
+                <li>
+                  Sign-in at <code>{probe.authorizationEndpoint}</code>
+                </li>
                 <li>
                   {probe.signingKeyCount > 0
                     ? `${probe.signingKeyCount} signing key${probe.signingKeyCount === 1 ? "" : "s"} published`
                     : "No signing keys published"}
-                  {probe.signingAlgorithms.length > 0 ? ` (${probe.signingAlgorithms.slice(0, 4).join(", ")})` : ""}
+                  {probe.signingAlgorithms.length > 0
+                    ? ` (${probe.signingAlgorithms.slice(0, 4).join(", ")})`
+                    : ""}
                 </li>
-                <li>{probe.supportsPkce ? "PKCE supported" : "PKCE not advertised - Grimoire sends it anyway"}</li>
+                <li>
+                  {probe.supportsPkce ? "PKCE supported" : "PKCE not advertised - Grimoire sends it anyway"}
+                </li>
               </ul>
               <p className="settings-summary">
-                This says the provider is reachable and speaks the protocol. It cannot check the
-                client id and secret; the first sign-in does that.
+                This says the provider is reachable and speaks the protocol. It cannot check the client id and
+                secret; the first sign-in does that.
               </p>
             </div>
-          )
-        )}
+          ))}
       </div>
 
       <div className="settings-row">
-        <label className="field-label" htmlFor="settings-oidc-client">Client id</label>
+        <label className="field-label" htmlFor="settings-oidc-client">
+          Client id
+        </label>
         <div className="settings-input">
           <input
             disabled={managed}
             id="settings-oidc-client"
             name="oidcClientId"
-            onBlur={() => { if (!managed && clientId.trim() !== settings.clientId) void save({ clientId: clientId.trim() }); }}
+            onBlur={() => {
+              if (!managed && clientId.trim() !== settings.clientId) void save({ clientId: clientId.trim() });
+            }}
             onChange={(event) => setClientId(event.target.value)}
             placeholder="grimoire"
             value={clientId}
@@ -223,15 +261,27 @@ export function SignInSection({ run }: { run: SettingsRun }) {
       </div>
 
       <div className="settings-row">
-        <label className="field-label" htmlFor="settings-oidc-secret">Client secret</label>
+        <label className="field-label" htmlFor="settings-oidc-secret">
+          Client secret
+        </label>
         <div className="settings-input">
           <input
             disabled={managed}
             id="settings-oidc-secret"
             name="oidcClientSecret"
-            onBlur={() => { const next = secret.trim(); if (next) { setSecret(""); void save({ clientSecret: next }); } }}
+            onBlur={() => {
+              const next = secret.trim();
+              if (next) {
+                setSecret("");
+                void save({ clientSecret: next });
+              }
+            }}
             onChange={(event) => setSecret(event.target.value)}
-            placeholder={settings.clientSecretSet ? "A secret is saved. Paste a new one to replace it." : "paste the secret"}
+            placeholder={
+              settings.clientSecretSet
+                ? "A secret is saved. Paste a new one to replace it."
+                : "paste the secret"
+            }
             type="password"
             value={secret}
           />
@@ -240,19 +290,25 @@ export function SignInSection({ run }: { run: SettingsRun }) {
       </div>
 
       <div className="settings-row">
-        <label className="field-label" htmlFor="settings-oidc-label">Button text</label>
+        <label className="field-label" htmlFor="settings-oidc-label">
+          Button text
+        </label>
         <div className="settings-input">
           <input
             disabled={managed}
             id="settings-oidc-label"
             name="oidcLabel"
-            onBlur={() => { if (!managed && label.trim() !== settings.label) void save({ label: label.trim() }); }}
+            onBlur={() => {
+              if (!managed && label.trim() !== settings.label) void save({ label: label.trim() });
+            }}
             onChange={(event) => setLabel(event.target.value)}
             placeholder="your provider's name"
             value={label}
           />
         </div>
-        <p className="settings-summary">The sign-in screen reads &ldquo;continue with {label.trim() || "..."}&rdquo;.</p>
+        <p className="settings-summary">
+          The sign-in screen reads &ldquo;continue with {label.trim() || "..."}&rdquo;.
+        </p>
       </div>
 
       <div className="settings-row">
@@ -278,13 +334,18 @@ export function SignInSection({ run }: { run: SettingsRun }) {
       </div>
 
       <div className="settings-row">
-        <label className="field-label" htmlFor="settings-oidc-domains">Who may sign in</label>
+        <label className="field-label" htmlFor="settings-oidc-domains">
+          Who may sign in
+        </label>
         <div className="settings-input">
           <input
             disabled={managed}
             id="settings-oidc-domains"
             name="oidcAllowedEmailDomains"
-            onBlur={() => { if (!managed && domains.trim() !== settings.allowedEmailDomains) void save({ allowedEmailDomains: domains.trim() }); }}
+            onBlur={() => {
+              if (!managed && domains.trim() !== settings.allowedEmailDomains)
+                void save({ allowedEmailDomains: domains.trim() });
+            }}
             onChange={(event) => setDomains(event.target.value)}
             placeholder="example.com  or  you@gmail.com"
             value={domains}
@@ -302,10 +363,9 @@ export function SignInSection({ run }: { run: SettingsRun }) {
         */}
         {!domains.trim() && settings.autoRegister && (
           <p className="settings-summary warning-note" role="status">
-            Anyone with an account at your provider will get a Grimoire account. That is what you
-            want if the provider is only your team. If it is Google or another shared one, list
-            the addresses that may in — a personal account&apos;s domain is <code>gmail.com</code>,
-            which is everybody.
+            Anyone with an account at your provider will get a Grimoire account. That is what you want if the
+            provider is only your team. If it is Google or another shared one, list the addresses that may in
+            — a personal account&apos;s domain is <code>gmail.com</code>, which is everybody.
           </p>
         )}
       </div>
@@ -333,8 +393,8 @@ export function SignInSection({ run }: { run: SettingsRun }) {
             {settings.linkedAccounts === 1
               ? "One account signs in this way."
               : `${settings.linkedAccounts} accounts sign in this way.`}{" "}
-            Each was matched by email the first time and is remembered by your provider&apos;s own
-            id for them since, so it follows them if they change their address.
+            Each was matched by email the first time and is remembered by your provider&apos;s own id for them
+            since, so it follows them if they change their address.
           </p>
         )}
       </div>

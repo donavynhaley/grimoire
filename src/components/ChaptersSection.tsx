@@ -10,7 +10,13 @@ export type ChapterActions = {
   close: (slug: string, rollover: "next" | "release" | "keep" | string) => Promise<void>;
   update: (
     slug: string,
-    input: { name?: string; description?: string; startsOn?: string | null; endsOn?: string | null; state?: Chapter["state"] },
+    input: {
+      name?: string;
+      description?: string;
+      startsOn?: string | null;
+      endsOn?: string | null;
+      state?: Chapter["state"];
+    },
   ) => Promise<void>;
   remove: (slug: string) => Promise<void>;
 };
@@ -35,7 +41,18 @@ function openChapter(chapters: Chapter[]): Chapter | undefined {
   return chapters.find((chapter) => chapter.state === "open");
 }
 
-export function ChaptersSection({ pages, chapters, velocity, busy, actions, chaptersEnabled, canManage, onSetChaptersEnabled, onSetPageChapter, run }: Props) {
+export function ChaptersSection({
+  pages,
+  chapters,
+  velocity,
+  busy,
+  actions,
+  chaptersEnabled,
+  canManage,
+  onSetChaptersEnabled,
+  onSetPageChapter,
+  run,
+}: Props) {
   const [newName, setNewName] = useState("");
   const [newStart, setNewStart] = useState("");
   const [newEnd, setNewEnd] = useState("");
@@ -103,7 +120,8 @@ export function ChaptersSection({ pages, chapters, velocity, busy, actions, chap
   const saveDate = (chapter: Chapter, side: "startsOn" | "endsOn") => {
     const draft = dateDrafts[dateKey(chapter.slug, side)];
     if (draft === undefined || draft === (chapter[side] ?? "")) return;
-    const failure = side === "startsOn" ? "The start date could not be changed" : "The end date could not be changed";
+    const failure =
+      side === "startsOn" ? "The start date could not be changed" : "The end date could not be changed";
     void run(() => actions.update(chapter.slug, { [side]: draft || null }), failure);
   };
 
@@ -117,10 +135,12 @@ export function ChaptersSection({ pages, chapters, velocity, busy, actions, chap
             checked={chaptersEnabled}
             disabled={busy}
             name="chaptersEnabled"
-            onChange={(event) => void run(
-              () => onSetChaptersEnabled(event.target.checked),
-              "The chapters setting could not be changed",
-            )}
+            onChange={(event) =>
+              void run(
+                () => onSetChaptersEnabled(event.target.checked),
+                "The chapters setting could not be changed",
+              )
+            }
             type="checkbox"
           />
           <span aria-hidden="true" className="settings-knob" />
@@ -138,9 +158,7 @@ export function ChaptersSection({ pages, chapters, velocity, busy, actions, chap
   if (!chaptersEnabled) {
     return (
       <div className="settings-section">
-        {gate ?? (
-          <p className="settings-summary">This project does not use chapters.</p>
-        )}
+        {gate ?? <p className="settings-summary">This project does not use chapters.</p>}
       </div>
     );
   }
@@ -149,10 +167,20 @@ export function ChaptersSection({ pages, chapters, velocity, busy, actions, chap
     <div className="settings-section">
       {gate}
       <p className="settings-summary chapters-standing">
-        {current
-          ? <>Open: {current.name}{current.startsOn && current.endsOn ? ` · ${dayLabel(current.startsOn)} → ${dayLabel(current.endsOn)}` : current.endsOn ? ` · ends ${dayLabel(current.endsOn)}` : ""}</>
-          : "No chapter open right now."}
-        {" "}· {chapters.length} chapter{chapters.length === 1 ? "" : "s"} · {placed} page{placed === 1 ? "" : "s"} placed
+        {current ? (
+          <>
+            Open: {current.name}
+            {current.startsOn && current.endsOn
+              ? ` · ${dayLabel(current.startsOn)} → ${dayLabel(current.endsOn)}`
+              : current.endsOn
+                ? ` · ends ${dayLabel(current.endsOn)}`
+                : ""}
+          </>
+        ) : (
+          "No chapter open right now."
+        )}{" "}
+        · {chapters.length} chapter{chapters.length === 1 ? "" : "s"} · {placed} page{placed === 1 ? "" : "s"}{" "}
+        placed
       </p>
 
       {!canManage ? (
@@ -192,15 +220,21 @@ export function ChaptersSection({ pages, chapters, velocity, busy, actions, chap
                           {/* Both readings, because a team that estimates only some of its
                               work still has a page count, and neither number implies the
                               other. */}
-                          <strong>{chapterVelocity.donePages}</strong>
-                          {" "}page{chapterVelocity.donePages === 1 ? "" : "s"}
+                          <strong>{chapterVelocity.donePages}</strong> page
+                          {chapterVelocity.donePages === 1 ? "" : "s"}
                           {" · "}
                           <strong>{chapterVelocity.doneEstimate}</strong> delivered
                           {chapterVelocity.openPages > 0 && (
-                            <> · {chapterVelocity.openPages} still open ({chapterVelocity.openEstimate})</>
+                            <>
+                              {" "}
+                              · {chapterVelocity.openPages} still open ({chapterVelocity.openEstimate})
+                            </>
                           )}
                           {chapterVelocity.unestimatedPages > 0 && (
-                            <> · <em>{chapterVelocity.unestimatedPages} unestimated</em></>
+                            <>
+                              {" "}
+                              · <em>{chapterVelocity.unestimatedPages} unestimated</em>
+                            </>
                           )}
                         </>
                       )}
@@ -209,32 +243,52 @@ export function ChaptersSection({ pages, chapters, velocity, busy, actions, chap
                           {chapterVelocity && " · "}
                           carried {chapter.carriedPages} page{chapter.carriedPages === 1 ? "" : "s"}
                           {chapter.carriedEstimate ? ` (${chapter.carriedEstimate})` : ""}
-                          {chapter.carriedTo ? ` to ${chapters.find((c) => c.slug === chapter.carriedTo)?.name ?? chapter.carriedTo}` : " onward"}
+                          {chapter.carriedTo
+                            ? ` to ${chapters.find((c) => c.slug === chapter.carriedTo)?.name ?? chapter.carriedTo}`
+                            : " onward"}
                         </>
                       )}
-                      {chapterVelocity?.recorded && <span className="chapter-velocity-sealed" title="Counted when this chapter closed"> · as closed</span>}
+                      {chapterVelocity?.recorded && (
+                        <span className="chapter-velocity-sealed" title="Counted when this chapter closed">
+                          {" "}
+                          · as closed
+                        </span>
+                      )}
                     </p>
                   )}
                   <div className="chapter-row-main">
-                    <label className="sr-only" htmlFor={`chapter-name-${chapter.slug}`}>Rename {chapter.name}</label>
+                    <label className="sr-only" htmlFor={`chapter-name-${chapter.slug}`}>
+                      Rename {chapter.name}
+                    </label>
                     <input
                       id={`chapter-name-${chapter.slug}`}
                       name={`chapterName-${chapter.slug}`}
                       onBlur={() => saveName(chapter)}
-                      onChange={(event) => setDrafts((value) => ({ ...value, [chapter.slug]: event.target.value }))}
-                      onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); saveName(chapter); } }}
+                      onChange={(event) =>
+                        setDrafts((value) => ({ ...value, [chapter.slug]: event.target.value }))
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          saveName(chapter);
+                        }
+                      }}
                       value={drafts[chapter.slug] ?? chapter.name}
                     />
                     <span className={`chapter-state-pill ${chapter.state}`}>{chapter.state}</span>
                   </div>
 
                   <div className="chapter-row-intent">
-                    <label className="sr-only" htmlFor={`chapter-intent-${chapter.slug}`}>What {chapter.name} is for</label>
+                    <label className="sr-only" htmlFor={`chapter-intent-${chapter.slug}`}>
+                      What {chapter.name} is for
+                    </label>
                     <textarea
                       id={`chapter-intent-${chapter.slug}`}
                       name={`chapterIntent-${chapter.slug}`}
                       onBlur={() => saveDescription(chapter)}
-                      onChange={(event) => setDescriptionDrafts((value) => ({ ...value, [chapter.slug]: event.target.value }))}
+                      onChange={(event) =>
+                        setDescriptionDrafts((value) => ({ ...value, [chapter.slug]: event.target.value }))
+                      }
                       placeholder="What is this stretch for?"
                       rows={2}
                       value={descriptionDrafts[chapter.slug] ?? chapter.description}
@@ -242,52 +296,75 @@ export function ChaptersSection({ pages, chapters, velocity, busy, actions, chap
                   </div>
 
                   <div className="chapter-row-dates">
-                    <label className="sr-only" htmlFor={`chapter-start-${chapter.slug}`}>Start of {chapter.name}</label>
+                    <label className="sr-only" htmlFor={`chapter-start-${chapter.slug}`}>
+                      Start of {chapter.name}
+                    </label>
                     <input
                       id={`chapter-start-${chapter.slug}`}
                       name={`chapterStart-${chapter.slug}`}
                       onBlur={() => saveDate(chapter, "startsOn")}
-                      onChange={(event) => setDateDrafts((value) => ({ ...value, [dateKey(chapter.slug, "startsOn")]: event.target.value }))}
+                      onChange={(event) =>
+                        setDateDrafts((value) => ({
+                          ...value,
+                          [dateKey(chapter.slug, "startsOn")]: event.target.value,
+                        }))
+                      }
                       type="date"
                       value={dateDrafts[dateKey(chapter.slug, "startsOn")] ?? chapter.startsOn ?? ""}
                     />
                     <span aria-hidden="true">→</span>
-                    <label className="sr-only" htmlFor={`chapter-end-${chapter.slug}`}>End of {chapter.name}</label>
+                    <label className="sr-only" htmlFor={`chapter-end-${chapter.slug}`}>
+                      End of {chapter.name}
+                    </label>
                     <input
                       id={`chapter-end-${chapter.slug}`}
                       name={`chapterEnd-${chapter.slug}`}
                       onBlur={() => saveDate(chapter, "endsOn")}
-                      onChange={(event) => setDateDrafts((value) => ({ ...value, [dateKey(chapter.slug, "endsOn")]: event.target.value }))}
+                      onChange={(event) =>
+                        setDateDrafts((value) => ({
+                          ...value,
+                          [dateKey(chapter.slug, "endsOn")]: event.target.value,
+                        }))
+                      }
                       type="date"
                       value={dateDrafts[dateKey(chapter.slug, "endsOn")] ?? chapter.endsOn ?? ""}
                     />
-                    <span className="chapter-count">{placedIn} page{placedIn === 1 ? "" : "s"}</span>
+                    <span className="chapter-count">
+                      {placedIn} page{placedIn === 1 ? "" : "s"}
+                    </span>
                   </div>
 
                   <div className="chapter-row-actions">
                     {chapter.state !== "open" && (
                       <button
                         disabled={busy}
-                        onClick={() => void run(async () => {
-                          // One chapter is open at a time, so opening this one closes the current
-                          // one first. Both writes are named in the confirm above.
-                          if (current && current.slug !== chapter.slug) {
-                            await actions.update(current.slug, { state: "closed" });
-                          }
-                          await actions.update(chapter.slug, { state: "open" });
-                        }, "The chapter could not be opened")}
-                        title={current && current.slug !== chapter.slug ? `Closes ${current.name} first` : undefined}
+                        onClick={() =>
+                          void run(async () => {
+                            // One chapter is open at a time, so opening this one closes the current
+                            // one first. Both writes are named in the confirm above.
+                            if (current && current.slug !== chapter.slug) {
+                              await actions.update(current.slug, { state: "closed" });
+                            }
+                            await actions.update(chapter.slug, { state: "open" });
+                          }, "The chapter could not be opened")
+                        }
+                        title={
+                          current && current.slug !== chapter.slug
+                            ? `Closes ${current.name} first`
+                            : undefined
+                        }
                         type="button"
                       >
                         {current && current.slug !== chapter.slug ? `close ${current.name} and open` : "open"}
                       </button>
                     )}
-                    {chapter.state === "open" && (
-                      closing === chapter.slug ? (
+                    {chapter.state === "open" &&
+                      (closing === chapter.slug ? (
                         <div className="chapter-close">
                           <p className="chapter-close-question">
                             Close {chapter.name}?
-                            {unfinished > 0 && ` ${unfinished} page${unfinished === 1 ? " is" : "s are"} unfinished.`}
+                            {unfinished > 0 &&
+                              ` ${unfinished} page${unfinished === 1 ? " is" : "s are"} unfinished.`}
                           </p>
                           {/* Nothing here happens by default. Automatic rollover is the most
                               sprint-like behaviour there is, so the unfinished pages move only
@@ -301,65 +378,100 @@ export function ChaptersSection({ pages, chapters, velocity, busy, actions, chap
                             {unfinished > 0 && nextPlanned && (
                               <button
                                 disabled={busy}
-                                onClick={() => void run(
-                                  () => actions.close(chapter.slug, "next"),
-                                  "The chapter could not be closed",
-                                )}
+                                onClick={() =>
+                                  void run(
+                                    () => actions.close(chapter.slug, "next"),
+                                    "The chapter could not be closed",
+                                  )
+                                }
                                 type="button"
-                              >roll them into {nextPlanned.name}</button>
+                              >
+                                roll them into {nextPlanned.name}
+                              </button>
                             )}
                             <button
                               disabled={busy}
-                              onClick={() => void run(
-                                () => actions.close(chapter.slug, "keep"),
-                                "The chapter could not be closed",
-                              )}
+                              onClick={() =>
+                                void run(
+                                  () => actions.close(chapter.slug, "keep"),
+                                  "The chapter could not be closed",
+                                )
+                              }
                               type="button"
-                            >{unfinished > 0 ? "leave them here" : "close it"}</button>
-                            {unfinished > 0 && plannedChapters
-                              .filter((candidate) => candidate.slug !== chapter.slug && candidate.slug !== nextPlanned?.slug)
-                              .map((candidate) => (
-                                <button
-                                  disabled={busy}
-                                  key={candidate.slug}
-                                  onClick={() => void run(
-                                    () => actions.close(chapter.slug, candidate.slug),
-                                    "The pages could not be moved",
-                                  )}
-                                  type="button"
-                                >move them to {candidate.name}</button>
-                              ))}
+                            >
+                              {unfinished > 0 ? "leave them here" : "close it"}
+                            </button>
+                            {unfinished > 0 &&
+                              plannedChapters
+                                .filter(
+                                  (candidate) =>
+                                    candidate.slug !== chapter.slug && candidate.slug !== nextPlanned?.slug,
+                                )
+                                .map((candidate) => (
+                                  <button
+                                    disabled={busy}
+                                    key={candidate.slug}
+                                    onClick={() =>
+                                      void run(
+                                        () => actions.close(chapter.slug, candidate.slug),
+                                        "The pages could not be moved",
+                                      )
+                                    }
+                                    type="button"
+                                  >
+                                    move them to {candidate.name}
+                                  </button>
+                                ))}
                             {unfinished > 0 && (
                               <button
                                 disabled={busy}
-                                onClick={() => void run(
-                                  () => actions.close(chapter.slug, "release"),
-                                  "The pages could not be released",
-                                )}
+                                onClick={() =>
+                                  void run(
+                                    () => actions.close(chapter.slug, "release"),
+                                    "The pages could not be released",
+                                  )
+                                }
                                 type="button"
-                              >release them</button>
+                              >
+                                release them
+                              </button>
                             )}
-                            <button onClick={() => setClosing(null)} type="button">cancel</button>
+                            <button onClick={() => setClosing(null)} type="button">
+                              cancel
+                            </button>
                           </div>
                         </div>
                       ) : (
-                        <button disabled={busy} onClick={() => setClosing(chapter.slug)} type="button">close</button>
-                      )
-                    )}
+                        <button disabled={busy} onClick={() => setClosing(chapter.slug)} type="button">
+                          close
+                        </button>
+                      ))}
                     {removing === chapter.slug ? (
                       <span className="archive-confirm">
-                        <span>delete?{placedIn > 0 && ` ${placedIn} page${placedIn === 1 ? "" : "s"} lose it`}</span>
+                        <span>
+                          delete?{placedIn > 0 && ` ${placedIn} page${placedIn === 1 ? "" : "s"} lose it`}
+                        </span>
                         <button
                           aria-label={`Confirm delete ${chapter.name}`}
                           className="danger-text"
                           disabled={busy}
-                          onClick={() => void run(async () => {
-                            await actions.remove(chapter.slug);
-                            setRemoving(null);
-                          }, "The chapter could not be deleted")}
+                          onClick={() =>
+                            void run(async () => {
+                              await actions.remove(chapter.slug);
+                              setRemoving(null);
+                            }, "The chapter could not be deleted")
+                          }
                           type="button"
-                        >yes</button>
-                        <button aria-label={`Cancel deleting ${chapter.name}`} onClick={() => setRemoving(null)} type="button">no</button>
+                        >
+                          yes
+                        </button>
+                        <button
+                          aria-label={`Cancel deleting ${chapter.name}`}
+                          onClick={() => setRemoving(null)}
+                          type="button"
+                        >
+                          no
+                        </button>
                       </span>
                     ) : (
                       <button
@@ -367,19 +479,25 @@ export function ChaptersSection({ pages, chapters, velocity, busy, actions, chap
                         className="danger-text"
                         onClick={() => setRemoving(chapter.slug)}
                         type="button"
-                      >delete</button>
+                      >
+                        delete
+                      </button>
                     )}
                   </div>
                 </Growing>
               );
             })}
-            {chapters.length === 0 && <p className="empty-dependencies">No chapters yet. Name the first stretch below.</p>}
+            {chapters.length === 0 && (
+              <p className="empty-dependencies">No chapters yet. Name the first stretch below.</p>
+            )}
           </div>
 
           <form className="chapter-add" onSubmit={submitCreate}>
             <span className="field-label">Add a chapter</span>
             <div className="chapter-add-row">
-              <label className="sr-only" htmlFor="new-chapter-name">New chapter name</label>
+              <label className="sr-only" htmlFor="new-chapter-name">
+                New chapter name
+              </label>
               <input
                 id="new-chapter-name"
                 name="newChapterName"
@@ -387,7 +505,9 @@ export function ChaptersSection({ pages, chapters, velocity, busy, actions, chap
                 placeholder="Chapter name..."
                 value={newName}
               />
-              <button className="primary-button compact" disabled={busy || !newName.trim()} type="submit">add</button>
+              <button className="primary-button compact" disabled={busy || !newName.trim()} type="submit">
+                add
+              </button>
             </div>
             <div className="chapter-add-dates">
               <label htmlFor="new-chapter-start">starts</label>

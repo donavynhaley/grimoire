@@ -105,9 +105,9 @@ export function AgentAccessSection({ run }: Props) {
   return (
     <div className="settings-section">
       <p className="settings-summary agent-intro">
-        A token lets an agent read this project, and write pages and ideas in it. It acts as you,
-        so its work carries your name with the agent's beside it. It can never archive, promote an
-        idea, or change the project's shape.
+        A token lets an agent read this project, and write pages and ideas in it. It acts as you, so its work
+        carries your name with the agent's beside it. It can never archive, promote an idea, or change the
+        project's shape.
       </p>
 
       {issued && (
@@ -118,7 +118,9 @@ export function AgentAccessSection({ run }: Props) {
             <button className="primary-button compact" onClick={() => void copy()} type="button">
               {copied ? "copied" : "copy"}
             </button>
-            <button onClick={() => setIssued(null)} type="button">done</button>
+            <button onClick={() => setIssued(null)} type="button">
+              done
+            </button>
           </div>
           <p className="settings-summary">This is the only time it is shown. Only its hash is stored.</p>
         </div>
@@ -126,7 +128,9 @@ export function AgentAccessSection({ run }: Props) {
 
       <form className="agent-create" onSubmit={submit}>
         <div className="settings-input">
-          <label className="sr-only" htmlFor="agent-name">Agent name</label>
+          <label className="sr-only" htmlFor="agent-name">
+            Agent name
+          </label>
           <input
             id="agent-name"
             name="agentName"
@@ -134,7 +138,9 @@ export function AgentAccessSection({ run }: Props) {
             placeholder="Planning agent"
             value={name}
           />
-          <label className="sr-only" htmlFor="agent-scope">What it may do</label>
+          <label className="sr-only" htmlFor="agent-scope">
+            What it may do
+          </label>
           <select
             id="agent-scope"
             name="agentScope"
@@ -144,14 +150,18 @@ export function AgentAccessSection({ run }: Props) {
             <option value="write">read and write</option>
             <option value="read">read only</option>
           </select>
-          <button className="primary-button compact" disabled={busy || !name.trim()} type="submit">issue</button>
+          <button className="primary-button compact" disabled={busy || !name.trim()} type="submit">
+            issue
+          </button>
         </div>
       </form>
 
       {loadFailed ? (
         <p className="settings-summary agent-load-failed">
           Agent access could not be loaded, so this list may be incomplete.{" "}
-          <button className="text-button" onClick={() => void load()} type="button">retry</button>
+          <button className="text-button" onClick={() => void load()} type="button">
+            retry
+          </button>
         </p>
       ) : tokens === null ? (
         <p className="settings-summary">Loading…</p>
@@ -171,11 +181,17 @@ export function AgentAccessSection({ run }: Props) {
               {revoking === token.id ? (
                 <span className="archive-confirm">
                   <span>revoke {token.name}?</span>
-                  <button className="danger-text" disabled={busy} onClick={() => revoke(token)} type="button">yes</button>
-                  <button onClick={() => setRevoking(null)} type="button">no</button>
+                  <button className="danger-text" disabled={busy} onClick={() => revoke(token)} type="button">
+                    yes
+                  </button>
+                  <button onClick={() => setRevoking(null)} type="button">
+                    no
+                  </button>
                 </span>
               ) : (
-                <button className="danger-text" onClick={() => setRevoking(token.id)} type="button">revoke</button>
+                <button className="danger-text" onClick={() => setRevoking(token.id)} type="button">
+                  revoke
+                </button>
               )}
             </li>
           ))}

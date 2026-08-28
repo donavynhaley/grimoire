@@ -8,7 +8,8 @@ import {
   unseenMentionCount,
   unseenMentionCounts,
 } from "./discussion";
-import { fieldHasOptions,
+import {
+  fieldHasOptions,
   fieldTypeSwapAllowed,
   type ChapterVelocity,
   type PageGithubLink,
@@ -88,7 +89,10 @@ export function defaultProjectIdForUser(database: DatabaseSync, user: User): str
       user.id,
     ) ??
     (user.role === "admin"
-      ? row(database, "SELECT id AS project_id FROM projects WHERE archived_at IS NULL ORDER BY created_at LIMIT 1")
+      ? row(
+          database,
+          "SELECT id AS project_id FROM projects WHERE archived_at IS NULL ORDER BY created_at LIMIT 1",
+        )
       : undefined);
   return value ? String(value.project_id) : null;
 }
@@ -113,7 +117,12 @@ export function seenCursor(database: DatabaseSync, projectId: string, userId: st
  * First look at a project starts at the present, so joining never dumps the
  * whole history as unread. Racing tabs both succeed; the first row wins.
  */
-export function initializeSeenCursor(database: DatabaseSync, projectId: string, userId: string, sequence: number): void {
+export function initializeSeenCursor(
+  database: DatabaseSync,
+  projectId: string,
+  userId: string,
+  sequence: number,
+): void {
   database
     .prepare(
       "INSERT OR IGNORE INTO seen_cursors (project_id, user_id, last_seen_sequence, updated_at) VALUES (?, ?, ?, ?)",
@@ -122,7 +131,12 @@ export function initializeSeenCursor(database: DatabaseSync, projectId: string, 
 }
 
 /** Advances with MAX semantics, so stale tabs and repeats can never rewind the boundary. */
-export function advanceSeenCursor(database: DatabaseSync, projectId: string, userId: string, sequence: number): void {
+export function advanceSeenCursor(
+  database: DatabaseSync,
+  projectId: string,
+  userId: string,
+  sequence: number,
+): void {
   database
     .prepare(
       `INSERT INTO seen_cursors (project_id, user_id, last_seen_sequence, updated_at) VALUES (?, ?, ?, ?)
@@ -147,7 +161,9 @@ export function advanceSeenCursor(database: DatabaseSync, projectId: string, use
  */
 export function userCanAccessProject(database: DatabaseSync, user: User, projectId: string): boolean {
   if (user.role === "admin") {
-    return Boolean(row(database, "SELECT 1 AS ok FROM projects WHERE id = ? AND archived_at IS NULL", projectId));
+    return Boolean(
+      row(database, "SELECT 1 AS ok FROM projects WHERE id = ? AND archived_at IS NULL", projectId),
+    );
   }
   return Boolean(
     row(
@@ -187,15 +203,18 @@ export function userOwnsProject(database: DatabaseSync, user: User, projectId: s
 export function listProjectsForUser(database: DatabaseSync, user: User): ProjectSummary[] {
   const values =
     user.role === "admin"
-      ? rows(database, "SELECT id, name, description FROM projects WHERE archived_at IS NULL ORDER BY created_at")
+      ? rows(
+          database,
+          "SELECT id, name, description FROM projects WHERE archived_at IS NULL ORDER BY created_at",
+        )
       : rows(
-        database,
-        `SELECT projects.id, projects.name, projects.description FROM project_members
+          database,
+          `SELECT projects.id, projects.name, projects.description FROM project_members
          JOIN projects ON projects.id = project_members.project_id
          WHERE project_members.user_id = ? AND projects.archived_at IS NULL
          ORDER BY project_members.created_at`,
-        user.id,
-      );
+          user.id,
+        );
   return values.map((value) => ({
     id: String(value.id),
     name: String(value.name),
@@ -210,7 +229,11 @@ export function renameProject(database: DatabaseSync, projectId: string, name: s
   return Number(result.changes) === 1;
 }
 
-export function setProjectDescription(database: DatabaseSync, projectId: string, description: string): boolean {
+export function setProjectDescription(
+  database: DatabaseSync,
+  projectId: string,
+  description: string,
+): boolean {
   const result = database
     .prepare("UPDATE projects SET description = ?, updated_at = ? WHERE id = ? AND archived_at IS NULL")
     .run(description, new Date().toISOString(), projectId);
@@ -238,20 +261,21 @@ export function archiveProject(database: DatabaseSync, projectId: string): Archi
  * installation has ever archived to anyone holding the owner role.
  */
 export function listArchivedProjects(database: DatabaseSync, user: User): ArchivedProject[] {
-  return (user.role === "admin"
-    ? rows(
-      database,
-      "SELECT id, name, archived_at FROM projects WHERE archived_at IS NOT NULL ORDER BY archived_at DESC",
-    )
-    : rows(
-      database,
-      `SELECT projects.id, projects.name, projects.archived_at FROM project_members
+  return (
+    user.role === "admin"
+      ? rows(
+          database,
+          "SELECT id, name, archived_at FROM projects WHERE archived_at IS NOT NULL ORDER BY archived_at DESC",
+        )
+      : rows(
+          database,
+          `SELECT projects.id, projects.name, projects.archived_at FROM project_members
        JOIN projects ON projects.id = project_members.project_id
        WHERE project_members.user_id = ? AND project_members.role = 'owner'
          AND projects.archived_at IS NOT NULL
        ORDER BY projects.archived_at DESC`,
-      user.id,
-    )
+          user.id,
+        )
   ).map((value) => ({
     id: String(value.id),
     name: String(value.name),
@@ -262,7 +286,9 @@ export function listArchivedProjects(database: DatabaseSync, user: User): Archiv
 /** Clears `archived_at`, which is all archiving ever set - the files never left the disk. */
 export function restoreProject(database: DatabaseSync, projectId: string): boolean {
   const result = database
-    .prepare("UPDATE projects SET archived_at = NULL, updated_at = ? WHERE id = ? AND archived_at IS NOT NULL")
+    .prepare(
+      "UPDATE projects SET archived_at = NULL, updated_at = ? WHERE id = ? AND archived_at IS NOT NULL",
+    )
     .run(new Date().toISOString(), projectId);
   return Number(result.changes) === 1;
 }
@@ -303,7 +329,9 @@ export function createCategory(
   }
   const position = categoriesForProject(database, projectId).length;
   database
-    .prepare("INSERT INTO categories (project_id, slug, name, color, position, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+    .prepare(
+      "INSERT INTO categories (project_id, slug, name, color, position, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+    )
     .run(projectId, slug, input.name, input.color, position, new Date().toISOString());
   return { category: { slug, name: input.name, color: input.color, position } };
 }
@@ -338,7 +366,12 @@ export function deleteCategory(
 ): boolean {
   const project = projectById(database, projectId);
   if (!project) return false;
-  const exists = row(database, "SELECT 1 AS present FROM categories WHERE project_id = ? AND slug = ?", projectId, slug);
+  const exists = row(
+    database,
+    "SELECT 1 AS present FROM categories WHERE project_id = ? AND slug = ?",
+    projectId,
+    slug,
+  );
   if (!exists) return false;
   // Pages release the value before the definition goes, because the two writes cannot
   // share a transaction: interrupted this way around, the category still exists and
@@ -414,15 +447,21 @@ export function createField(database: DatabaseSync, projectId: string, input: Fi
       `INSERT INTO project_fields (project_id, key, label, type, options, position, show_on_tile, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(projectId, key, input.label, input.type, JSON.stringify(options), position, showOnTile ? 1 : 0, new Date().toISOString());
+    .run(
+      projectId,
+      key,
+      input.label,
+      input.type,
+      JSON.stringify(options),
+      position,
+      showOnTile ? 1 : 0,
+      new Date().toISOString(),
+    );
   return { field: { key, label: input.label, type: input.type, options, position, showOnTile } };
 }
 
 export type UpdateFieldResult =
-  | { field: ProjectField; cleared: number }
-  | "not_found"
-  | "needs_options"
-  | "type_locked";
+  { field: ProjectField; cleared: number } | "not_found" | "needs_options" | "type_locked";
 
 /**
  * Edits a definition, including the one type change that costs nothing.
@@ -461,7 +500,12 @@ export function updateField(
   // before the definition changes so an interruption leaves a field still holding the old
   // options, not pages holding values the new ones refuse.
   const cleared = fieldHasOptions(type)
-    ? clearFieldValues(pageStore, String(project.slug), key, (value) => typeof value === "string" && options.includes(value))
+    ? clearFieldValues(
+        pageStore,
+        String(project.slug),
+        key,
+        (value) => typeof value === "string" && options.includes(value),
+      )
     : 0;
   database
     .prepare(
@@ -481,7 +525,12 @@ export function deleteField(
 ): number | null {
   const project = projectById(database, projectId);
   if (!project) return null;
-  const exists = row(database, "SELECT 1 AS present FROM project_fields WHERE project_id = ? AND key = ?", projectId, key);
+  const exists = row(
+    database,
+    "SELECT 1 AS present FROM project_fields WHERE project_id = ? AND key = ?",
+    projectId,
+    key,
+  );
   if (!exists) return null;
   // Values first, definition last - the same interruption story category deletion tells.
   const cleared = clearFieldValues(pageStore, String(project.slug), key, () => false);
@@ -584,9 +633,7 @@ export function chaptersForProject(
   const project = projectById(database, projectId);
   if (!project) return [];
   const members = membersForProject(database, projectId);
-  return chapterStore
-    .list(String(project.slug))
-    .map((chapter) => publicChapter(database, chapter, members));
+  return chapterStore.list(String(project.slug)).map((chapter) => publicChapter(database, chapter, members));
 }
 
 export function chapterSlugFromName(name: string): string {
@@ -702,7 +749,7 @@ export function updateChapter(
     endsOn,
     position: input.position ?? current.position,
     updatedAt: now,
-    closedAt: nextState === "closed" ? current.closedAt ?? now : null,
+    closedAt: nextState === "closed" ? (current.closedAt ?? now) : null,
   };
   chapterStore.save(projectSlug, updated);
   return { chapter: publicChapter(database, updated, membersForProject(database, projectId)) };
@@ -799,12 +846,19 @@ export function getBoard(
     currentUser: user,
     viewerIsOwner: userOwnsProject(database, user, projectId),
     members,
-    pages: pages.map((page) => publicPage(database, projectId, page, members, githubStatuses, openThreads, { id: user.id, unseen, mentions: mentioned })),
+    pages: pages.map((page) =>
+      publicPage(database, projectId, page, members, githubStatuses, openThreads, {
+        id: user.id,
+        unseen,
+        mentions: mentioned,
+      }),
+    ),
     // Chapters and estimates are separate gates, and velocity is the place they meet: it is
     // an estimate summed per chapter, so it needs both to mean anything.
-    velocity: enabled && estimatesOn
-      ? chapterStore.list(String(project.slug)).map((chapter) => velocityFor(chapter, pages))
-      : [],
+    velocity:
+      enabled && estimatesOn
+        ? chapterStore.list(String(project.slug)).map((chapter) => velocityFor(chapter, pages))
+        : [],
   };
 }
 
@@ -829,7 +883,7 @@ function velocityFor(chapter: StoredChapter, pages: StoredPage[]): ChapterVeloci
   return {
     slug: chapter.slug,
     donePages: recorded ? chapter.deliveredPages! : done.length,
-    doneEstimate: recorded ? chapter.deliveredEstimate ?? 0 : total(done),
+    doneEstimate: recorded ? (chapter.deliveredEstimate ?? 0) : total(done),
     openPages: open.length,
     openEstimate: total(open),
     unestimatedPages: mine.filter((page) => page.estimate === null).length,
@@ -857,16 +911,14 @@ export function findPage(
   );
 }
 
-export function listPages(
-  database: DatabaseSync,
-  pageStore: MarkdownPageStore,
-  projectId: string,
-): Page[] {
+export function listPages(database: DatabaseSync, pageStore: MarkdownPageStore, projectId: string): Page[] {
   const project = projectById(database, projectId);
   if (!project) return [];
   const members = membersForProject(database, projectId);
   const openThreads = openThreadCounts(database, projectId);
-  return pageStore.list(String(project.slug)).map((page) => publicPage(database, projectId, page, members, undefined, openThreads));
+  return pageStore
+    .list(String(project.slug))
+    .map((page) => publicPage(database, projectId, page, members, undefined, openThreads));
 }
 
 type PageInput = {
@@ -954,9 +1006,12 @@ export function updatePage(
   const nextStatus = input.status ?? current.status;
   const shouldMove = input.status !== undefined || input.position !== undefined;
   const now = new Date().toISOString();
-  const completedAt = nextStatus === "done"
-    ? current.status === "done" ? current.completedAt ?? current.updatedAt : now
-    : null;
+  const completedAt =
+    nextStatus === "done"
+      ? current.status === "done"
+        ? (current.completedAt ?? current.updatedAt)
+        : now
+      : null;
   const updated: StoredPage = {
     ...current,
     title: input.title ?? current.title,
@@ -966,13 +1021,13 @@ export function updatePage(
     fields: mergePageFields(fieldsForProject(database, projectId), current.fields, input.fields),
     blockedBy: input.blockedBy ?? current.blockedBy,
     status: nextStatus,
-    assignee: input.assigneeId === undefined ? current.assignee : assignee?.email.toLowerCase() ?? null,
+    assignee: input.assigneeId === undefined ? current.assignee : (assignee?.email.toLowerCase() ?? null),
     github: input.github === undefined ? current.github : input.github,
     estimate: input.estimate === undefined ? current.estimate : input.estimate,
     updatedAt: now,
     completedAt,
   };
-  validateDependencyGraph(pages.map((page) => page.id === pageId ? updated : page));
+  validateDependencyGraph(pages.map((page) => (page.id === pageId ? updated : page)));
 
   if (!shouldMove) {
     pageStore.save(projectSlug, updated);
@@ -1052,9 +1107,11 @@ export function restorePage(
     updatedAt: new Date().toISOString(),
   };
   const previouslyBlocked = new Set(archived.unblockedPages);
-  const restoredPages = pages.map((page) => previouslyBlocked.has(page.id)
-    ? { ...page, blockedBy: [...page.blockedBy, restored.id], updatedAt: restored.updatedAt }
-    : page);
+  const restoredPages = pages.map((page) =>
+    previouslyBlocked.has(page.id)
+      ? { ...page, blockedBy: [...page.blockedBy, restored.id], updatedAt: restored.updatedAt }
+      : page,
+  );
   validateDependencyGraph([...restoredPages, restored]);
   pageStore.restore(projectSlug, restored);
 
@@ -1097,7 +1154,14 @@ export function addProjectMember(
   const found = findUserByEmail(database, email);
   if (!found) return "no_account";
   const invited = publicUser(found);
-  if (row(database, "SELECT 1 AS ok FROM project_members WHERE project_id = ? AND user_id = ?", projectId, invited.id)) {
+  if (
+    row(
+      database,
+      "SELECT 1 AS ok FROM project_members WHERE project_id = ? AND user_id = ?",
+      projectId,
+      invited.id,
+    )
+  ) {
     return "already_there";
   }
   database
@@ -1113,12 +1177,10 @@ export function membersForProject(database: DatabaseSync, projectId: string): Me
      FROM project_members JOIN users ON users.id = project_members.user_id
      WHERE project_members.project_id = ? ORDER BY project_members.created_at`,
     projectId,
-  ).map(
-    (value): Member => ({
-      ...publicUser(value),
-      projectRole: value.project_role as Member["projectRole"],
-    }),
-  );
+  ).map((value): Member => ({
+    ...publicUser(value),
+    projectRole: value.project_role as Member["projectRole"],
+  }));
 }
 
 export type SetMemberRoleResult = "updated" | "not_found" | "unchanged" | "admin";
@@ -1176,9 +1238,16 @@ export function removeProjectMember(
     const removed = database
       .prepare("DELETE FROM project_members WHERE project_id = ? AND user_id = ? AND role != 'owner'")
       .run(projectId, memberId);
-    if (Number(removed.changes) !== 1) throw new Error("Project membership changed while it was being removed");
-    database.prepare("DELETE FROM seen_cursors WHERE project_id = ? AND user_id = ?").run(projectId, memberId);
-    const remaining = row(database, "SELECT COUNT(*) AS count FROM project_members WHERE user_id = ?", memberId);
+    if (Number(removed.changes) !== 1)
+      throw new Error("Project membership changed while it was being removed");
+    database
+      .prepare("DELETE FROM seen_cursors WHERE project_id = ? AND user_id = ?")
+      .run(projectId, memberId);
+    const remaining = row(
+      database,
+      "SELECT COUNT(*) AS count FROM project_members WHERE user_id = ?",
+      memberId,
+    );
     if (Number(remaining?.count ?? 0) === 0) {
       database.prepare("DELETE FROM sessions WHERE user_id = ?").run(memberId);
     }
@@ -1220,9 +1289,11 @@ function publicPage(
   // unknown creator keeps the written email as their name - throwing here would let
   // one odd file take the entire board down, since getBoard serializes every page.
   const assignee = value.assignee
-    ? members.find((member) => member.email.toLowerCase() === value.assignee?.toLowerCase()) ?? null
+    ? (members.find((member) => member.email.toLowerCase() === value.assignee?.toLowerCase()) ?? null)
     : null;
-  const currentCreator = members.find((member) => member.email.toLowerCase() === value.createdBy.toLowerCase());
+  const currentCreator = members.find(
+    (member) => member.email.toLowerCase() === value.createdBy.toLowerCase(),
+  );
   const historicalCreator = currentCreator ?? findUserByEmail(database, value.createdBy);
   return {
     id: value.id,
@@ -1244,26 +1315,35 @@ function publicPage(
     estimate: value.estimate,
     github: value.github,
     githubStatus: value.github
-      ? githubStatuses?.get(value.id) ?? { state: "unchecked", prNumber: null, prTitle: null, prUrl: null, checkedAt: null }
+      ? (githubStatuses?.get(value.id) ?? {
+          state: "unchecked",
+          prNumber: null,
+          prTitle: null,
+          prUrl: null,
+          checkedAt: null,
+        })
       : null,
     openThreads: openThreads
-      ? openThreads.get(value.id) ?? 0
+      ? (openThreads.get(value.id) ?? 0)
       : openThreadCount(database, projectId, value.id),
     unseenMessages: reader
       ? reader.unseen
-        ? reader.unseen.get(value.id) ?? 0
+        ? (reader.unseen.get(value.id) ?? 0)
         : unseenCount(database, projectId, value.id, reader.id)
       : 0,
     unseenMentions: reader
       ? reader.mentions
-        ? reader.mentions.get(value.id) ?? 0
+        ? (reader.mentions.get(value.id) ?? 0)
         : unseenMentionCount(database, projectId, value.id, reader.id)
       : 0,
   };
 }
 
 export class PageDependencyError extends Error {
-  constructor(message: string, readonly status: 400 | 409 = 400) {
+  constructor(
+    message: string,
+    readonly status: 400 | 409 = 400,
+  ) {
     super(message);
   }
 }
@@ -1304,7 +1384,10 @@ export function requireUnchangedContent(
   if (input.expectedTitle !== undefined && stored.title.trim() !== input.expectedTitle.trim()) {
     throw new EditConflictError(`This ${noun}'s title changed while you were editing it`, "title", current);
   }
-  if (input.expectedDescription !== undefined && stored.description.trim() !== input.expectedDescription.trim()) {
+  if (
+    input.expectedDescription !== undefined &&
+    stored.description.trim() !== input.expectedDescription.trim()
+  ) {
     throw new EditConflictError("These notes changed while you were writing", "description", current);
   }
 }
@@ -1335,7 +1418,9 @@ function requireCoherentDates(startsOn: string | null, endsOn: string | null): v
 }
 
 export function publicChapter(database: DatabaseSync, value: StoredChapter, members: Member[]): Chapter {
-  const currentCreator = members.find((member) => member.email.toLowerCase() === value.createdBy.toLowerCase());
+  const currentCreator = members.find(
+    (member) => member.email.toLowerCase() === value.createdBy.toLowerCase(),
+  );
   const historicalCreator = currentCreator ?? findUserByEmail(database, value.createdBy);
   return {
     slug: value.slug,
@@ -1404,27 +1489,38 @@ export function setProjectGithub(
 ): void {
   const now = new Date().toISOString();
   if (input.repo !== undefined) {
-    database.prepare("UPDATE projects SET github_repo = ?, updated_at = ? WHERE id = ?").run(input.repo, now, projectId);
+    database
+      .prepare("UPDATE projects SET github_repo = ?, updated_at = ? WHERE id = ?")
+      .run(input.repo, now, projectId);
   }
   if (input.token !== undefined) {
-    database.prepare("UPDATE projects SET github_token = ?, updated_at = ? WHERE id = ?").run(input.token, now, projectId);
+    database
+      .prepare("UPDATE projects SET github_token = ?, updated_at = ? WHERE id = ?")
+      .run(input.token, now, projectId);
   }
 }
 
-export function githubStatusesForProject(database: DatabaseSync, projectId: string): Map<string, PageGithubStatus> {
+export function githubStatusesForProject(
+  database: DatabaseSync,
+  projectId: string,
+): Map<string, PageGithubStatus> {
   const rows = database
-    .prepare("SELECT page_id, state, pr_number, pr_title, pr_url, checked_at FROM github_link_status WHERE project_id = ?")
+    .prepare(
+      "SELECT page_id, state, pr_number, pr_title, pr_url, checked_at FROM github_link_status WHERE project_id = ?",
+    )
     .all(projectId) as Array<Record<string, unknown>>;
-  return new Map(rows.map((value) => [
-    String(value.page_id),
-    {
-      state: String(value.state) as PageGithubStatus["state"],
-      prNumber: value.pr_number === null ? null : Number(value.pr_number),
-      prTitle: value.pr_title === null ? null : String(value.pr_title),
-      prUrl: value.pr_url === null ? null : String(value.pr_url),
-      checkedAt: value.checked_at === null ? null : String(value.checked_at),
-    },
-  ]));
+  return new Map(
+    rows.map((value) => [
+      String(value.page_id),
+      {
+        state: String(value.state) as PageGithubStatus["state"],
+        prNumber: value.pr_number === null ? null : Number(value.pr_number),
+        prTitle: value.pr_title === null ? null : String(value.pr_title),
+        prUrl: value.pr_url === null ? null : String(value.pr_url),
+        checkedAt: value.checked_at === null ? null : String(value.checked_at),
+      },
+    ]),
+  );
 }
 
 export function saveGithubStatus(
@@ -1446,7 +1542,9 @@ export function saveGithubStatus(
 
 /** A link that is gone needs no cached answer about it. */
 export function clearGithubStatus(database: DatabaseSync, projectId: string, pageId: string): void {
-  database.prepare("DELETE FROM github_link_status WHERE project_id = ? AND page_id = ?").run(projectId, pageId);
+  database
+    .prepare("DELETE FROM github_link_status WHERE project_id = ? AND page_id = ?")
+    .run(projectId, pageId);
 }
 
 /* ---------- closing a chapter, and what it leaves behind ---------- */
@@ -1536,7 +1634,9 @@ export function nextChapterAfter(
   projectSlug: string,
   slug: string,
 ): string | null {
-  const planned = chapterStore.list(projectSlug).filter((chapter) => chapter.state === "planned" && chapter.slug !== slug);
+  const planned = chapterStore
+    .list(projectSlug)
+    .filter((chapter) => chapter.state === "planned" && chapter.slug !== slug);
   return planned[0]?.slug ?? null;
 }
 
@@ -1559,7 +1659,11 @@ export function estimatesEnabled(database: DatabaseSync, projectId: string): boo
 export type RecapConfig = { webhook: string; onClose: boolean };
 
 export function projectRecapConfig(database: DatabaseSync, projectId: string): RecapConfig {
-  const project = row(database, "SELECT discord_webhook, recap_on_close FROM projects WHERE id = ?", projectId);
+  const project = row(
+    database,
+    "SELECT discord_webhook, recap_on_close FROM projects WHERE id = ?",
+    projectId,
+  );
   return {
     webhook: String(project?.discord_webhook ?? ""),
     onClose: Number(project?.recap_on_close ?? 1) === 1,
@@ -1574,7 +1678,9 @@ export function setProjectRecap(
 ): void {
   const now = new Date().toISOString();
   if (input.webhook !== undefined) {
-    database.prepare("UPDATE projects SET discord_webhook = ?, updated_at = ? WHERE id = ?").run(input.webhook, now, projectId);
+    database
+      .prepare("UPDATE projects SET discord_webhook = ?, updated_at = ? WHERE id = ?")
+      .run(input.webhook, now, projectId);
   }
   if (input.onClose !== undefined) {
     database

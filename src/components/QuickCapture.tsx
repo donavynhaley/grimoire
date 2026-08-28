@@ -1,5 +1,22 @@
-import { type ChangeEvent, type FormEvent, type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
-import { fieldHasOptions, type FieldValue, type PageCategory, type PageStatus, type Chapter, type Member, type ProjectCategory, type ProjectField } from "../../shared/types";
+import {
+  type ChangeEvent,
+  type FormEvent,
+  type KeyboardEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  fieldHasOptions,
+  type FieldValue,
+  type PageCategory,
+  type PageStatus,
+  type Chapter,
+  type Member,
+  type ProjectCategory,
+  type ProjectField,
+} from "../../shared/types";
 import { useTypingFocus } from "./use-typing-focus";
 
 export type CapturePageInput = {
@@ -115,12 +132,12 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
   );
   const visibleOptions = useMemo(() => filterOptions(options, picker?.query ?? ""), [options, picker?.query]);
   const selectedCategory = settings.category
-    ? categories.find((category) => category.slug === settings.category) ?? null
+    ? (categories.find((category) => category.slug === settings.category) ?? null)
     : null;
   const categoryLabel = selectedCategory?.name ?? settings.category;
   const assigneeLabel = members.find((member) => member.id === settings.assigneeId)?.name ?? null;
   const chapterLabel = settings.chapter
-    ? chapters.find((chapter) => chapter.slug === settings.chapter)?.name ?? settings.chapter
+    ? (chapters.find((chapter) => chapter.slug === settings.chapter)?.name ?? settings.chapter)
     : null;
   const statusLabel = statusLabels[settings.status] ?? "Backlog";
 
@@ -144,9 +161,10 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
   };
 
   /** The field the open panel belongs to, when it is one of the project's own. */
-  const openField = picker?.kind === "field"
-    ? fieldChips.find((candidate) => candidate.key === picker.fieldKey) ?? null
-    : null;
+  const openField =
+    picker?.kind === "field"
+      ? (fieldChips.find((candidate) => candidate.key === picker.fieldKey) ?? null)
+      : null;
   const writingField = openField && !picksFromList(openField) ? openField : null;
 
   /**
@@ -241,7 +259,11 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
     setPicker(null);
     inputRef.current?.focus();
     // An empty patch is left off entirely, so a capture with no fields sends what it always sent.
-    await onCreate({ title: cleanTitle, ...submitted, ...(Object.keys(chosenFields).length ? { fields: chosenFields } : {}) });
+    await onCreate({
+      title: cleanTitle,
+      ...submitted,
+      ...(Object.keys(chosenFields).length ? { fields: chosenFields } : {}),
+    });
   };
 
   const resetSettings = () => {
@@ -260,9 +282,15 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
       }}
       onSubmit={(event) => void submit(event)}
     >
-      <label className="sr-only" htmlFor="quick-page">Capture work page</label>
+      <label className="sr-only" htmlFor="quick-page">
+        Capture work page
+      </label>
       <input
-        aria-activedescendant={picker && visibleOptions.length ? `capture-option-${visibleOptions[Math.min(highlighted, visibleOptions.length - 1)]!.id}` : undefined}
+        aria-activedescendant={
+          picker && visibleOptions.length
+            ? `capture-option-${visibleOptions[Math.min(highlighted, visibleOptions.length - 1)]!.id}`
+            : undefined
+        }
         aria-controls={picker ? "capture-options" : undefined}
         aria-expanded={Boolean(picker)}
         aria-haspopup="listbox"
@@ -272,10 +300,15 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
         onChange={changeTitle}
         onKeyDown={handleInputKeyDown}
         placeholder="Capture work..."
-        ref={(node) => { inputRef.current = node; focusOnArrival(node); }}
+        ref={(node) => {
+          inputRef.current = node;
+          focusOnArrival(node);
+        }}
         value={title}
       />
-      <button className="primary-button" disabled={busy || !title.trim() || Boolean(picker)} type="submit">add page</button>
+      <button className="primary-button" disabled={busy || !title.trim() || Boolean(picker)} type="submit">
+        add page
+      </button>
 
       {showTools && (
         <div className="capture-toolbar">
@@ -285,9 +318,16 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
               aria-label={categoryLabel ? `Category: ${categoryLabel}` : "Choose category"}
               className={categoryLabel ? "capture-field active" : "capture-field"}
               onClick={() => openPicker("category")}
-              style={selectedCategory ? ({ "--category-color": selectedCategory.color } as React.CSSProperties) : undefined}
+              style={
+                selectedCategory
+                  ? ({ "--category-color": selectedCategory.color } as React.CSSProperties)
+                  : undefined
+              }
               type="button"
-            ><span aria-hidden="true">#</span>{categoryLabel ?? "category"}</button>
+            >
+              <span aria-hidden="true">#</span>
+              {categoryLabel ?? "category"}
+            </button>
             {chapters.length > 0 && (
               <button
                 aria-expanded={picker?.kind === "chapter"}
@@ -295,7 +335,10 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
                 className={chapterLabel ? "capture-field active" : "capture-field"}
                 onClick={() => openPicker("chapter")}
                 type="button"
-              ><span aria-hidden="true">~</span>{chapterLabel ?? "chapter"}</button>
+              >
+                <span aria-hidden="true">~</span>
+                {chapterLabel ?? "chapter"}
+              </button>
             )}
             <button
               aria-expanded={picker?.kind === "assignee"}
@@ -303,23 +346,31 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
               className={assigneeLabel ? "capture-field active" : "capture-field"}
               onClick={() => openPicker("assignee")}
               type="button"
-            ><span aria-hidden="true">@</span>{assigneeLabel ?? "assign"}</button>
+            >
+              <span aria-hidden="true">@</span>
+              {assigneeLabel ?? "assign"}
+            </button>
             <button
               aria-expanded={picker?.kind === "status"}
               aria-label={settings.status === "backlog" ? "Choose column" : `Column: ${statusLabel}`}
               className={settings.status === "backlog" ? "capture-field" : "capture-field active"}
               onClick={() => openPicker("status")}
               type="button"
-            >{/* The glyph is the trigger it teaches: typing "/" is what opens this picker. */}
-            <span aria-hidden="true">/</span>{statusLabel}</button>
+            >
+              {/* The glyph is the trigger it teaches: typing "/" is what opens this picker. */}
+              <span aria-hidden="true">/</span>
+              {statusLabel}
+            </button>
             {fieldChips.map((field) => {
               const chosen = settings.fields[field.key];
-              const shown = typeof chosen === "string" && chosen.length > 18 ? `${chosen.slice(0, 17)}…` : chosen;
-              const label = chosen === undefined
-                ? field.label
-                : field.type === "checkbox"
-                  ? `${field.label}: ${chosen ? "yes" : "no"}`
-                  : `${field.label}: ${shown}`;
+              const shown =
+                typeof chosen === "string" && chosen.length > 18 ? `${chosen.slice(0, 17)}…` : chosen;
+              const label =
+                chosen === undefined
+                  ? field.label
+                  : field.type === "checkbox"
+                    ? `${field.label}: ${chosen ? "yes" : "no"}`
+                    : `${field.label}: ${shown}`;
               return (
                 <button
                   aria-expanded={picker?.kind === "field" && picker.fieldKey === field.key}
@@ -328,7 +379,10 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
                   key={field.key}
                   onClick={() => openPicker("field", field.key)}
                   type="button"
-                ><span aria-hidden="true">!</span>{label}</button>
+                >
+                  <span aria-hidden="true">!</span>
+                  {label}
+                </button>
               );
             })}
           </div>
@@ -338,16 +392,27 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
               className="reset-settings"
               onClick={resetSettings}
               type="button"
-            ><span>start fresh</span></button>
+            >
+              <span>start fresh</span>
+            </button>
           )}
         </div>
       )}
 
       {picker && writingField && (
-        <div aria-label={`Set ${writingField.label}`} className="capture-picker capture-picker-field" id="capture-options" role="group">
-          <header><span>{writingField.label}</span></header>
+        <div
+          aria-label={`Set ${writingField.label}`}
+          className="capture-picker capture-picker-field"
+          id="capture-options"
+          role="group"
+        >
+          <header>
+            <span>{writingField.label}</span>
+          </header>
           <div className="capture-write">
-            <label className="sr-only" htmlFor="capture-field-value">{writingField.label}</label>
+            <label className="sr-only" htmlFor="capture-field-value">
+              {writingField.label}
+            </label>
             <input
               autoFocus
               id="capture-field-value"
@@ -376,18 +441,30 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
       )}
 
       {picker && !writingField && (
-        <div aria-label={`Choose ${pickerHeading(picker, fieldChips).toLowerCase()}`} className={`capture-picker capture-picker-${picker.kind}`} id="capture-options" role="listbox">
+        <div
+          aria-label={`Choose ${pickerHeading(picker, fieldChips).toLowerCase()}`}
+          className={`capture-picker capture-picker-${picker.kind}`}
+          id="capture-options"
+          role="listbox"
+        >
           <header>
             <span>{pickerHeading(picker, fieldChips)}</span>
             <kbd>{pickerTrigger(picker.kind)}</kbd>
           </header>
           {openField?.type === "search-select" && (
             <div className="capture-write capture-filter">
-              <label className="sr-only" htmlFor="capture-field-filter">{`Search ${openField.label} options`}</label>
+              <label
+                className="sr-only"
+                htmlFor="capture-field-filter"
+              >{`Search ${openField.label} options`}</label>
               <input
                 autoFocus
                 id="capture-field-filter"
-                onChange={(event) => setPicker((current) => (current ? { ...current, query: event.target.value.toLowerCase() } : current))}
+                onChange={(event) =>
+                  setPicker((current) =>
+                    current ? { ...current, query: event.target.value.toLowerCase() } : current,
+                  )
+                }
                 onKeyDown={(event) => {
                   // Enter takes the best match, the way the title bar's typed pickers do.
                   if (event.key === "Enter") {
@@ -411,34 +488,44 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
             {visibleOptions.map((option, index) => {
               const chosen = picker.kind !== "field-cmd" && option.value === selectedValue(settings, picker);
               return (
-              <button
-                aria-selected={chosen}
-                className={`${index === highlighted ? "highlighted" : ""} ${chosen ? "selected" : ""}`}
-                id={`capture-option-${option.id}`}
-                key={option.id}
-                onMouseDown={(event) => event.preventDefault()}
-                onMouseEnter={() => setHighlighted(index)}
-                onClick={() => choose(option)}
-                role="option"
-                type="button"
-              >
-                {picker.kind === "category" && (
-                  <span
-                    className={`category-swatch ${option.value ? "" : "category-none"}`}
-                    style={option.color ? ({ "--category-color": option.color } as React.CSSProperties) : undefined}
-                  />
-                )}
-                {picker.kind === "status" && <span className={`column-dot ${option.value}`} />}
-                <span>{option.label}</span>
-                {option.hint && <span aria-hidden="true" className="option-hint">{option.hint}</span>}
-                {chosen && <span aria-hidden="true">✓</span>}
-              </button>
+                <button
+                  aria-selected={chosen}
+                  className={`${index === highlighted ? "highlighted" : ""} ${chosen ? "selected" : ""}`}
+                  id={`capture-option-${option.id}`}
+                  key={option.id}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onMouseEnter={() => setHighlighted(index)}
+                  onClick={() => choose(option)}
+                  role="option"
+                  type="button"
+                >
+                  {picker.kind === "category" && (
+                    <span
+                      className={`category-swatch ${option.value ? "" : "category-none"}`}
+                      style={
+                        option.color
+                          ? ({ "--category-color": option.color } as React.CSSProperties)
+                          : undefined
+                      }
+                    />
+                  )}
+                  {picker.kind === "status" && <span className={`column-dot ${option.value}`} />}
+                  <span>{option.label}</span>
+                  {option.hint && (
+                    <span aria-hidden="true" className="option-hint">
+                      {option.hint}
+                    </span>
+                  )}
+                  {chosen && <span aria-hidden="true">✓</span>}
+                </button>
               );
             })}
             {visibleOptions.length === 0 && (
-              <p>{picker.kind === "field-cmd" && options.length === 0
-                ? "This project has no fields yet. Define them in project settings."
-                : "No matches"}</p>
+              <p>
+                {picker.kind === "field-cmd" && options.length === 0
+                  ? "This project has no fields yet. Define them in project settings."
+                  : "No matches"}
+              </p>
             )}
           </div>
         </div>
@@ -451,13 +538,16 @@ function commandAtEnd(value: string, caret: number): PickerState | null {
   if (caret !== value.length) return null;
   const match = value.match(/(^|\s)([#@/~!])([^\s]*)$/);
   if (!match) return null;
-  const kind = match[2] === "#"
-    ? "category"
-    : match[2] === "~"
-      ? "chapter"
-      : match[2] === "@"
-        ? "assignee"
-        : match[2] === "!" ? "field-cmd" : "status";
+  const kind =
+    match[2] === "#"
+      ? "category"
+      : match[2] === "~"
+        ? "chapter"
+        : match[2] === "@"
+          ? "assignee"
+          : match[2] === "!"
+            ? "field-cmd"
+            : "status";
   return {
     kind,
     query: match[3]!.toLowerCase(),
@@ -542,7 +632,12 @@ function pickerOptions(
     return [
       { id: "status-backlog", label: "Backlog", search: "backlog", value: "backlog" },
       { id: "status-ready", label: "Up Next", search: "up next ready", value: "ready" },
-      { id: "status-in-progress", label: "In progress", search: "in progress active working", value: "in_progress" },
+      {
+        id: "status-in-progress",
+        label: "In progress",
+        search: "in progress active working",
+        value: "in_progress",
+      },
       { id: "status-review", label: "Review", search: "review check verify", value: "review" },
     ];
   }

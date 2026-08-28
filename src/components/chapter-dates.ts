@@ -27,7 +27,8 @@ export function chapterWhen(chapter: Chapter): string {
   if (chapter.state === "closed") {
     return chapter.closedAt ? `closed ${dayLabel(chapter.closedAt.slice(0, 10))}` : "closed";
   }
-  if (chapter.startsOn && chapter.endsOn) return `${dayLabel(chapter.startsOn)} → ${dayLabel(chapter.endsOn)}`;
+  if (chapter.startsOn && chapter.endsOn)
+    return `${dayLabel(chapter.startsOn)} → ${dayLabel(chapter.endsOn)}`;
   if (chapter.endsOn) return `ends ${dayLabel(chapter.endsOn)}`;
   if (chapter.startsOn) return `from ${dayLabel(chapter.startsOn)}`;
   return "";

@@ -60,7 +60,12 @@ export function oidcLinkForUser(database: DatabaseSync, issuer: string, userId: 
  * A subject that already names an account is repointed rather than duplicated, so re-linking is
  * an update and never two rows disagreeing about who somebody is.
  */
-export function linkOidcIdentity(database: DatabaseSync, issuer: string, subject: string, userId: string): void {
+export function linkOidcIdentity(
+  database: DatabaseSync,
+  issuer: string,
+  subject: string,
+  userId: string,
+): void {
   const now = new Date().toISOString();
   database
     .prepare(
@@ -88,6 +93,7 @@ export function touchOidcLink(database: DatabaseSync, issuer: string, subject: s
  * installation, which is worse than counting one stale link after a provider is swapped.
  */
 export function countOidcLinks(database: DatabaseSync): number {
-  const row = database.prepare("SELECT COUNT(*) AS total FROM oidc_identities").get() as { total: number } | undefined;
+  const row = database.prepare("SELECT COUNT(*) AS total FROM oidc_identities").get() as
+    { total: number } | undefined;
   return Number(row?.total ?? 0);
 }

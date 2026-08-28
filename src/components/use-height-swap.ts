@@ -45,10 +45,10 @@ export function useHeightSwap(container: RefObject<HTMLElement | null>): void {
     if (reduced || typeof node.animate !== "function") return;
 
     node.style.overflow = "hidden";
-    const animation = node.animate(
-      [{ height: `${from}px` }, { height: `${target}px` }],
-      { duration: DURATION, easing: EASING },
-    );
+    const animation = node.animate([{ height: `${from}px` }, { height: `${target}px` }], {
+      duration: DURATION,
+      easing: EASING,
+    });
     running.current = animation;
 
     // A cancel arrives after its replacement has claimed the ref, so only the

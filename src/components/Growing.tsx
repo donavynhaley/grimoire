@@ -16,5 +16,9 @@ import { useHeightSwap } from "./use-height-swap";
 export function Growing({ children, ...props }: React.ComponentProps<"div">) {
   const box = useRef<HTMLDivElement | null>(null);
   useHeightSwap(box);
-  return <div {...props} ref={box}>{children}</div>;
+  return (
+    <div {...props} ref={box}>
+      {children}
+    </div>
+  );
 }

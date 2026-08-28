@@ -129,7 +129,10 @@ describe("project activity", () => {
       method: "PATCH",
       body: JSON.stringify({ state: "shortlist" }),
     });
-    await server.request(`/api/ideas/${idea.body.idea.id}/promote`, { method: "POST", body: JSON.stringify({}) });
+    await server.request(`/api/ideas/${idea.body.idea.id}/promote`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
     await server.request("/api/categories", {
       method: "POST",
       body: JSON.stringify({ name: "Playtesting", color: "#d87578" }),
@@ -185,7 +188,9 @@ describe("project activity", () => {
     await server.request(`/api/members/${member.id}`, { method: "DELETE", body: JSON.stringify({}) });
 
     const page = await activity(server);
-    expect(page.events.slice(0, 3).map((event) => [event.action, event.actorName, event.entityTitle])).toEqual([
+    expect(
+      page.events.slice(0, 3).map((event) => [event.action, event.actorName, event.entityTitle]),
+    ).toEqual([
       ["removed", "Donavyn", "Maren"],
       ["joined", "Maren", "Maren"],
       ["invited", "Donavyn", "invitation link"],
@@ -206,14 +211,21 @@ describe("project activity", () => {
       body: JSON.stringify({ title: "Sketch the familiar shop" }),
     });
 
-    const other = (await server.request<AuditPage>("/api/activity", {
-      headers: { "x-grimoire-project": created.body.project.id },
-    })).body;
-    const wizard = (await server.request<AuditPage>("/api/activity", {
-      headers: { "x-grimoire-project": wizardProjectId },
-    })).body;
+    const other = (
+      await server.request<AuditPage>("/api/activity", {
+        headers: { "x-grimoire-project": created.body.project.id },
+      })
+    ).body;
+    const wizard = (
+      await server.request<AuditPage>("/api/activity", {
+        headers: { "x-grimoire-project": wizardProjectId },
+      })
+    ).body;
 
-    expect(other.events.map((event) => event.entityTitle)).toEqual(["Sketch the familiar shop", "Familiar Tycoon"]);
+    expect(other.events.map((event) => event.entityTitle)).toEqual([
+      "Sketch the familiar shop",
+      "Familiar Tycoon",
+    ]);
     expect(wizard.events.some((event) => event.entityTitle === "Sketch the familiar shop")).toBe(false);
   });
 

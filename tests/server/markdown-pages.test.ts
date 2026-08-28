@@ -93,9 +93,9 @@ describe("MarkdownPageStore", () => {
     });
 
     expect(store.list("wizard-simulator")).toEqual([]);
-    expect(readFileSync(join(directory, "wizard-simulator", "archive", `${original.id}.md`), "utf8")).toContain(
-      "archived_at:",
-    );
+    expect(
+      readFileSync(join(directory, "wizard-simulator", "archive", `${original.id}.md`), "utf8"),
+    ).toContain("archived_at:");
   });
 
   it("reports the exact file when frontmatter is invalid", () => {
@@ -114,7 +114,9 @@ describe("MarkdownPageStore", () => {
     const projectId = "839760cc-df8a-4f3c-9963-921bd6d96465";
     const timestamp = "2026-08-03T12:00:00.000Z";
     database
-      .prepare("INSERT INTO users (id, name, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+      .prepare(
+        "INSERT INTO users (id, name, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+      )
       .run(userId, "Donavyn", "owner@example.com", "unused", "admin", timestamp);
     database
       .prepare("INSERT INTO projects (id, name, slug, created_at, updated_at) VALUES (?, ?, ?, ?, ?)")
@@ -125,7 +127,18 @@ describe("MarkdownPageStore", () => {
           id, project_id, title, description, status, position, assignee_id, created_by, archived_at, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
       )
-      .run(page().id, projectId, page().title, page().description, "backlog", 0, userId, userId, timestamp, timestamp);
+      .run(
+        page().id,
+        projectId,
+        page().title,
+        page().description,
+        "backlog",
+        0,
+        userId,
+        userId,
+        timestamp,
+        timestamp,
+      );
 
     expect(store.migrateLegacyPages(database)).toBe(1);
     expect(store.list("wizard-simulator")).toEqual([page({ category: null, blockedBy: [] })]);

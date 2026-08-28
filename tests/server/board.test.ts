@@ -42,7 +42,12 @@ describe("page board", () => {
     expect(workspace.fields).toEqual([]);
     expect(workspace.project).toEqual(expect.objectContaining({ name: "Wizard Simulator" }));
     expect(workspace.projects).toEqual([expect.objectContaining({ name: "Wizard Simulator" })]);
-    expect(workspace.categories[0]).toEqual({ slug: "design", name: "Design", color: "#d6bc78", position: 0 });
+    expect(workspace.categories[0]).toEqual({
+      slug: "design",
+      name: "Design",
+      color: "#d6bc78",
+      position: 0,
+    });
     expect(workspace.pages).toEqual(expect.any(Array));
     expect(workspace).not.toHaveProperty("pillars");
     expect(workspace).not.toHaveProperty("milestones");
@@ -64,12 +69,7 @@ describe("page board", () => {
       assigneeName: "Donavyn",
       position: 0,
     });
-    const activePath = join(
-      server.pagesDirectory,
-      "wizard-simulator",
-      "pages",
-      `${created.body.page.id}.md`,
-    );
+    const activePath = join(server.pagesDirectory, "wizard-simulator", "pages", `${created.body.page.id}.md`);
     const markdown = readFileSync(activePath, "utf8");
     expect(markdown).toMatch(/^---\n/);
     expect(markdown).toContain(`id: ${created.body.page.id}`);
@@ -110,7 +110,10 @@ describe("page board", () => {
       body: JSON.stringify({}),
     });
     expect(restored.response.status).toBe(200);
-    expect(restored.body.page).toMatchObject({ id: created.body.page.id, title: "Polish the potion workbench" });
+    expect(restored.body.page).toMatchObject({
+      id: created.body.page.id,
+      title: "Polish the potion workbench",
+    });
     expect((await board(server)).pages.map((page) => page.id)).toContain(created.body.page.id);
     expect(existsSync(activePath)).toBe(true);
   });
@@ -249,17 +252,23 @@ describe("page board", () => {
       blocker.body.page.id,
     ]);
 
-    expect((await server.request(`/api/pages/${blocker.body.page.id}`, { method: "DELETE" })).response.status).toBe(200);
-    expect((await board(server)).pages.find((page) => page.id === dependent.body.page.id)?.blockedBy).toEqual([]);
     expect(
-      (await server.request(`/api/pages/${blocker.body.page.id}/restore`, {
-        method: "POST",
-        body: JSON.stringify({}),
-      })).response.status,
+      (await server.request(`/api/pages/${blocker.body.page.id}`, { method: "DELETE" })).response.status,
     ).toBe(200);
-    expect((await board(server)).pages.find((page) => page.id === dependent.body.page.id)?.blockedBy).toEqual([
-      blocker.body.page.id,
-    ]);
+    expect((await board(server)).pages.find((page) => page.id === dependent.body.page.id)?.blockedBy).toEqual(
+      [],
+    );
+    expect(
+      (
+        await server.request(`/api/pages/${blocker.body.page.id}/restore`, {
+          method: "POST",
+          body: JSON.stringify({}),
+        })
+      ).response.status,
+    ).toBe(200);
+    expect((await board(server)).pages.find((page) => page.id === dependent.body.page.id)?.blockedBy).toEqual(
+      [blocker.body.page.id],
+    );
   });
 
   it("persists pages after the server restarts", async () => {
@@ -397,4 +406,3 @@ describe("body length", () => {
     });
   });
 });
-

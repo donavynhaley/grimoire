@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Page } from "../../shared/types";
 import { Growing } from "./Growing";
-import { buildFacets, countSelected, toggleFacet, type FacetContext, type FacetSelection } from "./page-facets";
+import {
+  buildFacets,
+  countSelected,
+  toggleFacet,
+  type FacetContext,
+  type FacetSelection,
+} from "./page-facets";
 
 type Props = {
   /** Already narrowed by the controls outside this panel, so the counts agree with the board. */
@@ -68,7 +74,8 @@ export function PageFilters({ pages, context, selection, onChange }: Props) {
     setExpanded(new Set(Object.keys(filtering).filter((key) => filtering[key]!.length > 0)));
   }, [open]);
 
-  const label = active === 0 ? "Filter pages" : `Filter pages, ${active} value${active === 1 ? "" : "s"} chosen`;
+  const label =
+    active === 0 ? "Filter pages" : `Filter pages, ${active} value${active === 1 ? "" : "s"} chosen`;
 
   return (
     <div className="page-filters" ref={rootRef}>
@@ -80,7 +87,9 @@ export function PageFilters({ pages, context, selection, onChange }: Props) {
         onClick={() => setOpen((value) => !value)}
         type="button"
       >
-        <span aria-hidden="true" className="filters-glyph">⛭</span>
+        <span aria-hidden="true" className="filters-glyph">
+          ⛭
+        </span>
         <span>Filters</span>
         {active > 0 && <strong>{active}</strong>}
       </button>
@@ -90,7 +99,9 @@ export function PageFilters({ pages, context, selection, onChange }: Props) {
           <div className="filters-head">
             <span className="field-label">Filter by</span>
             {active > 0 && (
-              <button className="text-button" onClick={() => onChange({})} type="button">clear all</button>
+              <button className="text-button" onClick={() => onChange({})} type="button">
+                clear all
+              </button>
             )}
           </div>
 
@@ -103,14 +114,18 @@ export function PageFilters({ pages, context, selection, onChange }: Props) {
                   <button
                     aria-expanded={showing}
                     className="filters-section-head"
-                    onClick={() => setExpanded((current) => {
-                      const next = new Set(current);
-                      if (!next.delete(facet.key)) next.add(facet.key);
-                      return next;
-                    })}
+                    onClick={() =>
+                      setExpanded((current) => {
+                        const next = new Set(current);
+                        if (!next.delete(facet.key)) next.add(facet.key);
+                        return next;
+                      })
+                    }
                     type="button"
                   >
-                    <span aria-hidden="true" className="filters-caret">{showing ? "▾" : "▸"}</span>
+                    <span aria-hidden="true" className="filters-caret">
+                      {showing ? "▾" : "▸"}
+                    </span>
                     <span className="filters-section-name">{facet.label}</span>
                     {chosen.length > 0 && <span className="filters-section-count">{chosen.length}</span>}
                   </button>
@@ -126,7 +141,9 @@ export function PageFilters({ pages, context, selection, onChange }: Props) {
                             onClick={() => onChange(toggleFacet(selection, facet.key, value.id))}
                             type="button"
                           >
-                            <span aria-hidden="true" className="filters-tick">{ticked ? "☑" : "☐"}</span>
+                            <span aria-hidden="true" className="filters-tick">
+                              {ticked ? "☑" : "☐"}
+                            </span>
                             <span className="filters-value-name">{value.label}</span>
                             <span className="filters-value-count">{value.count}</span>
                           </button>

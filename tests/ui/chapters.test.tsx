@@ -38,11 +38,11 @@ function chapter(overrides: Partial<Chapter> = {}): Chapter {
     createdAt: "2026-08-13T00:00:00.000Z",
     updatedAt: "2026-08-13T00:00:00.000Z",
     closedAt: null,
-  carriedPages: null,
-  carriedEstimate: null,
-  carriedTo: null,
-  deliveredPages: null,
-  deliveredEstimate: null,
+    carriedPages: null,
+    carriedEstimate: null,
+    carriedTo: null,
+    deliveredPages: null,
+    deliveredEstimate: null,
     ...overrides,
   };
 }
@@ -59,12 +59,33 @@ function chapteredBoard(): BoardWorkspace {
     ...board,
     project: { ...board.project, chaptersEnabled: true },
     velocity: [],
-  chapters: [chapter(), chapter({ slug: "second-brew", name: "Second Brew", state: "planned", startsOn: null, endsOn: null })],
+    chapters: [
+      chapter(),
+      chapter({ slug: "second-brew", name: "Second Brew", state: "planned", startsOn: null, endsOn: null }),
+    ],
     pages: [
-      page({ id: "page-in", title: "Inside the chapter", chapter: "first-brew", status: "ready", position: 0 }),
+      page({
+        id: "page-in",
+        title: "Inside the chapter",
+        chapter: "first-brew",
+        status: "ready",
+        position: 0,
+      }),
       page({ id: "page-out", title: "Outside the chapter", chapter: null, status: "ready", position: 1 }),
-      page({ id: "page-backlog", title: "Reserved for later", chapter: "first-brew", status: "backlog", position: 0 }),
-      page({ id: "page-unplaced", title: "Waiting to be placed", chapter: null, status: "backlog", position: 1 }),
+      page({
+        id: "page-backlog",
+        title: "Reserved for later",
+        chapter: "first-brew",
+        status: "backlog",
+        position: 0,
+      }),
+      page({
+        id: "page-unplaced",
+        title: "Waiting to be placed",
+        chapter: null,
+        status: "backlog",
+        position: 1,
+      }),
     ],
   };
 }
@@ -242,8 +263,7 @@ describe("chapters on the board", () => {
     const board = withClosedChapter();
     mountWith({
       ...board,
-      pages: board.pages.map((page) =>
-        page.id === "page-in" ? { ...page, chapter: "old-brew" } : page),
+      pages: board.pages.map((page) => (page.id === "page-in" ? { ...page, chapter: "old-brew" } : page)),
     });
 
     // Otherwise the chapter the page is actually in would be hidden, and the field would
@@ -263,9 +283,14 @@ describe("chapters on the board", () => {
     await user.click(within(dialog).getByRole("button", { name: /earlier/ }));
     await user.click(within(dialog).getByRole("button", { name: /Place in Old Brew/ }));
 
-    await waitFor(() => expect(calls.some((call) =>
-      call.url === "/api/pages/page-in" &&
-      (call.body as { chapter?: string }).chapter === "old-brew")).toBe(true));
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (call) =>
+            call.url === "/api/pages/page-in" && (call.body as { chapter?: string }).chapter === "old-brew",
+        ),
+      ).toBe(true),
+    );
   });
 
   it("shows the finished chapters on sight when the board is filtered to one", async () => {
@@ -304,7 +329,8 @@ describe("choosing which chapter is current", () => {
       if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
       if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
       if (url.startsWith("/api/seen")) return response({ ok: true });
-      if (url.startsWith("/api/session")) return response({ status: "authenticated", user: board.currentUser });
+      if (url.startsWith("/api/session"))
+        return response({ status: "authenticated", user: board.currentUser });
       if (url.startsWith("/api/chapters/") && init?.method === "PATCH") {
         patched.push({ slug: url.split("/").pop()!, body: JSON.parse(String(init.body)) });
         return response({ chapter: board.chapters[1] });
@@ -318,10 +344,12 @@ describe("choosing which chapter is current", () => {
     await user.click(screen.getByRole("button", { name: "Make Second Brew the current chapter" }));
 
     // One chapter is open at a time, so this is two writes that read as a single decision.
-    await waitFor(() => expect(patched).toEqual([
-      { slug: "first-brew", body: { state: "closed" } },
-      { slug: "second-brew", body: { state: "open" } },
-    ]));
+    await waitFor(() =>
+      expect(patched).toEqual([
+        { slug: "first-brew", body: { state: "closed" } },
+        { slug: "second-brew", body: { state: "open" } },
+      ]),
+    );
   });
 
   it("offers no promotion for the chapter that is already current", async () => {
@@ -360,7 +388,8 @@ describe("pulling from the backlog", () => {
       if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
       if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
       if (url.startsWith("/api/seen")) return response({ ok: true });
-      if (url.startsWith("/api/session")) return response({ status: "authenticated", user: board.currentUser });
+      if (url.startsWith("/api/session"))
+        return response({ status: "authenticated", user: board.currentUser });
       if (init?.method === "PATCH") {
         patched.push(JSON.parse(String(init.body)));
         return response({ page: board.pages[0] });
@@ -385,7 +414,9 @@ describe("pulling from the backlog", () => {
     await user.click(await screen.findByRole("button", { name: /Open backlog/ }));
     const dialog = await screen.findByRole("dialog", { name: "Backlog" });
 
-    expect(within(dialog).getByRole("button", { name: /Remove Reserved for later from First Brew/ })).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: /Remove Reserved for later from First Brew/ }),
+    ).toBeInTheDocument();
   });
 });
 
@@ -397,17 +428,19 @@ describe("capturing into chapters", () => {
     const capture = await screen.findByLabelText("Capture work page");
     await user.type(capture, "Bottle the moonlight{Enter}");
 
-    await waitFor(() => expect(calls).toContainEqual({
-      url: "/api/pages",
-      method: "POST",
-      body: {
-        title: "Bottle the moonlight",
-        category: null,
-        chapter: "first-brew",
-        assigneeId: null,
-        status: "backlog",
-      },
-    }));
+    await waitFor(() =>
+      expect(calls).toContainEqual({
+        url: "/api/pages",
+        method: "POST",
+        body: {
+          title: "Bottle the moonlight",
+          category: null,
+          chapter: "first-brew",
+          assigneeId: null,
+          status: "backlog",
+        },
+      }),
+    );
   });
 });
 

@@ -74,7 +74,9 @@ function installEventSource(): { push: () => void } {
     removeEventListener = vi.fn();
   }
   vi.stubGlobal("EventSource", FakeEventSource);
-  return { push: () => listener?.(new MessageEvent("workspace", { data: JSON.stringify({ scope: "work" }) })) };
+  return {
+    push: () => listener?.(new MessageEvent("workspace", { data: JSON.stringify({ scope: "work" }) })),
+  };
 }
 
 describe("editing a page someone else is also changing", () => {
@@ -105,11 +107,18 @@ describe("editing a page someone else is also changing", () => {
     const fetchMock = authenticatedFetch(initial)
       .mockImplementationOnce(() =>
         response(
-          { error: "These notes changed while you were writing", conflict: true, field: "description", current: { ...page, description: theirs } },
+          {
+            error: "These notes changed while you were writing",
+            conflict: true,
+            field: "description",
+            current: { ...page, description: theirs },
+          },
           409,
         ),
       )
-      .mockImplementationOnce(() => response({ ...initial, pages: [{ ...page, description: theirs }, initial.pages[1]] }));
+      .mockImplementationOnce(() =>
+        response({ ...initial, pages: [{ ...page, description: theirs }, initial.pages[1]] }),
+      );
     stubFetch(fetchMock);
 
     render(<App />);
@@ -134,11 +143,18 @@ describe("editing a page someone else is also changing", () => {
     const fetchMock = authenticatedFetch(initial)
       .mockImplementationOnce(() =>
         response(
-          { error: "These notes changed while you were writing", conflict: true, field: "description", current: { ...page, description: theirs } },
+          {
+            error: "These notes changed while you were writing",
+            conflict: true,
+            field: "description",
+            current: { ...page, description: theirs },
+          },
           409,
         ),
       )
-      .mockImplementationOnce(() => response({ ...initial, pages: [{ ...page, description: theirs }, initial.pages[1]] }));
+      .mockImplementationOnce(() =>
+        response({ ...initial, pages: [{ ...page, description: theirs }, initial.pages[1]] }),
+      );
     stubFetch(fetchMock);
 
     render(<App />);
@@ -155,7 +171,9 @@ describe("editing a page someone else is also changing", () => {
     expect(screen.getByLabelText("Notes").textContent).toBe(theirs);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     // Choosing their text is not a new edit, so nothing further is written.
-    const writes = fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === "PATCH");
+    const writes = fetchMock.mock.calls.filter(
+      ([, init]) => (init as RequestInit | undefined)?.method === "PATCH",
+    );
     expect(writes).toHaveLength(1);
   });
 
@@ -167,13 +185,22 @@ describe("editing a page someone else is also changing", () => {
     const fetchMock = authenticatedFetch(initial)
       .mockImplementationOnce(() =>
         response(
-          { error: "These notes changed while you were writing", conflict: true, field: "description", current: { ...page, description: theirs } },
+          {
+            error: "These notes changed while you were writing",
+            conflict: true,
+            field: "description",
+            current: { ...page, description: theirs },
+          },
           409,
         ),
       )
-      .mockImplementationOnce(() => response({ ...initial, pages: [{ ...page, description: theirs }, initial.pages[1]] }))
+      .mockImplementationOnce(() =>
+        response({ ...initial, pages: [{ ...page, description: theirs }, initial.pages[1]] }),
+      )
       .mockImplementationOnce(() => response({ page: { ...page, description: mine } }))
-      .mockImplementationOnce(() => response({ ...initial, pages: [{ ...page, description: mine }, initial.pages[1]] }));
+      .mockImplementationOnce(() =>
+        response({ ...initial, pages: [{ ...page, description: mine }, initial.pages[1]] }),
+      );
     stubFetch(fetchMock);
 
     render(<App />);
@@ -207,13 +234,18 @@ describe("editing a page someone else is also changing", () => {
       .mockImplementationOnce(
         () =>
           new Promise((resolve) => {
-            releaseSave = () => resolve(new Response(JSON.stringify({ page: { ...page, description: note } }), {
-              status: 200,
-              headers: { "content-type": "application/json" },
-            }));
+            releaseSave = () =>
+              resolve(
+                new Response(JSON.stringify({ page: { ...page, description: note } }), {
+                  status: 200,
+                  headers: { "content-type": "application/json" },
+                }),
+              );
           }),
       )
-      .mockImplementationOnce(() => response({ ...initial, pages: [{ ...page, description: note }, initial.pages[1]] }));
+      .mockImplementationOnce(() =>
+        response({ ...initial, pages: [{ ...page, description: note }, initial.pages[1]] }),
+      );
     stubFetch(fetchMock);
 
     render(<App />);
@@ -227,7 +259,9 @@ describe("editing a page someone else is also changing", () => {
     releaseSave!();
 
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Edit page" })).not.toBeInTheDocument());
-    const writes = fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === "PATCH");
+    const writes = fetchMock.mock.calls.filter(
+      ([, init]) => (init as RequestInit | undefined)?.method === "PATCH",
+    );
     expect(writes).toHaveLength(1);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });

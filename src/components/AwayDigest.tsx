@@ -32,9 +32,17 @@ export function buildDigestLines(away: AwayState, board: BoardWorkspace): Digest
   const me = board.currentUser;
   const lines: DigestLine[] = [];
   const editDeduper = new Set<string>();
-  const creationRuns = new Map<string, { line: DigestLine; firstTitle: string; column: string; count: number }>();
+  const creationRuns = new Map<
+    string,
+    { line: DigestLine; firstTitle: string; column: string; count: number }
+  >();
 
-  const push = (event: AuditEvent, tier: DigestLine["tier"], aboutYou: boolean, parts: DigestPart[]): DigestLine => {
+  const push = (
+    event: AuditEvent,
+    tier: DigestLine["tier"],
+    aboutYou: boolean,
+    parts: DigestPart[],
+  ): DigestLine => {
     const line: DigestLine = {
       key: event.id,
       tier,
@@ -92,7 +100,12 @@ export function buildDigestLines(away: AwayState, board: BoardWorkspace): Digest
               { text: event.entityTitle, strong: true },
               { text: " - your " },
               { text: unblocked[0]!.title, strong: true },
-              { text: unblocked.length > 1 ? ` and ${unblocked.length - 1} more are no longer blocked` : " is no longer blocked" },
+              {
+                text:
+                  unblocked.length > 1
+                    ? ` and ${unblocked.length - 1} more are no longer blocked`
+                    : " is no longer blocked",
+              },
             ]);
           } else {
             push(event, 2, false, [{ text: "finished " }, { text: event.entityTitle, strong: true }]);
@@ -141,14 +154,19 @@ export function buildDigestLines(away: AwayState, board: BoardWorkspace): Digest
         }
         const blockers = change(event, "blockers");
         if (blockers) {
-          push(event, 3, mine, blockers.to
-            ? [
-              { text: "marked " },
-              { text: event.entityTitle, strong: true },
-              { text: " blocked by " },
-              { text: blockers.to, strong: true },
-            ]
-            : [{ text: "cleared the blockers on " }, { text: event.entityTitle, strong: true }]);
+          push(
+            event,
+            3,
+            mine,
+            blockers.to
+              ? [
+                  { text: "marked " },
+                  { text: event.entityTitle, strong: true },
+                  { text: " blocked by " },
+                  { text: blockers.to, strong: true },
+                ]
+              : [{ text: "cleared the blockers on " }, { text: event.entityTitle, strong: true }],
+          );
           continue;
         }
         const dedupeKey = `page:${event.actorId}:${event.entityId}`;
@@ -177,11 +195,16 @@ export function buildDigestLines(away: AwayState, board: BoardWorkspace): Digest
         push(event, 4, false, [{ text: "captured the idea " }, { text: event.entityTitle, strong: true }]);
       } else if (event.action === "moved") {
         const list = change(event, "list");
-        const wording = list?.to === "Shortlist"
-          ? [{ text: "shortlisted " }, { text: event.entityTitle, strong: true }]
-          : list?.to === "Parked"
-            ? [{ text: "parked " }, { text: event.entityTitle, strong: true }]
-            : [{ text: "moved " }, { text: event.entityTitle, strong: true }, { text: " back to the idea inbox" }];
+        const wording =
+          list?.to === "Shortlist"
+            ? [{ text: "shortlisted " }, { text: event.entityTitle, strong: true }]
+            : list?.to === "Parked"
+              ? [{ text: "parked " }, { text: event.entityTitle, strong: true }]
+              : [
+                  { text: "moved " },
+                  { text: event.entityTitle, strong: true },
+                  { text: " back to the idea inbox" },
+                ];
         push(event, 4, false, wording);
       } else if (event.action === "promoted") {
         push(event, 4, false, [
@@ -203,7 +226,11 @@ export function buildDigestLines(away: AwayState, board: BoardWorkspace): Digest
     if (event.entityType === "member") {
       if (event.action === "joined") push(event, 5, false, [{ text: "joined the project" }]);
       else if (event.action === "removed") {
-        push(event, 5, false, [{ text: "removed " }, { text: event.entityTitle, strong: true }, { text: " from the project" }]);
+        push(event, 5, false, [
+          { text: "removed " },
+          { text: event.entityTitle, strong: true },
+          { text: " from the project" },
+        ]);
       }
       // Invitation links are administrative noise; owners read them in the activity log.
       continue;
@@ -212,7 +239,10 @@ export function buildDigestLines(away: AwayState, board: BoardWorkspace): Digest
     if (event.entityType === "project") {
       if (event.action === "renamed") {
         const name = change(event, "name");
-        push(event, 5, false, [{ text: "renamed the project to " }, { text: name?.to ?? event.entityTitle, strong: true }]);
+        push(event, 5, false, [
+          { text: "renamed the project to " },
+          { text: name?.to ?? event.entityTitle, strong: true },
+        ]);
       } else if (event.action === "created") {
         push(event, 5, false, [{ text: "created the project " }, { text: event.entityTitle, strong: true }]);
       }
@@ -231,7 +261,10 @@ export function buildDigestLines(away: AwayState, board: BoardWorkspace): Digest
       if (event.action === "created") {
         push(event, 5, false, [{ text: "gave agent access to " }, { text: event.entityTitle, strong: true }]);
       } else if (event.action === "removed") {
-        push(event, 5, false, [{ text: "revoked agent access from " }, { text: event.entityTitle, strong: true }]);
+        push(event, 5, false, [
+          { text: "revoked agent access from " },
+          { text: event.entityTitle, strong: true },
+        ]);
       }
     }
   }
@@ -268,7 +301,12 @@ export function AwayDigest({ away, board, onDismiss }: Props) {
           {meta.since ? `since ${meta.since} · ` : ""}
           {away.total} change{away.total === 1 ? "" : "s"} by {formatNames(meta.actors)}
         </span>
-        <button aria-label="Dismiss the away summary" className="text-button" onClick={onDismiss} type="button">
+        <button
+          aria-label="Dismiss the away summary"
+          className="text-button"
+          onClick={onDismiss}
+          type="button"
+        >
           dismiss
         </button>
       </header>
@@ -298,7 +336,9 @@ export function AwayDigest({ away, board, onDismiss }: Props) {
               + {hiddenCount} more change{hiddenCount === 1 ? "" : "s"} ▾
             </button>
           ) : (
-            <span>and {beyondFetch} earlier change{beyondFetch === 1 ? "" : "s"} before that</span>
+            <span>
+              and {beyondFetch} earlier change{beyondFetch === 1 ? "" : "s"} before that
+            </span>
           )}
         </footer>
       )}

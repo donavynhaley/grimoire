@@ -1,6 +1,16 @@
 import { useEffect, useState } from "react";
 import { Drawer } from "./Drawer";
-import type { ArchivedProject, Page, Chapter, ChapterVelocity, Member, ProjectCategory, ProjectField, User, ProjectRole } from "../../shared/types";
+import type {
+  ArchivedProject,
+  Page,
+  Chapter,
+  ChapterVelocity,
+  Member,
+  ProjectCategory,
+  ProjectField,
+  User,
+  ProjectRole,
+} from "../../shared/types";
 import { archivedProjects, mutate, verifyGithub, type GithubVerification } from "../api/client";
 import { Growing } from "./Growing";
 import { CategoriesSection, type CategoryActions } from "./CategoriesSection";
@@ -11,7 +21,18 @@ import { SignInSection } from "./SignInSection";
 import { TeamSection } from "./TeamSection";
 import { type SettingsRun, useSettingsAction } from "./use-settings-action";
 
-export const SETTINGS_SECTIONS = ["general", "categories", "fields", "chapters", "github", "discord", "team", "agents", "signin", "danger"] as const;
+export const SETTINGS_SECTIONS = [
+  "general",
+  "categories",
+  "fields",
+  "chapters",
+  "github",
+  "discord",
+  "team",
+  "agents",
+  "signin",
+  "danger",
+] as const;
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
 
 /** The sections a member can read. Agent credentials and archiving stay owner-only. */
@@ -142,7 +163,9 @@ export function ProjectSettingsDialog({
           <p className="eyebrow">{project.name}</p>
           <h2 id="project-settings-title">Project settings</h2>
         </div>
-        <button aria-label="Close project settings" className="icon-button" onClick={onClose} type="button">×</button>
+        <button aria-label="Close project settings" className="icon-button" onClick={onClose} type="button">
+          ×
+        </button>
       </header>
 
       <div className="settings-layout">
@@ -172,7 +195,13 @@ export function ProjectSettingsDialog({
             />
           )}
           {active === "github" && (
-            <GithubSection busy={busy} project={project} onSetRepo={actions.setGithubRepo} onSetToken={actions.setGithubToken} run={run} />
+            <GithubSection
+              busy={busy}
+              project={project}
+              onSetRepo={actions.setGithubRepo}
+              onSetToken={actions.setGithubToken}
+              run={run}
+            />
           )}
           {active === "discord" && (
             <DiscordSection
@@ -186,7 +215,13 @@ export function ProjectSettingsDialog({
             />
           )}
           {active === "categories" && (
-            <CategoriesSection actions={categoryActions} busy={busy} canManage={isOwner} categories={categories} run={run} />
+            <CategoriesSection
+              actions={categoryActions}
+              busy={busy}
+              canManage={isOwner}
+              categories={categories}
+              run={run}
+            />
           )}
           {active === "fields" && (
             <FieldsSection
@@ -243,8 +278,16 @@ export function ProjectSettingsDialog({
       </div>
 
       <Growing className="settings-feedback">
-        {error && <div className="error-banner" role="alert">{error}</div>}
-        {saved && !error && <div className="saved-note" role="status">saved</div>}
+        {error && (
+          <div className="error-banner" role="alert">
+            {error}
+          </div>
+        )}
+        {saved && !error && (
+          <div className="saved-note" role="status">
+            saved
+          </div>
+        )}
       </Growing>
     </Drawer>
   );
@@ -273,7 +316,15 @@ type GeneralProps = {
  * automation because the first thing anyone wants after pasting a webhook is to see something
  * arrive in the channel.
  */
-function DiscordSection({ busy, chapters, chaptersEnabled, onSetRecapOnClose, onSetWebhook, project, run }: {
+function DiscordSection({
+  busy,
+  chapters,
+  chaptersEnabled,
+  onSetRecapOnClose,
+  onSetWebhook,
+  project,
+  run,
+}: {
   busy: boolean;
   chapters: Chapter[];
   chaptersEnabled: boolean;
@@ -308,8 +359,8 @@ function DiscordSection({ busy, chapters, chaptersEnabled, onSetRecapOnClose, on
     <div className="settings-section">
       <div className="github-intro">
         <p className="chapters-note">
-          When a chapter closes, Grimoire posts what it delivered, what it carried onward, and who
-          shipped what. Nothing is written on anyone&apos;s behalf - it is the board&apos;s own numbers.
+          When a chapter closes, Grimoire posts what it delivered, what it carried onward, and who shipped
+          what. Nothing is written on anyone&apos;s behalf - it is the board&apos;s own numbers.
         </p>
         <button
           aria-expanded={showingSetup}
@@ -318,24 +369,30 @@ function DiscordSection({ busy, chapters, chaptersEnabled, onSetRecapOnClose, on
           onClick={() => setShowingSetup((showing) => !showing)}
           title="How do I set this up?"
           type="button"
-        >?</button>
+        >
+          ?
+        </button>
       </div>
 
       <Growing className="github-setup-fold">
         {showingSetup && (
           <ol className="github-setup">
             <li>
-              In Discord, open <em>Server Settings → Integrations → Webhooks</em>, make a webhook
-              pointed at the channel you want recaps in, and copy its URL.
+              In Discord, open <em>Server Settings → Integrations → Webhooks</em>, make a webhook pointed at
+              the channel you want recaps in, and copy its URL.
             </li>
             <li>Paste it below. It stays on the server and is never shown again.</li>
-            <li>Leave <em>post on close</em> on, and every chapter you close announces itself.</li>
+            <li>
+              Leave <em>post on close</em> on, and every chapter you close announces itself.
+            </li>
           </ol>
         )}
       </Growing>
 
       <div className="settings-row">
-        <label className="field-label" htmlFor="settings-discord-webhook">Webhook URL</label>
+        <label className="field-label" htmlFor="settings-discord-webhook">
+          Webhook URL
+        </label>
         <div className="settings-input">
           <input
             disabled={busy}
@@ -343,8 +400,17 @@ function DiscordSection({ busy, chapters, chaptersEnabled, onSetRecapOnClose, on
             name="discordWebhook"
             onBlur={saveWebhook}
             onChange={(event) => setWebhook(event.target.value)}
-            onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); saveWebhook(); } }}
-            placeholder={project.discordWebhookSet ? "A webhook is saved. Paste a new one to replace it." : "https://discord.com/api/webhooks/..."}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                saveWebhook();
+              }
+            }}
+            placeholder={
+              project.discordWebhookSet
+                ? "A webhook is saved. Paste a new one to replace it."
+                : "https://discord.com/api/webhooks/..."
+            }
             type="password"
             value={webhook}
           />
@@ -355,7 +421,9 @@ function DiscordSection({ busy, chapters, chaptersEnabled, onSetRecapOnClose, on
             disabled={busy}
             onClick={() => void run(() => onSetWebhook(""), "The webhook could not be cleared")}
             type="button"
-          >forget the saved webhook</button>
+          >
+            forget the saved webhook
+          </button>
         )}
       </div>
 
@@ -368,10 +436,9 @@ function DiscordSection({ busy, chapters, chaptersEnabled, onSetRecapOnClose, on
               checked={project.recapOnClose}
               disabled={busy || !project.discordWebhookSet}
               name="recapOnClose"
-              onChange={(event) => void run(
-                () => onSetRecapOnClose(event.target.checked),
-                "The setting could not be changed",
-              )}
+              onChange={(event) =>
+                void run(() => onSetRecapOnClose(event.target.checked), "The setting could not be changed")
+              }
               type="checkbox"
             />
             <span aria-hidden="true" className="settings-knob" />
@@ -395,17 +462,29 @@ function DiscordSection({ busy, chapters, chaptersEnabled, onSetRecapOnClose, on
                 key={chapter.slug}
                 onClick={() => void postNow(chapter.slug, chapter.name)}
                 type="button"
-              >{chapter.name}</button>
+              >
+                {chapter.name}
+              </button>
             ))}
           </div>
-          {posted && <p className="github-check-result ok" role="status">{posted}</p>}
+          {posted && (
+            <p className="github-check-result ok" role="status">
+              {posted}
+            </p>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-function GithubSection({ busy, project, onSetRepo, onSetToken, run }: {
+function GithubSection({
+  busy,
+  project,
+  onSetRepo,
+  onSetToken,
+  run,
+}: {
   busy: boolean;
   project: { githubRepo: string; githubTokenSet: boolean };
   onSetRepo: (repo: string) => Promise<void>;
@@ -438,7 +517,11 @@ function GithubSection({ busy, project, onSetRepo, onSetToken, run }: {
     try {
       setVerdict(await verifyGithub());
     } catch {
-      setVerdict({ ok: false, reason: "unreachable", message: "The check itself failed. Try again in a moment." });
+      setVerdict({
+        ok: false,
+        reason: "unreachable",
+        message: "The check itself failed. Try again in a moment.",
+      });
     }
   };
 
@@ -450,8 +533,8 @@ function GithubSection({ busy, project, onSetRepo, onSetToken, run }: {
       */}
       <div className="github-intro">
         <p className="chapters-note">
-          Link a page to a pull request or branch, and the board follows the code: the page moves
-          into Review while its pull request is open, and into Done when it merges.
+          Link a page to a pull request or branch, and the board follows the code: the page moves into Review
+          while its pull request is open, and into Done when it merges.
         </p>
         <button
           aria-expanded={showingSetup}
@@ -460,27 +543,34 @@ function GithubSection({ busy, project, onSetRepo, onSetToken, run }: {
           onClick={() => setShowingSetup((showing) => !showing)}
           title="How do I set this up?"
           type="button"
-        >?</button>
+        >
+          ?
+        </button>
       </div>
 
       <Growing className="github-setup-fold">
         {showingSetup && (
           <ol className="github-setup">
-            <li>Name the repository this project&apos;s pull requests live in, as <code>owner/name</code>.</li>
+            <li>
+              Name the repository this project&apos;s pull requests live in, as <code>owner/name</code>.
+            </li>
             <li>
               For a private repository,{" "}
-              <a href="https://github.com/settings/personal-access-tokens/new" rel="noreferrer" target="_blank">
+              <a
+                href="https://github.com/settings/personal-access-tokens/new"
+                rel="noreferrer"
+                target="_blank"
+              >
                 create a fine-grained access token
               </a>{" "}
               on GitHub: under <em>Only select repositories</em> choose this one, and under{" "}
-              <em>Repository permissions</em> grant <em>Pull requests: read-only</em>. Nothing else is
-              needed. A public repository needs no token at all.
+              <em>Repository permissions</em> grant <em>Pull requests: read-only</em>. Nothing else is needed.
+              A public repository needs no token at all.
             </li>
             <li>Paste the token below, then check the connection.</li>
             <li>
-              On any page, the <strong>GitHub</strong> row in its details takes a pull request URL, a
-              number like <code>#12</code>, or a branch name. A linked branch adopts whichever pull
-              request it grows.
+              On any page, the <strong>GitHub</strong> row in its details takes a pull request URL, a number
+              like <code>#12</code>, or a branch name. A linked branch adopts whichever pull request it grows.
             </li>
             <li>Grimoire checks every couple of minutes, and only ever moves a page forward.</li>
           </ol>
@@ -488,7 +578,9 @@ function GithubSection({ busy, project, onSetRepo, onSetToken, run }: {
       </Growing>
 
       <div className="settings-row">
-        <label className="field-label" htmlFor="settings-github-repo">Repository</label>
+        <label className="field-label" htmlFor="settings-github-repo">
+          Repository
+        </label>
         <div className="settings-input">
           <input
             disabled={busy}
@@ -496,16 +588,25 @@ function GithubSection({ busy, project, onSetRepo, onSetToken, run }: {
             name="githubRepo"
             onBlur={saveRepo}
             onChange={(event) => setRepo(event.target.value)}
-            onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); saveRepo(); } }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                saveRepo();
+              }
+            }}
             placeholder="owner/repository"
             value={repo}
           />
         </div>
-        <p className="settings-summary">Clearing it pauses the automation; nothing already linked is forgotten.</p>
+        <p className="settings-summary">
+          Clearing it pauses the automation; nothing already linked is forgotten.
+        </p>
       </div>
 
       <div className="settings-row">
-        <label className="field-label" htmlFor="settings-github-token">Access token</label>
+        <label className="field-label" htmlFor="settings-github-token">
+          Access token
+        </label>
         <div className="settings-input">
           <input
             disabled={busy}
@@ -513,8 +614,15 @@ function GithubSection({ busy, project, onSetRepo, onSetToken, run }: {
             name="githubToken"
             onBlur={saveToken}
             onChange={(event) => setToken(event.target.value)}
-            onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); saveToken(); } }}
-            placeholder={project.githubTokenSet ? "A token is saved. Paste a new one to replace it." : "github_pat_..."}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                saveToken();
+              }
+            }}
+            placeholder={
+              project.githubTokenSet ? "A token is saved. Paste a new one to replace it." : "github_pat_..."
+            }
             type="password"
             value={token}
           />
@@ -526,14 +634,21 @@ function GithubSection({ busy, project, onSetRepo, onSetToken, run }: {
             disabled={busy}
             onClick={() => void run(() => onSetToken(""), "The token could not be cleared")}
             type="button"
-          >forget the saved token</button>
+          >
+            forget the saved token
+          </button>
         )}
       </div>
 
       <div className="settings-row">
         <span className="field-label">Connection</span>
         <div className="github-check">
-          <button className="quiet-button" disabled={busy || verdict === "checking"} onClick={() => void check()} type="button">
+          <button
+            className="quiet-button"
+            disabled={busy || verdict === "checking"}
+            onClick={() => void check()}
+            type="button"
+          >
             {verdict === "checking" ? "checking..." : "check the connection"}
           </button>
           {verdict !== null && verdict !== "checking" && (
@@ -545,7 +660,6 @@ function GithubSection({ busy, project, onSetRepo, onSetToken, run }: {
           )}
         </div>
       </div>
-
     </div>
   );
 }
@@ -588,7 +702,9 @@ function GeneralSection({ busy, canManage, project, onRename, onSetDescription, 
   return (
     <div className="settings-section">
       <div className="settings-row">
-        <label className="field-label" htmlFor="settings-project-name">Name</label>
+        <label className="field-label" htmlFor="settings-project-name">
+          Name
+        </label>
         <div className="settings-input">
           <input
             disabled={busy}
@@ -596,13 +712,20 @@ function GeneralSection({ busy, canManage, project, onRename, onSetDescription, 
             name="projectName"
             onBlur={saveName}
             onChange={(event) => setName(event.target.value)}
-            onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); saveName(); } }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                saveName();
+              }
+            }}
             value={name}
           />
         </div>
       </div>
       <div className="settings-row">
-        <label className="field-label" htmlFor="settings-project-description">Description</label>
+        <label className="field-label" htmlFor="settings-project-description">
+          Description
+        </label>
         <textarea
           disabled={busy}
           id="settings-project-description"
@@ -635,9 +758,15 @@ function DangerSection({ busy, canArchive, projectName, onArchive, onRestore, ru
   useEffect(() => {
     let alive = true;
     archivedProjects()
-      .then((value) => { if (alive) setArchived(value.projects); })
-      .catch(() => { if (alive) setListFailed(true); });
-    return () => { alive = false; };
+      .then((value) => {
+        if (alive) setArchived(value.projects);
+      })
+      .catch(() => {
+        if (alive) setListFailed(true);
+      });
+    return () => {
+      alive = false;
+    };
   }, []);
 
   return (
@@ -658,8 +787,12 @@ function DangerSection({ busy, canArchive, projectName, onArchive, onRestore, ru
                 disabled={busy}
                 onClick={() => void run(() => onArchive(), "The project could not be archived")}
                 type="button"
-              >yes</button>
-              <button onClick={() => setConfirmingArchive(false)} type="button">no</button>
+              >
+                yes
+              </button>
+              <button onClick={() => setConfirmingArchive(false)} type="button">
+                no
+              </button>
             </span>
           ) : (
             <button
@@ -667,7 +800,9 @@ function DangerSection({ busy, canArchive, projectName, onArchive, onRestore, ru
               disabled={!canArchive}
               onClick={() => setConfirmingArchive(true)}
               type="button"
-            >archive project</button>
+            >
+              archive project
+            </button>
           )}
         </div>
       </Growing>
@@ -689,12 +824,16 @@ function DangerSection({ busy, canArchive, projectName, onArchive, onRestore, ru
                   aria-label={`Restore ${candidate.name}`}
                   className="settings-link"
                   disabled={busy}
-                  onClick={() => void run(async () => {
-                    await onRestore(candidate.id);
-                    setArchived((current) => current?.filter((value) => value.id !== candidate.id) ?? null);
-                  }, `${candidate.name} could not be restored`)}
+                  onClick={() =>
+                    void run(async () => {
+                      await onRestore(candidate.id);
+                      setArchived((current) => current?.filter((value) => value.id !== candidate.id) ?? null);
+                    }, `${candidate.name} could not be restored`)
+                  }
                   type="button"
-                >restore</button>
+                >
+                  restore
+                </button>
               </li>
             ))}
           </ul>

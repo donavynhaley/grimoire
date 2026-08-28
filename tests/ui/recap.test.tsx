@@ -116,7 +116,9 @@ describe("the Discord recap settings", () => {
 
     await user.click(screen.getByLabelText("Post on close"));
     await waitFor(() =>
-      expect(calls).toContainEqual(expect.objectContaining({ method: "PATCH", body: { recapOnClose: false } })),
+      expect(calls).toContainEqual(
+        expect.objectContaining({ method: "PATCH", body: { recapOnClose: false } }),
+      ),
     );
   });
 

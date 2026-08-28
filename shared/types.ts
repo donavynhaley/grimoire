@@ -334,8 +334,7 @@ export type ChapterVelocity = {
  * configured one; a link pasted as a full URL may name another and carries it here.
  */
 export type PageGithubLink =
-  | { kind: "pr"; number: number; repo?: string }
-  | { kind: "branch"; name: string; repo?: string };
+  { kind: "pr"; number: number; repo?: string } | { kind: "branch"; name: string; repo?: string };
 
 /** What GitHub last said about a linked page, cached server-side between polls. */
 export type PageGithubStatus = {
@@ -557,7 +556,16 @@ export type EditConflict<T> = {
   current: T;
 };
 
-export const AUDIT_ENTITY_TYPES = ["page", "idea", "project", "category", "chapter", "member", "agent", "field"] as const;
+export const AUDIT_ENTITY_TYPES = [
+  "page",
+  "idea",
+  "project",
+  "category",
+  "chapter",
+  "member",
+  "agent",
+  "field",
+] as const;
 export type AuditEntityType = (typeof AUDIT_ENTITY_TYPES)[number];
 
 export const AUDIT_ACTIONS = [

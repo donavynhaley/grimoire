@@ -216,7 +216,11 @@ function fieldChanges(before: PageFields, after: PageFields, labels: PageLabels)
   const keys = [...new Set([...Object.keys(before), ...Object.keys(after)])].sort();
   return keys
     .filter((key) => before[key] !== after[key])
-    .map((key) => ({ field: labels.fieldLabel(key), from: fieldText(before[key]), to: fieldText(after[key]) }));
+    .map((key) => ({
+      field: labels.fieldLabel(key),
+      from: fieldText(before[key]),
+      to: fieldText(after[key]),
+    }));
 }
 
 /** Fields a person would recognise, in the order they appear on the page. */
@@ -263,7 +267,11 @@ export function pageChanges(before: Page, after: Page, labels: PageLabels): Audi
   }
   changes.push(...fieldChanges(before.fields, after.fields, labels));
   if (githubLinkLabel(before.github) !== githubLinkLabel(after.github)) {
-    changes.push({ field: "github", from: githubLinkLabel(before.github), to: githubLinkLabel(after.github) });
+    changes.push({
+      field: "github",
+      from: githubLinkLabel(before.github),
+      to: githubLinkLabel(after.github),
+    });
   }
   return changes;
 }

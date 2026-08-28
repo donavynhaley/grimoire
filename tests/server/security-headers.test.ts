@@ -14,7 +14,10 @@ function shellDirectory(): string {
 
 /** The directives a page has to be held to, whatever else the policy grows to say. */
 function directive(policy: string, name: string): string | null {
-  const found = policy.split(";").map((part) => part.trim()).find((part) => part.startsWith(`${name} `));
+  const found = policy
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${name} `));
   return found ? found.slice(name.length + 1) : null;
 }
 
@@ -70,7 +73,12 @@ describe("security headers", () => {
 
     // Spelled plainly and spelled through percent-encoding, which decodes after
     // routing and so reaches the resolver as a real dot-dot.
-    for (const path of ["/../secret.txt", "/%2e%2e/secret.txt", "/..%2fsecret.txt", "/assets/%2e%2e/%2e%2e/secret.txt"]) {
+    for (const path of [
+      "/../secret.txt",
+      "/%2e%2e/secret.txt",
+      "/..%2fsecret.txt",
+      "/assets/%2e%2e/%2e%2e/secret.txt",
+    ]) {
       const answer = await server.fetchRaw(path);
       const body = await answer.text();
       expect(body, path).not.toContain("the operator's secret");

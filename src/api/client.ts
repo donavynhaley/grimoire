@@ -86,7 +86,9 @@ export function ideas(): Promise<IdeaWorkspace> {
   return request<IdeaWorkspace>("/api/ideas");
 }
 
-export function activity(options: { entityId?: string; before?: number; limit?: number } = {}): Promise<AuditPage> {
+export function activity(
+  options: { entityId?: string; before?: number; limit?: number } = {},
+): Promise<AuditPage> {
   const params = new URLSearchParams();
   if (options.entityId) params.set("entity", options.entityId);
   if (options.before !== undefined) params.set("before", String(options.before));
@@ -112,7 +114,11 @@ export function openThread(pageId: string, body: string): Promise<{ thread: Disc
   });
 }
 
-export function replyToThread(pageId: string, threadId: string, body: string): Promise<{ thread: DiscussionThread }> {
+export function replyToThread(
+  pageId: string,
+  threadId: string,
+  body: string,
+): Promise<{ thread: DiscussionThread }> {
   return request<{ thread: DiscussionThread }>(`/api/pages/${pageId}/discussion/${threadId}/replies`, {
     method: "POST",
     body: JSON.stringify({ body }),
@@ -170,8 +176,7 @@ export function openPullRequests(): Promise<{ pulls: OpenPullRequest[] }> {
 
 /** Asks the server whether its GitHub repository and token actually answer. */
 export type GithubVerification =
-  | { ok: true; repo: string; private: boolean }
-  | { ok: false; reason: string; message: string };
+  { ok: true; repo: string; private: boolean } | { ok: false; reason: string; message: string };
 
 export function verifyGithub(): Promise<GithubVerification> {
   return request<GithubVerification>("/api/github/verify", { method: "POST", body: "{}" });
@@ -182,7 +187,9 @@ export function oidcSettings(): Promise<{ settings: OidcSettings }> {
   return request<{ settings: OidcSettings }>("/api/auth/oidc/settings");
 }
 
-export function saveOidcSettings(input: Partial<OidcSettings> & { clientSecret?: string }): Promise<{ settings: OidcSettings }> {
+export function saveOidcSettings(
+  input: Partial<OidcSettings> & { clientSecret?: string },
+): Promise<{ settings: OidcSettings }> {
   return request<{ settings: OidcSettings }>("/api/auth/oidc/settings", {
     method: "PATCH",
     body: JSON.stringify(input),
@@ -196,7 +203,9 @@ export function saveOidcSettings(input: Partial<OidcSettings> & { clientSecret?:
  * answer is a description or a reason, never a thrown error, so a wrong address is something
  * the screen can say out loud rather than a failure it has to guess at.
  */
-export function probeOidcProvider(issuer: string): Promise<{ provider?: OidcProviderDescription; error?: string }> {
+export function probeOidcProvider(
+  issuer: string,
+): Promise<{ provider?: OidcProviderDescription; error?: string }> {
   return request<{ provider?: OidcProviderDescription; error?: string }>("/api/auth/oidc/probe", {
     method: "POST",
     body: JSON.stringify({ issuer }),

@@ -31,10 +31,13 @@ function reply(server: TestServer, pageId: string, threadId: string, body: strin
 }
 
 function setAnswered(server: TestServer, pageId: string, threadId: string, answered: boolean) {
-  return server.request<{ thread: DiscussionThread }>(`/api/pages/${pageId}/discussion/${threadId}/answered`, {
-    method: "POST",
-    body: JSON.stringify({ answered }),
-  });
+  return server.request<{ thread: DiscussionThread }>(
+    `/api/pages/${pageId}/discussion/${threadId}/answered`,
+    {
+      method: "POST",
+      body: JSON.stringify({ answered }),
+    },
+  );
 }
 
 function read(server: TestServer, pageId: string) {
@@ -61,7 +64,10 @@ async function issueAgent(server: TestServer, scope: "read" | "write" = "write")
 
 /** Invites and registers Maren, leaving the session signed in as her. */
 async function registerMember(server: TestServer) {
-  const invite = await server.request<{ code: string }>("/api/invites", { method: "POST", body: JSON.stringify({}) });
+  const invite = await server.request<{ code: string }>("/api/invites", {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
   await server.request("/api/auth/register", {
     method: "POST",
     body: JSON.stringify({ ...MEMBER, inviteCode: invite.body.code }),
@@ -298,7 +304,10 @@ describe("page discussion", () => {
       const thread = (await ask(server, page.id, "Before.")).body.thread;
 
       await loginMember(server);
-      await server.request(`/api/pages/${page.id}/discussion/seen`, { method: "POST", body: JSON.stringify({}) });
+      await server.request(`/api/pages/${page.id}/discussion/seen`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
 
       // Force the collision the clock would only occasionally produce.
       const stamp = new Date().toISOString();
@@ -306,7 +315,9 @@ describe("page discussion", () => {
       await reply(server, page.id, thread.id, "Same millisecond.");
       const database = new DatabaseSync(server.databasePath);
       database.prepare("UPDATE discussion_seen SET seen_at = ?").run(stamp);
-      database.prepare("UPDATE page_discussion SET created_at = ? WHERE body = ?").run(stamp, "Same millisecond.");
+      database
+        .prepare("UPDATE page_discussion SET created_at = ? WHERE body = ?")
+        .run(stamp, "Same millisecond.");
       database.close();
 
       await loginMember(server);
@@ -325,7 +336,10 @@ describe("page discussion", () => {
     });
 
     it("does not find a name inside a longer one that is not ASCII", () => {
-      const team = [{ id: "u-alan", name: "Alan" }, { id: "u-jose", name: "José" }];
+      const team = [
+        { id: "u-alan", name: "Alan" },
+        { id: "u-jose", name: "José" },
+      ];
       expect(parseMentions("@Alanè is somebody else", team)).toEqual([]);
       expect(parseMentions("@José can you look?", team)).toEqual(["u-jose"]);
       // And a name is still a name when it follows a letter this alphabet has not heard of.
@@ -397,10 +411,15 @@ describe("page discussion", () => {
       const thread = (await ask(server, page.id, "Same-target only?")).body.thread;
       const secret = await issueAgent(server);
 
-      const refused = await asAgent(server, secret, `/api/pages/${page.id}/discussion/${thread.id}/answered`, {
-        method: "POST",
-        body: JSON.stringify({ answered: true }),
-      });
+      const refused = await asAgent(
+        server,
+        secret,
+        `/api/pages/${page.id}/discussion/${thread.id}/answered`,
+        {
+          method: "POST",
+          body: JSON.stringify({ answered: true }),
+        },
+      );
       expect(refused.response.status).toBe(403);
 
       await loginOwner(server);
@@ -511,7 +530,10 @@ describe("page discussion", () => {
       await ask(server, page.id, "@Maren over to you.");
 
       await loginMember(server);
-      await server.request(`/api/pages/${page.id}/discussion/seen`, { method: "POST", body: JSON.stringify({}) });
+      await server.request(`/api/pages/${page.id}/discussion/seen`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
       const board = await server.request<BoardWorkspace>("/api/board");
       expect(board.body.pages.find((value) => value.id === page.id)?.unseenMentions).toBe(0);
     });

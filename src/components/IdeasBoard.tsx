@@ -30,11 +30,19 @@ type Props = {
   onPromote: (id: string) => Promise<void>;
 };
 
-export function IdeasBoard({ workspace, busy, openIdea, unseenIdeaIds, onCreate, onUpdate, onPromote }: Props) {
+export function IdeasBoard({
+  workspace,
+  busy,
+  openIdea,
+  unseenIdeaIds,
+  onCreate,
+  onUpdate,
+  onPromote,
+}: Props) {
   const focusForTyping = useTypingFocus<HTMLInputElement>();
   const [title, setTitle] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(
-    () => new URLSearchParams(location.search).get("idea"),
+  const [selectedId, setSelectedId] = useState<string | null>(() =>
+    new URLSearchParams(location.search).get("idea"),
   );
   const [openedUnseen, setOpenedUnseen] = useState<ReadonlySet<string>>(() => new Set());
   const isUnseen = (id: string) => Boolean(unseenIdeaIds?.has(id)) && !openedUnseen.has(id);
@@ -74,12 +82,18 @@ export function IdeasBoard({ workspace, busy, openIdea, unseenIdeaIds, onCreate,
     history.replaceState({}, "", `${location.pathname}${params.size ? `?${params}` : ""}`);
   }, [selected?.id]);
   const liftedId = drag?.id ?? moving;
-  const movingIdea = moving ? workspace.ideas.find((idea) => idea.id === moving) ?? null : null;
+  const movingIdea = moving ? (workspace.ideas.find((idea) => idea.id === moving) ?? null) : null;
   const baseShortlist = liftedId ? shortlist.filter((idea) => idea.id !== liftedId) : shortlist;
-  const hintIndex = drag && dropHint?.state === "shortlist" ? Math.min(dropHint.index, baseShortlist.length) : null;
-  const placeholder = drag
-    ? <div aria-hidden="true" className="drop-placeholder" data-flip-id="drop-placeholder" style={{ height: drag.height }} />
-    : null;
+  const hintIndex =
+    drag && dropHint?.state === "shortlist" ? Math.min(dropHint.index, baseShortlist.length) : null;
+  const placeholder = drag ? (
+    <div
+      aria-hidden="true"
+      className="drop-placeholder"
+      data-flip-id="drop-placeholder"
+      style={{ height: drag.height }}
+    />
+  ) : null;
 
   const capture = async (event: FormEvent) => {
     event.preventDefault();
@@ -119,7 +133,8 @@ export function IdeasBoard({ workspace, busy, openIdea, unseenIdeaIds, onCreate,
     }
     const base = shortlist.filter((candidate) => candidate.id !== id);
     const position = Math.min(index, base.length);
-    if (idea.state === "shortlist" && shortlist.findIndex((candidate) => candidate.id === id) === position) return;
+    if (idea.state === "shortlist" && shortlist.findIndex((candidate) => candidate.id === id) === position)
+      return;
     await onUpdate(id, { state: "shortlist", position });
   };
 
@@ -127,9 +142,17 @@ export function IdeasBoard({ workspace, busy, openIdea, unseenIdeaIds, onCreate,
     onLift: (id, height) => {
       const idea = workspace.ideas.find((candidate) => candidate.id === id);
       setDrag({ id, height });
-      setDropHint(idea?.state === "shortlist"
-        ? { state: "shortlist", index: Math.max(0, shortlist.findIndex((candidate) => candidate.id === id)) }
-        : null);
+      setDropHint(
+        idea?.state === "shortlist"
+          ? {
+              state: "shortlist",
+              index: Math.max(
+                0,
+                shortlist.findIndex((candidate) => candidate.id === id),
+              ),
+            }
+          : null,
+      );
       setMoving(null);
     },
     onMove: (point) => {
@@ -154,7 +177,7 @@ export function IdeasBoard({ workspace, busy, openIdea, unseenIdeaIds, onCreate,
   };
 
   const liftedIdea = pointerDrag.lift
-    ? workspace.ideas.find((idea) => idea.id === pointerDrag.lift?.id) ?? null
+    ? (workspace.ideas.find((idea) => idea.id === pointerDrag.lift?.id) ?? null)
     : null;
 
   // An idea put down by tap is put down by Escape too.
@@ -173,19 +196,37 @@ export function IdeasBoard({ workspace, busy, openIdea, unseenIdeaIds, onCreate,
     <main className="ideas-main">
       {movingIdea && (
         <div className="moving-bar" role="status">
-          <span>Moving <strong>{movingIdea.title}</strong> — choose where it goes</span>
-          <button className="text-button" onClick={() => setMoving(null)} type="button">cancel <kbd aria-hidden="true">esc</kbd></button>
+          <span>
+            Moving <strong>{movingIdea.title}</strong> — choose where it goes
+          </span>
+          <button className="text-button" onClick={() => setMoving(null)} type="button">
+            cancel <kbd aria-hidden="true">esc</kbd>
+          </button>
         </div>
       )}
       <div className="ideas-intro">
         <div>
           <h2>Idea garden</h2>
-          <p>Keep the strongest possibilities close, and turn one into work only when the team means to build it.</p>
+          <p>
+            Keep the strongest possibilities close, and turn one into work only when the team means to build
+            it.
+          </p>
         </div>
         <form className="idea-capture workspace-capture" onSubmit={capture}>
-          <label className="sr-only" htmlFor="capture-idea">Capture an idea</label>
-          <input id="capture-idea" ref={focusForTyping} name="ideaTitle" onChange={(event) => setTitle(event.target.value)} placeholder="Something worth remembering..." value={title} />
-          <button className="primary-button" disabled={busy || !title.trim()} type="submit">capture</button>
+          <label className="sr-only" htmlFor="capture-idea">
+            Capture an idea
+          </label>
+          <input
+            id="capture-idea"
+            ref={focusForTyping}
+            name="ideaTitle"
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder="Something worth remembering..."
+            value={title}
+          />
+          <button className="primary-button" disabled={busy || !title.trim()} type="submit">
+            capture
+          </button>
         </form>
       </div>
 
@@ -199,37 +240,91 @@ export function IdeasBoard({ workspace, busy, openIdea, unseenIdeaIds, onCreate,
           }}
         >
           <header className="idea-section-header">
-            <div><span className="idea-glyph">✦</span><div><p className="eyebrow">ranked by hand</p><h3>Shortlist</h3></div></div>
+            <div>
+              <span className="idea-glyph">✦</span>
+              <div>
+                <p className="eyebrow">ranked by hand</p>
+                <h3>Shortlist</h3>
+              </div>
+            </div>
             <span>{shortlist.length}</span>
           </header>
           <div className="shortlist-list">
-            {movingIdea && <IdeaMoveSlot index={0} onPlace={placeMoving} ranked state="shortlist" stateName={stateNames.shortlist} title={movingIdea.title} />}
+            {movingIdea && (
+              <IdeaMoveSlot
+                index={0}
+                onPlace={placeMoving}
+                ranked
+                state="shortlist"
+                stateName={stateNames.shortlist}
+                title={movingIdea.title}
+              />
+            )}
             {shortlist.map((idea) => {
               const hidden = liftedId === idea.id;
               const slot = hidden ? -1 : baseShortlist.findIndex((candidate) => candidate.id === idea.id);
               const rank = hintIndex !== null && slot >= hintIndex ? slot + 1 : slot;
               return (
-              <Fragment key={idea.id}>
-              {!hidden && slot === hintIndex && placeholder}
-              <article
-                className={`idea-card shortlist-card ${hidden ? "drag-hidden" : ""} ${isUnseen(idea.id) ? "unseen" : ""}`}
-                data-flip-id={idea.id}
-                onPointerDown={(event) => pointerDrag.start(event, idea.id)}
-              >
-                <span className="rank-number">{String(rank + 1).padStart(2, "0")}</span>
-                <IdeaOpenButton guardClick={pointerDrag.consumeClick} idea={idea} onOpen={() => setSelectedId(idea.id)} unseen={isUnseen(idea.id)} />
-                <div className="idea-actions">
-                  <button aria-label={`Move ${idea.title}`} aria-pressed={moving === idea.id} className="drag-grip" onClick={() => { if (pointerDrag.consumeClick()) return; setMoving((current) => (current === idea.id ? null : idea.id)); }} type="button">⠿</button>
-                  <button aria-label={`Make work page from ${idea.title}`} onClick={() => setSelectedId(idea.id)} type="button">make page</button>
-                  <button aria-label={`Park ${idea.title}`} onClick={() => void onUpdate(idea.id, { state: "parked" })} type="button">park</button>
-                </div>
-              </article>
-              {movingIdea && !hidden && <IdeaMoveSlot index={slot + 1} onPlace={placeMoving} ranked state="shortlist" stateName={stateNames.shortlist} title={movingIdea.title} />}
-              </Fragment>
+                <Fragment key={idea.id}>
+                  {!hidden && slot === hintIndex && placeholder}
+                  <article
+                    className={`idea-card shortlist-card ${hidden ? "drag-hidden" : ""} ${isUnseen(idea.id) ? "unseen" : ""}`}
+                    data-flip-id={idea.id}
+                    onPointerDown={(event) => pointerDrag.start(event, idea.id)}
+                  >
+                    <span className="rank-number">{String(rank + 1).padStart(2, "0")}</span>
+                    <IdeaOpenButton
+                      guardClick={pointerDrag.consumeClick}
+                      idea={idea}
+                      onOpen={() => setSelectedId(idea.id)}
+                      unseen={isUnseen(idea.id)}
+                    />
+                    <div className="idea-actions">
+                      <button
+                        aria-label={`Move ${idea.title}`}
+                        aria-pressed={moving === idea.id}
+                        className="drag-grip"
+                        onClick={() => {
+                          if (pointerDrag.consumeClick()) return;
+                          setMoving((current) => (current === idea.id ? null : idea.id));
+                        }}
+                        type="button"
+                      >
+                        ⠿
+                      </button>
+                      <button
+                        aria-label={`Make work page from ${idea.title}`}
+                        onClick={() => setSelectedId(idea.id)}
+                        type="button"
+                      >
+                        make page
+                      </button>
+                      <button
+                        aria-label={`Park ${idea.title}`}
+                        onClick={() => void onUpdate(idea.id, { state: "parked" })}
+                        type="button"
+                      >
+                        park
+                      </button>
+                    </div>
+                  </article>
+                  {movingIdea && !hidden && (
+                    <IdeaMoveSlot
+                      index={slot + 1}
+                      onPlace={placeMoving}
+                      ranked
+                      state="shortlist"
+                      stateName={stateNames.shortlist}
+                      title={movingIdea.title}
+                    />
+                  )}
+                </Fragment>
               );
             })}
             {hintIndex !== null && hintIndex === baseShortlist.length && placeholder}
-            {shortlist.length === 0 && hintIndex === null && !movingIdea && <EmptyIdeas>Shortlist only the ideas the team is genuinely considering.</EmptyIdeas>}
+            {shortlist.length === 0 && hintIndex === null && !movingIdea && (
+              <EmptyIdeas>Shortlist only the ideas the team is genuinely considering.</EmptyIdeas>
+            )}
           </div>
         </section>
 
@@ -242,11 +337,26 @@ export function IdeasBoard({ workspace, busy, openIdea, unseenIdeaIds, onCreate,
           }}
         >
           <header className="idea-section-header">
-            <div><span className="idea-glyph">+</span><div><p className="eyebrow">new and unsorted</p><h3>Idea inbox</h3></div></div>
+            <div>
+              <span className="idea-glyph">+</span>
+              <div>
+                <p className="eyebrow">new and unsorted</p>
+                <h3>Idea inbox</h3>
+              </div>
+            </div>
             <span>{inbox.length}</span>
           </header>
           <div className="inbox-list">
-            {movingIdea && <IdeaMoveSlot index={0} onPlace={placeMoving} ranked={false} state="inbox" stateName={stateNames.inbox} title={movingIdea.title} />}
+            {movingIdea && (
+              <IdeaMoveSlot
+                index={0}
+                onPlace={placeMoving}
+                ranked={false}
+                state="inbox"
+                stateName={stateNames.inbox}
+                title={movingIdea.title}
+              />
+            )}
             {inbox.map((idea) => (
               <article
                 className={`idea-card ${liftedId === idea.id ? "drag-hidden" : ""} ${isUnseen(idea.id) ? "unseen" : ""}`}
@@ -254,15 +364,45 @@ export function IdeasBoard({ workspace, busy, openIdea, unseenIdeaIds, onCreate,
                 key={idea.id}
                 onPointerDown={(event) => pointerDrag.start(event, idea.id)}
               >
-                <IdeaOpenButton guardClick={pointerDrag.consumeClick} idea={idea} onOpen={() => setSelectedId(idea.id)} unseen={isUnseen(idea.id)} />
+                <IdeaOpenButton
+                  guardClick={pointerDrag.consumeClick}
+                  idea={idea}
+                  onOpen={() => setSelectedId(idea.id)}
+                  unseen={isUnseen(idea.id)}
+                />
                 <div className="idea-actions">
-                  <button aria-label={`Move ${idea.title}`} aria-pressed={moving === idea.id} className="drag-grip" onClick={() => { if (pointerDrag.consumeClick()) return; setMoving((current) => (current === idea.id ? null : idea.id)); }} type="button">⠿</button>
-                  <button aria-label={`Shortlist ${idea.title}`} onClick={() => void onUpdate(idea.id, { state: "shortlist", position: shortlist.length })} type="button">shortlist</button>
-                  <button aria-label={`Park ${idea.title}`} onClick={() => void onUpdate(idea.id, { state: "parked" })} type="button">park</button>
+                  <button
+                    aria-label={`Move ${idea.title}`}
+                    aria-pressed={moving === idea.id}
+                    className="drag-grip"
+                    onClick={() => {
+                      if (pointerDrag.consumeClick()) return;
+                      setMoving((current) => (current === idea.id ? null : idea.id));
+                    }}
+                    type="button"
+                  >
+                    ⠿
+                  </button>
+                  <button
+                    aria-label={`Shortlist ${idea.title}`}
+                    onClick={() => void onUpdate(idea.id, { state: "shortlist", position: shortlist.length })}
+                    type="button"
+                  >
+                    shortlist
+                  </button>
+                  <button
+                    aria-label={`Park ${idea.title}`}
+                    onClick={() => void onUpdate(idea.id, { state: "parked" })}
+                    type="button"
+                  >
+                    park
+                  </button>
                 </div>
               </article>
             ))}
-            {inbox.length === 0 && !movingIdea && <EmptyIdeas>Fresh ideas land here without interrupting current work.</EmptyIdeas>}
+            {inbox.length === 0 && !movingIdea && (
+              <EmptyIdeas>Fresh ideas land here without interrupting current work.</EmptyIdeas>
+            )}
           </div>
         </section>
 
@@ -275,11 +415,26 @@ export function IdeasBoard({ workspace, busy, openIdea, unseenIdeaIds, onCreate,
           }}
         >
           <header className="idea-section-header">
-            <div><span className="idea-glyph">·</span><div><p className="eyebrow">kept, not pursued</p><h3>Parked</h3></div></div>
+            <div>
+              <span className="idea-glyph">·</span>
+              <div>
+                <p className="eyebrow">kept, not pursued</p>
+                <h3>Parked</h3>
+              </div>
+            </div>
             <span>{parked.length}</span>
           </header>
           <div className="parked-list">
-            {movingIdea && <IdeaMoveSlot index={0} onPlace={placeMoving} ranked={false} state="parked" stateName={stateNames.parked} title={movingIdea.title} />}
+            {movingIdea && (
+              <IdeaMoveSlot
+                index={0}
+                onPlace={placeMoving}
+                ranked={false}
+                state="parked"
+                stateName={stateNames.parked}
+                title={movingIdea.title}
+              />
+            )}
             {parked.map((idea) => (
               <article
                 className={`idea-card parked-card ${liftedId === idea.id ? "drag-hidden" : ""} ${isUnseen(idea.id) ? "unseen" : ""}`}
@@ -287,15 +442,45 @@ export function IdeasBoard({ workspace, busy, openIdea, unseenIdeaIds, onCreate,
                 key={idea.id}
                 onPointerDown={(event) => pointerDrag.start(event, idea.id)}
               >
-                <IdeaOpenButton guardClick={pointerDrag.consumeClick} idea={idea} onOpen={() => setSelectedId(idea.id)} unseen={isUnseen(idea.id)} />
+                <IdeaOpenButton
+                  guardClick={pointerDrag.consumeClick}
+                  idea={idea}
+                  onOpen={() => setSelectedId(idea.id)}
+                  unseen={isUnseen(idea.id)}
+                />
                 <div className="idea-actions">
-                  <button aria-label={`Move ${idea.title}`} aria-pressed={moving === idea.id} className="drag-grip" onClick={() => { if (pointerDrag.consumeClick()) return; setMoving((current) => (current === idea.id ? null : idea.id)); }} type="button">⠿</button>
-                  <button aria-label={`Return ${idea.title} to inbox`} onClick={() => void onUpdate(idea.id, { state: "inbox" })} type="button">return to inbox</button>
-                  <button aria-label={`Shortlist ${idea.title}`} onClick={() => void onUpdate(idea.id, { state: "shortlist", position: shortlist.length })} type="button">shortlist</button>
+                  <button
+                    aria-label={`Move ${idea.title}`}
+                    aria-pressed={moving === idea.id}
+                    className="drag-grip"
+                    onClick={() => {
+                      if (pointerDrag.consumeClick()) return;
+                      setMoving((current) => (current === idea.id ? null : idea.id));
+                    }}
+                    type="button"
+                  >
+                    ⠿
+                  </button>
+                  <button
+                    aria-label={`Return ${idea.title} to inbox`}
+                    onClick={() => void onUpdate(idea.id, { state: "inbox" })}
+                    type="button"
+                  >
+                    return to inbox
+                  </button>
+                  <button
+                    aria-label={`Shortlist ${idea.title}`}
+                    onClick={() => void onUpdate(idea.id, { state: "shortlist", position: shortlist.length })}
+                    type="button"
+                  >
+                    shortlist
+                  </button>
                 </div>
               </article>
             ))}
-            {parked.length === 0 && !movingIdea && <EmptyIdeas>Ideas can rest here without being lost.</EmptyIdeas>}
+            {parked.length === 0 && !movingIdea && (
+              <EmptyIdeas>Ideas can rest here without being lost.</EmptyIdeas>
+            )}
           </div>
         </section>
       </div>
@@ -312,7 +497,9 @@ export function IdeasBoard({ workspace, busy, openIdea, unseenIdeaIds, onCreate,
             transform: `translate(${pointerDrag.lift.dx}px, ${pointerDrag.lift.dy}px)`,
           }}
         >
-          <span className="idea-open"><strong>{liftedIdea.title}</strong></span>
+          <span className="idea-open">
+            <strong>{liftedIdea.title}</strong>
+          </span>
         </div>
       )}
 
@@ -321,7 +508,10 @@ export function IdeasBoard({ workspace, busy, openIdea, unseenIdeaIds, onCreate,
           idea={selected}
           shortlistPosition={shortlist.length}
           onClose={() => setSelectedId(null)}
-          onPromote={async () => { await onPromote(selected.id); setSelectedId(null); }}
+          onPromote={async () => {
+            await onPromote(selected.id);
+            setSelectedId(null);
+          }}
           onUpdate={(input) => onUpdate(selected.id, input)}
         />
       )}
@@ -343,7 +533,14 @@ function sameHint(
  * The shortlist is ranked, so its slots name a position; the other two sections hold ideas
  * without ordering them, so theirs name only the section.
  */
-function IdeaMoveSlot({ index, onPlace, ranked, state, stateName, title }: {
+function IdeaMoveSlot({
+  index,
+  onPlace,
+  ranked,
+  state,
+  stateName,
+  title,
+}: {
   index: number;
   onPlace: (state: IdeaState, index: number) => Promise<void>;
   ranked: boolean;
@@ -353,7 +550,9 @@ function IdeaMoveSlot({ index, onPlace, ranked, state, stateName, title }: {
 }) {
   return (
     <button
-      aria-label={ranked ? `Place ${title} in ${stateName}, position ${index + 1}` : `Move ${title} to ${stateName}`}
+      aria-label={
+        ranked ? `Place ${title} in ${stateName}, position ${index + 1}` : `Move ${title} to ${stateName}`
+      }
       className="move-slot"
       onClick={() => void onPlace(state, index)}
       type="button"
@@ -364,12 +563,31 @@ function IdeaMoveSlot({ index, onPlace, ranked, state, stateName, title }: {
 }
 
 function ideasIn(workspace: IdeaWorkspace, state: IdeaState): Idea[] {
-  return workspace.ideas.filter((idea) => idea.state === state).sort((left, right) => left.position - right.position);
+  return workspace.ideas
+    .filter((idea) => idea.state === state)
+    .sort((left, right) => left.position - right.position);
 }
 
-function IdeaOpenButton({ guardClick, idea, onOpen, unseen = false }: { guardClick: () => boolean; idea: Idea; onOpen: () => void; unseen?: boolean }) {
+function IdeaOpenButton({
+  guardClick,
+  idea,
+  onOpen,
+  unseen = false,
+}: {
+  guardClick: () => boolean;
+  idea: Idea;
+  onOpen: () => void;
+  unseen?: boolean;
+}) {
   return (
-    <button aria-label={`Open idea ${idea.title}${unseen ? ". Changed while you were away" : ""}`} className="idea-open" onClick={() => { if (!guardClick()) onOpen(); }} type="button">
+    <button
+      aria-label={`Open idea ${idea.title}${unseen ? ". Changed while you were away" : ""}`}
+      className="idea-open"
+      onClick={() => {
+        if (!guardClick()) onOpen();
+      }}
+      type="button"
+    >
       <strong>{idea.title}</strong>
       {idea.description && <p>{plainTextFromMarkdown(idea.description)}</p>}
       <span>captured by {idea.createdByName}</span>
@@ -381,7 +599,13 @@ function EmptyIdeas({ children }: { children: string }) {
   return <div className="empty-ideas">{children}</div>;
 }
 
-function IdeaDialog({ idea, shortlistPosition, onUpdate, onPromote, onClose }: {
+function IdeaDialog({
+  idea,
+  shortlistPosition,
+  onUpdate,
+  onPromote,
+  onClose,
+}: {
   idea: Idea;
   shortlistPosition: number;
   onUpdate: (input: Record<string, unknown>) => Promise<void>;
@@ -409,11 +633,24 @@ function IdeaDialog({ idea, shortlistPosition, onUpdate, onPromote, onClose }: {
   return (
     <Drawer className="dialog-panel idea-dialog" labelledBy="idea-dialog-title" onClose={close}>
       <header className="dialog-header">
-        <div><p className="eyebrow">possibility, not commitment</p><h2 id="idea-dialog-title">Edit idea</h2></div>
-        <button aria-label="Close idea" className="icon-button" onClick={() => void close()} type="button">×</button>
+        <div>
+          <p className="eyebrow">possibility, not commitment</p>
+          <h2 id="idea-dialog-title">Edit idea</h2>
+        </div>
+        <button aria-label="Close idea" className="icon-button" onClick={() => void close()} type="button">
+          ×
+        </button>
       </header>
       <div className="record-form">
-        <label><span>Title</span><input aria-label="Idea title" name="ideaTitle" onChange={(event) => editor.setTitle(event.target.value)} value={editor.title} /></label>
+        <label>
+          <span>Title</span>
+          <input
+            aria-label="Idea title"
+            name="ideaTitle"
+            onChange={(event) => editor.setTitle(event.target.value)}
+            value={editor.title}
+          />
+        </label>
         <NotesField
           editLabel="Edit idea notes"
           editorLabel="Idea notes"
@@ -428,16 +665,46 @@ function IdeaDialog({ idea, shortlistPosition, onUpdate, onPromote, onClose }: {
       <div className="dialog-section">
         <span className="field-label">Keep it where?</span>
         <div className="choice-grid">
-          <button className={idea.state === "inbox" ? "choice active" : "choice"} onClick={() => onUpdate({ state: "inbox" })} type="button">inbox</button>
-          <button className={idea.state === "shortlist" ? "choice active" : "choice"} onClick={() => onUpdate({ state: "shortlist", position: shortlistPosition })} type="button">shortlist</button>
-          <button className={idea.state === "parked" ? "choice active" : "choice"} onClick={() => onUpdate({ state: "parked" })} type="button">parked</button>
+          <button
+            className={idea.state === "inbox" ? "choice active" : "choice"}
+            onClick={() => onUpdate({ state: "inbox" })}
+            type="button"
+          >
+            inbox
+          </button>
+          <button
+            className={idea.state === "shortlist" ? "choice active" : "choice"}
+            onClick={() => onUpdate({ state: "shortlist", position: shortlistPosition })}
+            type="button"
+          >
+            shortlist
+          </button>
+          <button
+            className={idea.state === "parked" ? "choice active" : "choice"}
+            onClick={() => onUpdate({ state: "parked" })}
+            type="button"
+          >
+            parked
+          </button>
         </div>
       </div>
       <footer className="dialog-footer promotion-footer">
         <span>captured by {idea.createdByName}</span>
         {confirmPromotion ? (
-          <div className="archive-confirm"><span>create a backlog page and archive this idea?</span><button className="primary-button compact" onClick={onPromote} type="button">yes, make page</button><button className="text-button" onClick={() => setConfirmPromotion(false)} type="button">cancel</button></div>
-        ) : <button className="primary-button compact" onClick={() => setConfirmPromotion(true)} type="button">make work page</button>}
+          <div className="archive-confirm">
+            <span>create a backlog page and archive this idea?</span>
+            <button className="primary-button compact" onClick={onPromote} type="button">
+              yes, make page
+            </button>
+            <button className="text-button" onClick={() => setConfirmPromotion(false)} type="button">
+              cancel
+            </button>
+          </div>
+        ) : (
+          <button className="primary-button compact" onClick={() => setConfirmPromotion(true)} type="button">
+            make work page
+          </button>
+        )}
       </footer>
     </Drawer>
   );

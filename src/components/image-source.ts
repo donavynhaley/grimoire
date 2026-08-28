@@ -28,7 +28,11 @@ export function resolveImageSource(src: string): string {
  * Anything else after the pipe is alt text, which is the same reading
  * `remarkObsidianEmbeds` gives it, so both renderers agree about what an embed means.
  */
-export function embedDimensions(modifier: string | undefined): { width?: number; height?: number; alt: string } {
+export function embedDimensions(modifier: string | undefined): {
+  width?: number;
+  height?: number;
+  alt: string;
+} {
   const dimensions = modifier?.match(/^(\d+)(?:x(\d+))?$/);
   if (!dimensions) return { alt: modifier ?? "" };
   return { width: Number(dimensions[1]), height: dimensions[2] ? Number(dimensions[2]) : undefined, alt: "" };

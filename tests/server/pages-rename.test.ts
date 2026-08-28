@@ -1,5 +1,14 @@
 import { execFileSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -51,9 +60,11 @@ describe("renaming cards to pages on disk", () => {
 
     // Starting again performs the migration before anything reads a page.
     const second = await startTestServer(directory);
-    const workspace = (await second.request<BoardWorkspace>("/api/board", {
-      headers: { cookie: first.cookie() },
-    })).body;
+    const workspace = (
+      await second.request<BoardWorkspace>("/api/board", {
+        headers: { cookie: first.cookie() },
+      })
+    ).body;
 
     expect(existsSync(join(directory, "pages", "wizard-simulator", "pages"))).toBe(true);
     expect(existsSync(join(directory, "pages", "wizard-simulator", "cards"))).toBe(false);
@@ -204,7 +215,13 @@ describe("renaming card events to page events in the activity log", () => {
       .run("user-1", "Donavyn", "owner@example.com", "hash", "owner", "2026-08-01T00:00:00.000Z");
     legacy
       .prepare("INSERT INTO projects (id, name, slug, created_at, updated_at) VALUES (?,?,?,?,?)")
-      .run("project-1", "Wizard Simulator", "wizard-simulator", "2026-08-01T00:00:00.000Z", "2026-08-01T00:00:00.000Z");
+      .run(
+        "project-1",
+        "Wizard Simulator",
+        "wizard-simulator",
+        "2026-08-01T00:00:00.000Z",
+        "2026-08-01T00:00:00.000Z",
+      );
     const insert = legacy.prepare(
       `INSERT INTO audit_events (id, project_id, actor_id, actor_name, entity_type, entity_id, entity_title, action, created_at)
        VALUES (?, 'project-1', 'user-1', 'Donavyn', ?, ?, ?, 'created', '2026-08-01T00:00:00.000Z')`,
@@ -212,7 +229,9 @@ describe("renaming card events to page events in the activity log", () => {
     insert.run("event-1", "card", "card-1", "A card");
     insert.run("event-2", "idea", "idea-1", "An idea");
     insert.run("event-3", "card", "card-2", "Another card");
-    legacy.prepare("INSERT INTO seen_cursors VALUES ('project-1','user-1',2,'2026-08-01T00:00:00.000Z')").run();
+    legacy
+      .prepare("INSERT INTO seen_cursors VALUES ('project-1','user-1',2,'2026-08-01T00:00:00.000Z')")
+      .run();
     legacy.close();
 
     const { openDatabase } = await import("../../server/database");

@@ -45,7 +45,10 @@ test.describe("the page editor holds to one screen", () => {
     await seedWordyPage(page, "Anneal the ward lattice");
     await openBoard(page);
 
-    await page.getByRole("button", { name: /^Open Anneal the ward lattice/ }).first().click();
+    await page
+      .getByRole("button", { name: /^Open Anneal the ward lattice/ })
+      .first()
+      .click();
     await expect(page.getByRole("dialog", { name: "Edit page" })).toBeVisible();
 
     const sizes = await measure(page);
@@ -65,7 +68,10 @@ test.describe("the page editor holds to one screen", () => {
     await page.setViewportSize({ width: 700, height: 820 });
     await openBoard(page);
 
-    await page.getByRole("button", { name: /^Open Transcribe the moon ledger/ }).first().click();
+    await page
+      .getByRole("button", { name: /^Open Transcribe the moon ledger/ })
+      .first()
+      .click();
     await expect(page.getByRole("dialog", { name: "Edit page" })).toBeVisible();
 
     // The writing is what a page opens on.
@@ -90,7 +96,10 @@ test.describe("the page editor holds to one screen", () => {
     await seedWordyPage(page, "Sound the deep bell");
     await openBoard(page);
 
-    await page.getByRole("button", { name: /^Open Sound the deep bell/ }).first().tap();
+    await page
+      .getByRole("button", { name: /^Open Sound the deep bell/ })
+      .first()
+      .tap();
     const sheet = page.locator(".drawer-sheet");
     await expect(sheet).toBeVisible();
     await expect(sheet.getByRole("button", { name: "Edit notes" })).toBeVisible();
@@ -117,7 +126,10 @@ test.describe("nothing on the page editor scrolls that should not", () => {
     test.skip(Boolean(isMobile), "the desk form only");
     await seedWordyPage(page, "Ward the tower door");
     await openBoard(page);
-    await page.getByRole("button", { name: /^Open Ward the tower door/ }).first().click();
+    await page
+      .getByRole("button", { name: /^Open Ward the tower door/ })
+      .first()
+      .click();
     await expect(page.locator(".page-editor")).toBeVisible();
 
     const column = await page.locator(".page-editor-main").evaluate((el) => ({
@@ -136,7 +148,10 @@ test.describe("nothing on the page editor scrolls that should not", () => {
     });
     expect(created.ok()).toBe(true);
     await openBoard(page);
-    await page.getByRole("button", { name: /^Open Hold the circle/ }).first().click();
+    await page
+      .getByRole("button", { name: /^Open Hold the circle/ })
+      .first()
+      .click();
     await page.locator(".aside-switch .pane-tab", { hasText: "Discussion" }).click();
 
     const field = page.locator(".discussion-composer textarea").first();

@@ -88,7 +88,9 @@ export function dayLabel(timestamp: string, now: Date): string {
 }
 
 export function timeLabel(timestamp: string): string {
-  return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(new Date(timestamp));
+  return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(
+    new Date(timestamp),
+  );
 }
 
 /** Relative wording for the compact page history, where a full timestamp is too heavy. */
