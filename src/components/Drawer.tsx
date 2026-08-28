@@ -50,6 +50,7 @@ export function Drawer({ className, backdropClassName = "", labelledBy, label, o
   useDialogEscape(onClose);
   useViewportSizing(coarse);
   useFocusReturn();
+  useFocusContainment(panel);
 
   /**
    * The sheet follows the finger, and lets go if it was carried far enough or thrown hard
@@ -95,6 +96,7 @@ export function Drawer({ className, backdropClassName = "", labelledBy, label, o
           className={className}
           ref={panel}
           role="dialog"
+          tabIndex={-1}
         >
           {children}
         </section>
@@ -117,6 +119,7 @@ export function Drawer({ className, backdropClassName = "", labelledBy, label, o
         ref={panel}
         role="dialog"
         style={offset ? { transform: `translateY(${offset}px)`, transition: "none" } : undefined}
+        tabIndex={-1}
       >
         {/*
           The handle is both the affordance and the target: it says the sheet can be pulled
@@ -165,6 +168,41 @@ function useViewportSizing(active: boolean): void {
       root.style.removeProperty("--drawer-viewport-top");
     };
   }, [active]);
+}
+
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/**
+ * Puts focus in the dialog when it opens, and holds Tab inside it while it is open.
+ *
+ * aria-modal promises assistive tech the rest of the page is inert; this keeps the
+ * promise for the keyboard too, or Tab walks out the back of the dialog into a page
+ * that cannot be clicked. A field that focused itself on mount keeps its claim.
+ */
+function useFocusContainment(panel: React.RefObject<HTMLElement | null>): void {
+  useEffect(() => {
+    const node = panel.current;
+    if (!node) return;
+    if (!node.contains(document.activeElement)) node.focus({ preventScroll: true });
+    const hold = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const focusables = [...node.querySelectorAll<HTMLElement>(FOCUSABLE)];
+      if (focusables.length === 0) return;
+      const first = focusables[0]!;
+      const last = focusables[focusables.length - 1]!;
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || active === node || !node.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || !node.contains(active))) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", hold, true);
+    return () => document.removeEventListener("keydown", hold, true);
+  }, [panel]);
 }
 
 /**

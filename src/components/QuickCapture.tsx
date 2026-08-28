@@ -434,12 +434,7 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
       )}
 
       {picker && !writingField && (
-        <div
-          aria-label={`Choose ${pickerHeading(picker, fieldChips).toLowerCase()}`}
-          className={`capture-picker capture-picker-${picker.kind}`}
-          id="capture-options"
-          role="listbox"
-        >
+        <div className={`capture-picker capture-picker-${picker.kind}`}>
           <header>
             <span>{pickerHeading(picker, fieldChips)}</span>
             <kbd>{pickerTrigger(picker.kind)}</kbd>
@@ -477,12 +472,22 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
               />
             </div>
           )}
-          <div>
+          {/*
+            The listbox is the options and nothing else - the header and the search field
+            are neighbours, not options - and what is "selected" for assistive tech is the
+            row the keyboard is on, the same row aria-activedescendant names. The value the
+            page already holds stays a visual mark.
+          */}
+          <div
+            aria-label={`Choose ${pickerHeading(picker, fieldChips).toLowerCase()}`}
+            id="capture-options"
+            role="listbox"
+          >
             {visibleOptions.map((option, index) => {
               const chosen = picker.kind !== "field-cmd" && option.value === selectedValue(settings, picker);
               return (
                 <button
-                  aria-selected={chosen}
+                  aria-selected={index === highlighted}
                   className={`${index === highlighted ? "highlighted" : ""} ${chosen ? "selected" : ""}`}
                   id={`capture-option-${option.id}`}
                   key={option.id}
