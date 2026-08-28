@@ -947,31 +947,37 @@ export function createGrimoireServer(options: Options) {
 
     if (method === "POST" && url.pathname === "/api/account/name") {
       const user = requireUser(context);
+      // Resolved before the reply goes out: requireProject can refuse, and a refusal
+      // after json() has answered is a success the client saw and a 500 in the log
+      // that nothing can be correlated with.
+      const projectId = requireProject(context, user);
       const input = displayNameSchema.parse(await readJson(request));
       database.prepare("UPDATE users SET name = ? WHERE id = ?").run(input.name, user.id);
       const updated = withAvatar(publicUser(findUserById(database, user.id)!));
       json(response, 200, { user: updated });
       // Names are joined in at read time, so every card byline, idea, and member face is stale.
-      broadcast(requireProject(context, user), "both", requestClientId(request));
+      broadcast(projectId, "both", requestClientId(request));
       return;
     }
 
     if (method === "PUT" && url.pathname === "/api/account/avatar") {
       const user = requireUser(context);
+      const projectId = requireProject(context, user);
       const data = await readRaw(request, AVATAR_SIZE_LIMIT);
       const imageType = sniffAvatarType(data);
       if (!imageType) throw new HttpError(400, "Profile picture must be a PNG, JPEG, or WebP image");
       avatarStore.save(user.id, data, imageType);
       json(response, 200, { avatarUrl: avatarStore.urlFor(user.id) });
-      broadcast(requireProject(context, user), "work", requestClientId(request));
+      broadcast(projectId, "work", requestClientId(request));
       return;
     }
 
     if (method === "DELETE" && url.pathname === "/api/account/avatar") {
       const user = requireUser(context);
+      const projectId = requireProject(context, user);
       avatarStore.remove(user.id);
       json(response, 200, { ok: true });
-      broadcast(requireProject(context, user), "work", requestClientId(request));
+      broadcast(projectId, "work", requestClientId(request));
       return;
     }
 
