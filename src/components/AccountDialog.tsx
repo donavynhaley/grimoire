@@ -189,7 +189,7 @@ export function AccountDialog({
         >
           {nameBusy ? "saving..." : "save name"}
         </button>
-        <small>This is the name on your cards, ideas, and mentions everywhere in Grimoire.</small>
+        <small>This is the name on your pages, ideas, and mentions everywhere in Grimoire.</small>
         {nameError && (
           <div className="error-banner" role="alert">
             {nameError}

@@ -426,7 +426,7 @@ export type Page = {
  *
  * A message with no `parentId` opens a thread; every other message answers one. There is no
  * third level, because a conversation between two people about one page has never needed a
- * tree and a tree is how a card ends up unreadable.
+ * tree and a tree is how a page ends up unreadable.
  *
  * `agentName` is set when an agent wrote this on its issuer's behalf, exactly as the activity
  * log does it: the person stays the author and the agent is named beside them.
