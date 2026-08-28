@@ -1,5 +1,9 @@
+import type { IncomingMessage, ServerResponse } from "node:http";
 import type { DatabaseSync } from "node:sqlite";
 import type { AgentRateLimiter } from "../agent-tokens";
+import type { LoginRateLimiter } from "../login-rate-limit";
+import type { OidcConfig, OidcIdentity, PendingSignIns } from "../oidc";
+import type { OidcProviders, OidcSource } from "../oidc-settings";
 import type { User } from "../../shared/types";
 import type { Options, RequestContext, WorkspaceScope } from "../app-types";
 import type { PageLabels, RecordAuditInput } from "../audit";
@@ -49,6 +53,33 @@ export type AppContext = {
   runGithubSync: (projectId: string) => Promise<void>;
   /** The per-credential write allowance, so revoking a token also forgets its bucket. */
   writeLimiter: AgentRateLimiter;
+  /**
+   * The sign-in machinery: sessions, the password limiters, and the provider flow. Grouped
+   * because these travel together and nothing outside the auth routes should reach for them.
+   */
+  auth: {
+    /** Derived once at construction; see the placeholder comment there for why. */
+    placeholderPasswordHash: Promise<string>;
+    addressLimiter: LoginRateLimiter;
+    accountLimiter: LoginRateLimiter;
+    trustProxy: boolean;
+    pendingSignIns: PendingSignIns;
+    oidcProviders: OidcProviders;
+    /** The provider as it stands on this request - the settings screen edits it live. */
+    currentOidc: () => { config: OidcConfig | null; source: OidcSource };
+    environmentOidc: OidcConfig | null;
+    setSession: (response: ServerResponse, userId: string) => void;
+    clearSession: (response: ServerResponse) => void;
+    oidcRedirectUri: (request: IncomingMessage, url: URL, config: OidcConfig | null) => string;
+    signInWithIdentity: (
+      identity: OidcIdentity,
+      inviteCode: string | null,
+      config: OidcConfig,
+    ) => Promise<User>;
+    requireOnAProject: (stored: Record<string, string | number | null>) => User;
+    findUsableInvite: (code: string) => Record<string, string | null> | null;
+    signupProjectId: (config: OidcConfig) => string | null;
+  };
 };
 
 export function requireUser(context: RequestContext): User {
