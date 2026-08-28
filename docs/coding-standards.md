@@ -137,8 +137,8 @@ plainly what a crash in the middle leaves behind.
 
 **UI-1.** Nothing pops in. A box that changes size travels to its new
 size via `<Growing>` / `useHeightSwap`; 190ms on `cubic-bezier(0.2, 0.7, 0.2, 1)`;
-all motion is skipped under reduced-motion. `CLAUDE.md` is the authority, including
-its two exemptions (entering dialogs, query-tracking lists).
+all motion is skipped under reduced-motion. `docs/ui-standards.md` is the authority,
+including its two exemptions (entering dialogs, query-tracking lists).
 
 **UI-2.** The server's answer is the truth. After a mutation the client
 reloads canonical state; live updates invalidate and reload rather than merging
