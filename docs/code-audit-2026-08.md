@@ -505,6 +505,28 @@ is for. The pass is per-block judgment: relocate the design essays, trim the
 blended blocks to their one-paragraph why, keep the invariants. Do it file by
 file as Phase 5 touches them, not as one sweep.
 
+## Re-examined during implementation
+
+Four findings did not survive contact with the code, and honesty about that is part
+of the audit:
+
+- **A12's second half** (PageFields' shared draft "silently discards" an edit):
+  the browser fires blur before the next control's click, so the open draft commits
+  before a second editor can open. Guarded by event ordering; no change made.
+- **E's "unwrapped payloads" row** (search, activity, away): the board itself is
+  served the same way. A workspace-shaped response *is* its own envelope; the
+  named-key convention applies to entity responses, and all of those already wrap.
+  The probe's 200-with-error remains real and was fixed.
+- **C4's `.notes-view` "dead styling hook"**: the class has no CSS rule because it
+  is not a styling hook - it is the measurement hook the e2e suite queries to reach
+  the editor's real scroller. Kept, deliberately.
+- **C5's `usePointerDrag(...).dragging`**: read by the hook's own test; it is
+  tested public surface, not dead code. Kept.
+
+One E row was answered with prose instead of surface: chapters do not gain
+`expectedTitle`, because a chapter's name is a settings label edited in place, not
+a document two people hold open - the compare-and-swap exists for documents.
+
 ---
 
 ## The plan
