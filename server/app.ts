@@ -2552,8 +2552,8 @@ export function createGrimoireServer(options: Options) {
   }
 
   /** The refusal password sign-in gives too: an account on no project can see nothing. */
-  function requireOnAProject(stored: Record<string, unknown>): User {
-    const user = publicUser(stored as Record<string, string>);
+  function requireOnAProject(stored: Record<string, string | number | null>): User {
+    const user = publicUser(stored);
     if (!defaultProjectIdForUser(database, user)) {
       throw new HttpError(403, "That account is not on any project yet. Ask the project owner to add you.");
     }

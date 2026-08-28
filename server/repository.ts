@@ -50,7 +50,10 @@ export function publicUser(value: Row): User {
     id: String(value.id),
     name: String(value.name),
     email: String(value.email),
-    role: value.role as User["role"],
+    // Checked rather than cast, because this value is what requireAdmin gates on;
+    // a row that stopped saying 'admin' - however it got that way - must read as
+    // the lesser role, never as whatever the column happens to hold.
+    role: value.role === "admin" ? "admin" : "member",
   };
 }
 
