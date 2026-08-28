@@ -850,8 +850,7 @@ export function createGrimoireServer(options: Options) {
      * their own board has no business deciding how everybody signs in to all of them.
      */
     if (method === "GET" && url.pathname === "/api/auth/oidc/settings") {
-      const user = requireAdmin(context);
-      void user;
+      requireAdmin(context);
       json(response, 200, {
         settings: oidcSettingsView(database, environmentOidc, oidcRedirectUri(request, url, null)),
       });

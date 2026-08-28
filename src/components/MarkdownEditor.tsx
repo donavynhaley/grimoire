@@ -15,7 +15,6 @@ export type MarkdownEditorHandle = {
   insert: (text: string) => void;
   /** Swaps the first occurrence of a token, leaving the caret where it was. */
   replaceFirst: (token: string, replacement: string) => void;
-  value: () => string;
 };
 
 type Props = {
@@ -228,7 +227,6 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, Props>(function M
       if (at === -1) return;
       editor.dispatch({ changes: { from: at, to: at + token.length, insert: replacement } });
     },
-    value: () => view.current?.state.doc.toString() ?? value,
   }));
 
   return <div className={fill ? "markdown-editor fill" : "markdown-editor"} ref={host} />;
