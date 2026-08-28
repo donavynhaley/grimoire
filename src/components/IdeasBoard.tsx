@@ -1,13 +1,17 @@
 import { type FormEvent, Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { Idea, IdeaState, IdeaWorkspace } from "../../shared/types";
 import { ConfirmInline } from "./ConfirmInline";
+import { LiftedGhost } from "./LiftedGhost";
+import { MoveSlot } from "./MoveSlot";
+import { MovingBar } from "./MovingBar";
 import { SaveState } from "./SaveState";
 import { NotesField } from "./NotesField";
 import { plainTextFromMarkdown } from "../lib/markdown-text";
 import { Drawer } from "./Drawer";
+import { type CardHint, useCardBoard } from "../hooks/use-card-board";
 import { useContentEditor } from "../hooks/use-content-editor";
 import { useFlip } from "../hooks/use-flip";
-import { type DragPoint, gapIndexIn, pointWithin, usePointerDrag } from "../hooks/use-pointer-drag";
+import { type DragPoint, gapIndexIn, pointWithin } from "../hooks/use-pointer-drag";
 import { useTypingFocus } from "../hooks/use-typing-focus";
 
 /** Shortlist first, so a point inside it is read as a rank rather than as the layout behind it. */
@@ -45,28 +49,6 @@ export function IdeasBoard({
   const [selectedId, setSelectedId] = useState<string | null>(() =>
     new URLSearchParams(location.search).get("idea"),
   );
-  const [openedUnseen, setOpenedUnseen] = useState<ReadonlySet<string>>(() => new Set());
-  const isUnseen = (id: string) => Boolean(unseenIdeaIds?.has(id)) && !openedUnseen.has(id);
-
-  // Arriving from search opens the idea, even if the garden was already on screen.
-  useEffect(() => {
-    if (openIdea) setSelectedId(openIdea.id);
-  }, [openIdea?.token]);
-
-  // Opening an idea answers its dot for the rest of the visit.
-  useEffect(() => {
-    if (!selectedId) return;
-    setOpenedUnseen((current) => {
-      if (current.has(selectedId)) return current;
-      const next = new Set(current);
-      next.add(selectedId);
-      return next;
-    });
-  }, [selectedId]);
-  const [drag, setDrag] = useState<{ id: string; height: number } | null>(null);
-  const [dropHint, setDropHint] = useState<{ state: IdeaState; index: number } | null>(null);
-  /** An idea picked up by tap or key rather than carried, mirroring the work board. */
-  const [moving, setMoving] = useState<string | null>(null);
   const sectionNodes = useRef(new Map<IdeaState, HTMLElement>());
   const layoutRef = useRef<HTMLDivElement>(null);
   useFlip(layoutRef);
@@ -75,26 +57,31 @@ export function IdeasBoard({
   const parked = ideasIn(workspace, "parked");
   const selected = workspace.ideas.find((idea) => idea.id === selectedId) ?? null;
 
-  // The open idea lives in the URL, mirroring how pages become shareable links.
+  // The open idea lives in the URL, mirroring how pages become shareable links; the write
+  // happens here, in the handler that changes the selection, never in a sync effect.
+  const changeSelected = (id: string | null) => {
+    setSelectedId(id);
+    const params = new URLSearchParams(location.search);
+    if (id && workspace.ideas.some((idea) => idea.id === id)) params.set("idea", id);
+    else params.delete("idea");
+    history.replaceState({}, "", `${location.pathname}${params.size ? `?${params}` : ""}`);
+  };
+
+  // A shared link is reconciled once on arrival: an idea this garden no longer has simply
+  // falls away. Every later write goes through changeSelected, and this must run before
+  // the search-arrival effect below so it cannot undo that effect's write.
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (selected) params.set("idea", selected.id);
     else params.delete("idea");
     history.replaceState({}, "", `${location.pathname}${params.size ? `?${params}` : ""}`);
-  }, [selected?.id]);
-  const liftedId = drag?.id ?? moving;
-  const movingIdea = moving ? (workspace.ideas.find((idea) => idea.id === moving) ?? null) : null;
-  const baseShortlist = liftedId ? shortlist.filter((idea) => idea.id !== liftedId) : shortlist;
-  const hintIndex =
-    drag && dropHint?.state === "shortlist" ? Math.min(dropHint.index, baseShortlist.length) : null;
-  const placeholder = drag ? (
-    <div
-      aria-hidden="true"
-      className="drop-placeholder"
-      data-flip-id="drop-placeholder"
-      style={{ height: drag.height }}
-    />
-  ) : null;
+    // Runs only for the URL the garden arrived with; the state it reads is the mount seed.
+  }, []);
+
+  // Arriving from search opens the idea, even if the garden was already on screen.
+  useEffect(() => {
+    if (openIdea) changeSelected(openIdea.id);
+  }, [openIdea?.token]);
 
   const capture = async (event: FormEvent) => {
     event.preventDefault();
@@ -104,23 +91,18 @@ export function IdeasBoard({
     await onCreate({ title: value });
   };
 
-  const finishDrag = () => {
-    setDrag(null);
-    setDropHint(null);
-  };
-
   /**
    * Which section a point is over, and for the shortlist which gap within it.
    *
    * Only the shortlist is ordered by hand, so it is the only one that has to answer with a
    * position; the inbox and the parked list simply take what they are given.
    */
-  const hintAt = (point: DragPoint): { state: IdeaState; index: number } | null => {
+  const hintAt = (point: DragPoint): CardHint<IdeaState> | null => {
     for (const state of IDEA_STATES) {
       const node = sectionNodes.current.get(state);
       if (!node || !pointWithin(node.getBoundingClientRect(), point)) continue;
-      if (state !== "shortlist") return { state, index: 0 };
-      return { state, index: gapIndexIn(node, "article.shortlist-card:not(.drag-hidden)", point.y) };
+      if (state !== "shortlist") return { slot: state, index: 0 };
+      return { slot: state, index: gapIndexIn(node, "article.shortlist-card:not(.drag-hidden)", point.y) };
     }
     return null;
   };
@@ -139,72 +121,51 @@ export function IdeasBoard({
     await onUpdate(id, { state: "shortlist", position });
   };
 
-  const pointerDrag = usePointerDrag({
-    onLift: (id, height) => {
-      const idea = workspace.ideas.find((candidate) => candidate.id === id);
-      setDrag({ id, height });
-      setDropHint(
-        idea?.state === "shortlist"
-          ? {
-              state: "shortlist",
-              index: Math.max(
-                0,
-                shortlist.findIndex((candidate) => candidate.id === id),
-              ),
-            }
-          : null,
-      );
-      setMoving(null);
-    },
-    onMove: (point) => {
-      const hint = hintAt(point);
-      setDropHint((current) => (sameHint(current, hint) ? current : hint));
-    },
-    onDrop: async (point) => {
-      const id = drag?.id;
-      const hint = hintAt(point) ?? dropHint;
-      finishDrag();
-      if (!id || !hint) return;
-      await placeIdea(id, hint.state, hint.index);
-    },
-    onCancel: finishDrag,
+  const {
+    drag,
+    dropHint,
+    moving,
+    movingItem: movingIdea,
+    liftedId,
+    liftedItem: liftedIdea,
+    openedUnseen,
+    pointerDrag,
+    placeMoving,
+    toggleMoving,
+    cancelMoving,
+  } = useCardBoard<IdeaState, Idea>({
+    items: workspace.ideas,
+    selectedId,
+    hintAt,
+    liftHint: (idea) =>
+      idea.state === "shortlist"
+        ? {
+            slot: "shortlist",
+            index: Math.max(
+              0,
+              shortlist.findIndex((candidate) => candidate.id === idea.id),
+            ),
+          }
+        : null,
+    place: (id, hint) => placeIdea(id, hint.slot, hint.index),
   });
 
-  const placeMoving = async (state: IdeaState, index: number) => {
-    const id = moving;
-    setMoving(null);
-    if (!id) return;
-    await placeIdea(id, state, index);
-  };
-
-  const liftedIdea = pointerDrag.lift
-    ? (workspace.ideas.find((idea) => idea.id === pointerDrag.lift?.id) ?? null)
-    : null;
-
-  // An idea put down by tap is put down by Escape too.
-  useEffect(() => {
-    if (!moving) return;
-    const cancelOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented) return;
-      event.preventDefault();
-      setMoving(null);
-    };
-    window.addEventListener("keydown", cancelOnEscape);
-    return () => window.removeEventListener("keydown", cancelOnEscape);
-  }, [moving]);
+  const isUnseen = (id: string) => Boolean(unseenIdeaIds?.has(id)) && !openedUnseen.has(id);
+  const baseShortlist = liftedId ? shortlist.filter((idea) => idea.id !== liftedId) : shortlist;
+  const hintIndex =
+    drag && dropHint?.slot === "shortlist" ? Math.min(dropHint.index, baseShortlist.length) : null;
+  const placeholder = drag ? (
+    <div
+      aria-hidden="true"
+      className="drop-placeholder"
+      data-flip-id="drop-placeholder"
+      style={{ height: drag.height }}
+    />
+  ) : null;
 
   return (
     <main className="ideas-main">
-      {movingIdea && (
-        <div className="moving-bar" role="status">
-          <span>
-            Moving <strong>{movingIdea.title}</strong> — choose where it goes
-          </span>
-          <button className="text-button" onClick={() => setMoving(null)} type="button">
-            cancel <kbd aria-hidden="true">esc</kbd>
-          </button>
-        </div>
-      )}
+      {movingIdea && <MovingBar onCancel={cancelMoving} title={movingIdea.title} />}
       <div className="ideas-intro">
         <div>
           <h2>Idea garden</h2>
@@ -252,12 +213,11 @@ export function IdeasBoard({
           </header>
           <div className="shortlist-list">
             {movingIdea && (
-              <IdeaMoveSlot
+              <MoveSlot
                 index={0}
                 onPlace={placeMoving}
-                ranked
-                state="shortlist"
-                stateName={stateNames.shortlist}
+                slot="shortlist"
+                slotName={stateNames.shortlist}
                 title={movingIdea.title}
               />
             )}
@@ -277,7 +237,7 @@ export function IdeasBoard({
                     <IdeaOpenButton
                       guardClick={pointerDrag.consumeClick}
                       idea={idea}
-                      onOpen={() => setSelectedId(idea.id)}
+                      onOpen={() => changeSelected(idea.id)}
                       unseen={isUnseen(idea.id)}
                     />
                     <div className="idea-actions">
@@ -287,7 +247,7 @@ export function IdeasBoard({
                         className="drag-grip"
                         onClick={() => {
                           if (pointerDrag.consumeClick()) return;
-                          setMoving((current) => (current === idea.id ? null : idea.id));
+                          toggleMoving(idea.id);
                         }}
                         type="button"
                       >
@@ -295,7 +255,7 @@ export function IdeasBoard({
                       </button>
                       <button
                         aria-label={`Make work page from ${idea.title}`}
-                        onClick={() => setSelectedId(idea.id)}
+                        onClick={() => changeSelected(idea.id)}
                         type="button"
                       >
                         make page
@@ -310,12 +270,11 @@ export function IdeasBoard({
                     </div>
                   </article>
                   {movingIdea && !hidden && (
-                    <IdeaMoveSlot
+                    <MoveSlot
                       index={slot + 1}
                       onPlace={placeMoving}
-                      ranked
-                      state="shortlist"
-                      stateName={stateNames.shortlist}
+                      slot="shortlist"
+                      slotName={stateNames.shortlist}
                       title={movingIdea.title}
                     />
                   )}
@@ -331,7 +290,7 @@ export function IdeasBoard({
 
         <section
           aria-label="Idea inbox"
-          className={`idea-section inbox-section ${drag && dropHint?.state === "inbox" ? "drop-ready" : ""} ${moving ? "moving-open" : ""}`}
+          className={`idea-section inbox-section ${drag && dropHint?.slot === "inbox" ? "drop-ready" : ""} ${moving ? "moving-open" : ""}`}
           ref={(node) => {
             if (node) sectionNodes.current.set("inbox", node);
             else sectionNodes.current.delete("inbox");
@@ -349,12 +308,12 @@ export function IdeasBoard({
           </header>
           <div className="inbox-list">
             {movingIdea && (
-              <IdeaMoveSlot
+              <MoveSlot
                 index={0}
                 onPlace={placeMoving}
                 ranked={false}
-                state="inbox"
-                stateName={stateNames.inbox}
+                slot="inbox"
+                slotName={stateNames.inbox}
                 title={movingIdea.title}
               />
             )}
@@ -368,7 +327,7 @@ export function IdeasBoard({
                 <IdeaOpenButton
                   guardClick={pointerDrag.consumeClick}
                   idea={idea}
-                  onOpen={() => setSelectedId(idea.id)}
+                  onOpen={() => changeSelected(idea.id)}
                   unseen={isUnseen(idea.id)}
                 />
                 <div className="idea-actions">
@@ -378,7 +337,7 @@ export function IdeasBoard({
                     className="drag-grip"
                     onClick={() => {
                       if (pointerDrag.consumeClick()) return;
-                      setMoving((current) => (current === idea.id ? null : idea.id));
+                      toggleMoving(idea.id);
                     }}
                     type="button"
                   >
@@ -409,7 +368,7 @@ export function IdeasBoard({
 
         <section
           aria-label="Parked ideas"
-          className={`idea-section parked-section ${drag && dropHint?.state === "parked" ? "drop-ready" : ""} ${moving ? "moving-open" : ""}`}
+          className={`idea-section parked-section ${drag && dropHint?.slot === "parked" ? "drop-ready" : ""} ${moving ? "moving-open" : ""}`}
           ref={(node) => {
             if (node) sectionNodes.current.set("parked", node);
             else sectionNodes.current.delete("parked");
@@ -427,12 +386,12 @@ export function IdeasBoard({
           </header>
           <div className="parked-list">
             {movingIdea && (
-              <IdeaMoveSlot
+              <MoveSlot
                 index={0}
                 onPlace={placeMoving}
                 ranked={false}
-                state="parked"
-                stateName={stateNames.parked}
+                slot="parked"
+                slotName={stateNames.parked}
                 title={movingIdea.title}
               />
             )}
@@ -446,7 +405,7 @@ export function IdeasBoard({
                 <IdeaOpenButton
                   guardClick={pointerDrag.consumeClick}
                   idea={idea}
-                  onOpen={() => setSelectedId(idea.id)}
+                  onOpen={() => changeSelected(idea.id)}
                   unseen={isUnseen(idea.id)}
                 />
                 <div className="idea-actions">
@@ -456,7 +415,7 @@ export function IdeasBoard({
                     className="drag-grip"
                     onClick={() => {
                       if (pointerDrag.consumeClick()) return;
-                      setMoving((current) => (current === idea.id ? null : idea.id));
+                      toggleMoving(idea.id);
                     }}
                     type="button"
                   >
@@ -487,79 +446,27 @@ export function IdeasBoard({
       </div>
 
       {pointerDrag.lift && liftedIdea && (
-        <div
-          aria-hidden="true"
-          className="idea-card lifted"
-          style={{
-            left: pointerDrag.lift.left,
-            top: pointerDrag.lift.top,
-            width: pointerDrag.lift.width,
-            height: pointerDrag.lift.height,
-            transform: `translate(${pointerDrag.lift.dx}px, ${pointerDrag.lift.dy}px)`,
-          }}
-        >
-          <span className="idea-open">
-            <strong>{liftedIdea.title}</strong>
-          </span>
-        </div>
+        <LiftedGhost
+          cardClass="idea-card"
+          labelClass="idea-open"
+          lift={pointerDrag.lift}
+          title={liftedIdea.title}
+        />
       )}
 
       {selected && (
         <IdeaDialog
           idea={selected}
           shortlistPosition={shortlist.length}
-          onClose={() => setSelectedId(null)}
+          onClose={() => changeSelected(null)}
           onPromote={async () => {
             await onPromote(selected.id);
-            setSelectedId(null);
+            changeSelected(null);
           }}
           onUpdate={(input) => onUpdate(selected.id, input)}
         />
       )}
     </main>
-  );
-}
-
-function sameHint(
-  left: { state: IdeaState; index: number } | null,
-  right: { state: IdeaState; index: number } | null,
-): boolean {
-  if (left === null || right === null) return left === right;
-  return left.state === right.state && left.index === right.index;
-}
-
-/**
- * One place a held idea can be put down, matching the work board's slots.
- *
- * The shortlist is ranked, so its slots name a position; the other two sections hold ideas
- * without ordering them, so theirs name only the section.
- */
-function IdeaMoveSlot({
-  index,
-  onPlace,
-  ranked,
-  state,
-  stateName,
-  title,
-}: {
-  index: number;
-  onPlace: (state: IdeaState, index: number) => Promise<void>;
-  ranked: boolean;
-  state: IdeaState;
-  stateName: string;
-  title: string;
-}) {
-  return (
-    <button
-      aria-label={
-        ranked ? `Place ${title} in ${stateName}, position ${index + 1}` : `Move ${title} to ${stateName}`
-      }
-      className="move-slot"
-      onClick={() => void onPlace(state, index)}
-      type="button"
-    >
-      <span aria-hidden="true">place here</span>
-    </button>
   );
 }
 
