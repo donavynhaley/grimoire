@@ -62,7 +62,6 @@ import {
   updateField,
   userCanAccessProject,
   userOwnsProject,
-  userIsProjectMember,
   userCount,
   projectGithubConfig,
   setProjectGithub,

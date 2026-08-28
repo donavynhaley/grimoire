@@ -16,20 +16,6 @@ import type { StoredPage } from "./markdown-pages";
  * is more than one chapter to compare against, because "average of one" is not an average.
  */
 
-/** How a chapter's delivered figures compare with the ones before it. */
-function comparison(previous: StoredChapter[], key: "deliveredPages" | "deliveredEstimate"): {
-  average: number;
-  delta: number;
-  percent: number | null;
-} | null {
-  const values = previous
-    .map((chapter) => chapter[key])
-    .filter((value): value is number => value !== null);
-  if (values.length === 0) return null;
-  const average = values.reduce((sum, value) => sum + value, 0) / values.length;
-  return { average, delta: 0, percent: null };
-}
-
 export function buildRecap(
   chapter: StoredChapter,
   previousChapters: StoredChapter[],
@@ -66,7 +52,7 @@ export function buildRecap(
   const unassigned = mine.filter((page) => page.assignee === null && page.status === "done").length;
 
   // The whole project, not just this chapter, so a recap can say where the work stands.
-  const everything = pages.filter((page) => page.status !== "done" || true);
+  const everything = pages;
   const projectDone = pages.filter((page) => page.status === "done").length;
   const projectBacklog = pages.filter((page) => page.status === "backlog").length;
 

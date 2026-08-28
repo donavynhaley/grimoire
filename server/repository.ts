@@ -183,24 +183,6 @@ export function userOwnsProject(database: DatabaseSync, user: User, projectId: s
   );
 }
 
-/**
- * Membership alone, with no opinion about whether the project is archived.
- *
- * Restoring is the one thing worth doing to a project that is already archived, and the
- * check above deliberately refuses those. This answers the narrower question that route
- * actually has: was this ever their project?
- */
-export function userIsProjectMember(database: DatabaseSync, user: User, projectId: string): boolean {
-  return Boolean(
-    row(
-      database,
-      "SELECT 1 AS ok FROM project_members WHERE project_id = ? AND user_id = ?",
-      projectId,
-      user.id,
-    ),
-  );
-}
-
 /** The projects this person is on - every one of them, for the admin. The picker offers these. */
 export function listProjectsForUser(database: DatabaseSync, user: User): ProjectSummary[] {
   const values =
