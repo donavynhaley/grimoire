@@ -37,7 +37,22 @@ export function AgentAccessSection({ run }: Props) {
   };
 
   useEffect(() => {
-    void load();
+    // The guard every other loader in the settings dialog carries: a load racing
+    // the dialog closing must not write state into an unmounted section.
+    let alive = true;
+    void (async () => {
+      try {
+        const loaded = await agentTokens();
+        if (!alive) return;
+        setTokens(loaded.tokens);
+        setLoadFailed(false);
+      } catch {
+        if (alive) setLoadFailed(true);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const act = async (change: () => Promise<void>, failure: string) => {
