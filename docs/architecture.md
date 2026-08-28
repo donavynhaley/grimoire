@@ -409,6 +409,26 @@ That set is a deliberate boundary: holding the link is enough to read it, so the
 Ids are unique across projects, so a link carries only the id and the lookup walks the live projects to place it.
 An archived page and a promoted idea still describe themselves, and a link naming nothing that can be read falls back to the generic Grimoire preview rather than failing the page.
 
+## GitHub links
+
+A page can hold a link to a pull request, or to a branch a pull request will eventually be
+opened from. Grimoire polls the GitHub API for what those links point at and lets the board
+follow the code: a page whose pull request is open moves into Review, and a page whose pull
+request merged moves into Done.
+
+Polling, not webhooks, deliberately. A webhook needs a publicly reachable endpoint, a
+secret, and a configuration step inside GitHub for every repository - three things a
+self-hosted tool cannot assume. A token pasted into project settings is the whole setup,
+works from behind any tunnel, and for a small team's linked pages the poll traffic is noise.
+The interval is generous because nothing here is urgent: the merge already happened; the
+board is only catching up with the truth.
+
+The automation only ever moves a page forward, and only along the two edges it owns (into
+Review while a pull request is open, into Done once one merges). It never moves a page
+backwards, so a hand that placed a page somewhere always wins over the robot that would
+tidy it. Auto-moves are audited under the actor "GitHub" - a name, not a member - so the
+log says plainly that the robot did it.
+
 ## Reversible actions
 
 Page archive and idea promotion are server-backed reversible operations.

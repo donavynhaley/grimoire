@@ -11,24 +11,10 @@ import {
 } from "./repository";
 
 /**
- * How a page keeps up with the work in GitHub.
- *
- * A page can hold a link to a pull request, or to a branch a pull request will eventually be
- * opened from. Grimoire polls the GitHub API for what those links point at and lets the board
- * follow the code: a page whose pull request is open moves into Review, and a page whose pull
- * request merged moves into Done.
- *
- * Polling, not webhooks, deliberately. A webhook needs a publicly reachable endpoint, a
- * secret, and a configuration step inside GitHub for every repository - three things a
- * self-hosted tool cannot assume. A token pasted into project settings is the whole setup,
- * works from behind any tunnel, and for a small team's linked pages the poll traffic is
- * noise. The interval is generous because nothing here is urgent: the merge already
- * happened; the board is only catching up with the truth.
- *
- * The automation only ever moves a page forward, and only along the two edges it owns
- * (into Review while a pull request is open, into Done once one merges). It never moves a
- * page backwards, so a hand that placed a page somewhere always wins over the robot that
- * would tidy it.
+ * How a page keeps up with the work in GitHub: the board follows the code, forward only,
+ * by polling. The reasoning - why polling beats webhooks for a self-hosted tool, and why
+ * the automation never moves a page backwards - is design record, and lives in
+ * docs/architecture.md under "GitHub links".
  */
 
 /** What a page's link resolves to, said the way the rest of the product says it. */
