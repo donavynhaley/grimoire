@@ -46,7 +46,6 @@ import {
   findPage,
   findUserByEmail,
   findUserById,
-  getBoard,
   listPages,
   listProjectsForUser,
   advanceSeenCursor,
@@ -130,6 +129,9 @@ import { createIdea, findIdea, getIdeas, promoteIdea, undoPromotion, updateIdea 
 import { MarkdownIdeaStore } from "./markdown-ideas";
 import type { EventClient, Options, RequestContext, WorkspaceScope } from "./app-types";
 import { agentMayReach } from "./agent-policy";
+import { boardRoutes } from "./routes/board";
+import { requireAdmin, requireUser, type AppContext } from "./routes/context";
+import { matchRoute, type Route } from "./routes/route";
 import {
   HttpError,
   appendCookie,
@@ -176,10 +178,8 @@ import {
   projectSchema,
   projectUpdateSchema,
   registerSchema,
-  searchSchema,
   seenSchema,
 } from "./schemas";
-import { searchProject } from "./search";
 import { pagePreview, ideaPreview, type LinkPreview } from "./link-preview";
 import {
   CHAPTER_STATE_LABELS,
@@ -257,6 +257,33 @@ export function createGrimoireServer(options: Options) {
    * turning single sign-on on is not a restart of the server everybody else is working in.
    */
   const currentOidc = () => resolveOidc(database, environmentOidc);
+
+  /**
+   * The surface the route modules work through. Function declarations hoist, so the
+   * closures it names are all live by the time the first request arrives.
+   */
+  const appContext: AppContext = {
+    options,
+    database,
+    pageStore,
+    ideaStore,
+    chapterStore,
+    avatarStore,
+    imageStore,
+    withAvatar,
+    audit,
+    auditAs,
+    labelsForProject,
+    requireChaptersEnabled,
+    requireProjectMembership,
+    requireProjectOwner,
+    requireProject,
+    requireAgentWrite,
+    broadcast,
+    broadcastPresence,
+    disconnectUserEvents,
+  };
+  const routes: Route[] = [...boardRoutes(appContext)];
 
   /**
    * The board following the code: linked pages are brought up to date with GitHub on an
@@ -448,6 +475,14 @@ export function createGrimoireServer(options: Options) {
       // owner reads to decide a credential is safe to revoke, and a read-only agent that
       // works all day but lists as never used would invite exactly the wrong revocation.
       touchAgentToken(database, context.agent.tokenId);
+    }
+
+    // Routes live in the table as they are carved out of the chain below; the chain
+    // answers for whatever has not moved yet. When the last block moves, the chain goes.
+    const routed = matchRoute(routes, method, url.pathname);
+    if (routed) {
+      await routed.route.handler(context, routed.match);
+      return;
     }
 
     if (method === "GET" && url.pathname === "/api/health") {
@@ -1710,36 +1745,6 @@ export function createGrimoireServer(options: Options) {
       return;
     }
 
-    if (method === "GET" && url.pathname === "/api/board") {
-      const user = requireUser(context);
-      const board = getBoard(database, pageStore, chapterStore, user, requireProject(context, user));
-      if (!board) throw new HttpError(404, "Board not found");
-      json(response, 200, {
-        ...board,
-        // The project list exists for the switcher, and a token cannot switch. Sending the
-        // issuer's other projects to a credential pinned to one of them would name things
-        // the credential has no business knowing exist.
-        projects: context.agent
-          ? board.projects.filter((candidate) => candidate.id === board.project.id)
-          : board.projects,
-        currentUser: withAvatar(board.currentUser),
-        members: board.members.map(withAvatar),
-      });
-      return;
-    }
-
-    if (method === "GET" && url.pathname === "/api/search") {
-      const user = requireUser(context);
-      const projectId = requireProject(context, user);
-      const input = searchSchema.parse(Object.fromEntries(url.searchParams));
-      json(
-        response,
-        200,
-        searchProject(database, pageStore, chapterStore, ideaStore, projectId, input.q, input.limit),
-      );
-      return;
-    }
-
     if (method === "POST" && url.pathname === "/api/pages") {
       const user = requireUser(context);
       const projectId = requireProject(context, user);
@@ -2664,22 +2669,4 @@ export function createGrimoireServer(options: Options) {
       databaseClosed = true;
     },
   };
-}
-
-function requireUser(context: RequestContext): User {
-  if (!context.user) throw new HttpError(401, "Authentication required");
-  return context.user;
-}
-
-/**
- * The one account that answers for the installation rather than for a project.
- *
- * Whoever set Grimoire up. How everybody signs in is theirs to decide, and deliberately not a
- * project owner's: an owner reshapes their own board, and a provider reaches every board.
- */
-function requireAdmin(context: RequestContext): User {
-  const user = requireUser(context);
-  if (user.role !== "admin")
-    throw new HttpError(403, "Only the Grimoire admin can change how people sign in");
-  return user;
 }
