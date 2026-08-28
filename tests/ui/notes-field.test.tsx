@@ -104,7 +104,7 @@ describe("NotesField live preview", () => {
     expect(table).not.toBeNull();
     const headers = table?.querySelectorAll("th:not(.cm-lp-table-grow)") ?? [];
     expect(headers).toHaveLength(2);
-    expect(headers[0].textContent).toBe("Part");
+    expect(headers[0]!.textContent).toBe("Part");
     expect(table?.querySelector("td:not(.cm-lp-table-grow)")?.textContent).toBe("Door");
     expect((headers[1] as HTMLElement).style.textAlign).toBe("right");
   });

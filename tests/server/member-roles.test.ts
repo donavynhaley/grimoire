@@ -88,7 +88,7 @@ describe("member roles", () => {
     const server = await startTestServer();
     await bootstrap(server);
     await login(server, ownerAccount);
-    const ownerId = (await members(server))[0].id;
+    const ownerId = (await members(server))[0]!.id;
     await registerMember(server);
     const maren = (await server.request<{ user: { id: string } }>("/api/session")).body.user;
 
@@ -104,9 +104,9 @@ describe("member roles", () => {
     await bootstrap(server);
     const owner = (await members(server))[0];
 
-    const attempt = await setRole(server, owner.id, "member");
+    const attempt = await setRole(server, owner!.id, "member");
     expect(attempt.response.status).toBe(409);
-    expect((await members(server))[0].projectRole).toBe("owner");
+    expect((await members(server))[0]!.projectRole).toBe("owner");
   });
 
   it("answers 404 for someone who is not a member of this project", async () => {
@@ -228,7 +228,7 @@ describe("member roles", () => {
     });
     const owner = (await members(server))[0];
 
-    const attempt = await fetch(`${server.baseUrl}/api/members/${owner.id}`, {
+    const attempt = await fetch(`${server.baseUrl}/api/members/${owner!.id}`, {
       method: "PATCH",
       headers: { authorization: `Bearer ${issued.body.secret}`, "content-type": "application/json" },
       body: JSON.stringify({ role: "member" }),

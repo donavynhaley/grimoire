@@ -80,7 +80,7 @@ function installEventSource(): { push: () => void } {
 describe("editing a page someone else is also changing", () => {
   it("adopts a teammate's notes into a field the reader has not touched", async () => {
     const initial = boardFixture();
-    const page = initial.pages[0];
+    const page = initial.pages[0]!;
     const theirs = "Maren: the door should remember both wizards, not just one.";
     const updated = { ...initial, pages: [{ ...page, description: theirs }, initial.pages[1]] };
     const live = installEventSource();
@@ -100,7 +100,7 @@ describe("editing a page someone else is also changing", () => {
 
   it("refuses to overwrite notes that changed underneath, and offers the choice", async () => {
     const initial = boardFixture();
-    const page = initial.pages[0];
+    const page = initial.pages[0]!;
     const theirs = "Maren: three slots, not four.";
     const fetchMock = authenticatedFetch(initial)
       .mockImplementationOnce(() =>
@@ -129,7 +129,7 @@ describe("editing a page someone else is also changing", () => {
 
   it("takes the teammate's version when the reader chooses it", async () => {
     const initial = boardFixture();
-    const page = initial.pages[0];
+    const page = initial.pages[0]!;
     const theirs = "Maren: three slots, not four.";
     const fetchMock = authenticatedFetch(initial)
       .mockImplementationOnce(() =>
@@ -161,7 +161,7 @@ describe("editing a page someone else is also changing", () => {
 
   it("writes the reader's version only when they say to keep it", async () => {
     const initial = boardFixture();
-    const page = initial.pages[0];
+    const page = initial.pages[0]!;
     const theirs = "Maren: three slots, not four.";
     const mine = "Four slots feels better.";
     const fetchMock = authenticatedFetch(initial)
@@ -199,7 +199,7 @@ describe("editing a page someone else is also changing", () => {
 
   it("does not collide with its own in-flight save when the page is closed", async () => {
     const initial = boardFixture();
-    const page = initial.pages[0];
+    const page = initial.pages[0]!;
     const note = "One pass over the door text.";
     let releaseSave: (() => void) | null = null;
     const fetchMock = authenticatedFetch(initial)
@@ -238,7 +238,7 @@ describe("editing a page someone else is also changing", () => {
     stubFetch(fetchMock);
 
     render(<App />);
-    await openPage(initial.pages[0]);
+    await openPage(initial.pages[0]!);
 
     await userEvent.keyboard("{Escape}");
 

@@ -201,7 +201,7 @@ describe("agent access", () => {
             sequence: 2,
             id: "away-1",
             // A teammate's agent, so the line is not excluded as the reader's own action.
-            actorId: board.members[1].id,
+            actorId: board.members[1]!.id,
             actorName: "Maren",
             agentName: "Night gardener",
             entityType: "page",

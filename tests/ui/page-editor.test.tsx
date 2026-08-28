@@ -50,7 +50,7 @@ describe("the page editor's two halves", () => {
     const board = boardFixture();
     mountWith(board);
 
-    await user.click(await screen.findByText(board.pages[1].title));
+    await user.click(await screen.findByText(board.pages[1]!.title));
     const split = document.querySelector(".page-editor-split");
     // The strip is the one that chooses down here; the second column has a switch of its own
     // for what it holds, and that one is hidden at these widths.
@@ -74,7 +74,7 @@ describe("the page editor's two halves", () => {
     const board = boardFixture();
     mountWith(board);
 
-    await user.click(await screen.findByText(board.pages[1].title));
+    await user.click(await screen.findByText(board.pages[1]!.title));
     const panel = screen.getByRole("dialog", { name: "Edit page" });
 
     // Whichever half is showing, these are still the panel's own furniture.

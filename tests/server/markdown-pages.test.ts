@@ -71,7 +71,7 @@ describe("MarkdownPageStore", () => {
     const path = join(directory, "wizard-simulator", "pages", `${completed.id}.md`);
     writeFileSync(path, readFileSync(path, "utf8").replace("completed_at: 2026-08-03T13:00:00.000Z\n", ""));
 
-    expect(store.list("wizard-simulator")[0].completedAt).toBe("2026-08-03T13:00:00.000Z");
+    expect(store.list("wizard-simulator")[0]!.completedAt).toBe("2026-08-03T13:00:00.000Z");
   });
 
   it("reloads external edits and moves archived pages out of the active directory", () => {
@@ -85,9 +85,9 @@ describe("MarkdownPageStore", () => {
     );
 
     const edited = store.list("wizard-simulator")[0];
-    expect(edited.title).toBe("Document potion reactions");
+    expect(edited!.title).toBe("Document potion reactions");
     store.archive("wizard-simulator", {
-      ...edited,
+      ...edited!,
       updatedAt: "2026-08-03T13:00:00.000Z",
       archivedAt: "2026-08-03T13:00:00.000Z",
     });

@@ -34,7 +34,7 @@ function fakeGithub(answers: Record<string, unknown>) {
     }
     const head = path.match(/^\/repos\/([^/]+\/[^/]+)\/pulls\?head=([^&]+)&/);
     if (head) {
-      const branch = decodeURIComponent(head[2]).split(":")[1];
+      const branch = decodeURIComponent(head[2]!).split(":")[1];
       const answer = answers[`${head[1]}@${branch}`];
       return { status: 200, body: answer ? [answer] : [] };
     }

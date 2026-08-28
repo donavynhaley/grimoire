@@ -24,7 +24,7 @@ describe("profile pictures", () => {
 
     const board = (await server.request<BoardWorkspace>("/api/board")).body;
     expect(board.currentUser.avatarUrl).toBe(uploaded.body.avatarUrl);
-    expect(board.members[0].avatarUrl).toBe(uploaded.body.avatarUrl);
+    expect(board.members[0]!.avatarUrl).toBe(uploaded.body.avatarUrl);
 
     const image = await server.fetchRaw(uploaded.body.avatarUrl);
     expect(image.status).toBe(200);

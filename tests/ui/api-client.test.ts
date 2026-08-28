@@ -78,7 +78,7 @@ describe("the api client", () => {
     respond(JSON.stringify({}), { status: 200 });
     setActiveProjectId("project-7");
     await request("/api/board");
-    const call = vi.mocked(fetch).mock.calls[0];
+    const call = vi.mocked(fetch).mock.calls[0]!;
     const headers = new Headers((call[1] as RequestInit).headers);
     expect(headers.get("x-grimoire-project")).toBe("project-7");
   });

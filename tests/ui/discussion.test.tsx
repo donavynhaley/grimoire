@@ -91,7 +91,7 @@ function section() {
  */
 async function openPage(board: BoardWorkspace, { discussion = true } = {}) {
   const user = userEvent.setup();
-  await user.click(await screen.findByText(board.pages[1].title));
+  await user.click(await screen.findByText(board.pages[1]!.title));
   await screen.findByRole("dialog", { name: "Edit page" });
   if (discussion) await user.click(within(aside()).getByRole("button", { name: /Discussion/ }));
   return user;
@@ -114,8 +114,8 @@ describe("the discussion on a page", () => {
 
   it("opens on the properties, not on the conversation", async () => {
     const board = boardFixture();
-    board.pages[1].openThreads = 4;
-    board.pages[1].unseenMessages = 4;
+    board.pages[1]!.openThreads = 4;
+    board.pages[1]!.unseenMessages = 4;
     mountWith([thread({ authorId: THEM, authorName: "Maren", body: "Whose clock?" })], board);
     await openPage(board, { discussion: false });
 
@@ -155,9 +155,9 @@ describe("the discussion on a page", () => {
 
   it("counts what has not been read, and says nothing when there is nothing", async () => {
     const board = boardFixture();
-    board.pages[1].unseenMessages = 3;
+    board.pages[1]!.unseenMessages = 3;
     // Resolved-ness is a different question, and not the one this number answers.
-    board.pages[1].openThreads = 0;
+    board.pages[1]!.openThreads = 0;
     mountWith([], board);
     await openPage(board, { discussion: false });
 
@@ -175,7 +175,7 @@ describe("the discussion on a page", () => {
 
   it("marks the conversation read when it is turned to, and not before", async () => {
     const board = boardFixture();
-    board.pages[1].unseenMessages = 2;
+    board.pages[1]!.unseenMessages = 2;
     const calls = mountWith([thread({ authorId: THEM, authorName: "Maren", body: "Whose clock?" })], board);
     const user = await openPage(board, { discussion: false });
 
@@ -185,12 +185,12 @@ describe("the discussion on a page", () => {
     await user.click(within(aside()).getByRole("button", { name: /Discussion/ }));
     const seen = calls.filter((call) => call.url.includes("/discussion/seen"));
     expect(seen).toHaveLength(1);
-    expect(seen[0].method).toBe("POST");
+    expect(seen[0]!.method).toBe("POST");
   });
 
   it("says the word and the count in exactly one place", async () => {
     const board = boardFixture();
-    board.pages[1].unseenMessages = 2;
+    board.pages[1]!.unseenMessages = 2;
     mountWith([
       thread({ authorId: THEM, authorName: "Maren", body: "One?" }),
       thread({ authorId: THEM, authorName: "Maren", body: "Two?" }),
@@ -388,8 +388,8 @@ describe("the discussion on a page", () => {
     const marks = [...document.querySelectorAll(".mention")];
     expect(marks.map((mark) => mark.textContent)).toEqual(["@Donavyn", "@Maren"]);
     // Yours is filled; somebody else's is only there so the sentence reads as addressed.
-    expect(marks[0].className).toContain("you");
-    expect(marks[1].className).not.toContain("you");
+    expect(marks[0]!.className).toContain("you");
+    expect(marks[1]!.className).not.toContain("you");
   });
 
   it("leaves a name nobody resolved as plain text", async () => {
@@ -496,7 +496,7 @@ describe("the discussion on a page", () => {
 
   it("does not mark anything read while the conversation is still arriving", async () => {
     const board = boardFixture();
-    board.pages[1].unseenMessages = 2;
+    board.pages[1]!.unseenMessages = 2;
     const calls: Array<{ url: string; method: string }> = [];
     // Assigned synchronously by the executor, but the compiler cannot see that, so it starts
     // as a callable no-op rather than null.
@@ -520,7 +520,7 @@ describe("the discussion on a page", () => {
     });
     render(<App />);
     const user = userEvent.setup();
-    await user.click(await screen.findByText(board.pages[1].title));
+    await user.click(await screen.findByText(board.pages[1]!.title));
     await screen.findByRole("dialog", { name: "Edit page" });
     await user.click(within(aside()).getByRole("button", { name: /Discussion/ }));
 
@@ -531,7 +531,7 @@ describe("the discussion on a page", () => {
 
   it("says a conversation could not be loaded rather than drawing an empty one", async () => {
     const board = boardFixture();
-    board.pages[1].unseenMessages = 3;
+    board.pages[1]!.unseenMessages = 3;
     vi.stubGlobal("fetch", (input: RequestInfo | URL, init: RequestInit = {}) => {
       const url = requestUrl(input);
       if ((init.method ?? "GET") !== "GET") return response({ ok: true });
@@ -544,7 +544,7 @@ describe("the discussion on a page", () => {
     });
     render(<App />);
     const user = userEvent.setup();
-    await user.click(await screen.findByText(board.pages[1].title));
+    await user.click(await screen.findByText(board.pages[1]!.title));
     await screen.findByRole("dialog", { name: "Edit page" });
     await user.click(within(aside()).getByRole("button", { name: /Discussion/ }));
 
@@ -566,13 +566,13 @@ describe("the discussion on a page", () => {
     expect(options.length).toBeGreaterThan(0);
     expect(field).toHaveAttribute("aria-expanded", "true");
     expect(field).toHaveAttribute("aria-controls", listbox.id);
-    expect(field).toHaveAttribute("aria-activedescendant", options[0].id);
+    expect(field).toHaveAttribute("aria-activedescendant", options[0]!.id);
   });
 
   it("says on the switch when something unread named you", async () => {
     const board = boardFixture();
-    board.pages[1].unseenMessages = 3;
-    board.pages[1].unseenMentions = 1;
+    board.pages[1]!.unseenMessages = 3;
+    board.pages[1]!.unseenMentions = 1;
     mountWith([], board);
     await openPage(board, { discussion: false });
 
@@ -584,8 +584,8 @@ describe("the discussion on a page", () => {
 
     cleanup();
     const quiet = boardFixture();
-    quiet.pages[1].unseenMessages = 3;
-    quiet.pages[1].unseenMentions = 0;
+    quiet.pages[1]!.unseenMessages = 3;
+    quiet.pages[1]!.unseenMentions = 0;
     mountWith([], quiet);
     await openPage(quiet, { discussion: false });
     expect((document.querySelector(".discussion-unseen") as HTMLElement).className).not.toContain("named");
@@ -603,8 +603,8 @@ describe("the discussion on a page", () => {
 describe("open threads on a board tile", () => {
   it("shows a count only while something is waiting", async () => {
     const board = boardFixture();
-    board.pages[1].openThreads = 2;
-    board.pages[0].openThreads = 0;
+    board.pages[1]!.openThreads = 2;
+    board.pages[0]!.openThreads = 0;
     mountWith([], board);
 
     expect(await screen.findByTitle("2 open threads")).toBeTruthy();
@@ -613,7 +613,7 @@ describe("open threads on a board tile", () => {
 
   it("says it in the singular for one", async () => {
     const board = boardFixture();
-    board.pages[1].openThreads = 1;
+    board.pages[1]!.openThreads = 1;
     mountWith([], board);
 
     expect(await screen.findByTitle("1 open thread")).toBeTruthy();

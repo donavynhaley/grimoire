@@ -12,7 +12,7 @@ async function beginSignIn(server: Server, query = ""): Promise<{ state: string;
   return {
     state: destination.searchParams.get("state")!,
     nonce: destination.searchParams.get("nonce")!,
-    cookie: cookie.split(";")[0],
+    cookie: cookie.split(";")[0]!,
   };
 }
 
@@ -25,7 +25,7 @@ function callback(server: Server, query: string, cookie: string) {
 
 function sessionCookie(response: Response): string | null {
   const found = response.headers.getSetCookie().find((value) => value.startsWith("grimoire_session="));
-  return found ? found.split(";")[0] : null;
+  return found ? found.split(";")[0]! : null;
 }
 
 function refusal(response: Response): string {

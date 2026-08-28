@@ -34,7 +34,7 @@ async function board(server: TestServer) {
 function pageFile(server: TestServer, slug = "wizard-simulator"): string {
   const directory = join(server.pagesDirectory, slug, "pages");
   const [file] = readdirSync(directory).filter((name) => name.endsWith(".md"));
-  return readFileSync(join(directory, file), "utf8");
+  return readFileSync(join(directory, file!), "utf8");
 }
 
 describe("custom page fields", () => {
@@ -115,7 +115,7 @@ describe("custom page fields", () => {
       // The point of allowing this one swap: nothing already written is disturbed by it.
       expect(swapped.body.cleared).toBe(0);
       expect(pageFile(server)).toContain("p1");
-      expect((await board(server)).pages[0].fields).toEqual({ priority: "p1" });
+      expect((await board(server)).pages[0]!.fields).toEqual({ priority: "p1" });
 
       // And back again, because which one reads better is a judgement a team may revisit.
       const back = await server.request<{ field: ProjectField }>(`/api/fields/${field.key}`, {
@@ -123,7 +123,7 @@ describe("custom page fields", () => {
         body: JSON.stringify({ type: "select" }),
       });
       expect(back.body.field.type).toBe("select");
-      expect((await board(server)).pages[0].fields).toEqual({ priority: "p1" });
+      expect((await board(server)).pages[0]!.fields).toEqual({ priority: "p1" });
     });
 
     it("refuses every other type change, because the stored values would not survive it", async () => {
@@ -139,8 +139,8 @@ describe("custom page fields", () => {
         });
         expect(refused.response.status).toBe(400);
       }
-      expect((await board(server)).fields[0].type).toBe("select");
-      expect((await board(server)).pages[0].fields).toEqual({ priority: "p1" });
+      expect((await board(server)).fields[0]!.type).toBe("select");
+      expect((await board(server)).pages[0]!.fields).toEqual({ priority: "p1" });
     });
 
     it("records the swap in the audit trail, so a changed control has a reason on it", async () => {
@@ -187,7 +187,7 @@ describe("custom page fields", () => {
       expect(pageFile(server)).toContain('fields: {"priority":"p0","estimate":3}');
 
       const [page] = (await board(server)).pages;
-      expect(page.fields).toEqual({ priority: "p0", estimate: 3 });
+      expect(page!.fields).toEqual({ priority: "p0", estimate: 3 });
     });
 
     it("treats an update as a patch, so setting one value never blanks the others", async () => {
@@ -282,7 +282,7 @@ describe("custom page fields", () => {
       const removed = await server.request<{ cleared: number }>(`/api/fields/${field.key}`, { method: "DELETE" });
       expect(removed.body.cleared).toBe(1);
       expect((await board(server)).fields).toEqual([]);
-      expect((await board(server)).pages[0].fields).toEqual({});
+      expect((await board(server)).pages[0]!.fields).toEqual({});
       expect(pageFile(server)).not.toContain("fields:");
     });
 
@@ -297,7 +297,7 @@ describe("custom page fields", () => {
         body: JSON.stringify({ label: "Urgency" }),
       });
       expect(renamed.body.field).toEqual(expect.objectContaining({ key: "priority", label: "Urgency" }));
-      expect((await board(server)).pages[0].fields).toEqual({ priority: "p0" });
+      expect((await board(server)).pages[0]!.fields).toEqual({ priority: "p0" });
     });
   });
 
@@ -354,7 +354,7 @@ describe("custom page fields", () => {
         body: JSON.stringify({ email: ownerAccount.email, password: ownerAccount.password }),
       });
       const pages = (await reopened.request<BoardWorkspace>("/api/board")).body.pages;
-      expect(pages[0].fields).toEqual({ priority: "p0", blocked: true });
+      expect(pages[0]!.fields).toEqual({ priority: "p0", blocked: true });
     });
   });
 });

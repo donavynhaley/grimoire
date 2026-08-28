@@ -173,7 +173,7 @@ describe("page fields", () => {
     const board = { ...boardFixture(), fields: [region] };
     const calls = mountWith(board);
 
-    await user.click(await screen.findByText(board.pages[1].title));
+    await user.click(await screen.findByText(board.pages[1]!.title));
     await user.click(screen.getByRole("button", { name: "Change Region" }));
     await user.type(screen.getByLabelText("Find a Region option"), "fore");
     // The list narrows to what was typed instead of offering every option as a button.
@@ -183,7 +183,7 @@ describe("page fields", () => {
     await waitFor(() =>
       expect(calls).toContainEqual(
         expect.objectContaining({
-          url: `/api/pages/${board.pages[1].id}`,
+          url: `/api/pages/${board.pages[1]!.id}`,
           method: "PATCH",
           body: { fields: { region: "deep forest" } },
         }),
@@ -196,7 +196,7 @@ describe("page fields", () => {
     const board = { ...boardFixture(), fields: [region, estimate] };
     mountWith(board);
 
-    await user.click(await screen.findByText(board.pages[1].title));
+    await user.click(await screen.findByText(board.pages[1]!.title));
     const rail = screen.getByLabelText("Page properties");
 
     await user.click(screen.getByRole("button", { name: "Change Region" }));
@@ -224,7 +224,7 @@ describe("page fields", () => {
     const board = { ...boardFixture(), fields: [region] };
     mountWith(board);
 
-    await user.click(await screen.findByText(board.pages[1].title));
+    await user.click(await screen.findByText(board.pages[1]!.title));
     await user.click(screen.getByRole("button", { name: "Change Region" }));
     expect(screen.getByRole("dialog", { name: "Choose a Region" })).toBeInTheDocument();
 
@@ -432,7 +432,7 @@ describe("page fields", () => {
     const user = userEvent.setup();
     const board = { ...boardFixture(), fields: [priority, estimate] };
     // The second fixture page is the one in a column the board actually draws.
-    board.pages[1] = { ...board.pages[1], fields: { estimate: 5 } };
+    board.pages[1] = { ...board.pages[1]!, fields: { estimate: 5 } };
     const calls = mountWith(board);
 
     await user.click(await screen.findByRole("button", { name: /Open Model the potion workbench/ }));
@@ -440,7 +440,7 @@ describe("page fields", () => {
 
     // A patch, so the estimate the page already carries is not restated and cannot be lost.
     expect(calls).toContainEqual({
-      url: `/api/pages/${board.pages[1].id}`,
+      url: `/api/pages/${board.pages[1]!.id}`,
       method: "PATCH",
       body: { fields: { priority: "p0" } },
     });
@@ -449,14 +449,14 @@ describe("page fields", () => {
   it("clears a value with none, which is how a field is emptied", async () => {
     const user = userEvent.setup();
     const board = { ...boardFixture(), fields: [priority] };
-    board.pages[1] = { ...board.pages[1], fields: { priority: "p1" } };
+    board.pages[1] = { ...board.pages[1]!, fields: { priority: "p1" } };
     const calls = mountWith(board);
 
     await user.click(await screen.findByRole("button", { name: /Open Model the potion workbench/ }));
     await user.click(await screen.findByRole("button", { name: "Clear Priority" }));
 
     expect(calls).toContainEqual({
-      url: `/api/pages/${board.pages[1].id}`,
+      url: `/api/pages/${board.pages[1]!.id}`,
       method: "PATCH",
       body: { fields: { priority: null } },
     });
@@ -464,7 +464,7 @@ describe("page fields", () => {
 
   it("shows only tile-marked fields on the board, and only where a page has one", async () => {
     const board = { ...boardFixture(), fields: [priority, estimate] };
-    board.pages[1] = { ...board.pages[1], fields: { priority: "p0", estimate: 8 } };
+    board.pages[1] = { ...board.pages[1]!, fields: { priority: "p0", estimate: 8 } };
     mountWith(board);
 
     // Priority is marked for tiles; the estimate is not, so 8 stays inside the page.

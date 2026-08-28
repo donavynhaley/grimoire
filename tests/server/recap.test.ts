@@ -76,7 +76,7 @@ describe("the recap a closing chapter posts", () => {
     await settled();
 
     const text = discord.all();
-    expect(discord.posts[0].url).toBe("https://discord.test/hook");
+    expect(discord.posts[0]!.url).toBe("https://discord.test/hook");
     expect(text).toContain("Sprint One");
     expect(text).toContain("**Delivered:** 1 page");
     expect(text).toContain("**Velocity:** 5 pts");
@@ -165,7 +165,7 @@ describe("the recap a closing chapter posts", () => {
     expect(body.recap.deliveredEstimate).toBe(8);
     expect(body.recap.chapter.name).toBe("Sprint One");
     expect(body.recap.byPerson[0]).toMatchObject({ shipped: 1, shippedEstimate: 8 });
-    expect(body.recap.byPerson[0].titles).toContain("Shipped it");
+    expect(body.recap.byPerson[0]!.titles).toContain("Shipped it");
     expect(body.recap.project.total).toBeGreaterThan(0);
   });
 

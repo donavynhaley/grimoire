@@ -128,7 +128,7 @@ describe("the one settings surface", () => {
     mountWith({
       board: {
         ...board,
-        currentUser: { ...board.members[1] },
+        currentUser: { ...board.members[1]! },
         viewerIsOwner: false,
       },
     });

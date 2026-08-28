@@ -98,7 +98,7 @@ describe("page discussion", () => {
 
       const threads = await read(server, page.id);
       expect(threads.body.threads).toHaveLength(1);
-      expect(threads.body.threads[0].body).toBe("Same-target swaps only, or does the target move too?");
+      expect(threads.body.threads[0]!.body).toBe("Same-target swaps only, or does the target move too?");
     });
 
     it("keeps replies with their thread, in the order they were written", async () => {
@@ -172,8 +172,8 @@ describe("page discussion", () => {
 
       const threads = (await read(server, page.id)).body.threads;
       expect(threads).toHaveLength(1);
-      expect(threads[0].replies).toHaveLength(1);
-      expect(threads[0].body).toBe("Whose clock?");
+      expect(threads[0]!.replies).toHaveLength(1);
+      expect(threads[0]!.body).toBe("Whose clock?");
     });
 
     it("counts only unanswered threads onto the page", async () => {
@@ -247,7 +247,7 @@ describe("page discussion", () => {
       await registerMember(server);
       const replied = await reply(server, page.id, thread.id, "Device time for display.");
       expect(replied.response.status).toBe(201);
-      expect(replied.body.thread.replies[0].authorName).toBe("Maren");
+      expect(replied.body.thread.replies[0]!.authorName).toBe("Maren");
       expect((await read(server, page.id)).response.status).toBe(200);
     });
 
@@ -342,7 +342,7 @@ describe("page discussion", () => {
       const late = await reply(server, page.id, thread.id, "One more thing.");
       // It would have landed folded away behind the answered count, where nobody would read it.
       expect(late.response.status).toBe(409);
-      expect((await read(server, page.id)).body.threads[0].replies).toHaveLength(0);
+      expect((await read(server, page.id)).body.threads[0]!.replies).toHaveLength(0);
     });
   });
 
@@ -404,7 +404,7 @@ describe("page discussion", () => {
       expect(refused.response.status).toBe(403);
 
       await loginOwner(server);
-      expect((await read(server, page.id)).body.threads[0].answeredAt).toBeNull();
+      expect((await read(server, page.id)).body.threads[0]!.answeredAt).toBeNull();
     });
 
     it("refuses a read-only credential trying to say anything", async () => {
@@ -469,9 +469,9 @@ describe("page discussion", () => {
       expect(asked.body.thread.mentions).toHaveLength(1);
 
       const threads = (await read(server, page.id)).body.threads;
-      expect(threads[0].mentions).toEqual(asked.body.thread.mentions);
+      expect(threads[0]!.mentions).toEqual(asked.body.thread.mentions);
       // The text keeps what was typed; only who was meant is stored beside it.
-      expect(threads[0].body).toBe("@Maren does this need a migration?");
+      expect(threads[0]!.body).toBe("@Maren does this need a migration?");
     });
 
     it("counts a mention as unread news of its own", async () => {

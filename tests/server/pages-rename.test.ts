@@ -1,18 +1,16 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
 import type { BoardWorkspace, Page } from "../../shared/types";
 import { bootstrap, startTestServer } from "./test-server";
-import { copyFileSync, mkdirSync as makeDir } from "node:fs";
-import { resolve } from "node:path";
 
 /** Serves the built shell so link previews render, the way production does. */
 async function startShellServer(): Promise<Server> {
   const shell = join(mkdtempSync(join(tmpdir(), "grimoire-shell-")), "dist");
-  makeDir(shell, { recursive: true });
+  mkdirSync(shell, { recursive: true });
   copyFileSync(resolve("index.html"), join(shell, "index.html"));
   return startTestServer(undefined, { staticDirectory: shell });
 }

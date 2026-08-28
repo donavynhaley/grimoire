@@ -77,7 +77,7 @@ function awayEvent(overrides: Partial<AuditEvent>): AuditEvent {
 }
 
 function memberView(board: BoardWorkspace): BoardWorkspace {
-  const member = board.members[1];
+  const member = board.members[1]!;
   return {
     ...board,
     currentUser: { id: member.id, name: member.name, email: member.email, role: member.role },
@@ -141,7 +141,7 @@ describe("while you were away - quiet signals", () => {
 
   it("shows the digest, marks changed pages, and dismiss clears everything at once", async () => {
     const board = boardFixture();
-    const changed = board.pages[1]; // in progress, visible on the board
+    const changed = board.pages[1]!; // in progress, visible on the board
     const away: AwayState = {
       since: 5,
       latest: 8,
@@ -169,7 +169,7 @@ describe("while you were away - quiet signals", () => {
 
   it("clears a page's dot as soon as the page is opened", async () => {
     const board = boardFixture();
-    const changed = board.pages[1];
+    const changed = board.pages[1]!;
     const away: AwayState = {
       since: 5,
       latest: 7,
@@ -247,22 +247,22 @@ describe("buildDigestLines", () => {
       awayEvent({ sequence: 1, action: "moved", entityTitle: "Other work", changes: [{ field: "column", from: "Review", to: "Done" }] }),
       awayEvent({ sequence: 2, action: "updated", entityTitle: "Model the door", changes: [{ field: "assignee", from: "unassigned", to: "Donavyn" }] }),
     ]);
-    expect(lineText(lines[0])).toBe("Maren assigned you Model the door");
-    expect(lines[0].aboutYou).toBe(true);
-    expect(lineText(lines[1])).toBe("Maren finished Other work");
-    expect(lines[1].aboutYou).toBe(false);
+    expect(lineText(lines[0]!)).toBe("Maren assigned you Model the door");
+    expect(lines[0]!.aboutYou).toBe(true);
+    expect(lineText(lines[1]!)).toBe("Maren finished Other work");
+    expect(lines[1]!.aboutYou).toBe(false);
   });
 
   it("links a finished blocker to the reader's blocked page", () => {
     const board = boardFixture();
-    const blocker = board.pages[0];
-    board.pages[1] = { ...board.pages[1], assigneeId: board.currentUser.id, assigneeName: "Donavyn", blockedBy: [blocker.id] };
+    const blocker = board.pages[0]!;
+    board.pages[1] = { ...board.pages[1]!, assigneeId: board.currentUser.id, assigneeName: "Donavyn", blockedBy: [blocker.id] };
     const lines = digest(
       [awayEvent({ sequence: 1, action: "moved", entityId: blocker.id, entityTitle: blocker.title, changes: [{ field: "column", from: "In progress", to: "Done" }] })],
       board,
     );
-    expect(lineText(lines[0])).toBe(`Maren finished ${blocker.title} - your ${board.pages[1].title} is no longer blocked`);
-    expect(lines[0].tier).toBe(1);
+    expect(lineText(lines[0]!)).toBe(`Maren finished ${blocker.title} - your ${board.pages[1]!.title} is no longer blocked`);
+    expect(lines[0]!.tier).toBe(1);
   });
 
   it("groups a same-actor run of new pages into one line", () => {
@@ -272,7 +272,7 @@ describe("buildDigestLines", () => {
       awayEvent({ sequence: 3, action: "created", entityId: "00000000-0000-4000-8000-000000000052", entityTitle: "Third page", changes: [{ field: "column", from: null, to: "Up Next" }] }),
     ]);
     expect(lines).toHaveLength(1);
-    expect(lineText(lines[0])).toBe("Maren added First page and 2 more pages to Up Next");
+    expect(lineText(lines[0]!)).toBe("Maren added First page and 2 more pages to Up Next");
   });
 
   it("collapses repeat edits and speaks each idea change in its own words", () => {

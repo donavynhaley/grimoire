@@ -48,7 +48,7 @@ function chapter(overrides: Partial<Chapter> = {}): Chapter {
 }
 
 function page(overrides: Partial<Page>): Page {
-  const base = boardFixture().pages[1];
+  const base = boardFixture().pages[1]!;
   return { ...base, ...overrides };
 }
 

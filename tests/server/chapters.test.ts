@@ -93,7 +93,7 @@ describe("chapters", () => {
       expect(hidden.chapters).toEqual([]);
       // The page keeps its chapter and the chapter file stays on disk: turning the gate off
       // is a change of surface, never a deletion.
-      expect(hidden.pages[0].chapter).toBe("first-brew");
+      expect(hidden.pages[0]!.chapter).toBe("first-brew");
       expect(readFileSync(chapterFile(server, "first-brew"), "utf8")).toContain("slug: first-brew");
 
       await enableChapters(server, true);
@@ -133,9 +133,9 @@ describe("chapters", () => {
 
       // What actually matters is that the day survives the round trip unchanged.
       const reread = (await board(server)).chapters[0];
-      expect(reread.startsOn).toBe("2026-08-18");
-      expect(reread.endsOn).toBe("2026-09-15");
-      expect(reread.description).toContain("Get one full potion loop playable end to end.");
+      expect(reread!.startsOn).toBe("2026-08-18");
+      expect(reread!.endsOn).toBe("2026-09-15");
+      expect(reread!.description).toContain("Get one full potion loop playable end to end.");
     });
 
     it("rejects an unknown field, naming the file", async () => {
@@ -260,8 +260,8 @@ describe("chapters", () => {
       // unfinished page stays exactly where it was, which is what makes a closed chapter an
       // honest record of what did and did not land.
       const afterClose = await board(server);
-      expect(afterClose.pages[0].chapter).toBe("first-brew");
-      expect(afterClose.pages[0].status).toBe("ready");
+      expect(afterClose.pages[0]!.chapter).toBe("first-brew");
+      expect(afterClose.pages[0]!.status).toBe("ready");
 
       const reopened = await server.request<{ chapter: Chapter }>("/api/chapters/first-brew", {
         method: "PATCH",
@@ -369,7 +369,7 @@ describe("chapters", () => {
       writeFileSync(path, legacy);
 
       const workspace = await board(server);
-      expect(workspace.pages[0].chapter).toBeNull();
+      expect(workspace.pages[0]!.chapter).toBeNull();
     });
   });
 
@@ -411,7 +411,7 @@ describe("chapters", () => {
       const chapterEvents = activity.body.events.filter((event) => event.entityType === "chapter");
 
       expect(chapterEvents.map((event) => event.action)).toEqual(["moved", "created"]);
-      expect(chapterEvents[0].entityTitle).toBe("First Brew");
+      expect(chapterEvents[0]!.entityTitle).toBe("First Brew");
     });
   });
 });
@@ -444,7 +444,7 @@ describe("where a chaptered page turns up", () => {
     await enableChapters(server, false);
 
     const found = await server.request<{ hits: Array<{ where: string }> }>("/api/search?q=brew");
-    expect(found.body.hits[0].where).toBe("In progress");
+    expect(found.body.hits[0]!.where).toBe("In progress");
   });
 });
 

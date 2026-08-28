@@ -14,7 +14,7 @@ async function beginSignIn(server: Server, query = ""): Promise<{ state: string;
   return {
     state: destination.searchParams.get("state")!,
     nonce: destination.searchParams.get("nonce")!,
-    cookie: cookie.split(";")[0],
+    cookie: cookie.split(";")[0]!,
   };
 }
 
@@ -94,7 +94,7 @@ describe("signing in through an identity provider", () => {
     expect(landed.headers.get("location")).toBe("/");
 
     const session = landed.headers.getSetCookie().find((value) => value.startsWith("grimoire_session="))!;
-    const who = await fetch(`${server.baseUrl}/api/session`, { headers: { cookie: session.split(";")[0] } });
+    const who = await fetch(`${server.baseUrl}/api/session`, { headers: { cookie: session.split(";")[0]! } });
     const body = (await who.json()) as { status: string; user: { email: string; name: string; role: string } };
     expect(body.status).toBe("authenticated");
     expect(body.user.email).toBe(ownerAccount.email);
@@ -136,7 +136,7 @@ describe("signing in through an identity provider", () => {
     expect(landed.status).toBe(302);
     const session = landed.headers.getSetCookie().find((value) => value.startsWith("grimoire_session="))!;
 
-    const who = await fetch(`${server.baseUrl}/api/session`, { headers: { cookie: session.split(";")[0] } });
+    const who = await fetch(`${server.baseUrl}/api/session`, { headers: { cookie: session.split(";")[0]! } });
     const body = (await who.json()) as { user: { email: string; name: string; role: string } };
     expect(body.user).toMatchObject({ email: "alan@team.example.test", name: "Alan", role: "member" });
 
@@ -157,7 +157,7 @@ describe("signing in through an identity provider", () => {
 
     const landed = await callback(server, `code=code-1&state=${encodeURIComponent(state)}`, cookie);
     const session = landed.headers.getSetCookie().find((value) => value.startsWith("grimoire_session="))!;
-    const board = await fetch(`${server.baseUrl}/api/board`, { headers: { cookie: session.split(";")[0] } });
+    const board = await fetch(`${server.baseUrl}/api/board`, { headers: { cookie: session.split(";")[0]! } });
     // The new account landed on a project, which is the difference between an account and
     // an account that can see anything.
     expect(board.status).toBe(200);

@@ -286,7 +286,7 @@ describe("Grimoire board", () => {
 
   it("keeps the backlog open and preserves its filters while moving several pages to Up Next", async () => {
     const initial = boardFixture();
-    const page = initial.pages[0];
+    const page = initial.pages[0]!;
     const moved = { ...page, status: "ready" as const, position: 0 };
     const updated = { ...initial, pages: [moved, initial.pages[1]] };
     const fetchMock = authenticatedFetch(initial)
@@ -328,13 +328,15 @@ describe("Grimoire board", () => {
 
   it("keeps the last capture settings for the next page until the user starts fresh", async () => {
     const initial = boardFixture();
+    const donavyn = initial.members[0]!;
+    const maren = initial.members[1]!;
     const first = {
       ...initial.pages[0],
       id: "00000000-0000-4000-8000-000000000029",
       title: "Build the spell loadout",
       category: "code" as const,
-      assigneeId: initial.members[1].id,
-      assigneeName: initial.members[1].name,
+      assigneeId: maren.id,
+      assigneeName: maren.name,
       status: "ready" as const,
       position: 0,
     };
@@ -342,8 +344,8 @@ describe("Grimoire board", () => {
       ...first,
       id: "00000000-0000-4000-8000-000000000031",
       title: "Wire the spellbook tabs",
-      assigneeId: initial.members[0].id,
-      assigneeName: initial.members[0].name,
+      assigneeId: donavyn.id,
+      assigneeName: donavyn.name,
       position: 1,
     };
     const afterFirst = { ...initial, pages: [...initial.pages, first] };
@@ -381,7 +383,7 @@ describe("Grimoire board", () => {
           title: first.title,
           category: "code",
           chapter: null,
-          assigneeId: initial.members[1].id,
+          assigneeId: maren.id,
           status: "ready",
         }),
       }),
@@ -400,7 +402,7 @@ describe("Grimoire board", () => {
           title: second.title,
           category: "code",
           chapter: null,
-          assigneeId: initial.members[0].id,
+          assigneeId: donavyn.id,
           status: "ready",
         }),
       }),
@@ -459,7 +461,7 @@ describe("Grimoire board", () => {
 
   it("moves a page by dropping it into another column", async () => {
     const initial = boardFixture();
-    const page = initial.pages[1];
+    const page = initial.pages[1]!;
     const moved = { ...page, status: "ready" as const, position: 0 };
     const updated = { ...initial, pages: [initial.pages[0], moved] };
     const fetchMock = authenticatedFetch(initial)
@@ -490,7 +492,7 @@ describe("Grimoire board", () => {
 
   it("moves a page with taps alone, which is the only path a keyboard has", async () => {
     const initial = boardFixture();
-    const page = initial.pages[1];
+    const page = initial.pages[1]!;
     const moved = { ...page, status: "ready" as const, position: 0 };
     const fetchMock = authenticatedFetch(initial)
       .mockImplementationOnce(() => response({ page: moved }))
@@ -516,7 +518,8 @@ describe("Grimoire board", () => {
 
   it("shows a live placeholder and drops a page between two pages at the pointer position", async () => {
     const initial = boardFixture();
-    const [backlogPage, progressPage] = initial.pages;
+    const backlogPage = initial.pages[0]!;
+    const progressPage = initial.pages[1]!;
     const readyA = {
       ...progressPage,
       id: "00000000-0000-4000-8000-000000000031",
@@ -565,7 +568,7 @@ describe("Grimoire board", () => {
   it("drags an inbox idea into the parked list", async () => {
     const initial = boardFixture();
     const ideas = ideaFixture();
-    const inboxIdea = ideas.ideas[1];
+    const inboxIdea = ideas.ideas[1]!;
     const parkedIdea = { ...inboxIdea, state: "parked" as const, position: 1 };
     const fetchMock = authenticatedFetch(initial)
       .mockImplementationOnce(() => response(ideas))
@@ -594,7 +597,7 @@ describe("Grimoire board", () => {
 
   it("lets filtered active work be dropped back into the backlog", async () => {
     const initial = boardFixture();
-    const page = initial.pages[1];
+    const page = initial.pages[1]!;
     const moved = { ...page, status: "backlog" as const, position: 1 };
     const updated = { ...initial, pages: [initial.pages[0], moved] };
     const fetchMock = authenticatedFetch(initial)
@@ -623,15 +626,15 @@ describe("Grimoire board", () => {
   it("shows only the ten most recently completed pages and keeps all work in history", async () => {
     const initial = boardFixture();
     const completed = Array.from({ length: 14 }, (_, index) => ({
-      ...initial.pages[0],
+      ...initial.pages[0]!,
       id: `00000000-0000-4000-8000-${String(index + 100).padStart(12, "0")}`,
       title: `Completed spell ${index + 1}`,
       status: "done" as const,
       position: index,
       completedAt: `2026-08-${String(index + 1).padStart(2, "0")}T12:00:00.000Z`,
     }));
-    const workspace = { ...initial, pages: [initial.pages[0], initial.pages[1], ...completed] };
-    const reopened = { ...completed[0], status: "ready" as const, position: 0, completedAt: null };
+    const workspace = { ...initial, pages: [initial.pages[0]!, initial.pages[1]!, ...completed] };
+    const reopened = { ...completed[0]!, status: "ready" as const, position: 0, completedAt: null };
     const afterReopen = {
       ...workspace,
       pages: [...workspace.pages.filter((page) => page.id !== reopened.id), reopened],
@@ -665,14 +668,14 @@ describe("Grimoire board", () => {
   it("reads like an ordinary column until completed work outgrows ten pages", async () => {
     const initial = boardFixture();
     const completed = Array.from({ length: 10 }, (_, index) => ({
-      ...initial.pages[0],
+      ...initial.pages[0]!,
       id: `00000000-0000-4000-8000-${String(index + 300).padStart(12, "0")}`,
       title: `Completed spell ${index + 1}`,
       status: "done" as const,
       position: index,
       completedAt: `2026-08-${String(index + 1).padStart(2, "0")}T12:00:00.000Z`,
     }));
-    stubFetch(authenticatedFetch({ ...initial, pages: [initial.pages[0], initial.pages[1], ...completed] }));
+    stubFetch(authenticatedFetch({ ...initial, pages: [initial.pages[0]!, initial.pages[1]!, ...completed] }));
 
     render(<App />);
     const done = await screen.findByRole("region", { name: "Done" });
@@ -686,14 +689,14 @@ describe("Grimoire board", () => {
   it("lets board filters reach completed work buried past the visible ten", async () => {
     const initial = boardFixture();
     const completed = Array.from({ length: 14 }, (_, index) => ({
-      ...initial.pages[0],
+      ...initial.pages[0]!,
       id: `00000000-0000-4000-8000-${String(index + 400).padStart(12, "0")}`,
       title: index === 0 ? "Ancient sealed vault" : `Completed spell ${index + 1}`,
       status: "done" as const,
       position: index,
       completedAt: `2026-08-${String(index + 1).padStart(2, "0")}T12:00:00.000Z`,
     }));
-    stubFetch(authenticatedFetch({ ...initial, pages: [initial.pages[0], initial.pages[1], ...completed] }));
+    stubFetch(authenticatedFetch({ ...initial, pages: [initial.pages[0]!, initial.pages[1]!, ...completed] }));
 
     render(<App />);
     const done = await screen.findByRole("region", { name: "Done" });
@@ -708,8 +711,9 @@ describe("Grimoire board", () => {
 
   it("edits a page with member buttons instead of dropdowns", async () => {
     const initial = boardFixture();
-    const page = initial.pages[0];
-    const assigned = { ...page, assigneeId: initial.members[1].id, assigneeName: "Maren" };
+    const page = initial.pages[0]!;
+    const maren = initial.members[1]!;
+    const assigned = { ...page, assigneeId: maren.id, assigneeName: "Maren" };
     const updated = { ...initial, pages: [assigned, initial.pages[1]] };
     const fetchMock = authenticatedFetch(initial)
       .mockImplementationOnce(() => response({ page: assigned }))
@@ -725,18 +729,19 @@ describe("Grimoire board", () => {
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
         `/api/pages/${page.id}`,
-        expect.objectContaining({ method: "PATCH", body: JSON.stringify({ assigneeId: initial.members[1].id }) }),
+        expect.objectContaining({ method: "PATCH", body: JSON.stringify({ assigneeId: maren.id }) }),
       ),
     );
   });
 
   it("shows page categories and links blockers without a dropdown", async () => {
     const initial = boardFixture();
-    const page = initial.pages[0];
+    const page = initial.pages[0]!;
+    const blocker = initial.pages[1]!;
     const categorized = { ...page, category: "code" as const };
-    const afterCategory = { ...initial, pages: [categorized, initial.pages[1]] };
-    const blocked = { ...categorized, blockedBy: [initial.pages[1].id] };
-    const afterBlocker = { ...initial, pages: [blocked, initial.pages[1]] };
+    const afterCategory = { ...initial, pages: [categorized, blocker] };
+    const blocked = { ...categorized, blockedBy: [blocker.id] };
+    const afterBlocker = { ...initial, pages: [blocked, blocker] };
     const fetchMock = authenticatedFetch(initial)
       .mockImplementationOnce(() => response({ page: categorized }))
       .mockImplementationOnce(() => response(afterCategory))
@@ -764,23 +769,23 @@ describe("Grimoire board", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Add blocking page" }));
     await userEvent.type(screen.getByRole("searchbox", { name: "Find a blocking page" }), "potion");
-    await userEvent.click(screen.getByRole("button", { name: `Blocked by ${initial.pages[1].title}` }));
+    await userEvent.click(screen.getByRole("button", { name: `Blocked by ${blocker.title}` }));
 
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
         `/api/pages/${page.id}`,
         expect.objectContaining({
           method: "PATCH",
-          body: JSON.stringify({ blockedBy: [initial.pages[1].id] }),
+          body: JSON.stringify({ blockedBy: [blocker.id] }),
         }),
       ),
     );
-    expect((await screen.findAllByText(initial.pages[1].title)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(blocker.title)).length).toBeGreaterThan(0);
   });
 
   it("opens a page straight from a shared link", async () => {
     const initial = boardFixture();
-    const page = initial.pages[1];
+    const page = initial.pages[1]!;
     window.history.replaceState({}, "", `/?page=${page.id}`);
     stubFetch(authenticatedFetch(initial));
 
@@ -791,7 +796,7 @@ describe("Grimoire board", () => {
 
   it("keeps the open page in the URL and clears it on close", async () => {
     const initial = boardFixture();
-    const page = initial.pages[1];
+    const page = initial.pages[1]!;
     stubFetch(authenticatedFetch(initial));
 
     render(<App />);
@@ -808,7 +813,7 @@ describe("Grimoire board", () => {
     stubFetch(authenticatedFetch(initial));
 
     render(<App />);
-    await screen.findByText(initial.pages[1].title);
+    await screen.findByText(initial.pages[1]!.title);
     expect(screen.queryByRole("dialog", { name: "Edit page" })).not.toBeInTheDocument();
     await waitFor(() => expect(window.location.search).not.toContain("page="));
   });
@@ -816,7 +821,7 @@ describe("Grimoire board", () => {
   it("opens an idea straight from a shared link in the ideas view", async () => {
     const initial = boardFixture();
     const ideaWorkspace = ideaFixture();
-    const idea = ideaWorkspace.ideas[0];
+    const idea = ideaWorkspace.ideas[0]!;
     window.history.replaceState({}, "", `/?view=ideas&idea=${idea.id}`);
     const fetchMock = authenticatedFetch(initial).mockImplementationOnce(() => response(ideaWorkspace));
     stubFetch(fetchMock);
@@ -829,7 +834,7 @@ describe("Grimoire board", () => {
 
   it("automatically saves title and notes without a save button", async () => {
     const initial = boardFixture();
-    const page = initial.pages[0];
+    const page = initial.pages[0]!;
     const note = "Keep the memory readable without subtitles.";
     const saved = { ...page, description: note };
     const updated = { ...initial, pages: [saved, initial.pages[1]] };
@@ -863,7 +868,7 @@ describe("Grimoire board", () => {
 
   it("offers to undo an archived page", async () => {
     const initial = boardFixture();
-    const page = initial.pages[0];
+    const page = initial.pages[0]!;
     const archived = { ...initial, pages: [initial.pages[1]] };
     const fetchMock = authenticatedFetch(initial)
       .mockImplementationOnce(() => response({ ok: true }))
@@ -893,7 +898,7 @@ describe("Grimoire board", () => {
   it("offers to undo an idea promotion", async () => {
     const initial = boardFixture();
     const ideaWorkspace = ideaFixture();
-    const idea = ideaWorkspace.ideas[0];
+    const idea = ideaWorkspace.ideas[0]!;
     const promotedPage = {
       ...initial.pages[0],
       id: "00000000-0000-4000-8000-000000000050",
@@ -932,7 +937,7 @@ describe("Grimoire board", () => {
 
   it("flushes pending text when the page is closed", async () => {
     const initial = boardFixture();
-    const page = initial.pages[0];
+    const page = initial.pages[0]!;
     const title = "Make the tower door remember both wizards";
     const saved = { ...page, title };
     const updated = { ...initial, pages: [saved, initial.pages[1]] };
@@ -1016,7 +1021,7 @@ describe("Grimoire board", () => {
 
   it("lets the owner remove a member from the team dialog", async () => {
     const initial = boardFixture();
-    const removedMember = initial.members[1];
+    const removedMember = initial.members[1]!;
     const updated = {
       ...initial,
       members: initial.members.filter((member) => member.id !== removedMember.id),
@@ -1045,7 +1050,7 @@ describe("Grimoire board", () => {
 
   it("lets the owner promote a member to owner, and offers the reverse afterwards", async () => {
     const initial = boardFixture();
-    const promoted = initial.members[1];
+    const promoted = initial.members[1]!;
     const updated = {
       ...initial,
       members: initial.members.map((member) =>
@@ -1149,12 +1154,12 @@ describe("Grimoire board", () => {
   it("filters work with search and person chips, including the current user", async () => {
     const initial = boardFixture();
     const myPage = {
-      ...initial.pages[0],
+      ...initial.pages[0]!,
       status: "ready" as const,
       assigneeId: initial.currentUser.id,
       assigneeName: initial.currentUser.name,
     };
-    const workspace = { ...initial, pages: [myPage, initial.pages[1]] };
+    const workspace = { ...initial, pages: [myPage, initial.pages[1]!] };
     const fetchMock = authenticatedFetch(workspace);
     stubFetch(fetchMock);
 
@@ -1181,7 +1186,7 @@ describe("Grimoire board", () => {
     await userEvent.click(screen.getByRole("button", { name: "Filter by Maren" }));
     expect(screen.queryByText("Make the tower door remember Maren")).not.toBeInTheDocument();
     expect(screen.getByText("Model the potion workbench")).toBeInTheDocument();
-    expect(window.location.search).toContain(`people=${initial.members[1].id}`);
+    expect(window.location.search).toContain(`people=${initial.members[1]!.id}`);
   });
 
   it("reads the project history as sentences and opens the page behind an entry", async () => {
@@ -1200,7 +1205,7 @@ describe("Grimoire board", () => {
         auditFixture({
           action: "joined",
           actorName: "Maren",
-          actorId: initial.members[1].id,
+          actorId: initial.members[1]!.id,
           entityType: "member",
           entityTitle: "Maren",
           id: "audit-2",
@@ -1272,7 +1277,7 @@ describe("Grimoire board", () => {
 
     act(() => {
       presenceListener!(new MessageEvent("presence", {
-        data: JSON.stringify({ online: [initial.members[1].id] }),
+        data: JSON.stringify({ online: [initial.members[1]!.id] }),
       }));
     });
 

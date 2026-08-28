@@ -76,7 +76,7 @@ describe("the sign-in settings screen", () => {
     await userEvent.tab();
 
     await waitFor(() => expect(saved).toHaveLength(1));
-    expect(saved[0].redirectUri).toBe(`${location.origin}/api/auth/oidc/callback`);
+    expect(saved[0]!.redirectUri).toBe(`${location.origin}/api/auth/oidc/callback`);
   });
 
   it("leaves an address that is already pinned alone", async () => {

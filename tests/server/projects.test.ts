@@ -67,7 +67,7 @@ describe("multiple projects", () => {
     await bootstrap(server);
     const only = (await server.request<{ projects: ProjectSummary[] }>("/api/projects")).body.projects[0];
 
-    const refused = await server.request<{ error: string }>(`/api/projects/${only.id}`, { method: "DELETE" });
+    const refused = await server.request<{ error: string }>(`/api/projects/${only!.id}`, { method: "DELETE" });
     expect(refused.response.status).toBe(409);
     expect(refused.body.error).toContain("last project");
   });
@@ -86,7 +86,7 @@ describe("multiple projects", () => {
 
     const workspace = await board(server);
     expect(workspace.project.description).toBe("A cozy wizard-life sim");
-    expect(workspace.projects[0].description).toBe("A cozy wizard-life sim");
+    expect(workspace.projects[0]!.description).toBe("A cozy wizard-life sim");
   });
 
   it("lists an archived project and restores it", async () => {
@@ -202,7 +202,7 @@ describe("project categories", () => {
     expect(removed.response.status).toBe(200);
     const workspace = (await server.request<BoardWorkspace>("/api/board")).body;
     expect(workspace.categories.map((category) => category.slug)).not.toContain("playtesting");
-    expect(workspace.pages[0].category).toBeNull();
+    expect(workspace.pages[0]!.category).toBeNull();
   });
 
   it("reorders categories through the position the schema now accepts", async () => {
@@ -212,18 +212,18 @@ describe("project categories", () => {
     const [first, second] = before;
 
     // The two neighbours trade indexes, which is exactly what the reorder buttons send.
-    await server.request(`/api/categories/${second.slug}`, {
+    await server.request(`/api/categories/${second!.slug}`, {
       method: "PATCH",
       body: JSON.stringify({ position: 0 }),
     });
-    await server.request(`/api/categories/${first.slug}`, {
+    await server.request(`/api/categories/${first!.slug}`, {
       method: "PATCH",
       body: JSON.stringify({ position: 1 }),
     });
 
     const after = (await server.request<BoardWorkspace>("/api/board")).body.categories;
-    expect(after[0].slug).toBe(second.slug);
-    expect(after[1].slug).toBe(first.slug);
+    expect(after[0]!.slug).toBe(second!.slug);
+    expect(after[1]!.slug).toBe(first!.slug);
   });
 
   it("rejects pages with categories the project does not have", async () => {

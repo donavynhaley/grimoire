@@ -57,7 +57,7 @@ function linkedBoard(): BoardWorkspace {
   const board = boardFixture();
   board.project.githubRepo = "wizards/simulator";
   board.pages[1] = {
-    ...board.pages[1],
+    ...board.pages[1]!,
     github: { kind: "pr", number: 41 },
     githubStatus: { state: "open", prNumber: 41, prTitle: "Hold the circle", prUrl: "https://github.com/wizards/simulator/pull/41", checkedAt: "2026-08-18T12:00:00Z" },
   };
@@ -155,14 +155,14 @@ describe("a page's GitHub row", () => {
     const board = configuredBoard();
     const calls = mountWith(board);
 
-    await user.click(await screen.findByText(board.pages[1].title));
+    await user.click(await screen.findByText(board.pages[1]!.title));
     await user.click(screen.getByRole("button", { name: /Not linked/ }));
     await user.type(screen.getByLabelText("Search pull requests, or type a branch"), "#41{Enter}");
 
     await waitFor(() =>
       expect(calls).toContainEqual(
         expect.objectContaining({
-          url: `/api/pages/${board.pages[1].id}`,
+          url: `/api/pages/${board.pages[1]!.id}`,
           method: "PATCH",
           body: { github: "#41" },
         }),
@@ -178,7 +178,7 @@ describe("a page's GitHub row", () => {
       { number: 20, title: "Half-finished idea", url: "u20", state: "draft", branch: "feat/idea", author: "mira" },
     ]);
 
-    await user.click(await screen.findByText(board.pages[1].title));
+    await user.click(await screen.findByText(board.pages[1]!.title));
     await user.click(screen.getByRole("button", { name: /Not linked/ }));
 
     // Both are offered before anything is typed, drafts marked as such.
@@ -193,7 +193,7 @@ describe("a page's GitHub row", () => {
     await waitFor(() =>
       expect(calls).toContainEqual(
         expect.objectContaining({
-          url: `/api/pages/${board.pages[1].id}`,
+          url: `/api/pages/${board.pages[1]!.id}`,
           method: "PATCH",
           body: { github: "#21" },
         }),
@@ -208,7 +208,7 @@ describe("a page's GitHub row", () => {
       { number: 21, title: "Rework the circle", url: "u21", state: "open", branch: "feat/circle", author: "maren" },
     ]);
 
-    await user.click(await screen.findByText(board.pages[1].title));
+    await user.click(await screen.findByText(board.pages[1]!.title));
     await user.click(screen.getByRole("button", { name: /Not linked/ }));
     await user.type(screen.getByLabelText("Search pull requests, or type a branch"), "feat/nothing-suggested");
     // Nothing matches it, so it is offered as its own choice rather than second-guessed.
@@ -225,7 +225,7 @@ describe("a page's GitHub row", () => {
     const board = linkedBoard();
     const calls = mountWith(board);
 
-    await user.click(await screen.findByText(board.pages[1].title));
+    await user.click(await screen.findByText(board.pages[1]!.title));
     expect(screen.getByRole("link", { name: "open on GitHub ↗" }))
       .toHaveAttribute("href", "https://github.com/wizards/simulator/pull/41");
     // The trigger says which pull request, how it stands, and what it is called.
@@ -238,7 +238,7 @@ describe("a page's GitHub row", () => {
     await waitFor(() =>
       expect(calls).toContainEqual(
         expect.objectContaining({
-          url: `/api/pages/${board.pages[1].id}`,
+          url: `/api/pages/${board.pages[1]!.id}`,
           method: "PATCH",
           body: { github: null },
         }),
@@ -251,7 +251,7 @@ describe("a page's GitHub row", () => {
     const board = configuredBoard();
     mountWith(board, 400);
 
-    await user.click(await screen.findByText(board.pages[1].title));
+    await user.click(await screen.findByText(board.pages[1]!.title));
     await user.click(screen.getByRole("button", { name: /Not linked/ }));
     await user.type(screen.getByLabelText("Search pull requests, or type a branch"), "??{Enter}");
     const dialog = screen.getByRole("dialog", { name: "Edit page" });
@@ -266,7 +266,7 @@ describe("a project with no repository", () => {
     const board = boardFixture();
     mountWith(board);
 
-    await user.click(await screen.findByText(board.pages[1].title));
+    await user.click(await screen.findByText(board.pages[1]!.title));
     expect(screen.getByRole("dialog", { name: "Edit page" })).toBeInTheDocument();
     expect(screen.queryByText("GitHub")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Not linked/ })).not.toBeInTheDocument();
@@ -276,13 +276,13 @@ describe("a project with no repository", () => {
     const user = userEvent.setup();
     const board = boardFixture();
     board.pages[1] = {
-      ...board.pages[1],
+      ...board.pages[1]!,
       github: { kind: "pr", number: 41 },
       githubStatus: { state: "open", prNumber: 41, prTitle: "Hold the circle", prUrl: "u", checkedAt: null },
     };
     mountWith(board);
 
-    await user.click(await screen.findByText(board.pages[1].title));
+    await user.click(await screen.findByText(board.pages[1]!.title));
     expect(screen.getByRole("button", { name: /#41/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Unlink from GitHub" })).toBeInTheDocument();
   });
@@ -294,12 +294,12 @@ describe("what an unchecked link is called", () => {
     const board = linkedBoard();
     // Freshly linked, before anything has been heard back about it.
     board.pages[1] = {
-      ...board.pages[1],
+      ...board.pages[1]!,
       githubStatus: { state: "unchecked", prNumber: null, prTitle: null, prUrl: null, checkedAt: null },
     };
     mountWith(board);
 
-    await user.click(await screen.findByText(board.pages[1].title));
+    await user.click(await screen.findByText(board.pages[1]!.title));
     const trigger = screen.getByRole("button", { name: /#41/ });
     expect(trigger).toHaveTextContent("checking...");
     expect(trigger).not.toHaveTextContent("no PR yet");
@@ -309,13 +309,13 @@ describe("what an unchecked link is called", () => {
     const user = userEvent.setup();
     const board = linkedBoard();
     board.pages[1] = {
-      ...board.pages[1],
+      ...board.pages[1]!,
       github: { kind: "branch", name: "feat/rituals" },
       githubStatus: { state: "unchecked", prNumber: null, prTitle: null, prUrl: null, checkedAt: null },
     };
     mountWith(board);
 
-    await user.click(await screen.findByText(board.pages[1].title));
+    await user.click(await screen.findByText(board.pages[1]!.title));
     expect(screen.getByRole("button", { name: /feat\/rituals/ })).toHaveTextContent("no PR yet");
   });
 });
@@ -325,7 +325,7 @@ describe("the board card", () => {
     const board = linkedBoard();
     mountWith(board);
 
-    const card = (await screen.findByText(board.pages[1].title)).closest("article")!;
+    const card = (await screen.findByText(board.pages[1]!.title)).closest("article")!;
     const pill = within(card).getByText("#41");
     expect(pill).toHaveClass("github-state-open");
   });
@@ -333,13 +333,13 @@ describe("the board card", () => {
   it("wears the branch name while no pull request exists", async () => {
     const board = boardFixture();
     board.pages[1] = {
-      ...board.pages[1],
+      ...board.pages[1]!,
       github: { kind: "branch", name: "feat/rituals" },
       githubStatus: { state: "unchecked", prNumber: null, prTitle: null, prUrl: null, checkedAt: null },
     };
     mountWith(board);
 
-    const card = (await screen.findByText(board.pages[1].title)).closest("article")!;
+    const card = (await screen.findByText(board.pages[1]!.title)).closest("article")!;
     expect(within(card).getByText("⎇ feat/rituals")).toBeInTheDocument();
   });
 });

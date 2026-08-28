@@ -90,7 +90,7 @@ describe("the admin, and ownership that belongs to a project", () => {
     await bootstrap(server);
     await registerMember(server);
     await login(server, ownerAccount);
-    const wizard = (await server.request<{ projects: ProjectSummary[] }>("/api/projects")).body.projects[0];
+    const wizard = (await server.request<{ projects: ProjectSummary[] }>("/api/projects")).body.projects[0]!;
     const second = await createProject(server, "Familiar Tycoon");
     const maren = (await members(server, wizard.id)).find((member) => member.email === MEMBER.email)!;
     expect((await setRole(server, maren.id, "owner", wizard.id)).response.status).toBe(200);
@@ -116,7 +116,7 @@ describe("the admin, and ownership that belongs to a project", () => {
 
     // Demoted where the admin is the owner - which is not where she is one.
     await login(server, ownerAccount);
-    const wizard = (await server.request<{ projects: ProjectSummary[] }>("/api/projects")).body.projects[0];
+    const wizard = (await server.request<{ projects: ProjectSummary[] }>("/api/projects")).body.projects[0]!;
     const maren = (await members(server, wizard.id)).find((member) => member.email === MEMBER.email)!;
     expect((await setRole(server, maren.id, "member", wizard.id)).response.status).toBe(200);
 
@@ -132,7 +132,7 @@ describe("the admin, and ownership that belongs to a project", () => {
     await bootstrap(server);
     await registerMember(server);
     await login(server, ownerAccount);
-    const wizard = (await server.request<{ projects: ProjectSummary[] }>("/api/projects")).body.projects[0];
+    const wizard = (await server.request<{ projects: ProjectSummary[] }>("/api/projects")).body.projects[0]!;
     const maren = (await members(server, wizard.id)).find((member) => member.email === MEMBER.email)!;
     await setRole(server, maren.id, "owner", wizard.id);
     const admin = (await members(server, wizard.id)).find((member) => member.email === ownerAccount.email)!;

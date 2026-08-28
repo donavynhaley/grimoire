@@ -32,8 +32,8 @@ describe("project activity", () => {
       ["member", "joined"],
       ["project", "created"],
     ]);
-    expect(page.events[1].entityTitle).toBe("Wizard Simulator");
-    expect(page.events[0].actorName).toBe("Donavyn");
+    expect(page.events[1]!.entityTitle).toBe("Wizard Simulator");
+    expect(page.events[0]!.actorName).toBe("Donavyn");
   });
 
   it("records where a new page landed", async () => {
@@ -48,10 +48,10 @@ describe("project activity", () => {
     });
 
     const [event] = (await activity(server)).events;
-    expect(event.action).toBe("created");
-    expect(event.entityType).toBe("page");
-    expect(event.entityTitle).toBe("Model the potion workbench");
-    expect(event.changes).toEqual([
+    expect(event!.action).toBe("created");
+    expect(event!.entityType).toBe("page");
+    expect(event!.entityTitle).toBe("Model the potion workbench");
+    expect(event!.changes).toEqual([
       { field: "column", from: null, to: "Up Next" },
       { field: "category", from: null, to: "Modeling" },
       { field: "assignee", from: null, to: "Donavyn" },
@@ -80,8 +80,8 @@ describe("project activity", () => {
 
     const page = await activity(server, `?entity=${first.id}`);
     expect(page.events.map((event) => event.action)).toEqual(["updated", "moved", "created"]);
-    expect(page.events[1].changes).toEqual([{ field: "column", from: "Up Next", to: "In progress" }]);
-    expect(page.events[0].changes).toEqual([
+    expect(page.events[1]!.changes).toEqual([{ field: "column", from: "Up Next", to: "In progress" }]);
+    expect(page.events[0]!.changes).toEqual([
       { field: "title", from: "Sweep the tower", to: "Sweep the whole tower" },
       { field: "notes", from: null, to: "Every floor." },
     ]);
@@ -99,7 +99,7 @@ describe("project activity", () => {
     });
 
     const [event] = (await activity(server, `?entity=${page.id}`)).events;
-    expect(event.changes).toEqual([
+    expect(event!.changes).toEqual([
       { field: "category", from: "uncategorized", to: "Code" },
       { field: "blockers", from: null, to: "Design the ritual table" },
     ]);
@@ -115,7 +115,7 @@ describe("project activity", () => {
 
     const history = await activity(server, `?entity=${page.id}`);
     expect(history.events.map((event) => event.action)).toEqual(["restored", "archived", "created"]);
-    expect(history.events[1].entityTitle).toBe("Retire the old workbench");
+    expect(history.events[1]!.entityTitle).toBe("Retire the old workbench");
   });
 
   it("records ideas, promotions, categories, and project renames", async () => {
@@ -151,10 +151,10 @@ describe("project activity", () => {
       ["member", "joined"],
       ["project", "created"],
     ]);
-    expect(page.events[0].changes).toEqual([
+    expect(page.events[0]!.changes).toEqual([
       { field: "name", from: "Wizard Simulator", to: "Wizard Simulator 2" },
     ]);
-    expect(page.events[4].changes).toEqual([{ field: "list", from: "Idea inbox", to: "Shortlist" }]);
+    expect(page.events[4]!.changes).toEqual([{ field: "list", from: "Idea inbox", to: "Shortlist" }]);
   });
 
   it("records who invited, joined, and was removed", async () => {
@@ -226,7 +226,7 @@ describe("project activity", () => {
     expect(first.hasMore).toBe(true);
     expect(first.events).toHaveLength(3);
 
-    const second = await activity(server, `?limit=3&before=${first.events[2].sequence}`);
+    const second = await activity(server, `?limit=3&before=${first.events[2]!.sequence}`);
     expect(second.events.map((event) => event.entityTitle)).toEqual(["Page 2", "Page 1", "Page 0"]);
     expect(second.hasMore).toBe(true);
   });

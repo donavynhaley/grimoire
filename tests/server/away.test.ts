@@ -76,7 +76,7 @@ describe("while you were away", () => {
       ["moved", "Enchant the tower door"],
     ]);
     expect(state.events.every((event) => event.actorName === "Donavyn")).toBe(true);
-    expect(state.events[0].sequence).toBeLessThan(state.events[1].sequence);
+    expect(state.events[0]!.sequence).toBeLessThan(state.events[1]!.sequence);
   });
 
   it("advances with MAX semantics and clamps to the newest real sequence", async () => {
