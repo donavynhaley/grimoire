@@ -284,6 +284,9 @@ export function createGrimoireServer(options: Options) {
     broadcast,
     broadcastPresence,
     disconnectUserEvents,
+    recapFor,
+    sendRecap,
+    runGithubSync,
   };
   const routes: Route[] = [
     ...boardRoutes(appContext),

@@ -37,6 +37,15 @@ export type AppContext = {
   broadcast: (projectId: string, scope: WorkspaceScope, excludedClientId: string | null) => void;
   broadcastPresence: (projectId: string) => void;
   disconnectUserEvents: (userId: string) => void;
+  /** Reads a chapter's recap without posting it, so the owner can see what would go out. */
+  recapFor: (projectId: string, chapterSlug: string) => unknown;
+  /** Posts a chapter recap to the project's Discord webhook. */
+  sendRecap: (
+    projectId: string,
+    chapterSlug: string,
+  ) => Promise<"not_found" | "no_webhook" | { sent: number; failed: number }>;
+  /** Brings every linked page up to date with GitHub, now rather than on the poll. */
+  runGithubSync: (projectId: string) => Promise<void>;
 };
 
 export function requireUser(context: RequestContext): User {
