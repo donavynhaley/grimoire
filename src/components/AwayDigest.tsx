@@ -91,7 +91,7 @@ export function buildDigestLines(away: AwayState, board: BoardWorkspace): Digest
               { text: "finished " },
               { text: event.entityTitle, strong: true },
               { text: " - your " },
-              { text: unblocked[0].title, strong: true },
+              { text: unblocked[0]!.title, strong: true },
               { text: unblocked.length > 1 ? ` and ${unblocked.length - 1} more are no longer blocked` : " is no longer blocked" },
             ]);
           } else {
@@ -308,6 +308,6 @@ export function AwayDigest({ away, board, onDismiss }: Props) {
 
 function formatNames(names: string[]): string {
   if (names.length === 0) return "the team";
-  if (names.length === 1) return names[0];
+  if (names.length === 1) return names[0]!;
   return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }

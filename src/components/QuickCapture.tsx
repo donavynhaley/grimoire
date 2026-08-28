@@ -226,7 +226,7 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
     }
     if ((event.key === "Enter" || event.key === "Tab") && visibleOptions.length > 0) {
       event.preventDefault();
-      choose(visibleOptions[Math.min(highlighted, visibleOptions.length - 1)]);
+      choose(visibleOptions[Math.min(highlighted, visibleOptions.length - 1)]!);
     }
   };
 
@@ -262,7 +262,7 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
     >
       <label className="sr-only" htmlFor="quick-page">Capture work page</label>
       <input
-        aria-activedescendant={picker && visibleOptions.length ? `capture-option-${visibleOptions[Math.min(highlighted, visibleOptions.length - 1)].id}` : undefined}
+        aria-activedescendant={picker && visibleOptions.length ? `capture-option-${visibleOptions[Math.min(highlighted, visibleOptions.length - 1)]!.id}` : undefined}
         aria-controls={picker ? "capture-options" : undefined}
         aria-expanded={Boolean(picker)}
         aria-haspopup="listbox"
@@ -392,7 +392,7 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
                   // Enter takes the best match, the way the title bar's typed pickers do.
                   if (event.key === "Enter") {
                     event.preventDefault();
-                    if (visibleOptions.length > 0) choose(visibleOptions[0]);
+                    if (visibleOptions.length > 0) choose(visibleOptions[0]!);
                     return;
                   }
                   if (event.key === "Escape") {
@@ -460,8 +460,8 @@ function commandAtEnd(value: string, caret: number): PickerState | null {
         : match[2] === "!" ? "field-cmd" : "status";
   return {
     kind,
-    query: match[3].toLowerCase(),
-    commandStart: value.length - match[2].length - match[3].length,
+    query: match[3]!.toLowerCase(),
+    commandStart: value.length - match[2]!.length - match[3]!.length,
   };
 }
 

@@ -51,8 +51,8 @@ export function CategoriesSection({ categories, busy, actions, canManage, run }:
   const move = (index: number, delta: -1 | 1) => {
     const target = index + delta;
     if (target < 0 || target >= ordered.length) return;
-    const moved = ordered[index];
-    const displaced = ordered[target];
+    const moved = ordered[index]!;
+    const displaced = ordered[target]!;
     void run(async () => {
       await actions.update(moved.slug, { position: target });
       await actions.update(displaced.slug, { position: index });

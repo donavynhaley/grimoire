@@ -260,14 +260,14 @@ function Composer({ onSubmit, onCancel, placeholder, label, sendLabel, members, 
       setDismissed(null);
       return;
     }
-    const at = caret - match[1].length - 1;
-    const key = `${at}:${match[1]}`;
+    const at = caret - match[1]!.length - 1;
+    const key = `${at}:${match[1]!}`;
     if (key === dismissed) {
       setNaming(null);
       return;
     }
     setDismissed(null);
-    setNaming({ query: match[1], at });
+    setNaming({ query: match[1]!, at });
     setHighlighted(0);
   };
 
@@ -362,7 +362,7 @@ function Composer({ onSubmit, onCancel, placeholder, label, sendLabel, members, 
             }
             if (event.key === "Enter" || event.key === "Tab") {
               event.preventDefault();
-              choose(matches[highlighted]);
+              choose(matches[highlighted]!);
               return;
             }
             if (event.key === "Escape") {

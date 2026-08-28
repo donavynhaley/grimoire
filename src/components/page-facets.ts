@@ -174,7 +174,7 @@ function facetProperties({ categories, fields, estimatesEnabled, now }: FacetCon
 export function facetPredicate(selection: FacetSelection, context: FacetContext): (page: Page) => boolean {
   const properties = facetProperties(context).filter((property) => selection[property.key]?.length);
   if (properties.length === 0) return () => true;
-  return (page) => properties.every((property) => selection[property.key].includes(property.valueOf(page)));
+  return (page) => properties.every((property) => selection[property.key]!.includes(property.valueOf(page)));
 }
 
 /**
@@ -205,7 +205,7 @@ export function buildFacets(pages: Page[], selection: FacetSelection, context: F
     const others = properties.filter((candidate) => candidate.key !== property.key && selection[candidate.key]?.length);
     const candidates = others.length === 0
       ? pages
-      : pages.filter((page) => others.every((other) => selection[other.key].includes(other.valueOf(page))));
+      : pages.filter((page) => others.every((other) => selection[other.key]!.includes(other.valueOf(page))));
 
     const counts = new Map<string, number>();
     for (const page of candidates) {

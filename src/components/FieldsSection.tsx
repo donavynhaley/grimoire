@@ -109,8 +109,8 @@ export function FieldsSection({ estimatesEnabled, onSetEstimatesEnabled, fields,
   const move = (index: number, delta: -1 | 1) => {
     const target = index + delta;
     if (target < 0 || target >= ordered.length) return;
-    const moved = ordered[index];
-    const displaced = ordered[target];
+    const moved = ordered[index]!;
+    const displaced = ordered[target]!;
     void run(async () => {
       await actions.update(moved.key, { position: target });
       await actions.update(displaced.key, { position: index });

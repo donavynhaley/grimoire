@@ -111,9 +111,9 @@ export function NotesField({ label, editLabel, addImageLabel = "Add an image", e
     for (const [index, image] of images.entries()) {
       try {
         const { name: imageName } = await uploadImage(image);
-        editor.current?.replaceFirst(tokens[index], `![[${imageName}]]`);
+        editor.current?.replaceFirst(tokens[index]!, `![[${imageName}]]`);
       } catch {
-        editor.current?.replaceFirst(tokens[index], "");
+        editor.current?.replaceFirst(tokens[index]!, "");
         setUploadFailed(true);
       } finally {
         setPendingUploads((count) => count - 1);

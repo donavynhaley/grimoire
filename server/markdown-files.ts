@@ -24,7 +24,7 @@ export function parseMarkdown(markdown: string): { metadata: Record<string, unkn
   const match = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)([\s\S]*)$/);
   if (!match) throw new Error("Expected YAML frontmatter enclosed by --- lines");
   const metadata: Record<string, unknown> = {};
-  for (const line of match[1].split(/\r?\n/)) {
+  for (const line of match[1]!.split(/\r?\n/)) {
     if (!line.trim()) continue;
     const separator = line.indexOf(":");
     if (separator < 1) throw new Error(`Invalid frontmatter line: ${line}`);
@@ -32,7 +32,7 @@ export function parseMarkdown(markdown: string): { metadata: Record<string, unkn
     if (key in metadata) throw new Error(`Duplicate frontmatter field: ${key}`);
     metadata[key] = parseScalar(line.slice(separator + 1).trim());
   }
-  let body = match[2].replace(/^\r?\n/, "");
+  let body = match[2]!.replace(/^\r?\n/, "");
   body = body.replace(/\r?\n$/, "");
   return { metadata, body };
 }

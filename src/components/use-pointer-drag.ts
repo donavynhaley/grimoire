@@ -297,7 +297,7 @@ export function usePointerDrag({ onMove, onDrop, onCancel, onLift }: Options) {
 export function gapIndexIn(container: HTMLElement, selector: string, y: number): number {
   const cards = container.querySelectorAll<HTMLElement>(selector);
   for (let position = 0; position < cards.length; position += 1) {
-    const rect = cards[position].getBoundingClientRect();
+    const rect = cards[position]!.getBoundingClientRect();
     if (y < rect.top + rect.height / 2) return position;
   }
   return cards.length;

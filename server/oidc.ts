@@ -443,7 +443,7 @@ export class OidcProvider {
   private async verifyIdToken(token: string, nonce: string, discovery: Discovery): Promise<Record<string, unknown>> {
     const segments = token.split(".");
     if (segments.length !== 3) throw new OidcError("The identity token is malformed");
-    const [headerSegment, payloadSegment, signatureSegment] = segments;
+    const [headerSegment, payloadSegment, signatureSegment] = segments as [string, string, string];
     const header = decodeSegment(headerSegment);
     const claims = decodeSegment(payloadSegment);
     const algorithm = typeof header.alg === "string" ? header.alg : "";
@@ -452,7 +452,7 @@ export class OidcProvider {
 
     if (algorithm in HMAC_ALGORITHMS) {
       if (!this.config.clientSecret) throw new OidcError("The identity token is signed with a secret we do not hold");
-      const expected = createHmac(HMAC_ALGORITHMS[algorithm], this.config.clientSecret).update(signed).digest();
+      const expected = createHmac(HMAC_ALGORITHMS[algorithm]!, this.config.clientSecret).update(signed).digest();
       if (expected.length !== signature.length || !timingSafeEqual(expected, signature)) {
         throw new OidcError("The identity token's signature is not valid");
       }
@@ -617,7 +617,7 @@ function findKey(
   // Without a key id there must be no ambiguity about which key signed it, so a provider
   // publishing several is refused rather than guessed at.
   const candidates = usable.filter((key) => key.alg === undefined || key.alg === algorithm);
-  return candidates.length === 1 ? candidates[0] : null;
+  return candidates.length === 1 ? candidates[0]! : null;
 }
 
 function verifyAsymmetric(

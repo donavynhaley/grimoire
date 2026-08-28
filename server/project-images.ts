@@ -56,7 +56,7 @@ export class ProjectImageStore {
 
   get(projectSlug: string, imageName: string): StoredProjectImage | null {
     const match = imageName.match(IMAGE_NAME_PATTERN);
-    const contentType = match ? CONTENT_TYPES[match[1].toLowerCase()] : undefined;
+    const contentType = match ? CONTENT_TYPES[match[1]!.toLowerCase()] : undefined;
     if (!contentType) return null;
     const path = join(this.imagesDirectory(projectSlug), imageName);
     return existsSync(path) ? { path, contentType } : null;

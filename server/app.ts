@@ -984,8 +984,8 @@ export function createGrimoireServer(options: Options) {
     const avatarMatch = url.pathname.match(/^\/api\/avatars\/([^/]+)$/);
     if (method === "GET" && avatarMatch) {
       requireUser(context);
-      if (!/^[0-9a-f-]{36}$/i.test(avatarMatch[1])) throw new HttpError(404, "Profile picture not found");
-      const avatar = avatarStore.get(avatarMatch[1]);
+      if (!/^[0-9a-f-]{36}$/i.test(avatarMatch[1]!)) throw new HttpError(404, "Profile picture not found");
+      const avatar = avatarStore.get(avatarMatch[1]!);
       if (!avatar) throw new HttpError(404, "Profile picture not found");
       response.setHeader("Cache-Control", "private, max-age=31536000, immutable");
       sendFile(response, avatar.path, avatar.contentType);
@@ -1010,7 +1010,7 @@ export function createGrimoireServer(options: Options) {
       const slug = projectSlug(database, requireProject(context, user));
       let imageName: string;
       try {
-        imageName = decodeURIComponent(imageMatch[1]);
+        imageName = decodeURIComponent(imageMatch[1]!);
       } catch {
         throw new HttpError(404, "Image not found");
       }
@@ -1079,7 +1079,7 @@ export function createGrimoireServer(options: Options) {
       const user = requireUser(context);
       const projectId = requireProject(context, user);
       requireChaptersEnabled(projectId);
-      const recap = recapFor(projectId, recapMatch[1]);
+      const recap = recapFor(projectId, recapMatch[1]!);
       if (!recap) throw new HttpError(404, "Chapter not found");
       json(response, 200, { recap });
       return;
@@ -1090,7 +1090,7 @@ export function createGrimoireServer(options: Options) {
       const projectId = requireProjectOwner(context, user, "Only the owner can post a recap");
       requireChaptersEnabled(projectId);
       await readJson(request);
-      const result = await sendRecap(projectId, recapMatch[1]);
+      const result = await sendRecap(projectId, recapMatch[1]!);
       if (result === "not_found") throw new HttpError(404, "Chapter not found");
       if (result === "no_webhook") throw new HttpError(400, "This project has no Discord webhook to post to");
       json(response, 200, result);
@@ -1165,12 +1165,12 @@ export function createGrimoireServer(options: Options) {
     const projectMatch = url.pathname.match(/^\/api\/projects\/([^/]+)$/);
     if (method === "PATCH" && projectMatch) {
       const user = requireUser(context);
-      requireProjectMembership(user, projectMatch[1]);
-      if (!userOwnsProject(database, user, projectMatch[1])) {
+      requireProjectMembership(user, projectMatch[1]!);
+      if (!userOwnsProject(database, user, projectMatch[1]!)) {
         throw new HttpError(403, "Only the owner can change project settings");
       }
       const input = projectUpdateSchema.parse(await readJson(request));
-      const projectId = projectMatch[1];
+      const projectId = projectMatch[1]!;
       const before = projectById(database, projectId);
       if (!before) throw new HttpError(404, "Project not found");
       const previousName = String(before.name);
@@ -1304,46 +1304,46 @@ export function createGrimoireServer(options: Options) {
       const user = requireUser(context);
       // Ownership is read off the membership row, which outlives archiving - so this is asked
       // directly rather than through the live-project check, which refuses anything archived.
-      if (!userOwnsProject(database, user, projectRestoreMatch[1])) {
+      if (!userOwnsProject(database, user, projectRestoreMatch[1]!)) {
         throw new HttpError(404, "Archived project not found");
       }
       await readJson(request);
-      const restoredName = projectById(database, projectRestoreMatch[1])?.name;
-      if (!restoreProject(database, projectRestoreMatch[1])) {
+      const restoredName = projectById(database, projectRestoreMatch[1]!)?.name;
+      if (!restoreProject(database, projectRestoreMatch[1]!)) {
         throw new HttpError(404, "Archived project not found");
       }
       audit(context, {
-        projectId: projectRestoreMatch[1],
+        projectId: projectRestoreMatch[1]!,
         entityType: "project",
-        entityId: projectRestoreMatch[1],
+        entityId: projectRestoreMatch[1]!,
         entityTitle: String(restoredName ?? "project"),
         action: "restored",
       });
       json(response, 200, { ok: true });
-      broadcast(projectRestoreMatch[1], "work", requestClientId(request));
+      broadcast(projectRestoreMatch[1]!, "work", requestClientId(request));
       return;
     }
 
     if (method === "DELETE" && projectMatch) {
       const user = requireUser(context);
-      requireProjectMembership(user, projectMatch[1]);
-      if (!userOwnsProject(database, user, projectMatch[1])) {
+      requireProjectMembership(user, projectMatch[1]!);
+      if (!userOwnsProject(database, user, projectMatch[1]!)) {
         throw new HttpError(403, "Only the owner can archive projects");
       }
       await readJson(request);
-      const archivedName = projectById(database, projectMatch[1])?.name;
-      const result = archiveProject(database, projectMatch[1]);
+      const archivedName = projectById(database, projectMatch[1]!)?.name;
+      const result = archiveProject(database, projectMatch[1]!);
       if (result === "not_found") throw new HttpError(404, "Project not found");
       if (result === "last_project") throw new HttpError(409, "The last project cannot be archived");
       audit(context, {
-        projectId: projectMatch[1],
+        projectId: projectMatch[1]!,
         entityType: "project",
-        entityId: projectMatch[1],
+        entityId: projectMatch[1]!,
         entityTitle: String(archivedName ?? "project"),
         action: "archived",
       });
       json(response, 200, { ok: true });
-      broadcast(projectMatch[1], "work", requestClientId(request));
+      broadcast(projectMatch[1]!, "work", requestClientId(request));
       return;
     }
 
@@ -1389,15 +1389,15 @@ export function createGrimoireServer(options: Options) {
     if (method === "DELETE" && agentTokenMatch) {
       const user = requireUser(context);
       const projectId = requireProjectOwner(context, user, "Only the owner can manage agent access");
-      const revoked = listAgentTokens(database, projectId).find((token) => token.id === agentTokenMatch[1]);
-      if (!revokeAgentToken(database, projectId, agentTokenMatch[1])) {
+      const revoked = listAgentTokens(database, projectId).find((token) => token.id === agentTokenMatch[1]!);
+      if (!revokeAgentToken(database, projectId, agentTokenMatch[1]!)) {
         throw new HttpError(404, "Agent token not found");
       }
-      writeLimiter.forget(agentTokenMatch[1]);
+      writeLimiter.forget(agentTokenMatch[1]!);
       audit(context, {
         projectId,
         entityType: "agent",
-        entityId: agentTokenMatch[1],
+        entityId: agentTokenMatch[1]!,
         entityTitle: revoked?.name ?? "an agent",
         action: "removed",
       });
@@ -1429,8 +1429,8 @@ export function createGrimoireServer(options: Options) {
       const user = requireUser(context);
       const projectId = requireProjectOwner(context, user, "Only the owner can manage categories");
       const input = categoryUpdateSchema.parse(await readJson(request));
-      const previous = categoriesForProject(database, projectId).find((value) => value.slug === categoryMatch[1]);
-      const category = updateCategory(database, projectId, categoryMatch[1], input);
+      const previous = categoriesForProject(database, projectId).find((value) => value.slug === categoryMatch[1]!);
+      const category = updateCategory(database, projectId, categoryMatch[1]!, input);
       if (!category) throw new HttpError(404, "Category not found");
       const categoryEdits = previous
         ? [
@@ -1456,15 +1456,15 @@ export function createGrimoireServer(options: Options) {
     if (method === "DELETE" && categoryMatch) {
       const user = requireUser(context);
       const projectId = requireProjectOwner(context, user, "Only the owner can manage categories");
-      const removed = categoriesForProject(database, projectId).find((value) => value.slug === categoryMatch[1]);
-      if (!deleteCategory(database, pageStore, projectId, categoryMatch[1])) {
+      const removed = categoriesForProject(database, projectId).find((value) => value.slug === categoryMatch[1]!);
+      if (!deleteCategory(database, pageStore, projectId, categoryMatch[1]!)) {
         throw new HttpError(404, "Category not found");
       }
       audit(context, {
         projectId,
         entityType: "category",
-        entityId: categoryMatch[1],
-        entityTitle: removed?.name ?? categoryMatch[1],
+        entityId: categoryMatch[1]!,
+        entityTitle: removed?.name ?? categoryMatch[1]!,
         action: "deleted",
       });
       json(response, 200, { ok: true });
@@ -1501,8 +1501,8 @@ export function createGrimoireServer(options: Options) {
       const user = requireUser(context);
       const projectId = requireProjectOwner(context, user, "Only an owner can manage fields");
       const input = fieldUpdateSchema.parse(await readJson(request));
-      const before = fieldsForProject(database, projectId).find((field) => field.key === fieldMatch[1]);
-      const result = updateField(database, pageStore, projectId, fieldMatch[1], input);
+      const before = fieldsForProject(database, projectId).find((field) => field.key === fieldMatch[1]!);
+      const result = updateField(database, pageStore, projectId, fieldMatch[1]!, input);
       if (result === "not_found") throw new HttpError(404, "Field not found");
       if (result === "needs_options") throw new HttpError(400, "A choice field needs at least one option");
       if (result === "type_locked") {
@@ -1540,14 +1540,14 @@ export function createGrimoireServer(options: Options) {
     if (method === "DELETE" && fieldMatch) {
       const user = requireUser(context);
       const projectId = requireProjectOwner(context, user, "Only an owner can manage fields");
-      const removed = fieldsForProject(database, projectId).find((field) => field.key === fieldMatch[1]);
-      const cleared = deleteField(database, pageStore, projectId, fieldMatch[1]);
+      const removed = fieldsForProject(database, projectId).find((field) => field.key === fieldMatch[1]!);
+      const cleared = deleteField(database, pageStore, projectId, fieldMatch[1]!);
       if (cleared === null) throw new HttpError(404, "Field not found");
       audit(context, {
         projectId,
         entityType: "field",
-        entityId: fieldMatch[1],
-        entityTitle: removed?.label ?? fieldMatch[1],
+        entityId: fieldMatch[1]!,
+        entityTitle: removed?.label ?? fieldMatch[1]!,
         action: "deleted",
         changes: cleared > 0 ? [{ field: "pages cleared", from: null, to: String(cleared) }] : [],
       });
@@ -1586,8 +1586,8 @@ export function createGrimoireServer(options: Options) {
       requireChaptersEnabled(projectId);
       const input = chapterUpdateSchema.parse(await readJson(request));
       const before = chaptersForProject(database, chapterStore, projectId)
-        .find((chapter) => chapter.slug === chapterMatch[1]);
-      const result = updateChapter(database, chapterStore, projectId, chapterMatch[1], input);
+        .find((chapter) => chapter.slug === chapterMatch[1]!);
+      const result = updateChapter(database, chapterStore, projectId, chapterMatch[1]!, input);
       if (!result) throw new HttpError(404, "Project not found");
       if (result === "not_found") throw new HttpError(404, "Chapter not found");
       if (result === "already_open") throw new HttpError(409, ALREADY_OPEN_MESSAGE);
@@ -1613,7 +1613,7 @@ export function createGrimoireServer(options: Options) {
       const projectId = requireProjectOwner(context, user, "Only the owner can manage chapters");
       requireChaptersEnabled(projectId);
       const input = chapterCloseSchema.parse(await readJson(request));
-      const slug = chapterCloseMatch[1];
+      const slug = chapterCloseMatch[1]!;
       const project = projectById(database, projectId);
       if (!project) throw new HttpError(404, "Project not found");
 
@@ -1676,16 +1676,16 @@ export function createGrimoireServer(options: Options) {
       const projectId = requireProjectOwner(context, user, "Only the owner can manage chapters");
       requireChaptersEnabled(projectId);
       const removed = chaptersForProject(database, chapterStore, projectId)
-        .find((chapter) => chapter.slug === chapterMatch[1]);
-      const released = pagesInChapter(database, pageStore, projectId, chapterMatch[1]);
-      if (!deleteChapter(database, pageStore, chapterStore, projectId, chapterMatch[1])) {
+        .find((chapter) => chapter.slug === chapterMatch[1]!);
+      const released = pagesInChapter(database, pageStore, projectId, chapterMatch[1]!);
+      if (!deleteChapter(database, pageStore, chapterStore, projectId, chapterMatch[1]!)) {
         throw new HttpError(404, "Chapter not found");
       }
       audit(context, {
         projectId,
         entityType: "chapter",
-        entityId: chapterMatch[1],
-        entityTitle: removed?.name ?? chapterMatch[1],
+        entityId: chapterMatch[1]!,
+        entityTitle: removed?.name ?? chapterMatch[1]!,
         action: "deleted",
         changes: released > 0 ? [{ field: "pages released", from: null, to: String(released) }] : [],
       });
@@ -1727,9 +1727,9 @@ export function createGrimoireServer(options: Options) {
       // Changing your own role is refused rather than guarded, because the only case worth
       // allowing is the one that strands the project: its sole owner demoting themselves
       // leaves nobody who can ever promote anyone again. A second owner exists to be asked.
-      if (memberMatch[1] === user.id) throw new HttpError(409, "Ask another owner to change your own role");
-      const member = membersForProject(database, projectId).find((value) => value.id === memberMatch[1]);
-      const result = setMemberRole(database, projectId, memberMatch[1], input.role);
+      if (memberMatch[1]! === user.id) throw new HttpError(409, "Ask another owner to change your own role");
+      const member = membersForProject(database, projectId).find((value) => value.id === memberMatch[1]!);
+      const result = setMemberRole(database, projectId, memberMatch[1]!, input.role);
       if (result === "not_found") throw new HttpError(404, "Member not found");
       // The admin is the installation's, not this project's, so no project role may replace it.
       if (result === "admin") throw new HttpError(409, "The admin's role cannot be changed");
@@ -1737,7 +1737,7 @@ export function createGrimoireServer(options: Options) {
         audit(context, {
           projectId,
           entityType: "member",
-          entityId: memberMatch[1],
+          entityId: memberMatch[1]!,
           entityTitle: member.name,
           action: "updated",
           // The membership row is the only thing that moved, and it is what this project's
@@ -1754,19 +1754,19 @@ export function createGrimoireServer(options: Options) {
       const user = requireUser(context);
       await readJson(request);
       const projectId = requireProjectOwner(context, user, "Only the project owner can remove members");
-      const removedMember = membersForProject(database, projectId).find((value) => value.id === memberMatch[1]);
-      const result = removeProjectMember(database, pageStore, projectId, memberMatch[1]);
+      const removedMember = membersForProject(database, projectId).find((value) => value.id === memberMatch[1]!);
+      const result = removeProjectMember(database, pageStore, projectId, memberMatch[1]!);
       if (result === "owner") throw new HttpError(409, "The project owner cannot be removed");
       if (result === "admin") throw new HttpError(409, "The admin cannot be removed");
       if (result === "not_found") throw new HttpError(404, "Member not found");
       audit(context, {
         projectId,
         entityType: "member",
-        entityId: memberMatch[1],
+        entityId: memberMatch[1]!,
         entityTitle: removedMember?.name ?? "a member",
         action: "removed",
       });
-      disconnectUserEvents(memberMatch[1]);
+      disconnectUserEvents(memberMatch[1]!);
       json(response, 200, { ok: true });
       broadcast(projectId, "work", requestClientId(request));
       return;
@@ -1919,7 +1919,7 @@ export function createGrimoireServer(options: Options) {
       const user = requireUser(context);
       const projectId = requireProject(context, user);
       await readJson(request);
-      const source = findIdea(database, ideaStore, projectId, promotionMatch[1]);
+      const source = findIdea(database, ideaStore, projectId, promotionMatch[1]!);
       const page = promoteIdea(
         database,
         pageStore,
@@ -1927,13 +1927,13 @@ export function createGrimoireServer(options: Options) {
         ideaStore,
         projectId,
         user.id,
-        promotionMatch[1],
+        promotionMatch[1]!,
       );
       if (!page) throw new HttpError(404, "Idea not found");
       audit(context, {
         projectId,
         entityType: "idea",
-        entityId: promotionMatch[1],
+        entityId: promotionMatch[1]!,
         entityTitle: source?.title ?? page.title,
         action: "promoted",
         changes: [{ field: "became a page", from: null, to: page.title }],
@@ -1955,7 +1955,7 @@ export function createGrimoireServer(options: Options) {
     if (method === "DELETE" && promotionUndoMatch) {
       const user = requireUser(context);
       const projectId = requireProject(context, user);
-      const idea = undoPromotion(database, pageStore, ideaStore, projectId, promotionUndoMatch[1]);
+      const idea = undoPromotion(database, pageStore, ideaStore, projectId, promotionUndoMatch[1]!);
       if (!idea) throw new HttpError(404, "Promoted idea not found");
       audit(context, { projectId, entityType: "idea", entityId: idea.id, entityTitle: idea.title, action: "restored" });
       json(response, 200, { idea });
@@ -1967,12 +1967,12 @@ export function createGrimoireServer(options: Options) {
     if (method === "PATCH" && ideaMatch) {
       const user = requireUser(context);
       const projectId = requireProject(context, user);
-      const previousIdea = findIdea(database, ideaStore, projectId, ideaMatch[1]);
+      const previousIdea = findIdea(database, ideaStore, projectId, ideaMatch[1]!);
       const idea = updateIdea(
         database,
         ideaStore,
         projectId,
-        ideaMatch[1],
+        ideaMatch[1]!,
         ideaUpdateSchema.parse(await readJson(request)),
       );
       if (!idea) throw new HttpError(404, "Idea not found");
@@ -1994,7 +1994,7 @@ export function createGrimoireServer(options: Options) {
       const user = requireUser(context);
       const projectId = requireProject(context, user);
       await readJson(request);
-      const page = restorePage(database, pageStore, projectId, pageRestoreMatch[1]);
+      const page = restorePage(database, pageStore, projectId, pageRestoreMatch[1]!);
       if (!page) throw new HttpError(404, "Archived page not found");
       audit(context, { projectId, entityType: "page", entityId: page.id, entityTitle: page.title, action: "restored" });
       json(response, 200, { page });
@@ -2013,7 +2013,7 @@ export function createGrimoireServer(options: Options) {
     if (method === "GET" && discussionMatch) {
       const user = requireUser(context);
       const projectId = requireProject(context, user);
-      const page = findPage(database, pageStore, projectId, discussionMatch[1]);
+      const page = findPage(database, pageStore, projectId, discussionMatch[1]!);
       if (!page) throw new HttpError(404, "Page not found");
       json(response, 200, { threads: listDiscussion(database, projectId, page.id) });
       return;
@@ -2022,7 +2022,7 @@ export function createGrimoireServer(options: Options) {
     if (method === "POST" && discussionMatch) {
       const user = requireUser(context);
       const projectId = requireProject(context, user);
-      const page = findPage(database, pageStore, projectId, discussionMatch[1]);
+      const page = findPage(database, pageStore, projectId, discussionMatch[1]!);
       if (!page) throw new HttpError(404, "Page not found");
       const { body } = discussionBodySchema.parse(await readJson(request));
       // Resolved here, against the people actually on this project, so a name that belongs to
@@ -2059,7 +2059,7 @@ export function createGrimoireServer(options: Options) {
     if (method === "POST" && seenMatch) {
       const user = requireUser(context);
       const projectId = requireProject(context, user);
-      const page = findPage(database, pageStore, projectId, seenMatch[1]);
+      const page = findPage(database, pageStore, projectId, seenMatch[1]!);
       if (!page) throw new HttpError(404, "Page not found");
       await readJson(request);
       markDiscussionSeen(database, projectId, page.id, user.id);
@@ -2071,14 +2071,14 @@ export function createGrimoireServer(options: Options) {
     if (method === "POST" && replyMatch) {
       const user = requireUser(context);
       const projectId = requireProject(context, user);
-      const page = findPage(database, pageStore, projectId, replyMatch[1]);
+      const page = findPage(database, pageStore, projectId, replyMatch[1]!);
       if (!page) throw new HttpError(404, "Page not found");
       const { body } = discussionBodySchema.parse(await readJson(request));
       const thread = replyToThread(
         database,
         projectId,
         page.id,
-        replyMatch[2],
+        replyMatch[2]!,
         { id: user.id, name: user.name, agentTokenId: agentTokenId(context) },
         body,
         parseMentions(body, membersForProject(database, projectId)),
@@ -2109,10 +2109,10 @@ export function createGrimoireServer(options: Options) {
     if (method === "POST" && answeredMatch) {
       const user = requireUser(context);
       const projectId = requireProject(context, user);
-      const page = findPage(database, pageStore, projectId, answeredMatch[1]);
+      const page = findPage(database, pageStore, projectId, answeredMatch[1]!);
       if (!page) throw new HttpError(404, "Page not found");
       const { answered } = discussionAnswerSchema.parse(await readJson(request));
-      const result = setThreadAnswered(database, projectId, page.id, answeredMatch[2], answered, user.id);
+      const result = setThreadAnswered(database, projectId, page.id, answeredMatch[2]!, answered, user.id);
       if (result === "no_thread") throw new HttpError(404, "Thread not found");
       // Asking for the state it already holds is a no-op rather than a second log line.
       if (result !== "unchanged") {
@@ -2127,7 +2127,7 @@ export function createGrimoireServer(options: Options) {
       }
       // The no-op path re-reads the thread, and it can have vanished in the gap;
       // the client's type says thread, so the honest answer to a missing one is 404.
-      const thread = result === "unchanged" ? findThread(database, projectId, page.id, answeredMatch[2]) : result;
+      const thread = result === "unchanged" ? findThread(database, projectId, page.id, answeredMatch[2]!) : result;
       if (!thread) throw new HttpError(404, "Thread not found");
       json(response, 200, { thread });
       broadcast(projectId, "work", requestClientId(request));
@@ -2138,7 +2138,7 @@ export function createGrimoireServer(options: Options) {
     if (method === "GET" && pageMatch) {
       const user = requireUser(context);
       const projectId = requireProject(context, user);
-      const page = findPage(database, pageStore, projectId, pageMatch[1]);
+      const page = findPage(database, pageStore, projectId, pageMatch[1]!);
       // Archived pages answer 404 here rather than being served read-only, because the board
       // has no place to put one and search is the documented way back to the archive.
       if (!page) throw new HttpError(404, "Page not found");
@@ -2150,7 +2150,7 @@ export function createGrimoireServer(options: Options) {
       const user = requireUser(context);
       const projectId = requireProject(context, user);
       const labels = labelsForProject(projectId);
-      const before = findPage(database, pageStore, projectId, pageMatch[1]);
+      const before = findPage(database, pageStore, projectId, pageMatch[1]!);
       const { github: githubRaw, ...input } = pageUpdateSchema.parse(await readJson(request));
       if (input.chapter) requireChaptersEnabled(projectId);
       let githubLink: PageGithubLink | null | undefined;
@@ -2164,7 +2164,7 @@ export function createGrimoireServer(options: Options) {
           githubLink = parsed;
         }
       }
-      const page = updatePage(database, pageStore, chapterStore, projectId, pageMatch[1], {
+      const page = updatePage(database, pageStore, chapterStore, projectId, pageMatch[1]!, {
         ...input,
         ...(githubLink !== undefined ? { github: githubLink } : {}),
       });
@@ -2200,14 +2200,14 @@ export function createGrimoireServer(options: Options) {
     if (method === "DELETE" && pageMatch) {
       const user = requireUser(context);
       const projectId = requireProject(context, user);
-      const archived = findPage(database, pageStore, projectId, pageMatch[1]);
-      if (!archivePage(database, pageStore, projectId, pageMatch[1])) {
+      const archived = findPage(database, pageStore, projectId, pageMatch[1]!);
+      if (!archivePage(database, pageStore, projectId, pageMatch[1]!)) {
         throw new HttpError(404, "Page not found");
       }
       audit(context, {
         projectId,
         entityType: "page",
-        entityId: pageMatch[1],
+        entityId: pageMatch[1]!,
         entityTitle: archived?.title ?? "a page",
         action: "archived",
       });
@@ -2406,7 +2406,7 @@ export function createGrimoireServer(options: Options) {
     if (!value) return null;
     const match = /^Bearer\s+(.+)$/i.exec(value.trim());
     if (!match) return null;
-    return agentForToken(database, match[1].trim());
+    return agentForToken(database, match[1]!.trim());
   }
 
   /**
@@ -2440,9 +2440,9 @@ export function createGrimoireServer(options: Options) {
    */
   function oidcRedirectUri(request: IncomingMessage, url: URL, config: OidcConfig | null): string {
     if (config?.redirectUri) return config.redirectUri;
-    const forwardedProtocol = trustProxy ? String(request.headers["x-forwarded-proto"] ?? "").split(",")[0].trim() : "";
+    const forwardedProtocol = trustProxy ? String(request.headers["x-forwarded-proto"] ?? "").split(",")[0]!.trim() : "";
     const protocol = forwardedProtocol || (options.production ? "https" : url.protocol.replace(":", ""));
-    const forwardedHost = trustProxy ? String(request.headers["x-forwarded-host"] ?? "").split(",")[0].trim() : "";
+    const forwardedHost = trustProxy ? String(request.headers["x-forwarded-host"] ?? "").split(",")[0]!.trim() : "";
     const host = forwardedHost || request.headers.host || url.host;
     return `${protocol}://${host}/api/auth/oidc/callback`;
   }
@@ -2522,7 +2522,7 @@ export function createGrimoireServer(options: Options) {
     // something unguessable is used rather than a marker, so a sign-in attempt against this
     // account costs exactly what every other one costs and cannot be told apart by timing.
     const passwordHash = await hashPassword(createOpaqueToken());
-    const name = identity.name || identity.email.split("@")[0];
+    const name = identity.name || identity.email.split("@")[0]!;
 
     database.exec("BEGIN IMMEDIATE");
     try {

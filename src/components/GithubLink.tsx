@@ -143,7 +143,7 @@ export function GithubLink({ github, status, repo, onUpdate }: Props) {
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
                     event.preventDefault();
-                    if (matches.length > 0) void choose(`#${matches[0].number}`);
+                    if (matches.length > 0) void choose(`#${matches[0]!.number}`);
                     else if (typed) void choose(typed);
                     return;
                   }

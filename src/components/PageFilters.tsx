@@ -65,7 +65,7 @@ export function PageFilters({ pages, context, selection, onChange }: Props) {
   useEffect(() => {
     if (!open) return;
     const filtering = openedWith.current;
-    setExpanded(new Set(Object.keys(filtering).filter((key) => filtering[key].length > 0)));
+    setExpanded(new Set(Object.keys(filtering).filter((key) => filtering[key]!.length > 0)));
   }, [open]);
 
   const label = active === 0 ? "Filter pages" : `Filter pages, ${active} value${active === 1 ? "" : "s"} chosen`;

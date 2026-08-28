@@ -66,7 +66,7 @@ export function ActivityDialog({ awaySince, members, revision, onClose, onLoad, 
   const dividerBeforeId = useMemo(() => {
     if (awaySince === undefined) return null;
     const firstSeen = visible.findIndex((event) => event.sequence <= awaySince);
-    return firstSeen > 0 ? visible[firstSeen].id : null;
+    return firstSeen > 0 ? visible[firstSeen]!.id : null;
   }, [awaySince, visible]);
 
   return (

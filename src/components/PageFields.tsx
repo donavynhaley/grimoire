@@ -233,7 +233,7 @@ function SearchableChoice({ field, onSet, value }: {
               onKeyDown={(event) => {
                 if (event.key === "Enter" && matches.length > 0) {
                   event.preventDefault();
-                  onSet(matches[0]);
+                  onSet(matches[0]!);
                   close();
                   return;
                 }

@@ -71,14 +71,14 @@ export function parseGithubReference(raw: string, projectRepo: string): PageGith
 
   const pull = value.match(/^https?:\/\/github\.com\/([^/\s]+\/[^/\s]+)\/pull\/(\d+)/i);
   if (pull) {
-    const repo = normalizeRepo(pull[1]);
-    return { kind: "pr", number: Number(pull[2]), ...(repo !== projectRepo ? { repo } : {}) };
+    const repo = normalizeRepo(pull[1]!);
+    return { kind: "pr", number: Number(pull[2]!), ...(repo !== projectRepo ? { repo } : {}) };
   }
 
   const tree = value.match(/^https?:\/\/github\.com\/([^/\s]+\/[^/\s]+)\/tree\/(.+)$/i);
   if (tree) {
-    const repo = normalizeRepo(tree[1]);
-    const name = decodeURIComponent(tree[2]).replace(/\/+$/, "");
+    const repo = normalizeRepo(tree[1]!);
+    const name = decodeURIComponent(tree[2]!).replace(/\/+$/, "");
     return { kind: "branch", name, ...(repo !== projectRepo ? { repo } : {}) };
   }
 

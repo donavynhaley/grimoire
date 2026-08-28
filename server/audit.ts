@@ -171,7 +171,7 @@ function publicAuditEvent(value: Record<string, string | number | null>): AuditE
     entityId: value.entity_id === null ? null : String(value.entity_id),
     entityTitle: String(value.entity_title),
     action: value.action as AuditAction,
-    changes: parseChanges(value.changes),
+    changes: parseChanges(value.changes ?? null),
     createdAt: String(value.created_at),
   };
 }

@@ -42,12 +42,12 @@ class ImageWidget extends WidgetType {
     super();
   }
 
-  eq(other: ImageWidget): boolean {
+  override eq(other: ImageWidget): boolean {
     return other.src === this.src && other.alt === this.alt && other.width === this.width
       && other.height === this.height && other.block === this.block;
   }
 
-  toDOM(): HTMLElement {
+  override toDOM(): HTMLElement {
     const image = document.createElement("img");
     image.className = this.block ? "cm-lp-image block" : "cm-lp-image";
     image.src = resolveImageSource(this.src);
@@ -72,11 +72,11 @@ class TaskWidget extends WidgetType {
     super();
   }
 
-  eq(other: TaskWidget): boolean {
+  override eq(other: TaskWidget): boolean {
     return other.checked === this.checked && other.from === this.from;
   }
 
-  toDOM(view: EditorView): HTMLElement {
+  override toDOM(view: EditorView): HTMLElement {
     const box = document.createElement("input");
     box.type = "checkbox";
     box.className = "cm-lp-task";
@@ -90,17 +90,17 @@ class TaskWidget extends WidgetType {
     return box;
   }
 
-  ignoreEvent(): boolean {
+  override ignoreEvent(): boolean {
     return true;
   }
 }
 
 class BulletWidget extends WidgetType {
-  eq(): boolean {
+  override eq(): boolean {
     return true;
   }
 
-  toDOM(): HTMLElement {
+  override toDOM(): HTMLElement {
     const bullet = document.createElement("span");
     bullet.className = "cm-lp-bullet";
     bullet.textContent = "•";
@@ -109,11 +109,11 @@ class BulletWidget extends WidgetType {
 }
 
 class RuleWidget extends WidgetType {
-  eq(): boolean {
+  override eq(): boolean {
     return true;
   }
 
-  toDOM(): HTMLElement {
+  override toDOM(): HTMLElement {
     const rule = document.createElement("hr");
     rule.className = "cm-lp-rule";
     return rule;
@@ -146,11 +146,11 @@ class TableWidget extends WidgetType {
     super();
   }
 
-  eq(other: TableWidget): boolean {
+  override eq(other: TableWidget): boolean {
     return other.source === this.source && other.from === this.from;
   }
 
-  toDOM(view: EditorView): HTMLElement {
+  override toDOM(view: EditorView): HTMLElement {
     const model = parseTable(this.source);
     const columns = columnCount(model);
     const wrapper = document.createElement("div");
@@ -238,7 +238,7 @@ class TableWidget extends WidgetType {
     return wrapper;
   }
 
-  ignoreEvent(): boolean {
+  override ignoreEvent(): boolean {
     return true;
   }
 }
@@ -285,7 +285,7 @@ function serializeTable(model: TableModel): string {
   const widths = Array.from({ length: columns }, (_, column) =>
     model.rows.reduce((widest, row) => Math.max(widest, (row[column] ?? "").length), 3),
   );
-  const line = (cells: string[]) => `| ${padRow(cells, columns).map((cell, column) => cell.padEnd(widths[column])).join(" | ")} |`;
+  const line = (cells: string[]) => `| ${padRow(cells, columns).map((cell, column) => cell.padEnd(widths[column]!)).join(" | ")} |`;
   const delimiter = `| ${widths
     .map((width, column) => {
       const alignment = model.alignments[column];
@@ -407,7 +407,7 @@ function build(state: EditorState, focused: boolean): Built {
 
       const heading = node.name.match(/^(?:ATX|Setext)Heading([1-6])$/);
       if (heading) {
-        decorations.push(HEADING_LINES[Number(heading[1]) - 1].range(state.doc.lineAt(node.from).from));
+        decorations.push(HEADING_LINES[Number(heading[1]) - 1]!.range(state.doc.lineAt(node.from).from));
         return undefined;
       }
 
@@ -513,7 +513,7 @@ function build(state: EditorState, focused: boolean): Built {
     const line = state.doc.lineAt(start);
     const alone = line.text.trim() === match[0];
     decorations.push(
-      Decoration.replace({ widget: new ImageWidget(match[1].trim(), alt, width, height, alone) }).range(start, end),
+      Decoration.replace({ widget: new ImageWidget(match[1]!.trim(), alt, width, height, alone) }).range(start, end),
     );
     atomic.push(HIDDEN.range(start, end));
   }
@@ -537,7 +537,7 @@ function urlOf(state: EditorState, node: SyntaxNode): string | null {
 function altOf(state: EditorState, node: SyntaxNode): string {
   const marks = childrenOf(node).filter((child) => child.name === "LinkMark");
   if (marks.length < 2) return "";
-  return state.doc.sliceString(marks[0].to, marks[1].from);
+  return state.doc.sliceString(marks[0]!.to, marks[1]!.from);
 }
 
 /** Fence backticks are the block's own shape, and hiding them collapses it. */
