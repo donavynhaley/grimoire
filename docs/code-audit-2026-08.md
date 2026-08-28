@@ -33,6 +33,60 @@ The shortfall is concentrated, not diffuse:
 
 Everything in §A was verified by hand against the source, not just reported.
 
+## The scorecard
+
+The standards are canon as of this audit's adoption; here is where each one
+stands. **met** means no violation found; **short** names the findings that close
+the gap. 18 of 45 standards are met today.
+
+| Standard | Verdict | What closes the gap |
+|---|---|---|
+| ARCH-1 storage boundary | met | — |
+| ARCH-2 decisions written down | met | — |
+| ARCH-3 backward compatibility | met | A7 is the one place strictness turns hostile |
+| ARCH-4 atomic writes | short | A8, plus the archive two-step (`markdown-pages.ts:107`) |
+| ARCH-5 server is the authority | met | — |
+| ARCH-6 one module, one job | short | F1–F5, D3–D5 |
+| TS-1 strict everywhere | met | — |
+| TS-2 no escape hatches | short | A13; the `Row` casts; MCP response casts |
+| TS-3 strictness flags | short | B1 |
+| TS-4 shapes defined once | short | A6, D1, D2 |
+| TS-5 exported return types | met | two live stragglers (`use-pointer-drag.ts:72`, `app.ts:448`); two more die with C1 |
+| TS-6 typed response door | short | the `json(body: unknown)` boundary; two hand-built payloads |
+| TS-7 enums derive from tuples | short | D1 |
+| NAME-1 file naming | met | two hooks living in `.tsx` files move in F4 |
+| NAME-2 pages, not cards | short | E: `AccountDialog.tsx:171` user-facing copy; stale comment `shared/types.ts:415` |
+| NAME-3 names say what, not how | short | E: three handler-naming strays |
+| SRV-1 strict validation at the edge | met | — |
+| SRV-2 security defaults | short | A3, A4, A10 |
+| SRV-3 loud, actionable errors | short | A5, A7; the probe's 200-with-error |
+| SRV-4 handlers read as a table of contents | short | F1 |
+| SRV-5 app.ts registers, not implements | short | F1 |
+| SRV-6 SQL beside its domain | short | E: ~20 auth queries stranded in app.ts |
+| SRV-7 activity log on every mutation | met | — |
+| SRV-8 no unguarded I/O | short | A1, A2, A9 |
+| SRV-9 atomicity docstrings are contracts | short | A8 |
+| UI-1 nothing pops in | short | E: six holdouts |
+| UI-2 server's answer is the truth | met | — |
+| UI-3 state homed where it's used | short | F3: 37 props, 14 only forwarded |
+| UI-4 component files ≤ ~400 lines | short | F3, F4: five files over |
+| UI-5 accessibility built in | short | A11; no focus trap; the listbox rows (E) |
+| UI-6 CSS organized, tokenized, alive | short | C4, F5 |
+| UI-7 one HTTP path, one mutation path | short | E: two breaches |
+| UI-8 effect discipline | short | A12; the URL-sync effects (E) |
+| TEST-1 test the real thing | met | — |
+| TEST-2 names are behavior sentences | met | — |
+| TEST-3 behavior modules get tests | short | G1, B2 |
+| TEST-4 e2e covers journeys, runs locally | met | — |
+| TEST-5 harness lives in fixtures | short | G2 |
+| TEST-6 policies tested as policies | short | B3 |
+| DEP-1 short dependency list | met | C1 shortens it by three |
+| DEP-2 no dependency for the platform | met | — |
+| DOC-1 comments state what code can't | met | A8 is where comments overstate |
+| DOC-2 commit voice | met | — |
+| DOC-3 architecture.md moves with behavior | met | — |
+| TOOL-1 Prettier via `npm run check` | short | B4: add Prettier, remove the two stale `eslint-disable` comments |
+
 ---
 
 ## A. Fix before launch
@@ -169,14 +223,13 @@ table (after F1 creates one) — or, until then, one that hits an unregistered
 plausible path and asserts 403 — so "closed unless opened" is a tested property,
 not a stated one.
 
-**B4 — Decide TOOL-1 (linter/formatter).**
-Two stale `eslint-disable-next-line react-hooks/exhaustive-deps` comments
-(`PageDialog.tsx:133`, `MarkdownEditor.tsx:182`) reference a linter the repo
-doesn't have, while a third identical case (`IdeasBoard.tsx:45`) carries nothing.
-Whatever the decision, it settles which of those three is correct. Prettier alone
-is the smallest move that helps outside contributors before open-sourcing;
-typescript-eslint with `react-hooks` rules would also have flagged
-`Board.tsx:312`'s `useKeyboardShortcut` (a plain handler named like a hook).
+**B4 — Apply TOOL-1 (decided: Prettier, no ESLint).**
+Add Prettier as a devDependency, wire `prettier --check` into `npm run check`,
+land the one big format commit, and remove the two stale
+`eslint-disable-next-line react-hooks/exhaustive-deps` comments
+(`PageDialog.tsx:133`, `MarkdownEditor.tsx:182`) that reference a linter the repo
+doesn't have — replacing each with a prose comment saying why the dependency list
+is deliberately partial, matching `IdeasBoard.tsx:45`'s treatment.
 
 **B5 — Add a coverage report.** *(TEST-3)*
 `vitest.config.ts` has no coverage block; none of §G's claims can be watched
@@ -190,8 +243,10 @@ plugin lists — its own comment says the notes field no longer uses it), all of
 `obsidian-embeds.ts` (46 lines) and `markdown-source-offsets.ts` (78 lines,
 implementing a rendered/editor swap the product no longer has), the
 `.markdown-body` CSS block (`styles.css:2334-2375`). Removing the chain makes
-**`react-markdown` and `remark-gfm` removable dependencies** (DEP-1 win). Verify
-against `tests/` before deleting — the survey only proved no importer in `src/`.
+**three dependencies removable — `react-markdown`, `remark-gfm`, and
+`unist-util-visit`** (verified: the latter's only importers are the two dead
+files) (DEP-1 win). Verify against `tests/` before deleting — the survey only
+proved no importer in `src/`.
 
 **C2 — Server strays.** `userIsProjectMember` (`repository.ts:190` — exported,
 imported, never called; the route it documents calls `userOwnsProject` instead),
@@ -313,6 +368,10 @@ parens)*
 - **Handler naming** *(NAME-3)*: `Board.tsx:312` `useKeyboardShortcut` (a plain
   handler wearing a hook name — rename first, it will trip any future lint),
   one `handleInputKeyDown`, one `onKeyDown` local; the house style is a bare verb.
+- **The last user-facing "cards"** *(NAME-2)*: `AccountDialog.tsx:171` — "the name
+  on your cards, ideas, and mentions" is the one place the interface still uses
+  the pre-rename vocabulary; say "pages". A stale comment at `shared/types.ts:415`
+  too.
 - **Escape contracts** *(UI-5)*: three variants exist; `use-dialog-escape` +
   `defaultPrevented` guard is the house rule (see A11).
 - **`EditorState` name collision**: `src/components/EditorState.tsx` vs
@@ -425,9 +484,10 @@ package a vitest suite so the type-equality assertions have somewhere to live.
 Ordered so every phase makes the next one safer. One PR per numbered item;
 sizes are S (≤half a day), M (a day or two), L (several days).
 
-**Phase 0 — Sign-off (you).** Edit `docs/coding-standards.md`: strike or amend
-the proposed standards, answer TOOL-1 and the size-target question, add your own.
-The audit is re-runnable against the edited ruler.
+**Phase 0 — Sign-off (you). ✅ Done.** Every standard was adopted as written; the
+observed/proposed labels are gone and the document is canon. TOOL-1 resolved to
+Prettier alone. The scorecard above is the review against that canon: 18 of 45
+standards met.
 
 **Phase 1 — Launch blockers (S each, independent).**
 A1 `sendFile` with error handling · A2 guarded SSE writes · A3 bootstrap
