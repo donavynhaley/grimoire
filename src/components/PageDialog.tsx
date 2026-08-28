@@ -58,7 +58,27 @@ type Props = {
   onSeeDiscussion: (pageId: string) => Promise<void>;
 };
 
-export function PageDialog({ page, pages, categories, chapters, estimatesEnabled, fields, currentUserId, githubRepo, members, revision, onUpdate, onArchive, onClose, onLoadActivity, onLoadDiscussion, onAsk, onReply, onSetAnswered, onSeeDiscussion }: Props) {
+export function PageDialog({
+  page,
+  pages,
+  categories,
+  chapters,
+  estimatesEnabled,
+  fields,
+  currentUserId,
+  githubRepo,
+  members,
+  revision,
+  onUpdate,
+  onArchive,
+  onClose,
+  onLoadActivity,
+  onLoadDiscussion,
+  onAsk,
+  onReply,
+  onSetAnswered,
+  onSeeDiscussion,
+}: Props) {
   const categoryColor = (slug: string | null) =>
     slug ? categories.find((category) => category.slug === slug)?.color : undefined;
   const swatchStyle = (slug: string | null) => {
@@ -138,7 +158,6 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
     setShowingClosedChapters(inClosedChapter);
     // `inClosedChapter` is read for the page being opened, not tracked: a page moved into a
     // closed chapter from the open fold must not re-run this and fold it away underneath.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page.id]);
 
   const blockers = page.blockedBy
@@ -147,12 +166,16 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
   const normalizedBlockerQuery = blockerQuery.trim().toLowerCase();
   const blockerResults = normalizedBlockerQuery
     ? pages
-      .filter((candidate) =>
-        candidate.id !== page.id &&
-        candidate.status !== "done" &&
-        !page.blockedBy.includes(candidate.id) &&
-        `${candidate.title}\n${candidate.category ?? "uncategorized"}`.toLowerCase().includes(normalizedBlockerQuery))
-      .slice(0, 6)
+        .filter(
+          (candidate) =>
+            candidate.id !== page.id &&
+            candidate.status !== "done" &&
+            !page.blockedBy.includes(candidate.id) &&
+            `${candidate.title}\n${candidate.category ?? "uncategorized"}`
+              .toLowerCase()
+              .includes(normalizedBlockerQuery),
+        )
+        .slice(0, 6)
     : [];
 
   const addBlocker = async (id: string) => {
@@ -161,12 +184,17 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
     setBlockerQuery("");
   };
 
-  const removeBlocker = (id: string) => onUpdate({
-    blockedBy: page.blockedBy.filter((dependencyId) => dependencyId !== id),
-  });
+  const removeBlocker = (id: string) =>
+    onUpdate({
+      blockedBy: page.blockedBy.filter((dependencyId) => dependencyId !== id),
+    });
 
   const history = usePageHistory(page.id, revision, onLoadActivity);
-  const { threads, failed: discussionFailed, reload: reloadDiscussion } = usePageDiscussion(page.id, revision, onLoadDiscussion);
+  const {
+    threads,
+    failed: discussionFailed,
+    reload: reloadDiscussion,
+  } = usePageDiscussion(page.id, revision, onLoadDiscussion);
   /*
    * What the control counts is what has not been read, not what is unresolved.
    *
@@ -204,8 +232,13 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
   return (
     <Drawer className="dialog-panel page-editor" labelledBy="dialog-panel-title" onClose={close}>
       <header className="dialog-header">
-        <div><p className="eyebrow">page details</p><h2 id="dialog-panel-title">Edit page</h2></div>
-        <button aria-label="Close page" className="icon-button" onClick={() => void close()} type="button">×</button>
+        <div>
+          <p className="eyebrow">page details</p>
+          <h2 id="dialog-panel-title">Edit page</h2>
+        </div>
+        <button aria-label="Close page" className="icon-button" onClick={() => void close()} type="button">
+          ×
+        </button>
       </header>
 
       {/*
@@ -215,11 +248,21 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
         listener here.
       */}
       <div aria-label="Page halves" className="page-editor-panes" role="group">
-        <button aria-pressed={pane === "notes"} className="pane-tab" onClick={() => setPane("notes")} type="button">Notes</button>
+        <button
+          aria-pressed={pane === "notes"}
+          className="pane-tab"
+          onClick={() => setPane("notes")}
+          type="button"
+        >
+          Notes
+        </button>
         <button
           aria-pressed={pane === "aside" && aside === "details"}
           className="pane-tab"
-          onClick={() => { setPane("aside"); setAside("details"); }}
+          onClick={() => {
+            setPane("aside");
+            setAside("details");
+          }}
           type="button"
         >
           Details
@@ -227,17 +270,28 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
         <button
           aria-pressed={pane === "aside" && aside === "discussion"}
           className="pane-tab"
-          onClick={() => { setPane("aside"); setAside("discussion"); }}
+          onClick={() => {
+            setPane("aside");
+            setAside("discussion");
+          }}
           type="button"
         >
-          Discussion{unseenCount > 0 ? ` · ${unseenCount}` : ""}{namedCount > 0 ? " @" : ""}
+          Discussion{unseenCount > 0 ? ` · ${unseenCount}` : ""}
+          {namedCount > 0 ? " @" : ""}
         </button>
       </div>
 
       <div className="page-editor-split" data-pane={pane}>
         <div className="page-editor-main">
           <div className="record-form">
-            <label><span>Title</span><input name="title" onChange={(event) => editor.setTitle(event.target.value)} value={editor.title} /></label>
+            <label>
+              <span>Title</span>
+              <input
+                name="title"
+                onChange={(event) => editor.setTitle(event.target.value)}
+                value={editor.title}
+              />
+            </label>
           </div>
 
           {/* The notes take whatever height the column has left over, and are the only
@@ -254,7 +308,6 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
           />
 
           <GithubLink github={page.github} onUpdate={onUpdate} repo={githubRepo} status={page.githubStatus} />
-
         </div>
 
         {/*
@@ -288,7 +341,11 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
               */}
               {unseenCount > 0 && (
                 <span
-                  aria-label={namedCount > 0 ? `${unseenCount} unread, ${namedCount} naming you` : `${unseenCount} unread`}
+                  aria-label={
+                    namedCount > 0
+                      ? `${unseenCount} unread, ${namedCount} naming you`
+                      : `${unseenCount} unread`
+                  }
                   className={namedCount > 0 ? "discussion-unseen named" : "discussion-unseen"}
                 >
                   {unseenCount}
@@ -302,8 +359,14 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
               currentUserId={currentUserId}
               failed={discussionFailed}
               members={members}
-              onAsk={async (body) => { await onAsk(page.id, body); await reloadDiscussion(); }}
-              onReply={async (threadId, body) => { await onReply(page.id, threadId, body); await reloadDiscussion(); }}
+              onAsk={async (body) => {
+                await onAsk(page.id, body);
+                await reloadDiscussion();
+              }}
+              onReply={async (threadId, body) => {
+                await onReply(page.id, threadId, body);
+                await reloadDiscussion();
+              }}
               onSetAnswered={async (threadId, answered) => {
                 await onSetAnswered(page.id, threadId, answered);
                 await reloadDiscussion();
@@ -311,186 +374,263 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
               threads={threads}
             />
           ) : (
-        <div aria-label="Page properties" className="page-rail">
-          <div className="rail-row">
-            <span className="field-label">Column</span>
-            <div className="choice-grid status-choices">
-              {PAGE_STATUSES.map((status) => (
-                <button
-                  aria-label={`Move to ${labels[status]}`}
-                  className={page.status === status ? "choice active" : "choice"}
-                  key={status}
-                  onClick={() => onUpdate({ status, position: 99_999 })}
-                  type="button"
-                >
-                  <span className={`column-dot ${status}`} />{labels[status]}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="rail-row">
-            <span className="field-label">Who</span>
-            <div className="choice-grid assignee-choices">
-              <button className={!page.assigneeId ? "choice active" : "choice"} onClick={() => onUpdate({ assigneeId: null })} type="button">unassigned</button>
-              {members.map((member) => (
-                <button
-                  aria-label={`Assign ${member.name}`}
-                  className={page.assigneeId === member.id ? "choice active" : "choice"}
-                  key={member.id}
-                  onClick={() => onUpdate({ assigneeId: member.id })}
-                  type="button"
-                >
-                  <Avatar avatarUrl={member.avatarUrl} className="avatar tiny" name={member.name} />{member.name}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {chapters.length > 0 && (
-            <Growing className="rail-row">
-              <span className="field-label">Chapter</span>
-              <div className="choice-grid chapter-choices">
-                <button
-                  aria-label="Remove from every chapter"
-                  className={!page.chapter ? "choice active" : "choice"}
-                  onClick={() => onUpdate({ chapter: null })}
-                  type="button"
-                >
-                  none
-                </button>
-                {liveChapters.map((chapter) => (
-                  <ChapterChoice chapter={chapter} key={chapter.slug} onUpdate={onUpdate} page={page} />
-                ))}
+            <div aria-label="Page properties" className="page-rail">
+              <div className="rail-row">
+                <span className="field-label">Column</span>
+                <div className="choice-grid status-choices">
+                  {PAGE_STATUSES.map((status) => (
+                    <button
+                      aria-label={`Move to ${labels[status]}`}
+                      className={page.status === status ? "choice active" : "choice"}
+                      key={status}
+                      onClick={() => onUpdate({ status, position: 99_999 })}
+                      type="button"
+                    >
+                      <span className={`column-dot ${status}`} />
+                      {labels[status]}
+                    </button>
+                  ))}
+                </div>
               </div>
-              {closedChapters.length > 0 && (
-                <>
+
+              <div className="rail-row">
+                <span className="field-label">Who</span>
+                <div className="choice-grid assignee-choices">
                   <button
-                    aria-expanded={showingClosedChapters}
-                    className="chapter-group-label as-toggle in-rail"
-                    onClick={() => setShowingClosedChapters((showing) => !showing)}
+                    className={!page.assigneeId ? "choice active" : "choice"}
+                    onClick={() => onUpdate({ assigneeId: null })}
                     type="button"
                   >
-                    <span>earlier</span>
-                    <span className="chapter-group-count">{closedChapters.length}</span>
-                    <span aria-hidden="true" className="chapter-group-caret">{showingClosedChapters ? "▾" : "▸"}</span>
+                    unassigned
                   </button>
-                  {showingClosedChapters && (
-                    <div className="choice-grid chapter-choices">
-                      {closedChapters.map((chapter) => (
-                        <ChapterChoice chapter={chapter} key={chapter.slug} onUpdate={onUpdate} page={page} />
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-            </Growing>
-          )}
-
-          <Growing className="rail-row">
-            <span className="field-label">Category</span>
-            {changingCategory ? (
-              <div className="choice-grid category-choices">
-                <button
-                  aria-label="Clear category"
-                  className={!page.category ? "choice active" : "choice"}
-                  onClick={() => { void onUpdate({ category: null }); setChangingCategory(false); }}
-                  type="button"
-                >
-                  none
-                </button>
-                {categories.map((category) => (
-                  <button
-                    aria-label={`Categorize as ${category.name}`}
-                    className={page.category === category.slug ? "choice active" : "choice"}
-                    key={category.slug}
-                    onClick={() => { void onUpdate({ category: category.slug }); setChangingCategory(false); }}
-                    type="button"
-                  >
-                    <span className="category-swatch" style={{ "--category-color": category.color } as React.CSSProperties} />{category.name}
-                  </button>
-                ))}
+                  {members.map((member) => (
+                    <button
+                      aria-label={`Assign ${member.name}`}
+                      className={page.assigneeId === member.id ? "choice active" : "choice"}
+                      key={member.id}
+                      onClick={() => onUpdate({ assigneeId: member.id })}
+                      type="button"
+                    >
+                      <Avatar avatarUrl={member.avatarUrl} className="avatar tiny" name={member.name} />
+                      {member.name}
+                    </button>
+                  ))}
+                </div>
               </div>
-            ) : (
-              <div className="rail-value">
-                <span className="rail-current">
-                  <span className={`category-swatch ${page.category ? "" : "category-none"}`} style={swatchStyle(page.category)} />
-                  {page.category ? categories.find((category) => category.slug === page.category)?.name ?? page.category : "uncategorized"}
-                </span>
-                <button
-                  aria-label="Change category"
-                  className="rail-change"
-                  onClick={() => setChangingCategory(true)}
-                  type="button"
-                >change</button>
-              </div>
-            )}
-          </Growing>
 
-          {estimatesEnabled && (
-            <Growing className="rail-row">
-              <span className="field-label">Estimate</span>
-              <EstimateRow estimate={page.estimate} onUpdate={onUpdate} />
-            </Growing>
-          )}
-
-          <PageFieldsEditor fields={fields} values={page.fields} onUpdate={onUpdate} />
-
-          <Growing className="rail-row dependency-section">
-            <span className="field-label">Blocked by</span>
-            {blockers.length > 0 ? (
-              <div className="dependency-list">
-                {blockers.map((blocker) => (
-                  <div className={blocker.status === "done" ? "dependency resolved" : "dependency"} key={blocker.id}>
-                    <span className={`category-swatch ${blocker.category ? "" : "category-none"}`} style={swatchStyle(blocker.category)} />
-                    <span><strong>{blocker.title}</strong><small>{blocker.status === "done" ? "resolved" : labels[blocker.status]}</small></span>
-                    <button aria-label={`Remove blocker ${blocker.title}`} onClick={() => void removeBlocker(blocker.id)} type="button">×</button>
+              {chapters.length > 0 && (
+                <Growing className="rail-row">
+                  <span className="field-label">Chapter</span>
+                  <div className="choice-grid chapter-choices">
+                    <button
+                      aria-label="Remove from every chapter"
+                      className={!page.chapter ? "choice active" : "choice"}
+                      onClick={() => onUpdate({ chapter: null })}
+                      type="button"
+                    >
+                      none
+                    </button>
+                    {liveChapters.map((chapter) => (
+                      <ChapterChoice chapter={chapter} key={chapter.slug} onUpdate={onUpdate} page={page} />
+                    ))}
                   </div>
-                ))}
-              </div>
-            ) : <p className="empty-dependencies">This page can move forward now.</p>}
-            {findingBlocker ? (
-              <div className="dependency-search">
-                <label>
-                  <span className="sr-only">Find a blocking page</span>
-                  <input
-                    aria-label="Find a blocking page"
-                    autoFocus
-                    onChange={(event) => setBlockerQuery(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key !== "Escape") return;
-                      // Leaving the search must not also close the whole page.
-                      event.stopPropagation();
-                      setFindingBlocker(false);
-                    }}
-                    placeholder="Type a page title..."
-                    type="search"
-                    value={blockerQuery}
-                  />
-                </label>
-                {normalizedBlockerQuery && (
-                  <div className="dependency-results">
-                    {blockerResults.map((candidate) => (
+                  {closedChapters.length > 0 && (
+                    <>
                       <button
-                        aria-label={`Blocked by ${candidate.title}`}
-                        key={candidate.id}
-                        onClick={() => void addBlocker(candidate.id)}
+                        aria-expanded={showingClosedChapters}
+                        className="chapter-group-label as-toggle in-rail"
+                        onClick={() => setShowingClosedChapters((showing) => !showing)}
                         type="button"
                       >
-                        <span className={`category-swatch ${candidate.category ? "" : "category-none"}`} style={swatchStyle(candidate.category)} />
-                        <span><strong>{candidate.title}</strong><small>{candidate.category ? categories.find((category) => category.slug === candidate.category)?.name ?? candidate.category : "uncategorized"}</small></span>
+                        <span>earlier</span>
+                        <span className="chapter-group-count">{closedChapters.length}</span>
+                        <span aria-hidden="true" className="chapter-group-caret">
+                          {showingClosedChapters ? "▾" : "▸"}
+                        </span>
+                      </button>
+                      {showingClosedChapters && (
+                        <div className="choice-grid chapter-choices">
+                          {closedChapters.map((chapter) => (
+                            <ChapterChoice
+                              chapter={chapter}
+                              key={chapter.slug}
+                              onUpdate={onUpdate}
+                              page={page}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </Growing>
+              )}
+
+              <Growing className="rail-row">
+                <span className="field-label">Category</span>
+                {changingCategory ? (
+                  <div className="choice-grid category-choices">
+                    <button
+                      aria-label="Clear category"
+                      className={!page.category ? "choice active" : "choice"}
+                      onClick={() => {
+                        void onUpdate({ category: null });
+                        setChangingCategory(false);
+                      }}
+                      type="button"
+                    >
+                      none
+                    </button>
+                    {categories.map((category) => (
+                      <button
+                        aria-label={`Categorize as ${category.name}`}
+                        className={page.category === category.slug ? "choice active" : "choice"}
+                        key={category.slug}
+                        onClick={() => {
+                          void onUpdate({ category: category.slug });
+                          setChangingCategory(false);
+                        }}
+                        type="button"
+                      >
+                        <span
+                          className="category-swatch"
+                          style={{ "--category-color": category.color } as React.CSSProperties}
+                        />
+                        {category.name}
                       </button>
                     ))}
-                    {blockerResults.length === 0 && <p>No matching open pages.</p>}
+                  </div>
+                ) : (
+                  <div className="rail-value">
+                    <span className="rail-current">
+                      <span
+                        className={`category-swatch ${page.category ? "" : "category-none"}`}
+                        style={swatchStyle(page.category)}
+                      />
+                      {page.category
+                        ? (categories.find((category) => category.slug === page.category)?.name ??
+                          page.category)
+                        : "uncategorized"}
+                    </span>
+                    <button
+                      aria-label="Change category"
+                      className="rail-change"
+                      onClick={() => setChangingCategory(true)}
+                      type="button"
+                    >
+                      change
+                    </button>
                   </div>
                 )}
-                <button className="text-button" onClick={() => { setFindingBlocker(false); setBlockerQuery(""); }} type="button">cancel</button>
-              </div>
-            ) : (
-              <button aria-label="Add blocking page" className="add-dependency" onClick={() => setFindingBlocker(true)} type="button">+ add blocking page</button>
-            )}
-          </Growing>
-        </div>
+              </Growing>
+
+              {estimatesEnabled && (
+                <Growing className="rail-row">
+                  <span className="field-label">Estimate</span>
+                  <EstimateRow estimate={page.estimate} onUpdate={onUpdate} />
+                </Growing>
+              )}
+
+              <PageFieldsEditor fields={fields} values={page.fields} onUpdate={onUpdate} />
+
+              <Growing className="rail-row dependency-section">
+                <span className="field-label">Blocked by</span>
+                {blockers.length > 0 ? (
+                  <div className="dependency-list">
+                    {blockers.map((blocker) => (
+                      <div
+                        className={blocker.status === "done" ? "dependency resolved" : "dependency"}
+                        key={blocker.id}
+                      >
+                        <span
+                          className={`category-swatch ${blocker.category ? "" : "category-none"}`}
+                          style={swatchStyle(blocker.category)}
+                        />
+                        <span>
+                          <strong>{blocker.title}</strong>
+                          <small>{blocker.status === "done" ? "resolved" : labels[blocker.status]}</small>
+                        </span>
+                        <button
+                          aria-label={`Remove blocker ${blocker.title}`}
+                          onClick={() => void removeBlocker(blocker.id)}
+                          type="button"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="empty-dependencies">This page can move forward now.</p>
+                )}
+                {findingBlocker ? (
+                  <div className="dependency-search">
+                    <label>
+                      <span className="sr-only">Find a blocking page</span>
+                      <input
+                        aria-label="Find a blocking page"
+                        autoFocus
+                        onChange={(event) => setBlockerQuery(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key !== "Escape") return;
+                          // Leaving the search must not also close the whole page.
+                          event.stopPropagation();
+                          setFindingBlocker(false);
+                        }}
+                        placeholder="Type a page title..."
+                        type="search"
+                        value={blockerQuery}
+                      />
+                    </label>
+                    {normalizedBlockerQuery && (
+                      <div className="dependency-results">
+                        {blockerResults.map((candidate) => (
+                          <button
+                            aria-label={`Blocked by ${candidate.title}`}
+                            key={candidate.id}
+                            onClick={() => void addBlocker(candidate.id)}
+                            type="button"
+                          >
+                            <span
+                              className={`category-swatch ${candidate.category ? "" : "category-none"}`}
+                              style={swatchStyle(candidate.category)}
+                            />
+                            <span>
+                              <strong>{candidate.title}</strong>
+                              <small>
+                                {candidate.category
+                                  ? (categories.find((category) => category.slug === candidate.category)
+                                      ?.name ?? candidate.category)
+                                  : "uncategorized"}
+                              </small>
+                            </span>
+                          </button>
+                        ))}
+                        {blockerResults.length === 0 && <p>No matching open pages.</p>}
+                      </div>
+                    )}
+                    <button
+                      className="text-button"
+                      onClick={() => {
+                        setFindingBlocker(false);
+                        setBlockerQuery("");
+                      }}
+                      type="button"
+                    >
+                      cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    aria-label="Add blocking page"
+                    className="add-dependency"
+                    onClick={() => setFindingBlocker(true)}
+                    type="button"
+                  >
+                    + add blocking page
+                  </button>
+                )}
+              </Growing>
+            </div>
           )}
         </div>
       </div>
@@ -514,8 +654,20 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
       <footer className="dialog-footer">
         <span>created by {page.createdByName}</span>
         {confirmArchive ? (
-          <div className="archive-confirm"><span>archive this page?</span><button className="danger-button" onClick={onArchive} type="button">yes, archive</button><button className="text-button" onClick={() => setConfirmArchive(false)} type="button">cancel</button></div>
-        ) : <button className="text-button danger-text" onClick={() => setConfirmArchive(true)} type="button">archive page</button>}
+          <div className="archive-confirm">
+            <span>archive this page?</span>
+            <button className="danger-button" onClick={onArchive} type="button">
+              yes, archive
+            </button>
+            <button className="text-button" onClick={() => setConfirmArchive(false)} type="button">
+              cancel
+            </button>
+          </div>
+        ) : (
+          <button className="text-button danger-text" onClick={() => setConfirmArchive(true)} type="button">
+            archive page
+          </button>
+        )}
       </footer>
     </Drawer>
   );
@@ -527,7 +679,11 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
  * Shared by the live chapters and the folded ones so a chapter reads and behaves identically
  * either side of the fold: what is hidden is a group, never a different kind of control.
  */
-function ChapterChoice({ chapter, onUpdate, page }: {
+function ChapterChoice({
+  chapter,
+  onUpdate,
+  page,
+}: {
   chapter: Chapter;
   onUpdate: (input: Record<string, unknown>) => Promise<void>;
   page: Page;
@@ -568,9 +724,15 @@ function usePageHistory(
   useEffect(() => {
     let alive = true;
     load({ entityId: pageId, limit: PAGE_HISTORY_LIMIT })
-      .then((page) => { if (alive) setLoaded({ pageId, events: page.events }); })
-      .catch(() => { if (alive) setLoaded({ pageId, events: [] }); });
-    return () => { alive = false; };
+      .then((page) => {
+        if (alive) setLoaded({ pageId, events: page.events });
+      })
+      .catch(() => {
+        if (alive) setLoaded({ pageId, events: [] });
+      });
+    return () => {
+      alive = false;
+    };
   }, [pageId, load, revision]);
 
   return loaded?.pageId === pageId ? loaded.events : null;
@@ -598,21 +760,32 @@ function usePageDiscussion(
   useEffect(() => {
     let alive = true;
     load(pageId)
-      .then((result) => { if (alive) { setLoaded({ pageId, threads: result.threads }); setFailed(null); } })
+      .then((result) => {
+        if (alive) {
+          setLoaded({ pageId, threads: result.threads });
+          setFailed(null);
+        }
+      })
       /*
        * A conversation that could not be fetched is not an empty one.
        *
        * Drawing nothing beside a badge saying three things are unread says the messages are
        * gone, and marking them read on the strength of that would lose them for good.
        */
-      .catch(() => { if (alive) setFailed(pageId); });
-    return () => { alive = false; };
+      .catch(() => {
+        if (alive) setFailed(pageId);
+      });
+    return () => {
+      alive = false;
+    };
   }, [pageId, load, revision, reloads]);
 
   return {
     threads: loaded?.pageId === pageId ? loaded.threads : null,
     failed: failed === pageId,
-    reload: async () => { setReloads((count) => count + 1); },
+    reload: async () => {
+      setReloads((count) => count + 1);
+    },
   };
 }
 
@@ -620,7 +793,12 @@ function usePageDiscussion(
  * The header is always present so the section never appears or resizes on its own;
  * only what someone asked to see is drawn.
  */
-function PageHistory({ events, members, onToggle, open }: {
+function PageHistory({
+  events,
+  members,
+  onToggle,
+  open,
+}: {
   events: AuditEvent[] | null;
   members: Member[];
   onToggle: () => void;
@@ -629,7 +807,9 @@ function PageHistory({ events, members, onToggle, open }: {
   return (
     <Growing className="dialog-section page-history">
       <button aria-expanded={open} className="history-toggle" onClick={onToggle} type="button">
-        <span aria-hidden="true" className="history-caret">{open ? "▾" : "▸"}</span>
+        <span aria-hidden="true" className="history-caret">
+          {open ? "▾" : "▸"}
+        </span>
         <span className="field-label">History</span>
       </button>
       {open && <HistoryEvents events={events} members={members} />}
@@ -654,7 +834,9 @@ function HistoryEvents({ events, members }: { events: AuditEvent[] | null; membe
               {event.agentName && <span className="via-agent"> via {event.agentName}</span>} {lead}
               {event.changes.length > 0 && (
                 <span className="activity-changes">
-                  {event.changes.map((change) => <span key={change.field}>{describeChange(change)}</span>)}
+                  {event.changes.map((change) => (
+                    <span key={change.field}>{describeChange(change)}</span>
+                  ))}
                 </span>
               )}
             </span>
@@ -666,7 +848,6 @@ function HistoryEvents({ events, members }: { events: AuditEvent[] | null; membe
   );
 }
 
-
 /**
  * How much work a page is, said as a number and nothing more.
  *
@@ -674,7 +855,10 @@ function HistoryEvents({ events, members }: { events: AuditEvent[] | null; membe
  * emptied box clears it rather than storing a nought - "nobody has said" and "no work at all"
  * are different answers and the board counts them differently.
  */
-function EstimateRow({ estimate, onUpdate }: {
+function EstimateRow({
+  estimate,
+  onUpdate,
+}: {
   estimate: number | null;
   onUpdate: (input: Record<string, unknown>) => Promise<void>;
 }) {
@@ -703,8 +887,14 @@ function EstimateRow({ estimate, onUpdate }: {
         onBlur={commit}
         onChange={(event) => setDraft(event.target.value)}
         onKeyDown={(event) => {
-          if (event.key === "Enter") { event.preventDefault(); commit(); }
-          if (event.key === "Escape") { event.stopPropagation(); setEditing(false); }
+          if (event.key === "Enter") {
+            event.preventDefault();
+            commit();
+          }
+          if (event.key === "Escape") {
+            event.stopPropagation();
+            setEditing(false);
+          }
         }}
         type="text"
         value={draft}
@@ -718,9 +908,14 @@ function EstimateRow({ estimate, onUpdate }: {
       <button
         aria-label="Change estimate"
         className="rail-change"
-        onClick={() => { setDraft(estimate === null ? "" : String(estimate)); setEditing(true); }}
+        onClick={() => {
+          setDraft(estimate === null ? "" : String(estimate));
+          setEditing(true);
+        }}
         type="button"
-      >change</button>
+      >
+        change
+      </button>
     </div>
   );
 }

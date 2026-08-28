@@ -178,7 +178,6 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, Props>(function M
     };
     // The editor is created once; everything that changes reaches it through a ref or a
     // transaction, because rebuilding it would throw away the caret and the undo history.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ariaLabel, fill, placeholder, scrollerClass]);
 
   useEffect(() => {
