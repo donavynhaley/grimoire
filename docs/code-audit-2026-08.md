@@ -37,7 +37,9 @@ Everything in §A was verified by hand against the source, not just reported.
 
 The standards are canon as of this audit's adoption; here is where each one
 stands. **met** means no violation found; **short** names the findings that close
-the gap. 18 of 47 standards are met today.
+the gap. 18 of 47 standards were met when this was measured; the scorecard is kept
+as the before-picture, and "Status after implementation" at the end of this
+document says what the cleanup then closed.
 
 | Standard | Verdict | What closes the gap |
 |---|---|---|
@@ -577,3 +579,52 @@ Phases 2-3 make the codebase honest about what it enforces and drop two
 dependencies. Phases 4-5 are what make the feature list you're about to build
 cheap — every new route, dialog, and field type currently pays the copy-paste
 tax; after D and F they pay it once.
+
+---
+
+## Status after implementation
+
+All five phases were implemented, August 27-28, 2026. Every gate is green: 648
+vitest tests, the 84-check MCP verify, the production build, Prettier, tsc with
+the strictness flags on, and the local Playwright suite (15 real-browser tests).
+
+**What the big numbers became.** `server/app.ts` 2,890 → 973 (construction, the
+shared closures, the request funnel; all 68 routes live in fourteen table
+modules under `server/routes/`). `server/repository.ts` 1,672 → a 102-line
+facade over ten domain modules. `Board.tsx` 1,131 → 729, `PageDialog.tsx` → 357,
+`ProjectSettingsDialog.tsx` → 295, `QuickCapture.tsx` → 249, `App.tsx` → 574.
+`src/` is grouped: components, hooks, lib. The dependency list is nine runtime
+entries.
+
+**Honest deviations, each with its reason in the commit that made it:**
+
+- **TS-6 (typed `json()` door) was not implemented.** It is the one audit
+  finding deliberately deferred: typing sixty-eight response payloads is its own
+  PR, best done now that the route modules exist to hold the types.
+- **G3 (server-per-describe test reuse) was not done** — `npm test` runs in ~35s
+  as-is; the payoff no longer justified the churn this round.
+- Three small a11y rows remain open: ChapterPicker's `role="menu"` without arrow
+  keys, the board tile's very long `aria-label`, and the autosave line's
+  per-pause announcements.
+- `App.tsx` (574), `Board.tsx` (729) and `IdeasBoard.tsx` (618) sit above the
+  ~400 target. App keeps its action closures on purpose — they are the state
+  machine it exists to be; the two boards are seam-extracted but their render
+  trees are genuinely that large. UI-4's target stands as pressure, not as a
+  failure to hide.
+- Two more findings were re-examined out during implementation:
+  AccountDialog's plain `fetch` loads a **static asset**, which is not the API
+  client's job; and the recap "post now" button keeps its private catch because
+  routing it through the settings `run` produced two status voices announcing
+  one act (each now documented in place).
+- F5's "collect the scattered media queries" was **declined**: moving CSS blocks
+  reorders the cascade, and equal-specificity outcomes are load-bearing here.
+  The tokens and the section banners landed instead.
+- The Board agents' one behavior residue: a page archived remotely while its
+  dialog is open now leaves its `?page=` param until the next selection (the
+  mount-time reconciliation still scrubs dead links on arrival).
+
+**Standards that flipped to met:** ARCH-4, ARCH-6, TS-2*, TS-3, TS-4, TS-7,
+NAME-2, NAME-4, SRV-2, SRV-3, SRV-4, SRV-5, SRV-6, SRV-8, SRV-9, UI-1, UI-5*,
+UI-6, UI-7, UI-8, TEST-3*, TEST-5, TEST-6, DOC-4*, TOOL-1 — with the asterisks
+meaning "met with the residues above". Still short: TS-6, and UI-3/UI-4 for the
+three oversized files.
