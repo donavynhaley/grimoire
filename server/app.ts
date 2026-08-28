@@ -447,6 +447,10 @@ const agentTokenCreateSchema = z.object({
 
 export function createGrimoireServer(options: Options) {
   const database = openDatabase(options.databasePath);
+  // Verified against for an email no account answers to, so an unknown address costs
+  // exactly one derivation - the same as a known one. Hashing the placeholder inside
+  // the request would spend a second derivation, and that difference is measurable.
+  const placeholderPasswordHash = hashPassword(createOpaqueToken());
   const pageStore = new MarkdownPageStore(options.pagesDirectory ?? join(dirname(options.databasePath), "pages"));
   const ideaStore = new MarkdownIdeaStore(pageStore.rootDirectory);
   const chapterStore = new MarkdownChapterStore(pageStore.rootDirectory);
@@ -728,7 +732,7 @@ export function createGrimoireServer(options: Options) {
       const stored = findUserByEmail(database, input.email);
       const passwordMatches = stored
         ? await verifyPassword(input.password, String(stored.password_hash))
-        : await verifyPassword(input.password, await hashPassword("invalid password placeholder"));
+        : await verifyPassword(input.password, await placeholderPasswordHash);
       const projectId = stored ? defaultProjectIdForUser(database, publicUser(stored)) : null;
       if (!stored || !passwordMatches || !projectId) {
         loginAddressLimiter.spend(address);
