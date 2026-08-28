@@ -4,6 +4,7 @@ import {
   type PageStatus,
   type ProjectCategory,
   type ProjectField,
+  PAGE_STATUS_LABELS,
 } from "../../shared/types";
 import { fieldValueText } from "./PageFields";
 
@@ -32,13 +33,7 @@ export type FacetContext = {
 /** The answer a page gives when nobody has filled the property in. */
 export const UNSET = "none";
 
-const statusNames: Record<PageStatus, string> = {
-  backlog: "Backlog",
-  ready: "Up Next",
-  in_progress: "In progress",
-  review: "Review",
-  done: "Done",
-};
+const statusNames = PAGE_STATUS_LABELS;
 
 const DAY = 24 * 60 * 60 * 1000;
 const AGE_BUCKETS = ["today", "week", "month", "older"] as const;

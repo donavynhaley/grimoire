@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
+import { IDEA_STATE_LABELS, PAGE_STATUS_LABELS } from "../shared/types";
 import type {
   AuditAction,
   AuditChange,
@@ -17,18 +18,14 @@ export const AUDIT_PAGE_SIZE = 40;
 export const AUDIT_MAX_PAGE_SIZE = 200;
 export const AWAY_EVENT_LIMIT = 200;
 
-export const PAGE_COLUMN_LABELS: Record<Page["status"], string> = {
-  backlog: "Backlog",
-  ready: "Up Next",
-  in_progress: "In progress",
-  review: "Review",
-  done: "Done",
-};
-
+/**
+ * The shared idea vocabulary, with one deliberate deviation: a mixed log that says a page
+ * moved to "In progress" and an idea moved to "Inbox" needs the word "Idea" on the one
+ * list whose name alone does not say which kind of thing moved.
+ */
 export const IDEA_LIST_LABELS: Record<Idea["state"], string> = {
+  ...IDEA_STATE_LABELS,
   inbox: "Idea inbox",
-  shortlist: "Shortlist",
-  parked: "Parked",
 };
 
 export type AuditActor = {
@@ -254,8 +251,8 @@ export function pageChanges(before: Page, after: Page, labels: PageLabels): Audi
   if (before.status !== after.status) {
     changes.push({
       field: "column",
-      from: PAGE_COLUMN_LABELS[before.status],
-      to: PAGE_COLUMN_LABELS[after.status],
+      from: PAGE_STATUS_LABELS[before.status],
+      to: PAGE_STATUS_LABELS[after.status],
     });
   }
   if (!sameIds(before.blockedBy, after.blockedBy)) {
@@ -288,7 +285,7 @@ export function githubLinkLabel(link: Page["github"]): string | null {
  * page that would report every field as an edit.
  */
 export function pageCreationChanges(page: Page, labels: PageLabels): AuditChange[] {
-  const changes: AuditChange[] = [{ field: "column", from: null, to: PAGE_COLUMN_LABELS[page.status] }];
+  const changes: AuditChange[] = [{ field: "column", from: null, to: PAGE_STATUS_LABELS[page.status] }];
   if (page.category) changes.push({ field: "category", from: null, to: labels.categoryName(page.category) });
   if (page.chapter) changes.push({ field: "chapter", from: null, to: labels.chapterName(page.chapter) });
   if (page.assigneeName) changes.push({ field: "assignee", from: null, to: page.assigneeName });

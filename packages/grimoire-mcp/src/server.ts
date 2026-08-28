@@ -9,6 +9,7 @@ import {
   type Page,
 } from "./client.js";
 import {
+  PAGE_COLUMNS,
   ResolutionError,
   UUID_SHAPE,
   categoryName,
@@ -661,7 +662,7 @@ function renderBoard(board: Board): string {
     );
   }
 
-  for (const status of ["backlog", "ready", "in_progress", "review", "done"]) {
+  for (const status of PAGE_COLUMNS) {
     const pages = board.pages.filter((page) => page.status === status);
     sections.push("", `${columnLabel(status)} (${pages.length})`);
     if (pages.length === 0) {

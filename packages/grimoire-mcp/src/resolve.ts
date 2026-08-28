@@ -34,7 +34,10 @@ const COLUMN_NAMES: Record<string, string> = {
   completed: "done",
 };
 
-const COLUMN_LABELS: Record<string, string> = {
+/** The board's columns in reading order; the render loop and the labels share it. */
+export const PAGE_COLUMNS = ["backlog", "ready", "in_progress", "review", "done"] as const;
+
+const COLUMN_LABELS: Record<(typeof PAGE_COLUMNS)[number], string> = {
   backlog: "Backlog",
   ready: "Up Next",
   in_progress: "In progress",
@@ -43,7 +46,9 @@ const COLUMN_LABELS: Record<string, string> = {
 };
 
 export function columnLabel(status: string): string {
-  return COLUMN_LABELS[status] ?? status;
+  // Tolerant of a status this build has never heard of: the server is the authority on
+  // the vocabulary, and an unknown word reads better than a refused board.
+  return (COLUMN_LABELS as Record<string, string | undefined>)[status] ?? status;
 }
 
 /** Accepts what a person would say for a column, not only the stored enum value. */

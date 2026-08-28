@@ -9,6 +9,7 @@ import {
   type IdeaState,
   type IdeaWorkspace,
   type ProjectRole,
+  PAGE_STATUS_LABELS,
 } from "../../shared/types";
 import { AccountDialog } from "./AccountDialog";
 import { ActivityDialog } from "./ActivityDialog";
@@ -55,13 +56,7 @@ const BOARD_STATUSES = ["ready", "in_progress", "review", "done"] as const satis
  */
 const DONE_COLUMN_LIMIT = 10;
 
-const columnNames: Record<PageStatus, string> = {
-  backlog: "Backlog",
-  ready: "Up Next",
-  in_progress: "In progress",
-  review: "Review",
-  done: "Done",
-};
+const columnNames = PAGE_STATUS_LABELS;
 
 type Props = {
   away: AwayState | null;

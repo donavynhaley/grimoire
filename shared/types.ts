@@ -13,7 +13,8 @@ export type AccountRole = "admin" | "member";
  * What somebody is on one project. Whoever creates a project owns it, and an owner may
  * reshape it: its name, categories, chapters, fields, agent access and membership.
  */
-export type ProjectRole = "owner" | "member";
+export const PROJECT_ROLES = ["owner", "member"] as const;
+export type ProjectRole = (typeof PROJECT_ROLES)[number];
 
 export type User = {
   id: string;
@@ -111,6 +112,20 @@ export type Member = User & {
 
 export const PAGE_STATUSES = ["backlog", "ready", "in_progress", "review", "done"] as const;
 export type PageStatus = (typeof PAGE_STATUSES)[number];
+
+/**
+ * The one name each column has, wherever a reader meets it - board headings, the activity
+ * log, search results, the capture bar. This map lived in five separate copies before it
+ * lived here, and five copies of a vocabulary is four opportunities for the product to
+ * disagree with itself.
+ */
+export const PAGE_STATUS_LABELS: Record<PageStatus, string> = {
+  backlog: "Backlog",
+  ready: "Up Next",
+  in_progress: "In progress",
+  review: "Review",
+  done: "Done",
+};
 
 /**
  * How long a page, chapter, or idea body may be.
@@ -491,6 +506,13 @@ export type BoardWorkspace = {
 
 export const IDEA_STATES = ["inbox", "shortlist", "parked"] as const;
 export type IdeaState = (typeof IDEA_STATES)[number];
+
+/** The lists of the idea garden by name. The activity log alone says "Idea inbox", because a mixed log needs the word. */
+export const IDEA_STATE_LABELS: Record<IdeaState, string> = {
+  inbox: "Inbox",
+  shortlist: "Shortlist",
+  parked: "Parked",
+};
 
 export type Idea = {
   id: string;

@@ -1,5 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
-import type { PageStatus, IdeaState, SearchGroup, SearchHit, SearchResults } from "../shared/types";
+import { IDEA_STATE_LABELS, PAGE_STATUS_LABELS } from "../shared/types";
+import type { SearchGroup, SearchHit, SearchResults } from "../shared/types";
 import type { MarkdownPageStore, StoredPage } from "./markdown-pages";
 import type { MarkdownChapterStore } from "./markdown-chapters";
 import type { MarkdownIdeaStore } from "./markdown-ideas";
@@ -9,20 +10,6 @@ export const SEARCH_RESULT_LIMIT = 40;
 
 /** How much note text to keep on either side of a body match. */
 const SNIPPET_RADIUS = 44;
-
-const columnNames: Record<PageStatus, string> = {
-  backlog: "Backlog",
-  ready: "Up Next",
-  in_progress: "In progress",
-  review: "Review",
-  done: "Done",
-};
-
-const ideaStateNames: Record<IdeaState, string> = {
-  inbox: "Inbox",
-  shortlist: "Shortlist",
-  parked: "Parked",
-};
 
 const groupOrder: Record<SearchGroup, number> = {
   active: 0,
@@ -101,9 +88,9 @@ export function searchProject(
   };
 
   for (const page of pageStore.list(projectSlug)) {
-    if (page.status === "backlog") addPage(page, "backlog", placeOf(page, columnNames.backlog));
+    if (page.status === "backlog") addPage(page, "backlog", placeOf(page, PAGE_STATUS_LABELS.backlog));
     else if (page.status === "done") addPage(page, "done", placeOf(page, completionLabel(page)));
-    else addPage(page, "active", placeOf(page, columnNames[page.status]));
+    else addPage(page, "active", placeOf(page, PAGE_STATUS_LABELS[page.status]));
   }
 
   for (const page of pageStore.listArchived(projectSlug)) {
@@ -122,7 +109,7 @@ export function searchProject(
         id: idea.id,
         title: idea.title,
         snippet: snippetFor(idea.description, needle),
-        where: ideaStateNames[idea.state],
+        where: IDEA_STATE_LABELS[idea.state],
         category: null,
         categoryColor: null,
         assigneeName: null,

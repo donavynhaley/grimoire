@@ -5,9 +5,14 @@ import { dirname, extname, join, normalize, resolve, sep } from "node:path";
 import { z, ZodError } from "zod";
 import {
   BODY_MAX_LENGTH,
+  AGENT_TOKEN_SCOPES,
+  CHAPTER_STATES,
   DISCUSSION_BODY_MAX_LENGTH,
   FIELD_TYPES,
+  IDEA_STATES,
   PAGE_STATUSES,
+  PAGE_STATUS_LABELS,
+  PROJECT_ROLES,
   type PageGithubLink,
   type PageStatus,
   type User,
@@ -140,7 +145,6 @@ import { searchProject } from "./search";
 import { applyLinkPreview, pagePreview, ideaPreview, type LinkPreview } from "./link-preview";
 import {
   CHAPTER_STATE_LABELS,
-  PAGE_COLUMN_LABELS,
   AUDIT_PAGE_SIZE,
   pageChanges,
   pageCreationChanges,
@@ -276,7 +280,7 @@ const oidcProbeSchema = z.object({
   clientId: z.string().trim().max(300).optional(),
 });
 
-const pageStatus = z.enum(["backlog", "ready", "in_progress", "review", "done"]);
+const pageStatus = z.enum(PAGE_STATUSES);
 const categorySlug = z
   .string()
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
@@ -350,7 +354,7 @@ const projectUpdateSchema = z
       input.recapOnClose !== undefined,
     { message: "Nothing to update" },
   );
-const chapterState = z.enum(["planned", "open", "closed"]);
+const chapterState = z.enum(CHAPTER_STATES);
 const chapterCreateSchema = z.object({
   name: z.string().trim().min(1).max(80),
   description: z.string().trim().max(BODY_MAX_LENGTH).optional(),
@@ -391,7 +395,7 @@ const fieldCreateSchema = z.object({
 const fieldUpdateSchema = fieldCreateSchema
   .partial()
   .extend({ position: z.number().int().min(0).optional() });
-const ideaState = z.enum(["inbox", "shortlist", "parked"]);
+const ideaState = z.enum(IDEA_STATES);
 const ideaSchema = z.object({
   title: z.string().trim().min(1).max(240),
   description: z.string().trim().max(BODY_MAX_LENGTH).optional(),
@@ -402,7 +406,7 @@ const ideaUpdateSchema = ideaSchema.partial().extend({
   ...contentPreconditions,
 });
 
-const memberRoleSchema = z.object({ role: z.enum(["owner", "member"]) }).strict();
+const memberRoleSchema = z.object({ role: z.enum(PROJECT_ROLES) }).strict();
 /** Naming an account outright, because the alternative is listing everyone to choose from. */
 const memberAddSchema = z.object({ email: z.string().trim().email().max(320) }).strict();
 
@@ -483,7 +487,7 @@ function agentMayReach(method: string, pathname: string): "read" | "write" | nul
 
 const agentTokenCreateSchema = z.object({
   name: z.string().trim().min(1).max(60),
-  scope: z.enum(["read", "write"]),
+  scope: z.enum(AGENT_TOKEN_SCOPES),
   /** Optional, because an agent that runs indefinitely is a legitimate thing to want. */
   expiresAt: z.string().datetime().nullable().optional(),
 });
@@ -567,8 +571,8 @@ export function createGrimoireServer(options: Options) {
         changes: [
           {
             field: "column",
-            from: PAGE_COLUMN_LABELS[from as PageStatus],
-            to: PAGE_COLUMN_LABELS[to as PageStatus],
+            from: PAGE_STATUS_LABELS[from as PageStatus],
+            to: PAGE_STATUS_LABELS[to as PageStatus],
           },
         ],
       });

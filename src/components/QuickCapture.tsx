@@ -16,6 +16,7 @@ import {
   type Member,
   type ProjectCategory,
   type ProjectField,
+  PAGE_STATUS_LABELS,
 } from "../../shared/types";
 import { useTypingFocus } from "./use-typing-focus";
 
@@ -103,12 +104,7 @@ function fieldKindWord(field: ProjectField): string {
   return field.type;
 }
 
-const statusLabels: Partial<Record<PageStatus, string>> = {
-  backlog: "Backlog",
-  ready: "Up Next",
-  in_progress: "In progress",
-  review: "Review",
-};
+const statusLabels = PAGE_STATUS_LABELS;
 
 export function QuickCapture({ busy, categories, chapters, fields = [], members, onCreate }: Props) {
   const [title, setTitle] = useState("");

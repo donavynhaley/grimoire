@@ -10,6 +10,7 @@ import {
   type Member,
   type ProjectCategory,
   type ProjectField,
+  PAGE_STATUS_LABELS,
 } from "../../shared/types";
 import { Avatar } from "./Avatar";
 import { PageFieldsEditor } from "./PageFields";
@@ -24,13 +25,7 @@ import { useContentEditor } from "./use-content-editor";
 
 const PAGE_HISTORY_LIMIT = 6;
 
-const labels: Record<PageStatus, string> = {
-  backlog: "Backlog",
-  ready: "Up Next",
-  in_progress: "In progress",
-  review: "Review",
-  done: "Done",
-};
+const labels = PAGE_STATUS_LABELS;
 
 type Props = {
   page: Page;
