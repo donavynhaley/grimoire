@@ -10,6 +10,7 @@ import {
 } from "./client.js";
 import {
   ResolutionError,
+  UUID_SHAPE,
   categoryName,
   chapterName,
   columnLabel,
@@ -148,6 +149,7 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
         const lines = results.hits.map(
           (hit) =>
             `- [${hit.group}] ${hit.title} · ${hit.where}` +
+            `${hit.category ? ` · ${hit.category}` : ""}` +
             `${hit.assigneeName ? ` · ${hit.assigneeName}` : ""}` +
             `\n  id: ${hit.id}${hit.snippet ? `\n  ${hit.snippet}` : ""}`,
         );
@@ -174,12 +176,16 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
     },
     async ({ page }) => {
       try {
+        // An id names its page outright, so it is answered by the one-page route rather
+        // than by pulling the whole board across - most of a megabyte on a large project,
+        // to read a single title. Only a title needs the board to resolve against.
+        if (UUID_SHAPE.test(page)) {
+          const { page: target } = await client.page(page);
+          return text(`# ${target.title}\n${describePage(null, target)}\n\n${verbatimNotes(target)}`);
+        }
         const board = await client.board();
         const target = resolvePage(board, page);
-        return text(
-          `# ${target.title}\n${describePage(board, target)}\n\n` +
-            (target.description ? `Notes (verbatim):\n${target.description}` : "No notes yet."),
-        );
+        return text(`# ${target.title}\n${describePage(board, target)}\n\n${verbatimNotes(target)}`);
       } catch (error) {
         return failure(error);
       }
@@ -594,15 +600,30 @@ function githubSummary(page: Page, options: { url?: boolean } = {}): string | nu
   return `github: ${named}${where}${adopted} - ${status.state}${url}`;
 }
 
-function describePage(board: Board, page: Page): string {
+function verbatimNotes(page: Page): string {
+  return page.description ? `Notes (verbatim):\n${page.description}` : "No notes yet.";
+}
+
+/**
+ * With no board to translate against - the one-page read deliberately skips fetching it -
+ * categories and chapters appear as their slugs and fields by their keys, which the write
+ * tools accept just as readily as the display names.
+ */
+function describePage(board: Board | null, page: Page): string {
   const parts = [`column: ${columnLabel(page.status)}`];
-  const category = categoryName(board, page.category);
+  const category = board ? categoryName(board, page.category) : page.category;
   if (category) parts.push(`category: ${category}`);
-  const chapter = chapterName(board, page.chapter);
+  const chapter = board ? chapterName(board, page.chapter) : page.chapter;
   if (chapter) parts.push(`chapter: ${chapter}`);
   if (page.assigneeName) parts.push(`assignee: ${page.assigneeName}`);
   if (page.blockedBy.length > 0) parts.push(`blocked by ${page.blockedBy.length}`);
-  parts.push(...fieldSummary(board, page.fields));
+  if (board) parts.push(...fieldSummary(board, page.fields));
+  else parts.push(...Object.entries(page.fields ?? {}).map(([key, value]) => `${key}: ${String(value)}`));
+  // The question a person is waiting on lives in the discussion, and nothing else on the
+  // page says it exists - an agent that cannot see the count will never go looking.
+  if (page.openThreads) {
+    parts.push(`${page.openThreads} open question${page.openThreads === 1 ? "" : "s"} in the discussion`);
+  }
   const github = githubSummary(page, { url: true });
   if (github) parts.push(github);
   return `${parts.join(" · ")}\nid: ${page.id}`;
@@ -656,6 +677,9 @@ function renderBoard(board: Board): string {
       if (page.assigneeName) bits.push(page.assigneeName);
       if (page.blockedBy.length > 0) bits.push(`blocked by ${page.blockedBy.length}`);
       bits.push(...fieldSummary(board, page.fields));
+      if (page.openThreads) {
+        bits.push(`${page.openThreads} open question${page.openThreads === 1 ? "" : "s"}`);
+      }
       const github = githubSummary(page);
       if (github) bits.push(github);
       sections.push(`  - ${page.title}${bits.length ? ` · ${bits.join(" · ")}` : ""}`);

@@ -105,7 +105,7 @@ export function resolveAssignee(board: Board, value: string): string {
   throw new ResolutionError(`"${value}" is not a member of this project. Members: ${available}.`);
 }
 
-const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Finds one page from an id or its exact title, and nothing looser.
