@@ -1,48 +1,6 @@
 import { useRef, useState } from "react";
-import Markdown, { type Components, type ExtraProps } from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { uploadImage } from "../api/client";
-import { resolveImageSource } from "./image-source";
 import { MarkdownEditor, type MarkdownEditorHandle } from "./MarkdownEditor";
-import { rehypeSourceOffsets } from "./markdown-source-offsets";
-import { remarkObsidianEmbeds } from "./obsidian-embeds";
-
-const REMARK_PLUGINS = [remarkGfm, remarkObsidianEmbeds];
-const REHYPE_PLUGINS = [rehypeSourceOffsets];
-
-export { resolveImageSource };
-
-function ExternalLink({ node: _node, ...props }: React.ComponentProps<"a"> & ExtraProps) {
-  return <a {...props} onClick={(event) => event.stopPropagation()} rel="noreferrer" target="_blank" />;
-}
-
-function EmbeddedImage({ node: _node, src, ...props }: React.ComponentProps<"img"> & ExtraProps) {
-  if (typeof src !== "string" || !src) return null;
-  return <img {...props} loading="lazy" src={resolveImageSource(src)} />;
-}
-
-const MARKDOWN_COMPONENTS: Components = { a: ExternalLink, img: EmbeddedImage };
-
-/**
- * Renders trusted-shape Markdown; raw HTML in the source is shown as text, never injected.
- *
- * This is the read-only renderer, for notes nobody is holding a caret in. The notes field
- * itself no longer uses it - it renders as it is written now - but a surface that only
- * ever displays Markdown should not have to instantiate an editor to do it.
- */
-export function MarkdownView({ markdown }: { markdown: string }) {
-  return (
-    <div className="markdown-body">
-      <Markdown
-        components={MARKDOWN_COMPONENTS}
-        rehypePlugins={REHYPE_PLUGINS}
-        remarkPlugins={REMARK_PLUGINS}
-      >
-        {markdown}
-      </Markdown>
-    </div>
-  );
-}
 
 type Props = {
   label: string;

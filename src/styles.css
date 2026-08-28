@@ -2246,10 +2246,6 @@ textarea:hover { border-color: var(--border-bright); }
 
 /*
  * Live preview: what the Markdown produces, drawn in place of the Markdown.
- *
- * These are deliberately the same values `.markdown-body` uses, because they are the same
- * document seen from the other side - notes should not change size or colour depending on
- * whether a caret happens to be in them.
  */
 .cm-lp-heading { font-weight: 700; }
 .cm-lp-h1 { font-size: 0.9375rem; }
@@ -2257,7 +2253,7 @@ textarea:hover { border-color: var(--border-bright); }
 .cm-lp-strong { font-weight: 700; }
 .cm-lp-emphasis { font-style: italic; }
 .cm-lp-strikethrough { color: var(--muted); text-decoration: line-through; }
-/* No font of its own: the whole interface is already set in one, as `.markdown-body` assumes. */
+/* No font of its own: the whole interface is already set in one. */
 .cm-lp-code { padding: 1px 0.3125rem; background: var(--surface-soft); border-radius: 0.25rem; font-size: 0.75rem; }
 .cm-lp-quote { padding-left: 0.625rem; border-left: 0.125rem solid var(--border-bright); color: var(--muted); }
 .cm-lp-code-line { background: var(--surface-soft); font-size: 0.75rem; }
@@ -2331,48 +2327,6 @@ textarea:hover { border-color: var(--border-bright); }
 .cm-lp-token-name { color: var(--blue); }
 .cm-lp-token-type { color: var(--blue); }
 
-.markdown-body { font-size: 0.8125rem; line-height: 1.6; overflow-wrap: break-word; }
-.markdown-body > :first-child { margin-top: 0; }
-.markdown-body > :last-child { margin-bottom: 0; }
-.markdown-body p,
-.markdown-body ul,
-.markdown-body ol,
-.markdown-body blockquote,
-.markdown-body pre,
-.markdown-body table { margin: 0 0 0.625rem; }
-.markdown-body h1,
-.markdown-body h2,
-.markdown-body h3,
-.markdown-body h4,
-.markdown-body h5,
-.markdown-body h6 { margin: 0.875rem 0 0.375rem; font-size: 0.8125rem; }
-.markdown-body h1 { font-size: 0.9375rem; }
-.markdown-body h2 { font-size: 0.875rem; }
-.markdown-body ul,
-.markdown-body ol { padding-left: 1.25rem; }
-.markdown-body li { margin: 0.125rem 0; }
-.markdown-body li::marker { color: var(--faint); }
-.markdown-body ul.contains-task-list { padding-left: 0.25rem; list-style: none; }
-.markdown-body input[type="checkbox"] {
-  width: 0.75rem;
-  height: 0.75rem;
-  margin: 0 0.375rem 0 0;
-  padding: 0;
-  vertical-align: -1px;
-  accent-color: var(--accent);
-}
-.markdown-body code { padding: 1px 0.3125rem; background: var(--surface-soft); border-radius: 0.25rem; font-size: 0.75rem; }
-.markdown-body pre { padding: 0.625rem 0.75rem; background: var(--surface-soft); border: 1px solid var(--border); border-radius: 0.375rem; overflow-x: auto; }
-.markdown-body pre code { padding: 0; background: none; font-size: 0.75rem; }
-.markdown-body a { color: var(--blue); text-decoration-color: rgb(139 185 201 / 45%); }
-.markdown-body a:hover { text-decoration-color: currentcolor; }
-.markdown-body blockquote { padding-left: 0.625rem; border-left: 0.125rem solid var(--border-bright); color: var(--muted); }
-.markdown-body hr { margin: 0.75rem 0; border: 0; border-top: 1px solid var(--border); }
-.markdown-body table { display: block; border-collapse: collapse; font-size: 0.75rem; overflow-x: auto; }
-.markdown-body th,
-.markdown-body td { padding: 0.25rem 0.5rem; border: 1px solid var(--border); text-align: left; }
-.markdown-body th { background: var(--surface-soft); }
-.markdown-body img { max-width: 100%; border-radius: 0.375rem; }
 
 .autosave-state {
   display: flex;
