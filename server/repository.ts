@@ -1186,12 +1186,6 @@ export function removeProjectMember(
   // The installation's admin is not a member a project owner gets to remove.
   if (member.role === "admin") return "admin";
 
-  const now = new Date().toISOString();
-  pageStore.list(String(project.slug)).forEach((page) => {
-    if (page.assignee?.toLowerCase() !== member.email.toLowerCase()) return;
-    pageStore.save(String(project.slug), { ...page, assignee: null, updatedAt: now });
-  });
-
   database.exec("BEGIN IMMEDIATE");
   try {
     const removed = database
@@ -1208,6 +1202,16 @@ export function removeProjectMember(
     database.exec("ROLLBACK");
     throw error;
   }
+
+  // Assignments clear only once the removal has committed. Cleared first, a rolled-back
+  // removal would leave a still-present member silently unassigned from everything; this
+  // way an interruption leaves page files naming a non-member, which the board already
+  // reads as unassigned.
+  const now = new Date().toISOString();
+  pageStore.list(String(project.slug)).forEach((page) => {
+    if (page.assignee?.toLowerCase() !== member.email.toLowerCase()) return;
+    pageStore.save(String(project.slug), { ...page, assignee: null, updatedAt: now });
+  });
   return "removed";
 }
 
