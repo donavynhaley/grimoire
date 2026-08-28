@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { dirname, extname, join, normalize } from "node:path";
+import { dirname, extname, join, normalize, resolve, sep } from "node:path";
 import { z, ZodError } from "zod";
 import { BODY_MAX_LENGTH, DISCUSSION_BODY_MAX_LENGTH, FIELD_TYPES, PAGE_STATUSES, type PageGithubLink, type PageStatus, type User } from "../shared/types";
 import {
@@ -2890,10 +2890,17 @@ function resolveStaticPath(pathname: string, directory: string): string | null {
   } catch {
     // A malformed escape cannot name a build file, so the shell answers instead.
   }
-  const relative = normalize(decoded).replace(/^(\.\.[/\\])+/, "").replace(/^[/\\]+/, "");
-  const filePath = join(directory, relative || "index.html");
+  // Containment is asserted on the resolved result rather than proven by stripping
+  // prefixes off the input. The old prefix-stripping happened to be safe only because
+  // normalize() drops a leading '..' from absolute paths - an invariant nothing stated
+  // and nothing checked. Whatever the request spelled, the answer is a file the build
+  // directory contains, or the shell.
+  const root = resolve(directory);
+  const candidate = resolve(root, `.${normalize(`/${decoded}`)}`);
+  const contained = candidate === root || candidate.startsWith(root + sep);
+  const filePath = contained && candidate !== root ? candidate : join(root, "index.html");
   if (existsSync(filePath) && statSync(filePath).isFile()) return filePath;
-  const shell = join(directory, "index.html");
+  const shell = join(root, "index.html");
   return existsSync(shell) ? shell : null;
 }
 
