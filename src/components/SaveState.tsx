@@ -6,7 +6,7 @@ import type { ContentEditor } from "./use-content-editor";
  * a change quietly adopted into a field nobody was rewriting, and a refused save that
  * only the reader can settle.
  */
-export function EditorState({ editor, who }: { editor: ContentEditor; who: string | null }) {
+export function SaveState({ editor, who }: { editor: ContentEditor; who: string | null }) {
   const { adopted, conflict, saveState } = editor;
   return (
     <>

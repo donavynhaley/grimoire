@@ -1,6 +1,7 @@
 import { type FormEvent, Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { Idea, IdeaState, IdeaWorkspace } from "../../shared/types";
-import { EditorState } from "./EditorState";
+import { ConfirmInline } from "./ConfirmInline";
+import { SaveState } from "./SaveState";
 import { NotesField } from "./NotesField";
 import { plainTextFromMarkdown } from "./markdown-text";
 import { Drawer } from "./Drawer";
@@ -660,7 +661,7 @@ function IdeaDialog({
           rows={7}
           value={editor.description}
         />
-        <EditorState editor={editor} who={null} />
+        <SaveState editor={editor} who={null} />
       </div>
       <div className="dialog-section">
         <span className="field-label">Keep it where?</span>
@@ -690,21 +691,20 @@ function IdeaDialog({
       </div>
       <footer className="dialog-footer promotion-footer">
         <span>captured by {idea.createdByName}</span>
-        {confirmPromotion ? (
-          <div className="archive-confirm">
-            <span>create a backlog page and archive this idea?</span>
-            <button className="primary-button compact" onClick={onPromote} type="button">
-              yes, make page
-            </button>
-            <button className="text-button" onClick={() => setConfirmPromotion(false)} type="button">
-              cancel
-            </button>
-          </div>
-        ) : (
-          <button className="primary-button compact" onClick={() => setConfirmPromotion(true)} type="button">
-            make work page
-          </button>
-        )}
+        <ConfirmInline
+          cancelClass="text-button"
+          cancelLabel="cancel"
+          className="archive-confirm"
+          confirmClass="primary-button compact"
+          confirmLabel="yes, make page"
+          onCancel={() => setConfirmPromotion(false)}
+          onConfirm={onPromote}
+          onOpen={() => setConfirmPromotion(true)}
+          open={confirmPromotion}
+          question="create a backlog page and archive this idea?"
+          trigger="make work page"
+          triggerClass="primary-button compact"
+        />
       </footer>
     </Drawer>
   );

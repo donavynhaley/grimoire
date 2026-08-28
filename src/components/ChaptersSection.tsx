@@ -1,5 +1,6 @@
 import { type FormEvent, useState } from "react";
 import type { Page, Chapter, ChapterVelocity } from "../../shared/types";
+import { ConfirmInline } from "./ConfirmInline";
 import { Growing } from "./Growing";
 import { chapterWhen, dayLabel } from "./chapter-dates";
 import type { SettingsRun } from "./use-settings-action";
@@ -446,43 +447,27 @@ export function ChaptersSection({
                           close
                         </button>
                       ))}
-                    {removing === chapter.slug ? (
-                      <span className="archive-confirm">
-                        <span>
-                          delete?{placedIn > 0 && ` ${placedIn} page${placedIn === 1 ? "" : "s"} lose it`}
-                        </span>
-                        <button
-                          aria-label={`Confirm delete ${chapter.name}`}
-                          className="danger-text"
-                          disabled={busy}
-                          onClick={() =>
-                            void run(async () => {
-                              await actions.remove(chapter.slug);
-                              setRemoving(null);
-                            }, "The chapter could not be deleted")
-                          }
-                          type="button"
-                        >
-                          yes
-                        </button>
-                        <button
-                          aria-label={`Cancel deleting ${chapter.name}`}
-                          onClick={() => setRemoving(null)}
-                          type="button"
-                        >
-                          no
-                        </button>
-                      </span>
-                    ) : (
-                      <button
-                        aria-label={`Delete ${chapter.name}`}
-                        className="danger-text"
-                        onClick={() => setRemoving(chapter.slug)}
-                        type="button"
-                      >
-                        delete
-                      </button>
-                    )}
+                    <ConfirmInline
+                      cancelAriaLabel={`Cancel deleting ${chapter.name}`}
+                      className="archive-confirm"
+                      confirmAriaLabel={`Confirm delete ${chapter.name}`}
+                      confirmDisabled={busy}
+                      onCancel={() => setRemoving(null)}
+                      onConfirm={() =>
+                        void run(async () => {
+                          await actions.remove(chapter.slug);
+                          setRemoving(null);
+                        }, "The chapter could not be deleted")
+                      }
+                      onOpen={() => setRemoving(chapter.slug)}
+                      open={removing === chapter.slug}
+                      question={
+                        <>delete?{placedIn > 0 && ` ${placedIn} page${placedIn === 1 ? "" : "s"} lose it`}</>
+                      }
+                      trigger="delete"
+                      triggerAriaLabel={`Delete ${chapter.name}`}
+                      triggerClass="danger-text"
+                    />
                   </div>
                 </Growing>
               );

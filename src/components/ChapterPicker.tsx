@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Page, Chapter } from "../../shared/types";
 import { chapterWhen } from "./chapter-dates";
 import { Growing } from "./Growing";
+import { useDismissOnOutside } from "./use-dismiss-on-outside";
 
 /**
  * What the board is narrowed to: every page, one chapter, or the pages nobody has placed.
@@ -29,14 +30,7 @@ export function ChapterPicker({ pages, chapters, isOwner, onChange, onManage, on
   const selected =
     value === null || value === NO_CHAPTER ? undefined : chapters.find((chapter) => chapter.slug === value);
 
-  useEffect(() => {
-    if (!open) return;
-    const closeOnOutside = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", closeOnOutside);
-    return () => document.removeEventListener("mousedown", closeOnOutside);
-  }, [open]);
+  useDismissOnOutside(rootRef, open, () => setOpen(false));
 
   const countIn = (slug: string) => pages.filter((page) => page.chapter === slug).length;
   const unplaced = pages.filter((page) => page.chapter === null).length;

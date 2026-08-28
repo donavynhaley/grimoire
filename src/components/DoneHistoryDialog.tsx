@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import { Drawer } from "./Drawer";
 import { type Page, type PageCategory, type Member, type ProjectCategory } from "../../shared/types";
 import { categoryDisplay, categoryStyle } from "./category-style";
+import { compareCompletion } from "./page-order";
+import { pageText } from "./page-search";
 import { useTypingFocus } from "./use-typing-focus";
 
 type Props = {
@@ -172,15 +174,6 @@ export function DoneHistoryDialog({
       </div>
     </Drawer>
   );
-}
-
-function pageText(page: Page): string {
-  return `${page.title}\n${page.description}\n${page.category ?? "uncategorized"}\n${page.assigneeName ?? "unassigned"}`.toLowerCase();
-}
-
-function compareCompletion(left: Page, right: Page): number {
-  const timestamp = (right.completedAt ?? right.updatedAt).localeCompare(left.completedAt ?? left.updatedAt);
-  return timestamp || right.position - left.position;
 }
 
 function groupByMonth(pages: Page[]): Array<[string, Page[]]> {

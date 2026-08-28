@@ -1,6 +1,7 @@
 import { type FormEvent, useEffect, useState } from "react";
 import type { AgentToken, AgentTokenScope } from "../../shared/types";
 import { agentTokenIsLive, agentTokens, issueAgentToken, revokeAgentToken } from "../api/client";
+import { ConfirmInline } from "./ConfirmInline";
 import { dayLabel } from "./chapter-dates";
 import type { SettingsRun } from "./use-settings-action";
 
@@ -178,21 +179,17 @@ export function AgentAccessSection({ run }: Props) {
                   {token.lastUsedAt ? `last used ${dayLabel(token.lastUsedAt.slice(0, 10))}` : "never used"}
                 </span>
               </div>
-              {revoking === token.id ? (
-                <span className="archive-confirm">
-                  <span>revoke {token.name}?</span>
-                  <button className="danger-text" disabled={busy} onClick={() => revoke(token)} type="button">
-                    yes
-                  </button>
-                  <button onClick={() => setRevoking(null)} type="button">
-                    no
-                  </button>
-                </span>
-              ) : (
-                <button className="danger-text" onClick={() => setRevoking(token.id)} type="button">
-                  revoke
-                </button>
-              )}
+              <ConfirmInline
+                className="archive-confirm"
+                confirmDisabled={busy}
+                onCancel={() => setRevoking(null)}
+                onConfirm={() => revoke(token)}
+                onOpen={() => setRevoking(token.id)}
+                open={revoking === token.id}
+                question={`revoke ${token.name}?`}
+                trigger="revoke"
+                triggerClass="danger-text"
+              />
             </li>
           ))}
         </ul>

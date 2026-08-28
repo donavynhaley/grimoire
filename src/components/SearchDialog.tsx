@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Drawer } from "./Drawer";
 import { SEARCH_GROUPS, type SearchGroup, type SearchHit, type SearchResults } from "../../shared/types";
 import { ApiError, search as searchProject } from "../api/client";
+import { categoryColorStyle } from "./category-style";
 import { useTypingFocus } from "./use-typing-focus";
 
 const GROUP_LABELS: Record<SearchGroup, string> = {
@@ -199,11 +200,7 @@ export function SearchDialog({ initialQuery, onClose, onOpenPage, onOpenIdea, on
                     {hit.category && (
                       <span
                         className="category-pill"
-                        style={
-                          hit.categoryColor
-                            ? ({ "--category-color": hit.categoryColor } as React.CSSProperties)
-                            : undefined
-                        }
+                        style={hit.categoryColor ? categoryColorStyle(hit.categoryColor) : undefined}
                       >
                         {hit.category}
                       </span>

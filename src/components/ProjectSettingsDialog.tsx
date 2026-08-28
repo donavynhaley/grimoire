@@ -12,6 +12,7 @@ import type {
   ProjectRole,
 } from "../../shared/types";
 import { archivedProjects, mutate, verifyGithub, type GithubVerification } from "../api/client";
+import { ConfirmInline } from "./ConfirmInline";
 import { Growing } from "./Growing";
 import { CategoriesSection, type CategoryActions } from "./CategoriesSection";
 import { ChaptersSection, type ChapterActions } from "./ChaptersSection";
@@ -779,31 +780,18 @@ function DangerSection({ busy, canArchive, projectName, onArchive, onRestore, ru
               ? "Archiving hides this project for everyone. Its files stay on disk, and it can be restored from the list below."
               : "The last project cannot be archived."}
           </p>
-          {confirmingArchive ? (
-            <span className="archive-confirm">
-              <span>archive {projectName}?</span>
-              <button
-                className="danger-text"
-                disabled={busy}
-                onClick={() => void run(() => onArchive(), "The project could not be archived")}
-                type="button"
-              >
-                yes
-              </button>
-              <button onClick={() => setConfirmingArchive(false)} type="button">
-                no
-              </button>
-            </span>
-          ) : (
-            <button
-              className="danger-text"
-              disabled={!canArchive}
-              onClick={() => setConfirmingArchive(true)}
-              type="button"
-            >
-              archive project
-            </button>
-          )}
+          <ConfirmInline
+            className="archive-confirm"
+            confirmDisabled={busy}
+            onCancel={() => setConfirmingArchive(false)}
+            onConfirm={() => void run(() => onArchive(), "The project could not be archived")}
+            onOpen={() => setConfirmingArchive(true)}
+            open={confirmingArchive}
+            question={`archive ${projectName}?`}
+            trigger="archive project"
+            triggerClass="danger-text"
+            triggerDisabled={!canArchive}
+          />
         </div>
       </Growing>
 

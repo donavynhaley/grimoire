@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Page } from "../../shared/types";
 import { openPullRequests, type OpenPullRequest } from "../api/client";
 import { Growing } from "./Growing";
+import { useDismissOnOutside } from "./use-dismiss-on-outside";
 
 type Props = {
   github: Page["github"];
@@ -49,14 +50,7 @@ export function GithubLink({ github, status, repo, onUpdate }: Props) {
   const [refused, setRefused] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    const closeOnOutside = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", closeOnOutside);
-    return () => document.removeEventListener("mousedown", closeOnOutside);
-  }, [open]);
+  useDismissOnOutside(rootRef, open, () => setOpen(false));
 
   // Asked once per opening; the server holds the answer briefly for everyone else.
   useEffect(() => {

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Member, User, ProjectRole } from "../../shared/types";
 import { Avatar } from "./Avatar";
+import { ConfirmInline } from "./ConfirmInline";
 import { Growing } from "./Growing";
 import type { SettingsRun } from "./use-settings-action";
 
@@ -84,33 +85,7 @@ export function TeamSection({
             </div>
             {isOwner && member.id !== currentUser.id ? (
               <div className="member-actions">
-                {removingId === member.id ? (
-                  <>
-                    <span>remove?</span>
-                    <button
-                      aria-label={`Confirm remove ${member.name}`}
-                      className="danger-text"
-                      disabled={busy}
-                      onClick={() =>
-                        void run(async () => {
-                          await onRemoveMember(member.id);
-                          setRemovingId(null);
-                        }, `${member.name} could not be removed`)
-                      }
-                      type="button"
-                    >
-                      yes
-                    </button>
-                    <button
-                      aria-label={`Cancel removing ${member.name}`}
-                      disabled={busy}
-                      onClick={() => setRemovingId(null)}
-                      type="button"
-                    >
-                      no
-                    </button>
-                  </>
-                ) : (
+                {removingId !== member.id && (
                   <>
                     <span className="member-role">{member.projectRole}</span>
                     <button
@@ -126,16 +101,27 @@ export function TeamSection({
                     >
                       {member.projectRole === "owner" ? "make member" : "make owner"}
                     </button>
-                    <button
-                      aria-label={`Remove ${member.name}`}
-                      className="member-remove"
-                      onClick={() => setRemovingId(member.id)}
-                      type="button"
-                    >
-                      remove
-                    </button>
                   </>
                 )}
+                <ConfirmInline
+                  cancelAriaLabel={`Cancel removing ${member.name}`}
+                  cancelDisabled={busy}
+                  confirmAriaLabel={`Confirm remove ${member.name}`}
+                  confirmDisabled={busy}
+                  onCancel={() => setRemovingId(null)}
+                  onConfirm={() =>
+                    void run(async () => {
+                      await onRemoveMember(member.id);
+                      setRemovingId(null);
+                    }, `${member.name} could not be removed`)
+                  }
+                  onOpen={() => setRemovingId(member.id)}
+                  open={removingId === member.id}
+                  question="remove?"
+                  trigger="remove"
+                  triggerAriaLabel={`Remove ${member.name}`}
+                  triggerClass="member-remove"
+                />
               </div>
             ) : (
               <span className="member-role">{member.projectRole}</span>

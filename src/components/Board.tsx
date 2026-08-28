@@ -41,7 +41,9 @@ import {
 } from "./ProjectSettingsDialog";
 import { type CapturePageInput, QuickCapture } from "./QuickCapture";
 import { SearchDialog } from "./SearchDialog";
+import { categoryColorStyle } from "./category-style";
 import { plainTextFromMarkdown } from "./markdown-text";
+import { compareCompletion } from "./page-order";
 import { IdeasBoard } from "./IdeasBoard";
 import { useFlip } from "./use-flip";
 import { type DragPoint, gapIndexIn, pointWithin, usePointerDrag } from "./use-pointer-drag";
@@ -374,7 +376,7 @@ export function Board({
   }, [initialParams]);
 
   useEffect(() => {
-    const useKeyboardShortcut = (event: KeyboardEvent) => {
+    const runShortcut = (event: KeyboardEvent) => {
       if (
         event.defaultPrevented ||
         event.repeat ||
@@ -416,8 +418,8 @@ export function Board({
       event.preventDefault();
       void onViewChange(nextView);
     };
-    window.addEventListener("keydown", useKeyboardShortcut);
-    return () => window.removeEventListener("keydown", useKeyboardShortcut);
+    window.addEventListener("keydown", runShortcut);
+    return () => window.removeEventListener("keydown", runShortcut);
   }, [onViewChange, view]);
 
   const openPageFromSearch = (id: string) => {
@@ -1010,11 +1012,7 @@ export function Board({
                             className={`board-page ${page.category ? "" : "category-none"} ${hidden ? "drag-hidden" : ""} ${unseen ? "unseen" : ""}`}
                             data-flip-id={page.id}
                             onPointerDown={(event) => pointerDrag.start(event, page.id)}
-                            style={
-                              category
-                                ? ({ "--category-color": category.color } as React.CSSProperties)
-                                : undefined
-                            }
+                            style={category ? categoryColorStyle(category.color) : undefined}
                           >
                             <button
                               aria-label={`Move ${page.title}`}
@@ -1425,9 +1423,4 @@ function slotOf(pagesByStatus: Record<(typeof BOARD_STATUSES)[number], Page[]>, 
 
 function comparePosition(left: Page, right: Page): number {
   return left.position - right.position;
-}
-
-function compareCompletion(left: Page, right: Page): number {
-  const timestamp = (right.completedAt ?? right.updatedAt).localeCompare(left.completedAt ?? left.updatedAt);
-  return timestamp || right.position - left.position;
 }

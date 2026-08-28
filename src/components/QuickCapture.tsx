@@ -18,6 +18,7 @@ import {
   type ProjectField,
   PAGE_STATUS_LABELS,
 } from "../../shared/types";
+import { categoryColorStyle } from "./category-style";
 import { useTypingFocus } from "./use-typing-focus";
 
 export type CapturePageInput = {
@@ -224,7 +225,7 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
     inputRef.current?.focus();
   };
 
-  const handleInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+  const steerPicker = (event: KeyboardEvent<HTMLInputElement>) => {
     if (!picker) return;
     if (event.key === "Escape") {
       event.preventDefault();
@@ -294,7 +295,7 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
         id="quick-page"
         name="quickPage"
         onChange={changeTitle}
-        onKeyDown={handleInputKeyDown}
+        onKeyDown={steerPicker}
         placeholder="Capture work..."
         ref={(node) => {
           inputRef.current = node;
@@ -314,11 +315,7 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
               aria-label={categoryLabel ? `Category: ${categoryLabel}` : "Choose category"}
               className={categoryLabel ? "capture-field active" : "capture-field"}
               onClick={() => openPicker("category")}
-              style={
-                selectedCategory
-                  ? ({ "--category-color": selectedCategory.color } as React.CSSProperties)
-                  : undefined
-              }
+              style={selectedCategory ? categoryColorStyle(selectedCategory.color) : undefined}
               type="button"
             >
               <span aria-hidden="true">#</span>
@@ -498,11 +495,7 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
                   {picker.kind === "category" && (
                     <span
                       className={`category-swatch ${option.value ? "" : "category-none"}`}
-                      style={
-                        option.color
-                          ? ({ "--category-color": option.color } as React.CSSProperties)
-                          : undefined
-                      }
+                      style={option.color ? categoryColorStyle(option.color) : undefined}
                     />
                   )}
                   {picker.kind === "status" && <span className={`column-dot ${option.value}`} />}

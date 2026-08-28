@@ -1,5 +1,6 @@
 import { type FormEvent, useState } from "react";
 import { FIELD_TYPES, fieldHasOptions, type FieldType, type ProjectField } from "../../shared/types";
+import { ConfirmInline } from "./ConfirmInline";
 import { Growing } from "./Growing";
 import type { SettingsRun } from "./use-settings-action";
 
@@ -276,41 +277,25 @@ export function FieldsSection({
                   ↓
                 </button>
               </span>
-              {removing === field.key ? (
-                <span className="archive-confirm">
-                  <span>remove?</span>
-                  <button
-                    aria-label={`Confirm delete ${field.label}`}
-                    className="danger-text"
-                    disabled={busy}
-                    onClick={() =>
-                      void run(async () => {
-                        await actions.remove(field.key);
-                        setRemoving(null);
-                      }, "The field could not be deleted")
-                    }
-                    type="button"
-                  >
-                    yes
-                  </button>
-                  <button
-                    aria-label={`Cancel deleting ${field.label}`}
-                    onClick={() => setRemoving(null)}
-                    type="button"
-                  >
-                    no
-                  </button>
-                </span>
-              ) : (
-                <button
-                  aria-label={`Delete ${field.label}`}
-                  className="icon-button"
-                  onClick={() => setRemoving(field.key)}
-                  type="button"
-                >
-                  ×
-                </button>
-              )}
+              <ConfirmInline
+                cancelAriaLabel={`Cancel deleting ${field.label}`}
+                className="archive-confirm"
+                confirmAriaLabel={`Confirm delete ${field.label}`}
+                confirmDisabled={busy}
+                onCancel={() => setRemoving(null)}
+                onConfirm={() =>
+                  void run(async () => {
+                    await actions.remove(field.key);
+                    setRemoving(null);
+                  }, "The field could not be deleted")
+                }
+                onOpen={() => setRemoving(field.key)}
+                open={removing === field.key}
+                question="remove?"
+                trigger="×"
+                triggerAriaLabel={`Delete ${field.label}`}
+                triggerClass="icon-button"
+              />
             </div>
             {removing === field.key && (
               <p className="settings-summary field-warning">

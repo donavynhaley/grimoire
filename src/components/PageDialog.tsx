@@ -13,11 +13,13 @@ import {
   PAGE_STATUS_LABELS,
 } from "../../shared/types";
 import { Avatar } from "./Avatar";
+import { ConfirmInline } from "./ConfirmInline";
 import { PageFieldsEditor } from "./PageFields";
-import { EditorState, otherEditorName } from "./EditorState";
+import { otherEditorName, SaveState } from "./SaveState";
 import { Growing } from "./Growing";
 import { NotesField } from "./NotesField";
 import { describeChange, describeEvent, relativeLabel } from "./activity-copy";
+import { categoryColorStyle, categoryStyle } from "./category-style";
 import { DiscussionSection } from "./DiscussionSection";
 import { Drawer } from "./Drawer";
 import { GithubLink } from "./GithubLink";
@@ -74,12 +76,6 @@ export function PageDialog({
   onSetAnswered,
   onSeeDiscussion,
 }: Props) {
-  const categoryColor = (slug: string | null) =>
-    slug ? categories.find((category) => category.slug === slug)?.color : undefined;
-  const swatchStyle = (slug: string | null) => {
-    const color = categoryColor(slug);
-    return color ? ({ "--category-color": color } as React.CSSProperties) : undefined;
-  };
   const [confirmArchive, setConfirmArchive] = useState(false);
   /**
    * Which half of the page is on screen when there is only room for one.
@@ -486,10 +482,7 @@ export function PageDialog({
                         }}
                         type="button"
                       >
-                        <span
-                          className="category-swatch"
-                          style={{ "--category-color": category.color } as React.CSSProperties}
-                        />
+                        <span className="category-swatch" style={categoryColorStyle(category.color)} />
                         {category.name}
                       </button>
                     ))}
@@ -499,7 +492,7 @@ export function PageDialog({
                     <span className="rail-current">
                       <span
                         className={`category-swatch ${page.category ? "" : "category-none"}`}
-                        style={swatchStyle(page.category)}
+                        style={categoryStyle(categories, page.category)}
                       />
                       {page.category
                         ? (categories.find((category) => category.slug === page.category)?.name ??
@@ -538,7 +531,7 @@ export function PageDialog({
                       >
                         <span
                           className={`category-swatch ${blocker.category ? "" : "category-none"}`}
-                          style={swatchStyle(blocker.category)}
+                          style={categoryStyle(categories, blocker.category)}
                         />
                         <span>
                           <strong>{blocker.title}</strong>
@@ -587,7 +580,7 @@ export function PageDialog({
                           >
                             <span
                               className={`category-swatch ${candidate.category ? "" : "category-none"}`}
-                              style={swatchStyle(candidate.category)}
+                              style={categoryStyle(categories, candidate.category)}
                             />
                             <span>
                               <strong>{candidate.title}</strong>
@@ -644,25 +637,24 @@ export function PageDialog({
 
       {/* The autosave line and the archive stand under both halves rather than inside the
           writing, so a refused save is still in sight from the details. */}
-      <EditorState editor={editor} who={otherEditor} />
+      <SaveState editor={editor} who={otherEditor} />
 
       <footer className="dialog-footer">
         <span>created by {page.createdByName}</span>
-        {confirmArchive ? (
-          <div className="archive-confirm">
-            <span>archive this page?</span>
-            <button className="danger-button" onClick={onArchive} type="button">
-              yes, archive
-            </button>
-            <button className="text-button" onClick={() => setConfirmArchive(false)} type="button">
-              cancel
-            </button>
-          </div>
-        ) : (
-          <button className="text-button danger-text" onClick={() => setConfirmArchive(true)} type="button">
-            archive page
-          </button>
-        )}
+        <ConfirmInline
+          cancelClass="text-button"
+          cancelLabel="cancel"
+          className="archive-confirm"
+          confirmClass="danger-button"
+          confirmLabel="yes, archive"
+          onCancel={() => setConfirmArchive(false)}
+          onConfirm={onArchive}
+          onOpen={() => setConfirmArchive(true)}
+          open={confirmArchive}
+          question="archive this page?"
+          trigger="archive page"
+          triggerClass="text-button danger-text"
+        />
       </footer>
     </Drawer>
   );

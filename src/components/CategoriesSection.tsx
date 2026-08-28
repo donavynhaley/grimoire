@@ -1,5 +1,7 @@
 import { type FormEvent, useState } from "react";
 import { CATEGORY_COLOR_PALETTE, type ProjectCategory } from "../../shared/types";
+import { categoryColorStyle } from "./category-style";
+import { ConfirmInline } from "./ConfirmInline";
 import { Growing } from "./Growing";
 import type { SettingsRun } from "./use-settings-action";
 
@@ -68,10 +70,7 @@ export function CategoriesSection({ categories, busy, actions, canManage, run }:
         <ul className="settings-readonly-list">
           {ordered.map((category) => (
             <li key={category.slug}>
-              <span
-                className="category-swatch"
-                style={{ "--category-color": category.color } as React.CSSProperties}
-              />
+              <span className="category-swatch" style={categoryColorStyle(category.color)} />
               {category.name}
             </li>
           ))}
@@ -93,10 +92,7 @@ export function CategoriesSection({ categories, busy, actions, canManage, run }:
               onClick={() => setRecoloring(recoloring === category.slug ? null : category.slug)}
               type="button"
             >
-              <span
-                className="category-swatch"
-                style={{ "--category-color": category.color } as React.CSSProperties}
-              />
+              <span className="category-swatch" style={categoryColorStyle(category.color)} />
             </button>
             <label className="sr-only" htmlFor={`category-name-${category.slug}`}>
               Rename {category.name}
@@ -136,41 +132,25 @@ export function CategoriesSection({ categories, busy, actions, canManage, run }:
                 ↓
               </button>
             </span>
-            {removing === category.slug ? (
-              <span className="archive-confirm">
-                <span>remove?</span>
-                <button
-                  aria-label={`Confirm delete ${category.name}`}
-                  className="danger-text"
-                  disabled={busy}
-                  onClick={() =>
-                    void run(async () => {
-                      await actions.remove(category.slug);
-                      setRemoving(null);
-                    }, "The category could not be deleted")
-                  }
-                  type="button"
-                >
-                  yes
-                </button>
-                <button
-                  aria-label={`Cancel deleting ${category.name}`}
-                  onClick={() => setRemoving(null)}
-                  type="button"
-                >
-                  no
-                </button>
-              </span>
-            ) : (
-              <button
-                aria-label={`Delete ${category.name}`}
-                className="icon-button"
-                onClick={() => setRemoving(category.slug)}
-                type="button"
-              >
-                ×
-              </button>
-            )}
+            <ConfirmInline
+              cancelAriaLabel={`Cancel deleting ${category.name}`}
+              className="archive-confirm"
+              confirmAriaLabel={`Confirm delete ${category.name}`}
+              confirmDisabled={busy}
+              onCancel={() => setRemoving(null)}
+              onConfirm={() =>
+                void run(async () => {
+                  await actions.remove(category.slug);
+                  setRemoving(null);
+                }, "The category could not be deleted")
+              }
+              onOpen={() => setRemoving(category.slug)}
+              open={removing === category.slug}
+              question="remove?"
+              trigger="×"
+              triggerAriaLabel={`Delete ${category.name}`}
+              triggerClass="icon-button"
+            />
             {recoloring === category.slug && (
               <div aria-label={`Colors for ${category.name}`} className="category-palette">
                 {CATEGORY_COLOR_PALETTE.map((color) => (
@@ -185,7 +165,7 @@ export function CategoriesSection({ categories, busy, actions, canManage, run }:
                         setRecoloring(null);
                       }, "The color could not be changed")
                     }
-                    style={{ "--category-color": color } as React.CSSProperties}
+                    style={categoryColorStyle(color)}
                     type="button"
                   />
                 ))}
@@ -208,7 +188,7 @@ export function CategoriesSection({ categories, busy, actions, canManage, run }:
               className={newColor === color ? "selected" : ""}
               key={color}
               onClick={() => setNewColor(color)}
-              style={{ "--category-color": color } as React.CSSProperties}
+              style={categoryColorStyle(color)}
               type="button"
             />
           ))}

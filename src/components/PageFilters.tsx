@@ -8,6 +8,7 @@ import {
   type FacetContext,
   type FacetSelection,
 } from "./page-facets";
+import { useDismissOnOutside } from "./use-dismiss-on-outside";
 
 type Props = {
   /** Already narrowed by the controls outside this panel, so the counts agree with the board. */
@@ -42,23 +43,18 @@ export function PageFilters({ pages, context, selection, onChange }: Props) {
     [context, open, pages, selection],
   );
 
+  useDismissOnOutside(rootRef, open, () => setOpen(false));
+
   useEffect(() => {
     if (!open) return;
-    const closeOnOutside = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       // The board's own Escape puts down a page being moved; this one only shuts the panel.
       event.stopPropagation();
       setOpen(false);
     };
-    document.addEventListener("mousedown", closeOnOutside);
     document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("mousedown", closeOnOutside);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
+    return () => document.removeEventListener("keydown", closeOnEscape);
   }, [open]);
 
   /*

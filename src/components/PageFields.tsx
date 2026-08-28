@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { FieldValue, PageFields as PageFieldValues, ProjectField } from "../../shared/types";
 import { Growing } from "./Growing";
+import { useDismissOnOutside } from "./use-dismiss-on-outside";
 
 type Props = {
   fields: ProjectField[];
@@ -212,16 +213,7 @@ function SearchableChoice({
     setSearching(true);
   };
 
-  // Clicking anywhere else is the ordinary way out of a popover, and the one people reach for
-  // before they find the cancel it covers.
-  useEffect(() => {
-    if (!searching) return;
-    const closeOnOutside = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) close();
-    };
-    document.addEventListener("mousedown", closeOnOutside);
-    return () => document.removeEventListener("mousedown", closeOnOutside);
-  }, [searching]);
+  useDismissOnOutside(rootRef, searching, close);
 
   return (
     <div className="field-search-anchor" ref={rootRef}>
