@@ -128,6 +128,7 @@ import { MarkdownPageStore } from "./markdown-pages";
 import { MarkdownChapterStore } from "./markdown-chapters";
 import { createIdea, findIdea, getIdeas, promoteIdea, undoPromotion, updateIdea } from "./ideas-repository";
 import { MarkdownIdeaStore } from "./markdown-ideas";
+import type { EventClient, Options, RequestContext, WorkspaceScope } from "./app-types";
 import { agentMayReach } from "./agent-policy";
 import {
   HttpError,
@@ -209,51 +210,6 @@ const SESSION_AGE_SECONDS = 60 * 60 * 24 * 30;
  * cookie would not be sent on that navigation at all.
  */
 const OIDC_STATE_COOKIE = "grimoire_oidc_state";
-
-type Options = {
-  pagesDirectory?: string;
-  databasePath: string;
-  production: boolean;
-  staticDirectory?: string;
-  /** How often linked pages ask GitHub what happened; 0 disables the poller. */
-  githubPollMs?: number;
-  /** Stands in for the GitHub API in tests. */
-  githubFetcher?: GithubFetcher;
-  /** Stands in for Discord in tests. */
-  discordPoster?: DiscordPoster;
-  /** The identity provider people may sign in through, when the operator configured one. */
-  oidc?: OidcConfig | null;
-  /** Stands in for that provider in tests. */
-  oidcFetcher?: OidcFetcher;
-  /**
-   * Whether something in front of Grimoire is writing `X-Forwarded-For`.
-   *
-   * It decides who a sign-in attempt is counted against, so it is a deployment fact rather
-   * than a preference: wrong in one direction every visitor shares one allowance, wrong in
-   * the other the allowance is free to walk around.
-   */
-  trustProxy?: boolean;
-};
-
-type RequestContext = {
-  request: IncomingMessage;
-  response: ServerResponse;
-  url: URL;
-  user: User | null;
-  sessionToken: string | null;
-  /** Set when a bearer token answered instead of a browser session. */
-  agent: AgentIdentity | null;
-};
-
-type WorkspaceScope = "work" | "ideas" | "both";
-
-type EventClient = {
-  clientId: string;
-  projectId: string;
-  response: ServerResponse;
-  keepAlive: ReturnType<typeof setInterval>;
-  userId: string;
-};
 
 export function createGrimoireServer(options: Options) {
   const database = openDatabase(options.databasePath);
