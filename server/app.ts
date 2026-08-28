@@ -972,10 +972,8 @@ export function createGrimoireServer(options: Options) {
       if (!/^[0-9a-f-]{36}$/i.test(avatarMatch[1])) throw new HttpError(404, "Profile picture not found");
       const avatar = avatarStore.get(avatarMatch[1]);
       if (!avatar) throw new HttpError(404, "Profile picture not found");
-      response.statusCode = 200;
-      response.setHeader("Content-Type", avatar.contentType);
       response.setHeader("Cache-Control", "private, max-age=31536000, immutable");
-      createReadStream(avatar.path).pipe(response);
+      sendFile(response, avatar.path, avatar.contentType);
       return;
     }
 
@@ -1003,11 +1001,9 @@ export function createGrimoireServer(options: Options) {
       }
       const image = slug ? imageStore.get(slug, imageName) : null;
       if (!image) throw new HttpError(404, "Image not found");
-      response.statusCode = 200;
-      response.setHeader("Content-Type", image.contentType);
       response.setHeader("X-Content-Type-Options", "nosniff");
       response.setHeader("Cache-Control", "private, max-age=31536000, immutable");
-      createReadStream(image.path).pipe(response);
+      sendFile(response, image.path, image.contentType);
       return;
     }
 
@@ -2866,6 +2862,28 @@ function serveDocument(response: ServerResponse, filePath: string, preview: Link
   response.end(applyLinkPreview(readFileSync(filePath, "utf8"), preview));
 }
 
+/**
+ * Streams a file with the failure handled, because a file can vanish between the
+ * existence check and the read - and a stream error with no listener is an uncaught
+ * exception that takes the whole process down, on a tick the route's error funnel
+ * cannot see.
+ */
+function sendFile(response: ServerResponse, filePath: string, contentType: string): void {
+  const stream = createReadStream(filePath);
+  stream.on("error", () => {
+    if (response.headersSent) {
+      response.destroy();
+    } else {
+      response.statusCode = 404;
+      response.setHeader("Content-Type", "application/json; charset=utf-8");
+      response.end(JSON.stringify({ error: "File not found" }));
+    }
+  });
+  response.statusCode = 200;
+  response.setHeader("Content-Type", contentType);
+  stream.pipe(response);
+}
+
 function serveFile(response: ServerResponse, filePath: string): void {
   const contentTypes: Record<string, string> = {
     ".js": "text/javascript; charset=utf-8",
@@ -2875,9 +2893,7 @@ function serveFile(response: ServerResponse, filePath: string): void {
     ".ico": "image/x-icon",
     ".txt": "text/plain; charset=utf-8",
   };
-  response.statusCode = 200;
-  response.setHeader("Content-Type", contentTypes[extname(filePath)] ?? "application/octet-stream");
-  createReadStream(filePath).pipe(response);
+  sendFile(response, filePath, contentTypes[extname(filePath)] ?? "application/octet-stream");
 }
 
 class HttpError extends Error {
