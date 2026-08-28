@@ -112,8 +112,8 @@ describe("agent access", () => {
       const rows = database.prepare("SELECT token_hash FROM agent_tokens").all() as Array<{ token_hash: string }>;
       database.close();
       expect(rows).toHaveLength(1);
-      expect(rows[0].token_hash).not.toBe(created.body.secret);
-      expect(rows[0].token_hash).not.toContain("grim_");
+      expect(rows[0]!.token_hash).not.toBe(created.body.secret);
+      expect(rows[0]!.token_hash).not.toContain("grim_");
     });
 
     it("lets an agent write a page that a person can then see on the board", async () => {
@@ -127,7 +127,7 @@ describe("agent access", () => {
       const board = await server.request<BoardWorkspace>("/api/board");
       expect(board.body.pages.map((page) => page.title)).toContain("Ward the tower door");
       // The write is attributed to the person who issued the token, not to a machine account.
-      expect(board.body.pages[0].createdByName).toBe("Donavyn");
+      expect(board.body.pages[0]!.createdByName).toBe("Donavyn");
     });
 
     it("refuses a malformed, unknown, or unprefixed bearer token", async () => {
@@ -330,6 +330,25 @@ describe("agent access", () => {
       }
     });
 
+    it("refuses a route nobody has written yet, because the list is closed by default", async () => {
+      const server = await startTestServer();
+      await bootstrap(server);
+      const { body } = await issue(server);
+
+      // The lists above prove today's routes are refused; this proves the *policy* - the
+      // allow-list gate runs before routing, so a route added next month is closed to
+      // agents until someone opens it deliberately. If this refusal ever becomes a 404,
+      // routes have started answering agents before the policy sees them.
+      for (const method of ["GET", "POST", "PATCH", "DELETE"] as const) {
+        const attempt = await asAgent(server, body.secret, "/api/some-route-from-the-future", {
+          method,
+          ...(method === "GET" ? {} : { body: "{}" }),
+        });
+        expect(attempt.response.status, method).toBe(403);
+        expect(attempt.body.error, method).toContain("agent token");
+      }
+    });
+
     it("refuses to mint or revoke another token", async () => {
       const server = await startTestServer();
       await bootstrap(server);
@@ -503,8 +522,8 @@ describe("agent access", () => {
 
       const forMaren = (await server.request<AwayState>("/api/away")).body;
       expect(forMaren.total).toBe(1);
-      expect(forMaren.events[0].entityTitle).toBe("Quietly drafted overnight");
-      expect(forMaren.events[0].agentName).toBe("Planning agent");
+      expect(forMaren.events[0]!.entityTitle).toBe("Quietly drafted overnight");
+      expect(forMaren.events[0]!.agentName).toBe("Planning agent");
 
       // The owner's own agent never fills the owner's digest, because the write is theirs.
       await loginOwner(server);
@@ -597,7 +616,7 @@ describe("agent access", () => {
       const listed = await server.request<{ tokens: AgentToken[] }>("/api/agent-tokens");
       // "Last used" is the signal an owner reads to decide a credential is safe to revoke,
       // so a busy read-only agent must not list as never used.
-      expect(listed.body.tokens[0].lastUsedAt).not.toBeNull();
+      expect(listed.body.tokens[0]!.lastUsedAt).not.toBeNull();
     });
   });
 
