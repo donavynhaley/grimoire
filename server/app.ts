@@ -129,6 +129,7 @@ import { createIdea, findIdea, getIdeas, promoteIdea, undoPromotion, updateIdea 
 import { MarkdownIdeaStore } from "./markdown-ideas";
 import type { EventClient, Options, RequestContext, WorkspaceScope } from "./app-types";
 import { agentMayReach } from "./agent-policy";
+import { activityRoutes } from "./routes/activity";
 import { boardRoutes } from "./routes/board";
 import { fileRoutes } from "./routes/files";
 import { requireAdmin, requireUser, type AppContext } from "./routes/context";
@@ -284,7 +285,11 @@ export function createGrimoireServer(options: Options) {
     broadcastPresence,
     disconnectUserEvents,
   };
-  const routes: Route[] = [...boardRoutes(appContext), ...fileRoutes(appContext)];
+  const routes: Route[] = [
+    ...boardRoutes(appContext),
+    ...fileRoutes(appContext),
+    ...activityRoutes(appContext),
+  ];
 
   /**
    * The board following the code: linked pages are brought up to date with GitHub on an
@@ -1660,48 +1665,6 @@ export function createGrimoireServer(options: Options) {
       // the stream exists, not left to the next write to discover.
       response.on("error", () => dropEventClient(client));
       response.once("close", () => dropEventClient(client));
-      return;
-    }
-
-    if (method === "GET" && url.pathname === "/api/activity") {
-      const user = requireUser(context);
-      const projectId = requireProject(context, user);
-      const query = activityQuerySchema.parse(Object.fromEntries(url.searchParams));
-      // The project-wide history is the owner's tool; per-entity history stays
-      // available to every member because the page dialog shows it inline.
-      if (!query.entity && !userOwnsProject(database, user, projectId)) {
-        throw new HttpError(403, "Only the project owner can open the project history");
-      }
-      const page = listAuditEvents(database, projectId, {
-        entityId: query.entity,
-        before: query.before,
-        limit: query.limit ?? AUDIT_PAGE_SIZE,
-      });
-      json(response, 200, page);
-      return;
-    }
-
-    if (method === "GET" && url.pathname === "/api/away") {
-      const user = requireUser(context);
-      const projectId = requireProject(context, user);
-      const latest = latestAuditSequence(database, projectId);
-      let since = seenCursor(database, projectId, user.id);
-      if (since === null) {
-        initializeSeenCursor(database, projectId, user.id, latest);
-        since = latest;
-      }
-      const unseen = listUnseenEvents(database, projectId, { after: since, excludeActorId: user.id });
-      json(response, 200, { since, latest, total: unseen.total, events: unseen.events });
-      return;
-    }
-
-    if (method === "POST" && url.pathname === "/api/seen") {
-      const user = requireUser(context);
-      const projectId = requireProject(context, user);
-      const input = seenSchema.parse(await readJson(request));
-      const latest = latestAuditSequence(database, projectId);
-      advanceSeenCursor(database, projectId, user.id, Math.min(input.sequence ?? latest, latest));
-      json(response, 200, { ok: true });
       return;
     }
 
