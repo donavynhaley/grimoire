@@ -1,8 +1,17 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { z } from "zod";
 import { IDEA_STATES, type IdeaState } from "../shared/types";
-import { isTimestamp, parseMarkdown, serializeMarkdown, writeAtomic } from "./markdown-files";
+import {
+  compareRecords,
+  isTimestamp,
+  markdownFilesIn,
+  moveRecord,
+  parseMarkdown,
+  projectDirectory,
+  serializeMarkdown,
+  writeAtomic,
+} from "./markdown-files";
 
 export type StoredIdea = {
   id: string;
@@ -39,9 +48,8 @@ export class MarkdownIdeaStore {
   list(projectSlug: string): StoredIdea[] {
     const directory = this.activeDirectory(projectSlug);
     mkdirSync(directory, { recursive: true });
-    return readdirSync(directory, { withFileTypes: true })
-      .filter((entry) => entry.isFile() && entry.name.endsWith(".md") && !entry.name.startsWith("."))
-      .map((entry) => this.readPath(join(directory, entry.name)))
+    return markdownFilesIn(directory)
+      .map((path) => this.readPath(path))
       .sort(compareIdeas);
   }
 
@@ -59,24 +67,16 @@ export class MarkdownIdeaStore {
     writeAtomic(this.activePath(projectSlug, idea.id), serializeIdea(idea));
   }
 
-  /*
-   * Destination first, source removed second - the same interruption story the page
-   * store tells: a crash leaves the record twice, never half-written.
-   */
   archive(projectSlug: string, idea: StoredIdea): void {
     const activePath = this.activePath(projectSlug, idea.id);
     if (!existsSync(activePath)) throw new Error(`Idea file does not exist: ${activePath}`);
-    mkdirSync(this.archiveDirectory(projectSlug), { recursive: true });
-    writeAtomic(this.archivePath(projectSlug, idea.id), serializeIdea(idea));
-    unlinkSync(activePath);
+    moveRecord(activePath, this.archivePath(projectSlug, idea.id), serializeIdea(idea));
   }
 
   restore(projectSlug: string, idea: StoredIdea): void {
     const archivePath = this.archivePath(projectSlug, idea.id);
     if (!existsSync(archivePath)) throw new Error(`Archived idea file does not exist: ${archivePath}`);
-    mkdirSync(this.activeDirectory(projectSlug), { recursive: true });
-    writeAtomic(this.activePath(projectSlug, idea.id), serializeIdea(idea));
-    unlinkSync(archivePath);
+    moveRecord(archivePath, this.activePath(projectSlug, idea.id), serializeIdea(idea));
   }
 
   private readPath(path: string): StoredIdea {
@@ -119,9 +119,7 @@ export class MarkdownIdeaStore {
   }
 
   private projectDirectory(projectSlug: string): string {
-    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(projectSlug))
-      throw new Error(`Invalid project slug: ${projectSlug}`);
-    return join(this.rootDirectory, projectSlug);
+    return projectDirectory(this.rootDirectory, projectSlug);
   }
 }
 
@@ -140,10 +138,4 @@ function serializeIdea(idea: StoredIdea): string {
   return serializeMarkdown(metadata, idea.description);
 }
 
-function compareIdeas(left: StoredIdea, right: StoredIdea): number {
-  const state = IDEA_STATES.indexOf(left.state) - IDEA_STATES.indexOf(right.state);
-  if (state !== 0) return state;
-  if (left.position !== right.position) return left.position - right.position;
-  const created = left.createdAt.localeCompare(right.createdAt);
-  return created !== 0 ? created : left.id.localeCompare(right.id);
-}
+const compareIdeas = compareRecords<StoredIdea>((idea) => IDEA_STATES.indexOf(idea.state));

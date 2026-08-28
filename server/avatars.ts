@@ -1,16 +1,7 @@
-import { randomUUID } from "node:crypto";
-import {
-  closeSync,
-  existsSync,
-  fsyncSync,
-  mkdirSync,
-  openSync,
-  renameSync,
-  statSync,
-  unlinkSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, statSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
+import { writeAtomic } from "./markdown-files";
+import { sniffImageType } from "./project-images";
 
 export type AvatarImageType = "image/png" | "image/jpeg" | "image/webp";
 
@@ -22,19 +13,10 @@ const EXTENSIONS: Record<AvatarImageType, string> = {
   "image/webp": "webp",
 };
 
-const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-
+/** The notes sniffer, narrowed: a GIF is for notes, not faces, so it reads as no avatar at all. */
 export function sniffAvatarType(data: Buffer): AvatarImageType | null {
-  if (data.length > 8 && data.subarray(0, 8).equals(PNG_SIGNATURE)) return "image/png";
-  if (data.length > 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff) return "image/jpeg";
-  if (
-    data.length > 12 &&
-    data.subarray(0, 4).toString("latin1") === "RIFF" &&
-    data.subarray(8, 12).toString("latin1") === "WEBP"
-  ) {
-    return "image/webp";
-  }
-  return null;
+  const type = sniffImageType(data);
+  return type === null || type === "image/gif" ? null : type;
 }
 
 export type StoredAvatar = {
@@ -62,22 +44,10 @@ export class AvatarStore {
   }
 
   save(userId: string, data: Buffer, contentType: AvatarImageType): void {
-    const path = this.avatarPath(userId, EXTENSIONS[contentType]);
-    const temporaryPath = join(this.rootDirectory, `.${randomUUID()}.tmp`);
-    let descriptor: number | null = null;
-    try {
-      descriptor = openSync(temporaryPath, "wx", 0o600);
-      writeFileSync(descriptor, data);
-      fsyncSync(descriptor);
-      closeSync(descriptor);
-      descriptor = null;
-      this.remove(userId);
-      renameSync(temporaryPath, path);
-    } catch (error) {
-      if (descriptor !== null) closeSync(descriptor);
-      if (existsSync(temporaryPath)) unlinkSync(temporaryPath);
-      throw error;
-    }
+    // A new picture can arrive under a new extension, so every older variant goes
+    // first - otherwise both would answer and get() would pick one arbitrarily.
+    this.remove(userId);
+    writeAtomic(this.avatarPath(userId, EXTENSIONS[contentType]), data);
   }
 
   remove(userId: string): boolean {

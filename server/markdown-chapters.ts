@@ -1,8 +1,15 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, unlinkSync } from "node:fs";
 import { basename, join } from "node:path";
 import { z } from "zod";
 import { CHAPTER_STATES, type ChapterState } from "../shared/types";
-import { isTimestamp, parseMarkdown, serializeMarkdown, writeAtomic } from "./markdown-files";
+import {
+  isTimestamp,
+  markdownFilesIn,
+  parseMarkdown,
+  projectDirectory,
+  serializeMarkdown,
+  writeAtomic,
+} from "./markdown-files";
 
 export type StoredChapter = {
   slug: string;
@@ -81,9 +88,8 @@ export class MarkdownChapterStore {
   list(projectSlug: string): StoredChapter[] {
     const directory = this.chaptersDirectory(projectSlug);
     if (!existsSync(directory)) return [];
-    return readdirSync(directory, { withFileTypes: true })
-      .filter((entry) => entry.isFile() && entry.name.endsWith(".md") && !entry.name.startsWith("."))
-      .map((entry) => this.readPath(join(directory, entry.name)))
+    return markdownFilesIn(directory)
+      .map((path) => this.readPath(path))
       .sort(compareChapters);
   }
 
@@ -141,9 +147,7 @@ export class MarkdownChapterStore {
   }
 
   private projectDirectory(projectSlug: string): string {
-    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(projectSlug))
-      throw new Error(`Invalid project slug: ${projectSlug}`);
-    return join(this.rootDirectory, projectSlug);
+    return projectDirectory(this.rootDirectory, projectSlug);
   }
 }
 

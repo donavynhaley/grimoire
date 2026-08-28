@@ -11,8 +11,12 @@ import {
   type PageStatus,
 } from "../shared/types";
 import {
+  compareRecords,
   isTimestamp,
+  markdownFilesIn,
+  moveRecord,
   parseMarkdown,
+  projectDirectory,
   serializeMarkdown,
   writeAtomic,
   type FrontmatterValue,
@@ -95,9 +99,8 @@ export class MarkdownPageStore {
   list(projectSlug: string): StoredPage[] {
     const directory = this.activeDirectory(projectSlug);
     mkdirSync(directory, { recursive: true });
-    return readdirSync(directory, { withFileTypes: true })
-      .filter((entry) => entry.isFile() && entry.name.endsWith(".md") && !entry.name.startsWith("."))
-      .map((entry) => this.readPath(join(directory, entry.name)))
+    return markdownFilesIn(directory)
+      .map((path) => this.readPath(path))
       .filter((page) => page.archivedAt === null)
       .sort(comparePages);
   }
@@ -116,9 +119,8 @@ export class MarkdownPageStore {
   listArchived(projectSlug: string): StoredPage[] {
     const directory = this.archiveDirectory(projectSlug);
     if (!existsSync(directory)) return [];
-    return readdirSync(directory, { withFileTypes: true })
-      .filter((entry) => entry.isFile() && entry.name.endsWith(".md") && !entry.name.startsWith("."))
-      .map((entry) => this.readPath(join(directory, entry.name)))
+    return markdownFilesIn(directory)
+      .map((path) => this.readPath(path))
       .sort((left, right) => (right.archivedAt ?? "").localeCompare(left.archivedAt ?? ""));
   }
 
@@ -128,26 +130,16 @@ export class MarkdownPageStore {
     writeAtomic(this.activePath(projectSlug, page.id), serializePage(page));
   }
 
-  /*
-   * Both moves write the complete destination file before removing the source, so an
-   * interruption can only leave the record present twice - the source still authoritative,
-   * the stray copy overwritten by the next attempt. The old order, rename first and add the
-   * metadata second, could leave an archived file with no archived_at at all.
-   */
   archive(projectSlug: string, page: StoredPage): void {
     const activePath = this.activePath(projectSlug, page.id);
     if (!existsSync(activePath)) throw new Error(`Page file does not exist: ${activePath}`);
-    mkdirSync(this.archiveDirectory(projectSlug), { recursive: true });
-    writeAtomic(this.archivePath(projectSlug, page.id), serializePage(page));
-    unlinkSync(activePath);
+    moveRecord(activePath, this.archivePath(projectSlug, page.id), serializePage(page));
   }
 
   restore(projectSlug: string, page: StoredPage): void {
     const archivePath = this.archivePath(projectSlug, page.id);
     if (!existsSync(archivePath)) throw new Error(`Archived page file does not exist: ${archivePath}`);
-    mkdirSync(this.activeDirectory(projectSlug), { recursive: true });
-    writeAtomic(this.activePath(projectSlug, page.id), serializePage({ ...page, archivedAt: null }));
-    unlinkSync(archivePath);
+    moveRecord(archivePath, this.activePath(projectSlug, page.id), serializePage({ ...page, archivedAt: null }));
   }
 
   remove(projectSlug: string, pageId: string): void {
@@ -240,9 +232,7 @@ export class MarkdownPageStore {
   }
 
   private projectDirectory(projectSlug: string): string {
-    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(projectSlug))
-      throw new Error(`Invalid project slug: ${projectSlug}`);
-    return join(this.rootDirectory, projectSlug);
+    return projectDirectory(this.rootDirectory, projectSlug);
   }
 }
 
@@ -331,10 +321,4 @@ function legacyRowToPage(row: LegacyPageRow): StoredPage {
   };
 }
 
-function comparePages(left: StoredPage, right: StoredPage): number {
-  const status = PAGE_STATUSES.indexOf(left.status) - PAGE_STATUSES.indexOf(right.status);
-  if (status !== 0) return status;
-  if (left.position !== right.position) return left.position - right.position;
-  const created = left.createdAt.localeCompare(right.createdAt);
-  return created !== 0 ? created : left.id.localeCompare(right.id);
-}
+const comparePages = compareRecords<StoredPage>((page) => PAGE_STATUSES.indexOf(page.status));
