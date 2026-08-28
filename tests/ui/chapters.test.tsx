@@ -1,28 +1,14 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { App } from "../../src/App";
 import type { BoardWorkspace, Page, Chapter } from "../../shared/types";
 import { boardFixture } from "../fixtures/board";
+import { installUiHarness, response, routeFetch, type RecordedCall } from "../fixtures/ui";
 
-afterEach(() => {
-  cleanup();
-  vi.unstubAllGlobals();
-  window.history.replaceState({}, "", "/");
-});
-
-function response(body: unknown, status = 200) {
-  return Promise.resolve(
-    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } }),
-  );
-}
-
-function requestUrl(input: RequestInfo | URL): string {
-  if (typeof input === "string") return input;
-  return input instanceof URL ? `${input.pathname}${input.search}` : input.url;
-}
+installUiHarness();
 
 function chapter(overrides: Partial<Chapter> = {}): Chapter {
   return {
@@ -103,23 +89,8 @@ function withClosedChapter(): BoardWorkspace {
 }
 
 /** Mounts the app over a board, recording every write it makes. */
-function mountWith(board: BoardWorkspace) {
-  const calls: Array<{ url: string; method: string; body: unknown }> = [];
-  vi.stubGlobal("fetch", (input: RequestInfo | URL, init: RequestInit = {}) => {
-    const url = requestUrl(input);
-    const method = init.method ?? "GET";
-    if (method !== "GET") {
-      calls.push({ url, method, body: init.body ? JSON.parse(String(init.body)) : null });
-      return response({ ok: true });
-    }
-    if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
-    // The page dialog reads its discussion the same way it reads its history, on every open.
-    if (/^\/api\/pages\/[^/]+\/discussion/.test(url)) return response({ threads: [] });
-    if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
-    if (url.startsWith("/api/seen")) return response({ ok: true });
-    if (url.startsWith("/api/session")) return response({ status: "authenticated", user: board.currentUser });
-    return response(board);
-  });
+function mountWith(board: BoardWorkspace): RecordedCall[] {
+  const { calls } = routeFetch({ board });
   render(<App />);
   return calls;
 }
@@ -323,19 +294,15 @@ describe("choosing which chapter is current", () => {
   it("promotes a dateless chapter from the picker, closing the open one first", async () => {
     const user = userEvent.setup();
     const board = chapteredBoard();
-    const patched: Array<{ slug: string; body: Record<string, unknown> }> = [];
-    vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = requestUrl(input);
-      if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
-      if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
-      if (url.startsWith("/api/seen")) return response({ ok: true });
-      if (url.startsWith("/api/session"))
-        return response({ status: "authenticated", user: board.currentUser });
-      if (url.startsWith("/api/chapters/") && init?.method === "PATCH") {
-        patched.push({ slug: url.split("/").pop()!, body: JSON.parse(String(init.body)) });
-        return response({ chapter: board.chapters[1] });
-      }
-      return response(board);
+    const patched: Array<{ slug: string; body: unknown }> = [];
+    routeFetch({
+      board,
+      routes: {
+        "PATCH /api/chapters/": ({ url, body }) => {
+          patched.push({ slug: url.split("/").pop()!, body });
+          return response({ chapter: board.chapters[1] });
+        },
+      },
     });
     render(<App />);
 
@@ -382,19 +349,15 @@ describe("pulling from the backlog", () => {
   it("offers the viewed chapter on every row and leaves the page in the Backlog", async () => {
     const user = userEvent.setup();
     const board = chapteredBoard();
-    const patched: Array<Record<string, unknown>> = [];
-    vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = requestUrl(input);
-      if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
-      if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
-      if (url.startsWith("/api/seen")) return response({ ok: true });
-      if (url.startsWith("/api/session"))
-        return response({ status: "authenticated", user: board.currentUser });
-      if (init?.method === "PATCH") {
-        patched.push(JSON.parse(String(init.body)));
-        return response({ page: board.pages[0] });
-      }
-      return response(board);
+    const patched: unknown[] = [];
+    routeFetch({
+      board,
+      routes: {
+        "PATCH /api/": ({ body }) => {
+          patched.push(body);
+          return response({ page: board.pages[0] });
+        },
+      },
     });
     render(<App />);
 

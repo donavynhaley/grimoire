@@ -2,27 +2,13 @@
 
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { App } from "../../src/App";
 import type { BoardWorkspace, DiscussionThread } from "../../shared/types";
 import { boardFixture } from "../fixtures/board";
+import { installUiHarness, response, routeFetch, type RecordedCall } from "../fixtures/ui";
 
-afterEach(() => {
-  cleanup();
-  vi.unstubAllGlobals();
-  window.history.replaceState({}, "", "/");
-});
-
-function response(body: unknown, status = 200) {
-  return Promise.resolve(
-    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } }),
-  );
-}
-
-function requestUrl(input: RequestInfo | URL): string {
-  if (typeof input === "string") return input;
-  return input instanceof URL ? `${input.pathname}${input.search}` : input.url;
-}
+installUiHarness();
 
 const ME = "00000000-0000-4000-8000-000000000010";
 const THEM = "00000000-0000-4000-8000-000000000011";
@@ -53,25 +39,10 @@ function thread(
   } as DiscussionThread;
 }
 
-type Calls = Array<{ url: string; method: string; body: unknown }>;
-
 /** Mounts the board with a fixed set of threads, and records every write that leaves. */
-function mountWith(threads: DiscussionThread[], board: BoardWorkspace = boardFixture()): Calls {
-  const calls: Calls = [];
-  vi.stubGlobal("fetch", (input: RequestInfo | URL, init: RequestInit = {}) => {
-    const url = requestUrl(input);
-    const method = init.method ?? "GET";
-    if (method !== "GET") {
-      calls.push({ url, method, body: init.body ? JSON.parse(String(init.body)) : null });
-      return response({ ok: true });
-    }
-    if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
-    if (/^\/api\/pages\/[^/]+\/discussion/.test(url)) return response({ threads });
-    if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
-    if (url.startsWith("/api/agent-tokens")) return response({ tokens: [] });
-    if (url.startsWith("/api/session")) return response({ status: "authenticated", user: board.currentUser });
-    return response(board);
-  });
+function mountWith(threads: DiscussionThread[], board: BoardWorkspace = boardFixture()): RecordedCall[] {
+  // The only GET under /api/pages/ is a page's discussion, so the prefix is the regex.
+  const { calls } = routeFetch({ board, routes: { "GET /api/pages/": { threads } } });
   render(<App />);
   return calls;
 }
@@ -519,7 +490,6 @@ describe("the discussion on a page", () => {
   it("does not mark anything read while the conversation is still arriving", async () => {
     const board = boardFixture();
     board.pages[1]!.unseenMessages = 2;
-    const calls: Array<{ url: string; method: string }> = [];
     // Assigned synchronously by the executor, but the compiler cannot see that, so it starts
     // as a callable no-op rather than null.
     let release = () => {};
@@ -527,21 +497,10 @@ describe("the discussion on a page", () => {
       release = resolve;
     });
 
-    vi.stubGlobal("fetch", (input: RequestInfo | URL, init: RequestInit = {}) => {
-      const url = requestUrl(input);
-      const method = init.method ?? "GET";
-      if (method !== "GET") {
-        calls.push({ url, method });
-        return response({ ok: true });
-      }
-      if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
-      // The conversation never arrives until this test lets it.
-      if (/^\/api\/pages\/[^/]+\/discussion/.test(url)) return held.then(() => response({ threads: [] }));
-      if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
-      if (url.startsWith("/api/agent-tokens")) return response({ tokens: [] });
-      if (url.startsWith("/api/session"))
-        return response({ status: "authenticated", user: board.currentUser });
-      return response(board);
+    // The conversation never arrives until this test lets it.
+    const { calls } = routeFetch({
+      board,
+      routes: { "GET /api/pages/": () => held.then(() => response({ threads: [] })) },
     });
     render(<App />);
     const user = userEvent.setup();
@@ -557,17 +516,7 @@ describe("the discussion on a page", () => {
   it("says a conversation could not be loaded rather than drawing an empty one", async () => {
     const board = boardFixture();
     board.pages[1]!.unseenMessages = 3;
-    vi.stubGlobal("fetch", (input: RequestInfo | URL, init: RequestInit = {}) => {
-      const url = requestUrl(input);
-      if ((init.method ?? "GET") !== "GET") return response({ ok: true });
-      if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
-      if (/^\/api\/pages\/[^/]+\/discussion/.test(url)) return Promise.reject(new Error("offline"));
-      if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
-      if (url.startsWith("/api/agent-tokens")) return response({ tokens: [] });
-      if (url.startsWith("/api/session"))
-        return response({ status: "authenticated", user: board.currentUser });
-      return response(board);
-    });
+    routeFetch({ board, routes: { "GET /api/pages/": () => Promise.reject(new Error("offline")) } });
     render(<App />);
     const user = userEvent.setup();
     await user.click(await screen.findByText(board.pages[1]!.title));

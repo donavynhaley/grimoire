@@ -1,26 +1,14 @@
 // @vitest-environment jsdom
 
-import {
-  act,
-  cleanup,
-  createEvent,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { act, createEvent, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { App } from "../../src/App";
 import type { AuditEvent, Page } from "../../shared/types";
 import { boardFixture, ideaFixture } from "../fixtures/board";
+import { installUiHarness, response, routeFetch } from "../fixtures/ui";
 
-afterEach(() => {
-  cleanup();
-  vi.unstubAllGlobals();
-  window.history.replaceState({}, "", "/");
-});
+installUiHarness();
 
 /**
  * Gives an element a box, because jsdom gives everything a zero-sized one at the origin.
@@ -82,51 +70,6 @@ function dragWithPointer(card: Element, to: { x: number; y: number }) {
   fireEvent.pointerUp(window, { pointerId: 1, pointerType: "mouse", clientX: to.x, clientY: to.y });
 }
 
-function response(body: unknown, status = 200) {
-  return Promise.resolve(
-    new Response(JSON.stringify(body), {
-      status,
-      headers: { "content-type": "application/json" },
-    }),
-  );
-}
-
-function authenticatedFetch(board = boardFixture()) {
-  return vi
-    .fn<typeof fetch>()
-    .mockImplementationOnce(() => response({ status: "authenticated", user: board.currentUser }))
-    .mockImplementationOnce(() => response(board));
-}
-
-/**
- * Installs a fetch mock that answers history lookups itself.
- *
- * Page and project history load lazily whenever a dialog opens, so letting those
- * requests reach the ordered mock would shift every queued response by one.
- */
-function stubFetch(
-  mock: typeof fetch,
-  activity: unknown = { events: [], hasMore: false },
-  awayValue: unknown = { since: 0, latest: 0, total: 0, events: [] },
-) {
-  vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = requestUrl(input);
-    if (url.startsWith("/api/activity")) return response(activity);
-    // The away lookup and cursor advance fire on every load; answering them here
-    // keeps the ordered mock aligned with the responses each test actually queues.
-    // The page dialog reads its discussion the same way it reads its history, on every open.
-    if (/^\/api\/pages\/[^/]+\/discussion/.test(url)) return response({ threads: [] });
-    if (url.startsWith("/api/away")) return response(awayValue);
-    if (url.startsWith("/api/seen")) return response({ ok: true });
-    return mock(input, init);
-  });
-}
-
-function requestUrl(input: RequestInfo | URL): string {
-  if (typeof input === "string") return input;
-  return input instanceof URL ? `${input.pathname}${input.search}` : input.url;
-}
-
 async function openWorkPage(page: Page) {
   if (page.status === "backlog") {
     await userEvent.click(await screen.findByRole("button", { name: /open backlog/i }));
@@ -139,7 +82,7 @@ describe("Grimoire board", () => {
   it("refreshes the board when another browser changes work", async () => {
     const initial = boardFixture();
     const livePage = {
-      ...initial.pages[0],
+      ...initial.pages[0]!,
       id: "00000000-0000-4000-8000-000000000035",
       title: "Live page from Maren",
     };
@@ -154,8 +97,8 @@ describe("Grimoire board", () => {
       removeEventListener = vi.fn();
     }
     vi.stubGlobal("EventSource", FakeEventSource);
-    const fetchMock = authenticatedFetch(initial).mockImplementationOnce(() => response(updated));
-    stubFetch(fetchMock);
+    let workspace = initial;
+    routeFetch({ board: () => workspace });
 
     render(<App />);
     expect(await screen.findByRole("button", { name: /open backlog/i })).toHaveTextContent("1");
@@ -163,6 +106,7 @@ describe("Grimoire board", () => {
     // anything is listening. Firing early made this test flaky.
     await waitFor(() => expect(workspaceListener).not.toBeNull());
 
+    workspace = updated;
     workspaceListener!(new MessageEvent("workspace", { data: JSON.stringify({ scope: "work" }) }));
 
     await waitFor(() => expect(screen.getByRole("button", { name: /open backlog/i })).toHaveTextContent("2"));
@@ -171,7 +115,7 @@ describe("Grimoire board", () => {
   });
 
   it("prefills the default owner email during first-run setup", async () => {
-    stubFetch(vi.fn<typeof fetch>().mockImplementationOnce(() => response({ status: "setup_required" })));
+    routeFetch({ routes: { "GET /api/session": { status: "setup_required" } } });
 
     render(<App />);
 
@@ -179,8 +123,7 @@ describe("Grimoire board", () => {
   });
 
   it("lands on a compact active deck while keeping backlog work out of sight", async () => {
-    const fetchMock = authenticatedFetch();
-    stubFetch(fetchMock);
+    routeFetch();
 
     render(<App />);
 
@@ -205,8 +148,7 @@ describe("Grimoire board", () => {
   });
 
   it("places the Work and Ideas switcher beside the product identity", async () => {
-    const fetchMock = authenticatedFetch();
-    stubFetch(fetchMock);
+    routeFetch();
 
     render(<App />);
 
@@ -235,11 +177,13 @@ describe("Grimoire board", () => {
     const opening = new Promise<Response>((resolve) => {
       finishOpening = resolve;
     });
-    const fetchMock = authenticatedFetch(initial).mockImplementationOnce(() => opening);
-    stubFetch(fetchMock);
+    // The first board answer draws the deck; the switch's own answer is the held promise.
+    let boardAnswer: () => unknown = () => initial;
+    routeFetch({ board: initial, routes: { "GET /api/board": () => boardAnswer() } });
 
     render(<App />);
     await userEvent.click(await screen.findByRole("button", { name: "Wizard Simulator" }));
+    boardAnswer = () => opening;
     await userEvent.click(screen.getByRole("menuitem", { name: "Potion Shop" }));
 
     const loading = await screen.findByText("opening project...");
@@ -252,8 +196,7 @@ describe("Grimoire board", () => {
 
   it("switches between Work and Ideas with 1 and 2 from an empty capture field", async () => {
     const initial = boardFixture();
-    const fetchMock = authenticatedFetch(initial).mockImplementationOnce(() => response(ideaFixture()));
-    stubFetch(fetchMock);
+    routeFetch({ board: initial, routes: { "GET /api/ideas": ideaFixture() } });
 
     render(<App />);
     expect(await screen.findByLabelText("Capture work page")).toHaveFocus();
@@ -279,15 +222,21 @@ describe("Grimoire board", () => {
   it("captures a thought directly as a backlog page", async () => {
     const initial = boardFixture();
     const created = {
-      ...initial.pages[0],
+      ...initial.pages[0]!,
       id: "00000000-0000-4000-8000-000000000030",
       title: "Let the broom resent being used as a weapon",
     };
     const updated = { ...initial, pages: [created, ...initial.pages] };
-    const fetchMock = authenticatedFetch(initial)
-      .mockImplementationOnce(() => response({ page: created }, 201))
-      .mockImplementationOnce(() => response(updated));
-    stubFetch(fetchMock);
+    let workspace = initial;
+    const { fetchMock } = routeFetch({
+      board: () => workspace,
+      routes: {
+        "POST /api/pages": () => {
+          workspace = updated;
+          return response({ page: created }, 201);
+        },
+      },
+    });
 
     render(<App />);
     const input = await screen.findByLabelText("Capture work page");
@@ -306,13 +255,22 @@ describe("Grimoire board", () => {
     const initial = boardFixture();
     const page = initial.pages[0]!;
     const moved = { ...page, status: "ready" as const, position: 0 };
-    const updated = { ...initial, pages: [moved, initial.pages[1]] };
-    const fetchMock = authenticatedFetch(initial)
-      .mockImplementationOnce(() => response({ page: moved }))
-      .mockImplementationOnce(() => response(updated))
-      .mockImplementationOnce(() => response({ page }))
-      .mockImplementationOnce(() => response(initial));
-    stubFetch(fetchMock);
+    const updated = { ...initial, pages: [moved, initial.pages[1]!] };
+    let workspace = initial;
+    const { fetchMock } = routeFetch({
+      board: () => workspace,
+      routes: {
+        // One URL answers the move and its undo; the column asked for tells them apart.
+        [`PATCH /api/pages/${page.id}`]: ({ body }) => {
+          if ((body as { status: string }).status === "ready") {
+            workspace = updated;
+            return { page: moved };
+          }
+          workspace = initial;
+          return { page };
+        },
+      },
+    });
 
     render(<App />);
     await screen.findByRole("button", { name: /open backlog/i });
@@ -352,7 +310,7 @@ describe("Grimoire board", () => {
     const donavyn = initial.members[0]!;
     const maren = initial.members[1]!;
     const first = {
-      ...initial.pages[0],
+      ...initial.pages[0]!,
       id: "00000000-0000-4000-8000-000000000029",
       title: "Build the spell loadout",
       category: "code" as const,
@@ -371,12 +329,20 @@ describe("Grimoire board", () => {
     };
     const afterFirst = { ...initial, pages: [...initial.pages, first] };
     const afterSecond = { ...initial, pages: [...initial.pages, first, second] };
-    const fetchMock = authenticatedFetch(initial)
-      .mockImplementationOnce(() => response({ page: first }, 201))
-      .mockImplementationOnce(() => response(afterFirst))
-      .mockImplementationOnce(() => response({ page: second }, 201))
-      .mockImplementationOnce(() => response(afterSecond));
-    stubFetch(fetchMock);
+    let workspace = initial;
+    const { fetchMock } = routeFetch({
+      board: () => workspace,
+      routes: {
+        "POST /api/pages": ({ body }) => {
+          if ((body as { title: string }).title === first.title) {
+            workspace = afterFirst;
+            return response({ page: first }, 201);
+          }
+          workspace = afterSecond;
+          return response({ page: second }, 201);
+        },
+      },
+    });
 
     render(<App />);
     const input = await screen.findByLabelText("Capture work page");
@@ -442,7 +408,7 @@ describe("Grimoire board", () => {
   it("uses inline commands to configure capture without adding them to the page title", async () => {
     const initial = boardFixture();
     const created = {
-      ...initial.pages[0],
+      ...initial.pages[0]!,
       id: "00000000-0000-4000-8000-000000000030",
       title: "Polish targeting reticle",
       category: "ui" as const,
@@ -452,10 +418,16 @@ describe("Grimoire board", () => {
       position: 1,
     };
     const updated = { ...initial, pages: [...initial.pages, created] };
-    const fetchMock = authenticatedFetch(initial)
-      .mockImplementationOnce(() => response({ page: created }, 201))
-      .mockImplementationOnce(() => response(updated));
-    stubFetch(fetchMock);
+    let workspace = initial;
+    const { fetchMock } = routeFetch({
+      board: () => workspace,
+      routes: {
+        "POST /api/pages": () => {
+          workspace = updated;
+          return response({ page: created }, 201);
+        },
+      },
+    });
 
     render(<App />);
     const input = await screen.findByLabelText("Capture work page");
@@ -488,11 +460,17 @@ describe("Grimoire board", () => {
     const initial = boardFixture();
     const page = initial.pages[1]!;
     const moved = { ...page, status: "ready" as const, position: 0 };
-    const updated = { ...initial, pages: [initial.pages[0], moved] };
-    const fetchMock = authenticatedFetch(initial)
-      .mockImplementationOnce(() => response({ page: moved }))
-      .mockImplementationOnce(() => response(updated));
-    stubFetch(fetchMock);
+    const updated = { ...initial, pages: [initial.pages[0]!, moved] };
+    let workspace = initial;
+    const { fetchMock } = routeFetch({
+      board: () => workspace,
+      routes: {
+        [`PATCH /api/pages/${page.id}`]: () => {
+          workspace = updated;
+          return { page: moved };
+        },
+      },
+    });
 
     render(<App />);
     const pageTitle = await screen.findByText(page.title);
@@ -519,10 +497,16 @@ describe("Grimoire board", () => {
     const initial = boardFixture();
     const page = initial.pages[1]!;
     const moved = { ...page, status: "ready" as const, position: 0 };
-    const fetchMock = authenticatedFetch(initial)
-      .mockImplementationOnce(() => response({ page: moved }))
-      .mockImplementationOnce(() => response({ ...initial, pages: [initial.pages[0], moved] }));
-    stubFetch(fetchMock);
+    let workspace = initial;
+    const { fetchMock } = routeFetch({
+      board: () => workspace,
+      routes: {
+        [`PATCH /api/pages/${page.id}`]: () => {
+          workspace = { ...initial, pages: [initial.pages[0]!, moved] };
+          return { page: moved };
+        },
+      },
+    });
 
     render(<App />);
     await userEvent.click(await screen.findByRole("button", { name: `Move ${page.title}` }));
@@ -562,10 +546,16 @@ describe("Grimoire board", () => {
     };
     initial.pages = [backlogPage, progressPage, readyA, readyB];
     const moved = { ...progressPage, status: "ready" as const, position: 1 };
-    const fetchMock = authenticatedFetch(initial)
-      .mockImplementationOnce(() => response({ page: moved }))
-      .mockImplementationOnce(() => response({ ...initial, pages: [backlogPage, readyA, moved, readyB] }));
-    stubFetch(fetchMock);
+    let workspace = initial;
+    const { fetchMock } = routeFetch({
+      board: () => workspace,
+      routes: {
+        [`PATCH /api/pages/${progressPage.id}`]: () => {
+          workspace = { ...initial, pages: [backlogPage, readyA, moved, readyB] };
+          return { page: moved };
+        },
+      },
+    });
 
     render(<App />);
     const dragged = (await screen.findByText(progressPage.title)).closest("article")!;
@@ -606,13 +596,17 @@ describe("Grimoire board", () => {
     const ideas = ideaFixture();
     const inboxIdea = ideas.ideas[1]!;
     const parkedIdea = { ...inboxIdea, state: "parked" as const, position: 1 };
-    const fetchMock = authenticatedFetch(initial)
-      .mockImplementationOnce(() => response(ideas))
-      .mockImplementationOnce(() => response({ idea: parkedIdea }))
-      .mockImplementationOnce(() =>
-        response({ ...ideas, ideas: [ideas.ideas[0], parkedIdea, ideas.ideas[2]] }),
-      );
-    stubFetch(fetchMock);
+    let ideaSpace = ideas;
+    const { fetchMock } = routeFetch({
+      board: initial,
+      routes: {
+        "GET /api/ideas": () => ideaSpace,
+        [`PATCH /api/ideas/${inboxIdea.id}`]: () => {
+          ideaSpace = { ...ideas, ideas: [ideas.ideas[0]!, parkedIdea, ideas.ideas[2]!] };
+          return { idea: parkedIdea };
+        },
+      },
+    });
 
     render(<App />);
     await screen.findByLabelText("Capture work page");
@@ -637,11 +631,17 @@ describe("Grimoire board", () => {
     const initial = boardFixture();
     const page = initial.pages[1]!;
     const moved = { ...page, status: "backlog" as const, position: 1 };
-    const updated = { ...initial, pages: [initial.pages[0], moved] };
-    const fetchMock = authenticatedFetch(initial)
-      .mockImplementationOnce(() => response({ page: moved }))
-      .mockImplementationOnce(() => response(updated));
-    stubFetch(fetchMock);
+    const updated = { ...initial, pages: [initial.pages[0]!, moved] };
+    let workspace = initial;
+    const { fetchMock } = routeFetch({
+      board: () => workspace,
+      routes: {
+        [`PATCH /api/pages/${page.id}`]: () => {
+          workspace = updated;
+          return { page: moved };
+        },
+      },
+    });
 
     render(<App />);
     await userEvent.click(await screen.findByRole("button", { name: "Filter by Maren" }));
@@ -677,10 +677,16 @@ describe("Grimoire board", () => {
       ...workspace,
       pages: [...workspace.pages.filter((page) => page.id !== reopened.id), reopened],
     };
-    const fetchMock = authenticatedFetch(workspace)
-      .mockImplementationOnce(() => response({ page: reopened }))
-      .mockImplementationOnce(() => response(afterReopen));
-    stubFetch(fetchMock);
+    let liveBoard = workspace;
+    const { fetchMock } = routeFetch({
+      board: () => liveBoard,
+      routes: {
+        [`PATCH /api/pages/${reopened.id}`]: () => {
+          liveBoard = afterReopen;
+          return { page: reopened };
+        },
+      },
+    });
 
     render(<App />);
     const done = await screen.findByRole("region", { name: "Done" });
@@ -713,9 +719,7 @@ describe("Grimoire board", () => {
       position: index,
       completedAt: `2026-08-${String(index + 1).padStart(2, "0")}T12:00:00.000Z`,
     }));
-    stubFetch(
-      authenticatedFetch({ ...initial, pages: [initial.pages[0]!, initial.pages[1]!, ...completed] }),
-    );
+    routeFetch({ board: { ...initial, pages: [initial.pages[0]!, initial.pages[1]!, ...completed] } });
 
     render(<App />);
     const done = await screen.findByRole("region", { name: "Done" });
@@ -736,9 +740,7 @@ describe("Grimoire board", () => {
       position: index,
       completedAt: `2026-08-${String(index + 1).padStart(2, "0")}T12:00:00.000Z`,
     }));
-    stubFetch(
-      authenticatedFetch({ ...initial, pages: [initial.pages[0]!, initial.pages[1]!, ...completed] }),
-    );
+    routeFetch({ board: { ...initial, pages: [initial.pages[0]!, initial.pages[1]!, ...completed] } });
 
     render(<App />);
     const done = await screen.findByRole("region", { name: "Done" });
@@ -756,11 +758,17 @@ describe("Grimoire board", () => {
     const page = initial.pages[0]!;
     const maren = initial.members[1]!;
     const assigned = { ...page, assigneeId: maren.id, assigneeName: "Maren" };
-    const updated = { ...initial, pages: [assigned, initial.pages[1]] };
-    const fetchMock = authenticatedFetch(initial)
-      .mockImplementationOnce(() => response({ page: assigned }))
-      .mockImplementationOnce(() => response(updated));
-    stubFetch(fetchMock);
+    const updated = { ...initial, pages: [assigned, initial.pages[1]!] };
+    let workspace = initial;
+    const { fetchMock } = routeFetch({
+      board: () => workspace,
+      routes: {
+        [`PATCH /api/pages/${page.id}`]: () => {
+          workspace = updated;
+          return { page: assigned };
+        },
+      },
+    });
 
     render(<App />);
     await openWorkPage(page);
@@ -784,12 +792,21 @@ describe("Grimoire board", () => {
     const afterCategory = { ...initial, pages: [categorized, blocker] };
     const blocked = { ...categorized, blockedBy: [blocker.id] };
     const afterBlocker = { ...initial, pages: [blocked, blocker] };
-    const fetchMock = authenticatedFetch(initial)
-      .mockImplementationOnce(() => response({ page: categorized }))
-      .mockImplementationOnce(() => response(afterCategory))
-      .mockImplementationOnce(() => response({ page: blocked }))
-      .mockImplementationOnce(() => response(afterBlocker));
-    stubFetch(fetchMock);
+    let workspace = initial;
+    const { fetchMock } = routeFetch({
+      board: () => workspace,
+      routes: {
+        // One URL, two edits: the field each write carries says which answer it earns.
+        [`PATCH /api/pages/${page.id}`]: ({ body }) => {
+          if ((body as { category?: string }).category) {
+            workspace = afterCategory;
+            return { page: categorized };
+          }
+          workspace = afterBlocker;
+          return { page: blocked };
+        },
+      },
+    });
 
     render(<App />);
     await openWorkPage(page);
@@ -829,7 +846,7 @@ describe("Grimoire board", () => {
     const initial = boardFixture();
     const page = initial.pages[1]!;
     window.history.replaceState({}, "", `/?page=${page.id}`);
-    stubFetch(authenticatedFetch(initial));
+    routeFetch({ board: initial });
 
     render(<App />);
     await screen.findByRole("dialog", { name: "Edit page" });
@@ -839,7 +856,7 @@ describe("Grimoire board", () => {
   it("keeps the open page in the URL and clears it on close", async () => {
     const initial = boardFixture();
     const page = initial.pages[1]!;
-    stubFetch(authenticatedFetch(initial));
+    routeFetch({ board: initial });
 
     render(<App />);
     await openWorkPage(page);
@@ -852,7 +869,7 @@ describe("Grimoire board", () => {
   it("drops a shared link to a page that no longer exists", async () => {
     const initial = boardFixture();
     window.history.replaceState({}, "", "/?page=00000000-0000-4000-8000-00000000dead");
-    stubFetch(authenticatedFetch(initial));
+    routeFetch({ board: initial });
 
     render(<App />);
     await screen.findByText(initial.pages[1]!.title);
@@ -865,8 +882,7 @@ describe("Grimoire board", () => {
     const ideaWorkspace = ideaFixture();
     const idea = ideaWorkspace.ideas[0]!;
     window.history.replaceState({}, "", `/?view=ideas&idea=${idea.id}`);
-    const fetchMock = authenticatedFetch(initial).mockImplementationOnce(() => response(ideaWorkspace));
-    stubFetch(fetchMock);
+    routeFetch({ board: initial, routes: { "GET /api/ideas": ideaWorkspace } });
 
     render(<App />);
     await screen.findByRole("dialog", { name: "Edit idea" });
@@ -879,11 +895,17 @@ describe("Grimoire board", () => {
     const page = initial.pages[0]!;
     const note = "Keep the memory readable without subtitles.";
     const saved = { ...page, description: note };
-    const updated = { ...initial, pages: [saved, initial.pages[1]] };
-    const fetchMock = authenticatedFetch(initial)
-      .mockImplementationOnce(() => response({ page: saved }))
-      .mockImplementationOnce(() => response(updated));
-    stubFetch(fetchMock);
+    const updated = { ...initial, pages: [saved, initial.pages[1]!] };
+    let workspace = initial;
+    const { fetchMock } = routeFetch({
+      board: () => workspace,
+      routes: {
+        [`PATCH /api/pages/${page.id}`]: () => {
+          workspace = updated;
+          return { page: saved };
+        },
+      },
+    });
 
     render(<App />);
     await openWorkPage(page);
@@ -911,13 +933,21 @@ describe("Grimoire board", () => {
   it("offers to undo an archived page", async () => {
     const initial = boardFixture();
     const page = initial.pages[0]!;
-    const archived = { ...initial, pages: [initial.pages[1]] };
-    const fetchMock = authenticatedFetch(initial)
-      .mockImplementationOnce(() => response({ ok: true }))
-      .mockImplementationOnce(() => response(archived))
-      .mockImplementationOnce(() => response({ page }))
-      .mockImplementationOnce(() => response(initial));
-    stubFetch(fetchMock);
+    const archived = { ...initial, pages: [initial.pages[1]!] };
+    let workspace = initial;
+    const { fetchMock } = routeFetch({
+      board: () => workspace,
+      routes: {
+        [`DELETE /api/pages/${page.id}`]: () => {
+          workspace = archived;
+          return { ok: true };
+        },
+        [`POST /api/pages/${page.id}/restore`]: () => {
+          workspace = initial;
+          return { page };
+        },
+      },
+    });
 
     render(<App />);
     await openWorkPage(page);
@@ -942,7 +972,7 @@ describe("Grimoire board", () => {
     const ideaWorkspace = ideaFixture();
     const idea = ideaWorkspace.ideas[0]!;
     const promotedPage = {
-      ...initial.pages[0],
+      ...initial.pages[0]!,
       id: "00000000-0000-4000-8000-000000000050",
       title: idea.title,
       description: idea.description,
@@ -952,15 +982,24 @@ describe("Grimoire board", () => {
       ideas: ideaWorkspace.ideas.filter((candidate) => candidate.id !== idea.id),
     };
     const promotedBoard = { ...initial, pages: [...initial.pages, promotedPage] };
-    const fetchMock = authenticatedFetch(initial)
-      .mockImplementationOnce(() => response(ideaWorkspace))
-      .mockImplementationOnce(() => response({ page: promotedPage }, 201))
-      .mockImplementationOnce(() => response(promotedIdeas))
-      .mockImplementationOnce(() => response(promotedBoard))
-      .mockImplementationOnce(() => response({ idea }))
-      .mockImplementationOnce(() => response(initial))
-      .mockImplementationOnce(() => response(ideaWorkspace));
-    stubFetch(fetchMock);
+    let workspace = initial;
+    let ideaSpace = ideaWorkspace;
+    const { fetchMock } = routeFetch({
+      board: () => workspace,
+      routes: {
+        "GET /api/ideas": () => ideaSpace,
+        [`POST /api/ideas/${idea.id}/promote`]: () => {
+          workspace = promotedBoard;
+          ideaSpace = promotedIdeas;
+          return response({ page: promotedPage }, 201);
+        },
+        [`DELETE /api/ideas/${idea.id}/promotion`]: () => {
+          workspace = initial;
+          ideaSpace = ideaWorkspace;
+          return { idea };
+        },
+      },
+    });
 
     render(<App />);
     await userEvent.click(await screen.findByRole("button", { name: "ideas" }));
@@ -985,11 +1024,17 @@ describe("Grimoire board", () => {
     const page = initial.pages[0]!;
     const title = "Make the tower door remember both wizards";
     const saved = { ...page, title };
-    const updated = { ...initial, pages: [saved, initial.pages[1]] };
-    const fetchMock = authenticatedFetch(initial)
-      .mockImplementationOnce(() => response({ page: saved }))
-      .mockImplementationOnce(() => response(updated));
-    stubFetch(fetchMock);
+    const updated = { ...initial, pages: [saved, initial.pages[1]!] };
+    let workspace = initial;
+    const { fetchMock } = routeFetch({
+      board: () => workspace,
+      routes: {
+        [`PATCH /api/pages/${page.id}`]: () => {
+          workspace = updated;
+          return { page: saved };
+        },
+      },
+    });
 
     render(<App />);
     await openWorkPage(page);
@@ -1009,8 +1054,7 @@ describe("Grimoire board", () => {
 
   it("changes the signed-in user's password from account settings", async () => {
     const initial = boardFixture();
-    const fetchMock = authenticatedFetch(initial).mockImplementationOnce(() => response({ ok: true }));
-    stubFetch(fetchMock);
+    const { fetchMock } = routeFetch({ board: initial });
 
     render(<App />);
     await userEvent.click(await screen.findByRole("button", { name: /open account settings/i }));
@@ -1048,10 +1092,16 @@ describe("Grimoire board", () => {
         member.id === renamed.id ? { ...member, name: "Dono" } : member,
       ),
     };
-    const fetchMock = authenticatedFetch(initial)
-      .mockImplementationOnce(() => response({ user: renamed }))
-      .mockImplementationOnce(() => response(updated));
-    stubFetch(fetchMock);
+    let workspace = initial;
+    const { fetchMock } = routeFetch({
+      board: () => workspace,
+      routes: {
+        "POST /api/account/name": () => {
+          workspace = updated;
+          return { user: renamed };
+        },
+      },
+    });
 
     render(<App />);
     await userEvent.click(await screen.findByRole("button", { name: /open account settings/i }));
@@ -1081,10 +1131,16 @@ describe("Grimoire board", () => {
         page.assigneeId === removedMember.id ? { ...page, assigneeId: null, assigneeName: null } : page,
       ),
     };
-    const fetchMock = authenticatedFetch(initial)
-      .mockImplementationOnce(() => response({ ok: true }))
-      .mockImplementationOnce(() => response(updated));
-    stubFetch(fetchMock);
+    let workspace = initial;
+    const { fetchMock } = routeFetch({
+      board: () => workspace,
+      routes: {
+        [`DELETE /api/members/${removedMember.id}`]: () => {
+          workspace = updated;
+          return { ok: true };
+        },
+      },
+    });
 
     render(<App />);
     await userEvent.click(await screen.findByRole("button", { name: "team" }));
@@ -1113,10 +1169,19 @@ describe("Grimoire board", () => {
           : member,
       ),
     };
-    const fetchMock = authenticatedFetch(initial)
-      .mockImplementationOnce(() => response({ members: updated.members }))
-      .mockImplementationOnce(() => response(updated));
-    stubFetch(fetchMock);
+    // The reload's members wear the API's own role word, which is not the fixture's type -
+    // so the board travels through a route, exactly as the server would send it.
+    let workspace: object = initial;
+    const { fetchMock } = routeFetch({
+      board: initial,
+      routes: {
+        "GET /api/board": () => workspace,
+        [`PATCH /api/members/${promoted.id}`]: () => {
+          workspace = updated;
+          return { members: updated.members };
+        },
+      },
+    });
 
     render(<App />);
     await userEvent.click(await screen.findByRole("button", { name: "team" }));
@@ -1137,8 +1202,7 @@ describe("Grimoire board", () => {
 
   it("explains that only the newest invite works for one person", async () => {
     const initial = boardFixture();
-    const fetchMock = authenticatedFetch(initial);
-    stubFetch(fetchMock);
+    routeFetch({ board: initial });
 
     render(<App />);
     await userEvent.click(await screen.findByRole("button", { name: "team" }));
@@ -1150,8 +1214,7 @@ describe("Grimoire board", () => {
   it("keeps ideas in a separate ranked garden", async () => {
     const initial = boardFixture();
     const ideaWorkspace = ideaFixture();
-    const fetchMock = authenticatedFetch(initial).mockImplementationOnce(() => response(ideaWorkspace));
-    stubFetch(fetchMock);
+    routeFetch({ board: initial, routes: { "GET /api/ideas": ideaWorkspace } });
 
     render(<App />);
     await userEvent.click(await screen.findByRole("button", { name: "ideas" }));
@@ -1177,7 +1240,7 @@ describe("Grimoire board", () => {
     const initial = boardFixture();
     const ideaWorkspace = ideaFixture();
     const captured = {
-      ...ideaWorkspace.ideas[1],
+      ...ideaWorkspace.ideas[1]!,
       id: "00000000-0000-4000-8000-000000000043",
       title: "Let failed potions become useful materials",
     };
@@ -1189,13 +1252,21 @@ describe("Grimoire board", () => {
         (idea) => idea.id !== captured.id || idea === shortlisted,
       ),
     };
-    const fetchMock = authenticatedFetch(initial)
-      .mockImplementationOnce(() => response(ideaWorkspace))
-      .mockImplementationOnce(() => response({ idea: captured }, 201))
-      .mockImplementationOnce(() => response(afterCapture))
-      .mockImplementationOnce(() => response({ idea: shortlisted }))
-      .mockImplementationOnce(() => response(afterShortlist));
-    stubFetch(fetchMock);
+    let ideaSpace = ideaWorkspace;
+    const { fetchMock } = routeFetch({
+      board: initial,
+      routes: {
+        "GET /api/ideas": () => ideaSpace,
+        "POST /api/ideas": () => {
+          ideaSpace = afterCapture;
+          return response({ idea: captured }, 201);
+        },
+        [`PATCH /api/ideas/${captured.id}`]: () => {
+          ideaSpace = afterShortlist;
+          return { idea: shortlisted };
+        },
+      },
+    });
 
     render(<App />);
     await userEvent.click(await screen.findByRole("button", { name: "ideas" }));
@@ -1222,8 +1293,7 @@ describe("Grimoire board", () => {
       assigneeName: initial.currentUser.name,
     };
     const workspace = { ...initial, pages: [myPage, initial.pages[1]!] };
-    const fetchMock = authenticatedFetch(workspace);
-    stubFetch(fetchMock);
+    routeFetch({ board: workspace });
 
     render(<App />);
     expect(await screen.findByRole("searchbox", { name: "Search pages" })).toBeInTheDocument();
@@ -1254,25 +1324,29 @@ describe("Grimoire board", () => {
   it("reads the project history as sentences and opens the page behind an entry", async () => {
     const initial = boardFixture();
     const page = initial.pages.find((candidate) => candidate.status === "in_progress")!;
-    const fetchMock = authenticatedFetch(initial);
-    stubFetch(fetchMock, {
-      hasMore: false,
-      events: [
-        auditFixture({
-          action: "moved",
-          entityId: page.id,
-          entityTitle: page.title,
-          changes: [{ field: "column", from: "Up Next", to: "In progress" }],
-        }),
-        auditFixture({
-          action: "joined",
-          actorName: "Maren",
-          actorId: initial.members[1]!.id,
-          entityType: "member",
-          entityTitle: "Maren",
-          id: "audit-2",
-        }),
-      ],
+    routeFetch({
+      board: initial,
+      routes: {
+        "GET /api/activity": {
+          hasMore: false,
+          events: [
+            auditFixture({
+              action: "moved",
+              entityId: page.id,
+              entityTitle: page.title,
+              changes: [{ field: "column", from: "Up Next", to: "In progress" }],
+            }),
+            auditFixture({
+              action: "joined",
+              actorName: "Maren",
+              actorId: initial.members[1]!.id,
+              entityType: "member",
+              entityTitle: "Maren",
+              id: "audit-2",
+            }),
+          ],
+        },
+      },
     });
 
     render(<App />);
@@ -1290,16 +1364,21 @@ describe("Grimoire board", () => {
   it("keeps recent changes folded until the page asks for them", async () => {
     const initial = boardFixture();
     const page = initial.pages.find((candidate) => candidate.status === "in_progress")!;
-    stubFetch(authenticatedFetch(initial), {
-      hasMore: false,
-      events: [
-        auditFixture({
-          action: "updated",
-          entityId: page.id,
-          entityTitle: page.title,
-          changes: [{ field: "assignee", from: "unassigned", to: "Maren" }],
-        }),
-      ],
+    routeFetch({
+      board: initial,
+      routes: {
+        "GET /api/activity": {
+          hasMore: false,
+          events: [
+            auditFixture({
+              action: "updated",
+              entityId: page.id,
+              entityTitle: page.title,
+              changes: [{ field: "assignee", from: "unassigned", to: "Maren" }],
+            }),
+          ],
+        },
+      },
     });
 
     render(<App />);
@@ -1328,7 +1407,7 @@ describe("Grimoire board", () => {
       removeEventListener = vi.fn();
     }
     vi.stubGlobal("EventSource", FakeEventSource);
-    stubFetch(authenticatedFetch(initial));
+    routeFetch({ board: initial });
 
     render(<App />);
     const maren = await screen.findByRole("button", { name: "Filter by Maren" });

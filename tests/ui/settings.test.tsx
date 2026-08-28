@@ -1,28 +1,14 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { App } from "../../src/App";
 import type { ArchivedProject, BoardWorkspace } from "../../shared/types";
 import { boardFixture } from "../fixtures/board";
+import { installUiHarness, routeFetch, type RecordedCall } from "../fixtures/ui";
 
-afterEach(() => {
-  cleanup();
-  vi.unstubAllGlobals();
-  window.history.replaceState({}, "", "/");
-});
-
-function response(body: unknown, status = 200) {
-  return Promise.resolve(
-    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } }),
-  );
-}
-
-function requestUrl(input: RequestInfo | URL): string {
-  if (typeof input === "string") return input;
-  return input instanceof URL ? `${input.pathname}${input.search}` : input.url;
-}
+installUiHarness();
 
 type Options = {
   board?: BoardWorkspace;
@@ -30,23 +16,10 @@ type Options = {
 };
 
 /** Mounts the app over a board, recording every write the settings dialog makes. */
-function mountWith({ board = boardFixture(), archived = [] }: Options = {}) {
-  const calls: Array<{ url: string; method: string; body: unknown }> = [];
-  vi.stubGlobal("fetch", (input: RequestInfo | URL, init: RequestInit = {}) => {
-    const url = requestUrl(input);
-    const method = init.method ?? "GET";
-    if (method !== "GET") {
-      calls.push({ url, method, body: init.body ? JSON.parse(String(init.body)) : null });
-      return response({ ok: true });
-    }
-    if (url.startsWith("/api/projects/archived")) return response({ projects: archived });
-    if (url.startsWith("/api/agent-tokens")) return response({ tokens: [] });
-    if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
-    // The page dialog reads its discussion the same way it reads its history, on every open.
-    if (/^\/api\/pages\/[^/]+\/discussion/.test(url)) return response({ threads: [] });
-    if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
-    if (url.startsWith("/api/session")) return response({ status: "authenticated", user: board.currentUser });
-    return response(board);
+function mountWith({ board = boardFixture(), archived = [] }: Options = {}): RecordedCall[] {
+  const { calls } = routeFetch({
+    board,
+    routes: { "GET /api/projects/archived": { projects: archived } },
   });
   render(<App />);
   return calls;

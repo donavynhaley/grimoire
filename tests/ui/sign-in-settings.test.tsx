@@ -1,21 +1,13 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { OidcSettings } from "../../shared/types";
 import { SignInSection } from "../../src/components/SignInSection";
+import { installUiHarness, requestUrl, response } from "../fixtures/ui";
 
-afterEach(() => {
-  cleanup();
-  vi.unstubAllGlobals();
-});
-
-function response(body: unknown, status = 200) {
-  return Promise.resolve(
-    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } }),
-  );
-}
+installUiHarness();
 
 function settings(overrides: Partial<OidcSettings> = {}): OidcSettings {
   return {
@@ -42,7 +34,7 @@ function mount(options: { settings?: Partial<OidcSettings>; probe?: unknown } = 
   const saved: Array<Record<string, unknown>> = [];
   let current = settings(options.settings);
   vi.stubGlobal("fetch", (input: RequestInfo | URL, init: RequestInit = {}) => {
-    const url = typeof input === "string" ? input : input instanceof URL ? input.pathname : input.url;
+    const url = requestUrl(input);
     if (url.startsWith("/api/auth/oidc/probe"))
       return response(options.probe ?? { error: "not configured for this test" });
     if (url.startsWith("/api/auth/oidc/settings")) {

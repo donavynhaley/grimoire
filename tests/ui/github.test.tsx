@@ -1,46 +1,20 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { App } from "../../src/App";
 import type { BoardWorkspace } from "../../shared/types";
 import { boardFixture } from "../fixtures/board";
+import { installUiHarness, response, routeFetch, type RecordedCall } from "../fixtures/ui";
 
-afterEach(() => {
-  cleanup();
-  vi.unstubAllGlobals();
-  window.history.replaceState({}, "", "/");
-});
+installUiHarness();
 
-function response(body: unknown, status = 200) {
-  return Promise.resolve(
-    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } }),
-  );
-}
-
-function requestUrl(input: RequestInfo | URL): string {
-  if (typeof input === "string") return input;
-  return input instanceof URL ? `${input.pathname}${input.search}` : input.url;
-}
-
-function mountWith(board: BoardWorkspace, patchStatus = 200, pulls: unknown[] = []) {
-  const calls: Array<{ url: string; method: string; body: unknown }> = [];
-  vi.stubGlobal("fetch", (input: RequestInfo | URL, init: RequestInit = {}) => {
-    const url = requestUrl(input);
-    const method = init.method ?? "GET";
-    if (method !== "GET") {
-      calls.push({ url, method, body: init.body ? JSON.parse(String(init.body)) : null });
-      return response(patchStatus === 200 ? { ok: true } : { error: "no" }, patchStatus);
-    }
-    if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
-    // The page dialog reads its discussion the same way it reads its history, on every open.
-    if (/^\/api\/pages\/[^/]+\/discussion/.test(url)) return response({ threads: [] });
-    if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
-    if (url.startsWith("/api/agent-tokens")) return response({ tokens: [] });
-    if (url === "/api/github/pulls") return response({ pulls });
-    if (url.startsWith("/api/session")) return response({ status: "authenticated", user: board.currentUser });
-    return response(board);
+function mountWith(board: BoardWorkspace, patchStatus = 200, pulls: unknown[] = []): RecordedCall[] {
+  const { calls } = routeFetch({
+    board,
+    routes: { "GET /api/github/pulls": { pulls } },
+    write: () => response(patchStatus === 200 ? { ok: true } : { error: "no" }, patchStatus),
   });
   render(<App />);
   return calls;
@@ -106,21 +80,9 @@ describe("the connection check", () => {
     const user = userEvent.setup();
     const board = boardFixture();
     board.project.githubRepo = "wizards/simulator";
-    const calls: string[] = [];
-    vi.stubGlobal("fetch", (input: RequestInfo | URL, init: RequestInit = {}) => {
-      const url = requestUrl(input);
-      const method = init.method ?? "GET";
-      if (url === "/api/github/verify") {
-        calls.push(url);
-        return response({ ok: true, repo: "wizards/simulator", private: true });
-      }
-      if (method !== "GET") return response({ ok: true });
-      if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
-      if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
-      if (url.startsWith("/api/agent-tokens")) return response({ tokens: [] });
-      if (url.startsWith("/api/session"))
-        return response({ status: "authenticated", user: board.currentUser });
-      return response(board);
+    const { calls } = routeFetch({
+      board,
+      routes: { "/api/github/verify": { ok: true, repo: "wizards/simulator", private: true } },
     });
     render(<App />);
 
@@ -138,7 +100,7 @@ describe("the connection check", () => {
     expect(await screen.findByRole("status")).toHaveTextContent(
       "Connected: wizards/simulator (private repository).",
     );
-    expect(calls).toEqual(["/api/github/verify"]);
+    expect(calls.filter((call) => call.url === "/api/github/verify")).toHaveLength(1);
   });
 });
 

@@ -1,58 +1,29 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { App } from "../../src/App";
 import { buildDigestLines } from "../../src/components/AwayDigest";
 import type { AuditEvent, AwayState, BoardWorkspace } from "../../shared/types";
 import { boardFixture } from "../fixtures/board";
+import { installUiHarness, routeFetch, type RecordedCall } from "../fixtures/ui";
 
-afterEach(() => {
-  cleanup();
-  vi.unstubAllGlobals();
-  vi.restoreAllMocks();
-  window.history.replaceState({}, "", "/");
-});
+installUiHarness();
 
-function response(body: unknown, status = 200) {
-  return Promise.resolve(
-    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } }),
-  );
-}
-
-function requestUrl(input: RequestInfo | URL): string {
-  if (typeof input === "string") return input;
-  return input instanceof URL ? `${input.pathname}${input.search}` : input.url;
-}
-
-function authenticatedFetch(board: BoardWorkspace) {
-  return vi
-    .fn<typeof fetch>()
-    .mockImplementationOnce(() => response({ status: "authenticated", user: board.currentUser }))
-    .mockImplementationOnce(() => response(board));
-}
-
-/**
- * Answers the away, seen, and activity lookups directly and records every call,
- * so tests can assert on cursor advances without disturbing the ordered mock.
- */
+/** Records every request, reads included, so tests can assert on cursor advances. */
 function stubFetch(
-  mock: typeof fetch,
+  board: BoardWorkspace,
   options: { away?: AwayState; activity?: unknown } = {},
-): Array<{ url: string; method: string }> {
-  const calls: Array<{ url: string; method: string }> = [];
-  vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = requestUrl(input);
-    calls.push({ url, method: init?.method ?? "GET" });
-    if (url.startsWith("/api/activity")) return response(options.activity ?? { events: [], hasMore: false });
-    // The page dialog reads its discussion the same way it reads its history, on every open.
-    if (/^\/api\/pages\/[^/]+\/discussion/.test(url)) return response({ threads: [] });
-    if (url.startsWith("/api/away")) return response(options.away ?? emptyAway());
-    if (url.startsWith("/api/seen")) return response({ ok: true });
-    return mock(input, init);
-  });
-  return calls;
+): RecordedCall[] {
+  return routeFetch({
+    board,
+    record: "all",
+    routes: {
+      "GET /api/activity": options.activity ?? { events: [], hasMore: false },
+      "GET /api/away": options.away ?? emptyAway(),
+    },
+  }).calls;
 }
 
 function emptyAway(): AwayState {
@@ -88,7 +59,7 @@ function memberView(board: BoardWorkspace): BoardWorkspace {
 describe("while you were away - quiet signals", () => {
   it("hides the activity control from members", async () => {
     const board = memberView(boardFixture());
-    stubFetch(authenticatedFetch(board));
+    stubFetch(board);
 
     render(<App />);
     await screen.findByRole("button", { name: "team" });
@@ -97,7 +68,7 @@ describe("while you were away - quiet signals", () => {
 
   it("shows the owner how much happened and clears the badge once the history is opened", async () => {
     const away: AwayState = { since: 5, latest: 19, total: 14, events: [awayEvent({ sequence: 6 })] };
-    stubFetch(authenticatedFetch(boardFixture()), { away });
+    stubFetch(boardFixture(), { away });
 
     render(<App />);
     const badge = await screen.findByLabelText("14 changes since your last visit");
@@ -110,7 +81,7 @@ describe("while you were away - quiet signals", () => {
 
   it("caps the badge at 99+", async () => {
     const away: AwayState = { since: 5, latest: 300, total: 240, events: [awayEvent({ sequence: 6 })] };
-    stubFetch(authenticatedFetch(boardFixture()), { away });
+    stubFetch(boardFixture(), { away });
 
     render(<App />);
     expect(await screen.findByLabelText("240 changes since your last visit")).toHaveTextContent("99+");
@@ -131,7 +102,7 @@ describe("while you were away - quiet signals", () => {
       ],
       hasMore: false,
     };
-    stubFetch(authenticatedFetch(boardFixture()), { away, activity });
+    stubFetch(boardFixture(), { away, activity });
 
     render(<App />);
     await userEvent.click(await screen.findByRole("button", { name: /activity/ }));
@@ -168,7 +139,7 @@ describe("while you were away - quiet signals", () => {
         }),
       ],
     };
-    stubFetch(authenticatedFetch(board), { away });
+    stubFetch(board, { away });
 
     render(<App />);
     const digest = await screen.findByRole("region", { name: "While you were away" });
@@ -203,7 +174,7 @@ describe("while you were away - quiet signals", () => {
         }),
       ],
     };
-    stubFetch(authenticatedFetch(board), { away });
+    stubFetch(board, { away });
 
     render(<App />);
     const tile = await screen.findByRole("button", { name: /Changed while you were away/ });
@@ -261,7 +232,7 @@ describe("while you were away - quiet signals", () => {
       }),
     );
     const away: AwayState = { since: 5, latest: 40, total: events.length, events };
-    stubFetch(authenticatedFetch(board), { away });
+    stubFetch(board, { away });
 
     render(<App />);
     const digest = await screen.findByRole("region", { name: "While you were away" });
@@ -275,7 +246,7 @@ describe("while you were away - quiet signals", () => {
   it("advances the seen cursor on load only while the tab is visible", async () => {
     const board = boardFixture();
     const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
-    const calls = stubFetch(authenticatedFetch(board), {
+    const calls = stubFetch(board, {
       away: { since: 5, latest: 9, total: 1, events: [awayEvent({ sequence: 6 })] },
     });
 

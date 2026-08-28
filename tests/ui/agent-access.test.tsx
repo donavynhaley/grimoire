@@ -1,28 +1,14 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { App } from "../../src/App";
 import type { AgentToken, AuditEvent, AwayState, BoardWorkspace } from "../../shared/types";
 import { boardFixture } from "../fixtures/board";
+import { installUiHarness, response, routeFetch, type RecordedCall, type RouteReply } from "../fixtures/ui";
 
-afterEach(() => {
-  cleanup();
-  vi.unstubAllGlobals();
-  window.history.replaceState({}, "", "/");
-});
-
-function response(body: unknown, status = 200) {
-  return Promise.resolve(
-    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } }),
-  );
-}
-
-function requestUrl(input: RequestInfo | URL): string {
-  if (typeof input === "string") return input;
-  return input instanceof URL ? `${input.pathname}${input.search}` : input.url;
-}
+installUiHarness();
 
 function token(overrides: Partial<AgentToken> = {}): AgentToken {
   return {
@@ -45,18 +31,18 @@ type Options = {
   away?: AwayState;
 };
 
-/** Mounts the app and records the agent-token calls the dialog makes. */
-function mountWith({ tokens = [], board = boardFixture(), activity = [], away }: Options = {}) {
-  const calls: Array<{ url: string; method: string; body: unknown }> = [];
+/** Mounts the app over a small in-memory token store, so issue and revoke behave like the server's. */
+function mountWith({
+  tokens = [],
+  board = boardFixture(),
+  activity = [],
+  away,
+}: Options = {}): RecordedCall[] {
   let stored = [...tokens];
-
-  vi.stubGlobal("fetch", (input: RequestInfo | URL, init: RequestInit = {}) => {
-    const url = requestUrl(input);
-    const method = init.method ?? "GET";
-    if (url.startsWith("/api/agent-tokens")) {
-      calls.push({ url, method, body: init.body ? JSON.parse(String(init.body)) : null });
+  const routes: Record<string, RouteReply> = {
+    "/api/agent-tokens": ({ url, method, body }) => {
       if (method === "POST") {
-        const created = token({ id: "token-new", name: JSON.parse(String(init.body)).name });
+        const created = token({ id: "token-new", name: (body as { name: string }).name });
         stored = [...stored, created];
         return response({ token: created, secret: "grim_a-very-secret-value" }, 201);
       }
@@ -64,18 +50,14 @@ function mountWith({ tokens = [], board = boardFixture(), activity = [], away }:
         stored = stored.map((candidate) =>
           url.endsWith(candidate.id) ? { ...candidate, revokedAt: "2026-08-14T00:00:00.000Z" } : candidate,
         );
-        return response({ ok: true });
+        return { ok: true };
       }
-      return response({ tokens: stored });
-    }
-    if (url.startsWith("/api/activity")) return response({ events: activity, hasMore: false });
-    // The page dialog reads its discussion the same way it reads its history, on every open.
-    if (/^\/api\/pages\/[^/]+\/discussion/.test(url)) return response({ threads: [] });
-    if (url.startsWith("/api/away")) return response(away ?? { since: 0, latest: 0, total: 0, events: [] });
-    if (url.startsWith("/api/seen")) return response({ ok: true });
-    if (url.startsWith("/api/session")) return response({ status: "authenticated", user: board.currentUser });
-    return response(board);
-  });
+      return { tokens: stored };
+    },
+    "GET /api/activity": { events: activity, hasMore: false },
+  };
+  if (away) routes["GET /api/away"] = away;
+  const { calls } = routeFetch({ board, routes });
 
   render(<App />);
   return calls;
@@ -237,16 +219,7 @@ describe("agent access", () => {
   it("says when the agent list could not be loaded instead of claiming nobody has access", async () => {
     const user = userEvent.setup();
     const board = boardFixture();
-    vi.stubGlobal("fetch", (input: RequestInfo | URL, init: RequestInit = {}) => {
-      const url = requestUrl(input);
-      if (url.startsWith("/api/agent-tokens")) return response({ error: "boom" }, 500);
-      if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
-      if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
-      if (url.startsWith("/api/seen")) return response({ ok: true });
-      if (url.startsWith("/api/session"))
-        return response({ status: "authenticated", user: board.currentUser });
-      return response(board);
-    });
+    routeFetch({ board, routes: { "/api/agent-tokens": () => response({ error: "boom" }, 500) } });
     render(<App />);
 
     const dialog = await openAgentAccess(user);
