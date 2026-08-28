@@ -1,5 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
+import { slugify } from "./slug";
+import { withTransaction } from "./database";
+import { placeInOrder, renumber } from "./ordering";
 import {
   openThreadCount,
   openThreadCounts,
@@ -307,12 +310,7 @@ export function categoriesForProject(database: DatabaseSync, projectId: string):
 }
 
 export function categorySlugFromName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40)
-    .replace(/-+$/g, "");
+  return slugify(name, 40);
 }
 
 export type CreateCategoryResult = { category: ProjectCategory } | "exists" | "invalid_name";
@@ -405,12 +403,7 @@ export function fieldsForProject(database: DatabaseSync, projectId: string): Pro
 }
 
 export function fieldKeyFromLabel(label: string): string {
-  return label
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40)
-    .replace(/-+$/g, "");
+  return slugify(label, 40);
 }
 
 /**
@@ -637,12 +630,7 @@ export function chaptersForProject(
 }
 
 export function chapterSlugFromName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60)
-    .replace(/-+$/g, "");
+  return slugify(name, 60);
 }
 
 export type ChapterInput = {
@@ -1035,16 +1023,11 @@ export function updatePage(
   }
 
   for (const status of PAGE_STATUSES) {
-    const ordered = pages.filter((page) => page.id !== pageId && page.status === status);
-    if (status === nextStatus) {
-      const requestedPosition = input.position ?? ordered.length;
-      ordered.splice(Math.max(0, Math.min(requestedPosition, ordered.length)), 0, updated);
-    }
-    ordered.forEach((page, position) => {
-      const positioned = { ...page, position };
-      if (page.id === pageId || page.position !== position) pageStore.save(projectSlug, positioned);
-      if (page.id === pageId) updated.position = position;
-    });
+    const others = pages.filter((page) => page.id !== pageId && page.status === status);
+    const ordered =
+      status === nextStatus ? placeInOrder(others, updated, input.position ?? others.length) : others;
+    const settled = renumber(ordered, (page) => pageStore.save(projectSlug, page), pageId);
+    if (settled >= 0) updated.position = settled;
   }
   return publicPage(database, projectId, updated, members);
 }
@@ -1079,12 +1062,10 @@ export function archivePage(
     archivedAt: now,
     updatedAt: now,
   });
-  pageStore
-    .list(projectSlug)
-    .filter((page) => page.status === current.status)
-    .forEach((page, position) => {
-      if (page.position !== position) pageStore.save(projectSlug, { ...page, position });
-    });
+  renumber(
+    pageStore.list(projectSlug).filter((page) => page.status === current.status),
+    (page) => pageStore.save(projectSlug, page),
+  );
   return true;
 }
 
@@ -1120,12 +1101,13 @@ export function restorePage(
     if (previous && previous.blockedBy.length !== page.blockedBy.length) pageStore.save(projectSlug, page);
   });
 
-  const ordered = restoredPages.filter((page) => page.status === restored.status);
-  ordered.splice(Math.max(0, Math.min(restored.position, ordered.length)), 0, restored);
-  ordered.forEach((page, position) => {
-    if (page.position !== position) pageStore.save(projectSlug, { ...page, position });
-    if (page.id === restored.id) restored.position = position;
-  });
+  const ordered = placeInOrder(
+    restoredPages.filter((page) => page.status === restored.status),
+    restored,
+    restored.position,
+  );
+  renumber(ordered, (page) => pageStore.save(projectSlug, page));
+  restored.position = ordered.findIndex((page) => page.id === restored.id);
   return publicPage(database, projectId, restored, membersForProject(database, projectId));
 }
 
@@ -1233,8 +1215,7 @@ export function removeProjectMember(
   // The installation's admin is not a member a project owner gets to remove.
   if (member.role === "admin") return "admin";
 
-  database.exec("BEGIN IMMEDIATE");
-  try {
+  withTransaction(database, () => {
     const removed = database
       .prepare("DELETE FROM project_members WHERE project_id = ? AND user_id = ? AND role != 'owner'")
       .run(projectId, memberId);
@@ -1251,11 +1232,7 @@ export function removeProjectMember(
     if (Number(remaining?.count ?? 0) === 0) {
       database.prepare("DELETE FROM sessions WHERE user_id = ?").run(memberId);
     }
-    database.exec("COMMIT");
-  } catch (error) {
-    database.exec("ROLLBACK");
-    throw error;
-  }
+  });
 
   // Assignments clear only once the removal has committed. Cleared first, a rolled-back
   // removal would leave a still-present member silently unassigned from everything; this

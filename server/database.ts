@@ -3,6 +3,7 @@ import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { AUDIT_ENTITY_TYPES, FIELD_TYPES } from "../shared/types";
+import { slugify } from "./slug";
 
 /**
  * The table definition is shared between first-run creation and the CHECK-widening
@@ -114,6 +115,23 @@ export const DEFAULT_PROJECT_CATEGORIES: Array<{ slug: string; name: string; col
   { slug: "production", name: "Production", color: "#a7adaf" },
 ];
 
+/**
+ * BEGIN IMMEDIATE around `fn`: committed on return, rolled back on throw. Eleven
+ * hand-written copies of this envelope preceded it, and an envelope hand-written a
+ * twelfth time is one forgotten ROLLBACK away from holding the write lock forever.
+ */
+export function withTransaction<T>(database: DatabaseSync, fn: () => T): T {
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    const result = fn();
+    database.exec("COMMIT");
+    return result;
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
+}
+
 export function openDatabase(databasePath: string): DatabaseSync {
   mkdirSync(dirname(databasePath), { recursive: true });
   const database = new DatabaseSync(databasePath);
@@ -133,8 +151,7 @@ export function createProject(database: DatabaseSync, ownerId: string, name: str
   const now = new Date().toISOString();
   const projectSlug = slug ?? uniqueProjectSlug(database, name);
 
-  database.exec("BEGIN IMMEDIATE");
-  try {
+  return withTransaction(database, () => {
     database
       .prepare("INSERT INTO projects (id, name, slug, created_at, updated_at) VALUES (?, ?, ?, ?, ?)")
       .run(projectId, name, projectSlug, now, now);
@@ -144,22 +161,14 @@ export function createProject(database: DatabaseSync, ownerId: string, name: str
       )
       .run(projectId, ownerId, now);
     seedDefaultCategories(database, projectId, now);
-    database.exec("COMMIT");
     return projectId;
-  } catch (error) {
-    database.exec("ROLLBACK");
-    throw error;
-  }
+  });
 }
 
 export function projectSlugFromName(name: string): string {
-  const slug = name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60)
-    .replace(/-+$/g, "");
-  return slug || "project";
+  // The fallback matters here alone: a project directory must have a name even when the
+  // project's own is all punctuation, while a category or field spelled that way is refused.
+  return slugify(name, 60) || "project";
 }
 
 function uniqueProjectSlug(database: DatabaseSync, name: string): string {
@@ -257,14 +266,9 @@ function migrate(database: DatabaseSync): void {
     .all() as Array<{ id: string }>;
   if (unseeded.length === 0) return;
   const now = new Date().toISOString();
-  database.exec("BEGIN IMMEDIATE");
-  try {
+  withTransaction(database, () => {
     for (const project of unseeded) seedDefaultCategories(database, String(project.id), now);
-    database.exec("COMMIT");
-  } catch (error) {
-    database.exec("ROLLBACK");
-    throw error;
-  }
+  });
 }
 
 /**
@@ -304,17 +308,14 @@ function widenFieldTypes(database: DatabaseSync): void {
   if (FIELD_TYPES.every((value) => existing.sql!.includes(`'${value}'`))) return;
 
   database.exec("PRAGMA foreign_keys = OFF");
-  database.exec("BEGIN IMMEDIATE");
   try {
-    database.exec(projectFieldsTableNamed("project_fields_rebuild"));
-    const columns = tableColumns(database, "project_fields").join(", ");
-    database.exec(`INSERT INTO project_fields_rebuild (${columns}) SELECT ${columns} FROM project_fields`);
-    database.exec("DROP TABLE project_fields");
-    database.exec("ALTER TABLE project_fields_rebuild RENAME TO project_fields");
-    database.exec("COMMIT");
-  } catch (error) {
-    database.exec("ROLLBACK");
-    throw error;
+    withTransaction(database, () => {
+      database.exec(projectFieldsTableNamed("project_fields_rebuild"));
+      const columns = tableColumns(database, "project_fields").join(", ");
+      database.exec(`INSERT INTO project_fields_rebuild (${columns}) SELECT ${columns} FROM project_fields`);
+      database.exec("DROP TABLE project_fields");
+      database.exec("ALTER TABLE project_fields_rebuild RENAME TO project_fields");
+    });
   } finally {
     database.exec("PRAGMA foreign_keys = ON");
   }
@@ -349,37 +350,34 @@ function adoptAdminRole(database: DatabaseSync): void {
 
   // A pragma is a no-op inside a transaction, so the guard is lifted around the whole swap.
   database.exec("PRAGMA foreign_keys = OFF");
-  database.exec("BEGIN IMMEDIATE");
   try {
-    database.exec(usersTableNamed("users_rebuild"));
-    database.exec(
-      `INSERT INTO users_rebuild (id, name, email, password_hash, role, created_at)
+    withTransaction(database, () => {
+      database.exec(usersTableNamed("users_rebuild"));
+      database.exec(
+        `INSERT INTO users_rebuild (id, name, email, password_hash, role, created_at)
        SELECT id, name, email, password_hash,
          CASE WHEN id = (SELECT id FROM users ORDER BY created_at, id LIMIT 1)
            THEN 'admin' ELSE 'member' END,
          created_at
        FROM users`,
-    );
-    database.exec("DROP TABLE users");
-    database.exec("ALTER TABLE users_rebuild RENAME TO users");
+      );
+      database.exec("DROP TABLE users");
+      database.exec("ALTER TABLE users_rebuild RENAME TO users");
 
-    // The creator is the earliest membership row: it is written inside the same transaction
-    // that writes the project, so nobody else can hold an earlier one.
-    database.exec(
-      `UPDATE project_members SET role = CASE WHEN created_at = (
+      // The creator is the earliest membership row: it is written inside the same transaction
+      // that writes the project, so nobody else can hold an earlier one.
+      database.exec(
+        `UPDATE project_members SET role = CASE WHEN created_at = (
          SELECT MIN(created_at) FROM project_members AS earliest
          WHERE earliest.project_id = project_members.project_id
        ) THEN 'owner' ELSE 'member' END`,
-    );
-    // Sessions, invitations and the whole activity log point at `users`, and the swap above
-    // drops it with the guard lifted. Checking before the commit is what stops a bad rebuild
-    // from being the thing that signs everybody out.
-    const violations = database.prepare("PRAGMA foreign_key_check").all();
-    if (violations.length > 0) throw new Error("Rebuilding users would break a foreign key");
-    database.exec("COMMIT");
-  } catch (error) {
-    database.exec("ROLLBACK");
-    throw error;
+      );
+      // Sessions, invitations and the whole activity log point at `users`, and the swap above
+      // drops it with the guard lifted. Checking before the commit is what stops a bad rebuild
+      // from being the thing that signs everybody out.
+      const violations = database.prepare("PRAGMA foreign_key_check").all();
+      if (violations.length > 0) throw new Error("Rebuilding users would break a foreign key");
+    });
   } finally {
     database.exec("PRAGMA foreign_keys = ON");
   }
@@ -401,51 +399,48 @@ function widenAuditEntityTypes(database: DatabaseSync): void {
 
   // A pragma is a no-op inside a transaction, so the guard is lifted around the whole swap.
   database.exec("PRAGMA foreign_keys = OFF");
-  database.exec("BEGIN IMMEDIATE");
   try {
-    database.exec(auditEventsTable("audit_events_rebuild"));
-    // The source may predate a column the rebuilt table has, so anything missing is selected
-    // as NULL rather than named blindly, which would fail the copy on an older database.
-    const present = new Set(tableColumns(database, "audit_events"));
-    const selected = AUDIT_EVENT_COLUMNS.map((column) => {
-      if (column === "entity_type") return "CASE entity_type WHEN 'card' THEN 'page' ELSE entity_type END";
-      return present.has(column) ? column : "NULL";
-    });
-    database.exec(
-      `INSERT INTO audit_events_rebuild (${AUDIT_EVENT_COLUMNS.join(", ")})
+    withTransaction(database, () => {
+      database.exec(auditEventsTable("audit_events_rebuild"));
+      // The source may predate a column the rebuilt table has, so anything missing is selected
+      // as NULL rather than named blindly, which would fail the copy on an older database.
+      const present = new Set(tableColumns(database, "audit_events"));
+      const selected = AUDIT_EVENT_COLUMNS.map((column) => {
+        if (column === "entity_type") return "CASE entity_type WHEN 'card' THEN 'page' ELSE entity_type END";
+        return present.has(column) ? column : "NULL";
+      });
+      database.exec(
+        `INSERT INTO audit_events_rebuild (${AUDIT_EVENT_COLUMNS.join(", ")})
        SELECT ${selected.join(", ")}
        FROM audit_events`,
-    );
-    database.exec("DROP TABLE audit_events");
-    database.exec("ALTER TABLE audit_events_rebuild RENAME TO audit_events");
-    database.exec(auditEventsIndexes);
-    // Copying the rows with explicit sequences already leaves sqlite_sequence at their
-    // maximum, so this only has to raise it in the rare case that the old high-water mark ran
-    // ahead of the surviving rows. Whether a row exists has to be asked directly: an UPDATE
-    // that changes nothing is ambiguous between "no such row" and "already high enough", and
-    // sqlite_sequence has no unique constraint to make INSERT OR IGNORE safe. Two rows for one
-    // table would let AUTOINCREMENT hand out a sequence a reader has already been marked as
-    // having seen, which is the exact corruption this whole routine exists to prevent.
-    const tracked = Number(
-      (
+      );
+      database.exec("DROP TABLE audit_events");
+      database.exec("ALTER TABLE audit_events_rebuild RENAME TO audit_events");
+      database.exec(auditEventsIndexes);
+      // Copying the rows with explicit sequences already leaves sqlite_sequence at their
+      // maximum, so this only has to raise it in the rare case that the old high-water mark ran
+      // ahead of the surviving rows. Whether a row exists has to be asked directly: an UPDATE
+      // that changes nothing is ambiguous between "no such row" and "already high enough", and
+      // sqlite_sequence has no unique constraint to make INSERT OR IGNORE safe. Two rows for one
+      // table would let AUTOINCREMENT hand out a sequence a reader has already been marked as
+      // having seen, which is the exact corruption this whole routine exists to prevent.
+      const tracked = Number(
+        (
+          database
+            .prepare("SELECT COUNT(*) AS rows FROM sqlite_sequence WHERE name = 'audit_events'")
+            .get() as { rows: number }
+        ).rows,
+      );
+      if (tracked > 0) {
         database
-          .prepare("SELECT COUNT(*) AS rows FROM sqlite_sequence WHERE name = 'audit_events'")
-          .get() as { rows: number }
-      ).rows,
-    );
-    if (tracked > 0) {
-      database
-        .prepare("UPDATE sqlite_sequence SET seq = ? WHERE name = 'audit_events' AND seq < ?")
-        .run(highWater, highWater);
-    } else if (highWater > 0) {
-      database.prepare("INSERT INTO sqlite_sequence (name, seq) VALUES ('audit_events', ?)").run(highWater);
-    }
-    const violations = database.prepare("PRAGMA foreign_key_check").all();
-    if (violations.length > 0) throw new Error("Rebuilding audit_events would break a foreign key");
-    database.exec("COMMIT");
-  } catch (error) {
-    database.exec("ROLLBACK");
-    throw error;
+          .prepare("UPDATE sqlite_sequence SET seq = ? WHERE name = 'audit_events' AND seq < ?")
+          .run(highWater, highWater);
+      } else if (highWater > 0) {
+        database.prepare("INSERT INTO sqlite_sequence (name, seq) VALUES ('audit_events', ?)").run(highWater);
+      }
+      const violations = database.prepare("PRAGMA foreign_key_check").all();
+      if (violations.length > 0) throw new Error("Rebuilding audit_events would break a foreign key");
+    });
   } finally {
     database.exec("PRAGMA foreign_keys = ON");
   }

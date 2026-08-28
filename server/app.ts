@@ -37,7 +37,7 @@ import {
   verifyRepoAccess,
   type GithubFetcher,
 } from "./github";
-import { createProject, createWizardSimulatorProject, openDatabase } from "./database";
+import { createProject, createWizardSimulatorProject, openDatabase, withTransaction } from "./database";
 import {
   archivePage,
   archiveProject,
@@ -1028,19 +1028,14 @@ export function createGrimoireServer(options: Options) {
         throw new HttpError(401, "Current password is incorrect");
       }
       const passwordHash = await hashPassword(input.newPassword);
-      database.exec("BEGIN IMMEDIATE");
-      try {
+      withTransaction(database, () => {
         database.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(passwordHash, user.id);
         if (context.sessionToken) {
           database
             .prepare("DELETE FROM sessions WHERE user_id = ? AND token_hash != ?")
             .run(user.id, hashToken(context.sessionToken));
         }
-        database.exec("COMMIT");
-      } catch (error) {
-        database.exec("ROLLBACK");
-        throw error;
-      }
+      });
       json(response, 200, { ok: true });
       return;
     }
@@ -1124,27 +1119,18 @@ export function createGrimoireServer(options: Options) {
 
     if (method === "POST" && url.pathname === "/api/auth/register") {
       const input = registerSchema.parse(await readJson(request));
-      const invite = database
-        .prepare("SELECT * FROM invites WHERE code_hash = ?")
-        .get(hashToken(input.inviteCode)) as Record<string, string | null> | undefined;
-      if (!invite || invite.used_by || String(invite.expires_at) <= new Date().toISOString()) {
-        throw new HttpError(409, "Invitation is invalid or has already been used");
-      }
+      // The same judgement the OIDC sign-up path makes, through the same helper - the
+      // route used to restate it inline, which is how the two doors drift apart.
+      const invite = findUsableInvite(input.inviteCode);
+      if (!invite) throw new HttpError(409, "Invitation is invalid or has already been used");
       if (findUserByEmail(database, input.email))
         throw new HttpError(409, "An account already uses this email");
-      const invitedProject = invite.project_id
-        ? database
-            .prepare("SELECT id FROM projects WHERE id = ? AND archived_at IS NULL")
-            .get(String(invite.project_id))
-        : undefined;
-      if (!invitedProject) throw new HttpError(409, "Invitation project no longer exists");
       const projectId = String(invite.project_id);
       const userId = randomUUID();
       const now = new Date().toISOString();
       const passwordHash = await hashPassword(input.password);
 
-      database.exec("BEGIN IMMEDIATE");
-      try {
+      withTransaction(database, () => {
         database
           .prepare(
             "INSERT INTO users (id, name, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, 'member', ?)",
@@ -1159,11 +1145,7 @@ export function createGrimoireServer(options: Options) {
           .prepare("UPDATE invites SET used_by = ? WHERE id = ? AND used_by IS NULL")
           .run(userId, String(invite.id));
         if (Number(update.changes) !== 1) throw new HttpError(409, "Invitation has already been used");
-        database.exec("COMMIT");
-      } catch (error) {
-        database.exec("ROLLBACK");
-        throw error;
-      }
+      });
       const user = withAvatar(publicUser(findUserById(database, userId)!));
       auditAs(user, {
         projectId,
@@ -1245,8 +1227,7 @@ export function createGrimoireServer(options: Options) {
       const code = createOpaqueToken();
       const now = new Date();
       const expires = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-      database.exec("BEGIN IMMEDIATE");
-      try {
+      withTransaction(database, () => {
         database
           .prepare("DELETE FROM invites WHERE created_by = ? AND project_id = ? AND used_by IS NULL")
           .run(user.id, projectId);
@@ -1255,11 +1236,7 @@ export function createGrimoireServer(options: Options) {
             "INSERT INTO invites (id, code_hash, created_by, project_id, expires_at, used_by, created_at) VALUES (?, ?, ?, ?, ?, NULL, ?)",
           )
           .run(randomUUID(), hashToken(code), user.id, projectId, expires.toISOString(), now.toISOString());
-        database.exec("COMMIT");
-      } catch (error) {
-        database.exec("ROLLBACK");
-        throw error;
-      }
+      });
       audit(context, {
         projectId,
         entityType: "member",
@@ -2751,8 +2728,7 @@ export function createGrimoireServer(options: Options) {
     const passwordHash = await hashPassword(createOpaqueToken());
     const name = identity.name || identity.email.split("@")[0]!;
 
-    database.exec("BEGIN IMMEDIATE");
-    try {
+    withTransaction(database, () => {
       database
         .prepare(
           "INSERT INTO users (id, name, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, 'member', ?)",
@@ -2769,11 +2745,7 @@ export function createGrimoireServer(options: Options) {
           .run(userId, String(invite.id));
         if (Number(update.changes) !== 1) throw new HttpError(409, "Invitation has already been used");
       }
-      database.exec("COMMIT");
-    } catch (error) {
-      database.exec("ROLLBACK");
-      throw error;
-    }
+    });
 
     linkOidcIdentity(database, identity.issuer, identity.subject, userId);
     const user = withAvatar(publicUser(findUserById(database, userId)!));

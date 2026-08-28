@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, unlinkSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
+import { withTransaction } from "./database";
 import { z } from "zod";
 import {
   PAGE_STATUSES,
@@ -186,15 +187,10 @@ export class MarkdownPageStore {
       writeAtomic(path, serializePage(page));
     }
 
-    database.exec("BEGIN IMMEDIATE");
-    try {
+    withTransaction(database, () => {
       const remove = database.prepare("DELETE FROM cards WHERE id = ?");
       for (const row of legacyPages) remove.run(String(row.id));
-      database.exec("COMMIT");
-    } catch (error) {
-      database.exec("ROLLBACK");
-      throw error;
-    }
+    });
     return legacyPages.length;
   }
 
