@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Drawer } from "./Drawer";
 import { type Page, type PageCategory, type Member, type ProjectCategory } from "../../shared/types";
 import { categoryDisplay, categoryStyle } from "./category-style";
@@ -35,16 +35,6 @@ export function DoneHistoryDialog({ busy, pages, categories, members, onClose, o
     [pages, category, normalizedQuery, person],
   );
   const groups = useMemo(() => groupByMonth(visiblePages), [visiblePages]);
-
-  useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      onClose();
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [onClose]);
 
   return (
     <Drawer backdropClassName="library-backdrop" className="library-dialog" labelledBy="history-dialog-title" onClose={onClose}>

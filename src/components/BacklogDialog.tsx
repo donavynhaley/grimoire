@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Drawer } from "./Drawer";
 import { type Page, type PageCategory, type Chapter, type Member, type ProjectCategory } from "../../shared/types";
 import { categoryDisplay, categoryStyle } from "./category-style";
@@ -53,16 +53,6 @@ export function BacklogDialog({ allPages, busy, pages, categories, chapters, mem
       .sort((left, right) => left.position - right.position),
     [allPages, blockedOnly, pages, category, chapterFilter, normalizedQuery, person],
   );
-
-  useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      onClose();
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [onClose]);
 
   return (
     <Drawer backdropClassName="library-backdrop" className="library-dialog" labelledBy="backlog-dialog-title" onClose={onClose}>

@@ -46,16 +46,6 @@ export function ActivityDialog({ awaySince, members, revision, onClose, onLoad, 
     void load();
   }, [load, revision]);
 
-  useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      onClose();
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [onClose]);
-
   const normalizedQuery = query.trim().toLowerCase();
   const visible = useMemo(
     () => events.filter((event) => {
