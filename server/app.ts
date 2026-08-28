@@ -2,21 +2,8 @@ import { randomUUID } from "node:crypto";
 import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { dirname, extname, join, normalize, resolve, sep } from "node:path";
-import { z, ZodError } from "zod";
-import {
-  BODY_MAX_LENGTH,
-  AGENT_TOKEN_SCOPES,
-  CHAPTER_STATES,
-  DISCUSSION_BODY_MAX_LENGTH,
-  FIELD_TYPES,
-  IDEA_STATES,
-  PAGE_STATUSES,
-  PAGE_STATUS_LABELS,
-  PROJECT_ROLES,
-  type PageGithubLink,
-  type PageStatus,
-  type User,
-} from "../shared/types";
+import { ZodError } from "zod";
+import { PAGE_STATUS_LABELS, type PageGithubLink, type PageStatus, type User } from "../shared/types";
 import {
   findThread,
   listDiscussion,
@@ -138,9 +125,42 @@ import {
 import { AVATAR_SIZE_LIMIT, AvatarStore, sniffAvatarType } from "./avatars";
 import { IMAGE_SIZE_LIMIT, ProjectImageStore, sniffImageType } from "./project-images";
 import { MarkdownPageStore } from "./markdown-pages";
-import { isCalendarDay, MarkdownChapterStore } from "./markdown-chapters";
+import { MarkdownChapterStore } from "./markdown-chapters";
 import { createIdea, findIdea, getIdeas, promoteIdea, undoPromotion, updateIdea } from "./ideas-repository";
 import { MarkdownIdeaStore } from "./markdown-ideas";
+import { agentMayReach } from "./agent-policy";
+import {
+  ALREADY_OPEN_MESSAGE,
+  accountSchema,
+  activityQuerySchema,
+  agentTokenCreateSchema,
+  categoryCreateSchema,
+  categoryUpdateSchema,
+  chapterCloseSchema,
+  chapterCreateSchema,
+  chapterUpdateSchema,
+  discussionAnswerSchema,
+  discussionBodySchema,
+  displayNameSchema,
+  eventsQuerySchema,
+  fieldCreateSchema,
+  fieldUpdateSchema,
+  ideaSchema,
+  ideaUpdateSchema,
+  loginSchema,
+  memberAddSchema,
+  memberRoleSchema,
+  oidcProbeSchema,
+  oidcSettingsSchema,
+  pageSchema,
+  pageUpdateSchema,
+  passwordChangeSchema,
+  projectSchema,
+  projectUpdateSchema,
+  registerSchema,
+  searchSchema,
+  seenSchema,
+} from "./schemas";
 import { searchProject } from "./search";
 import { applyLinkPreview, pagePreview, ideaPreview, type LinkPreview } from "./link-preview";
 import {
@@ -217,294 +237,6 @@ type EventClient = {
   keepAlive: ReturnType<typeof setInterval>;
   userId: string;
 };
-
-const accountSchema = z.object({
-  name: z.string().trim().min(2).max(80),
-  email: z
-    .string()
-    .trim()
-    .email()
-    .max(254)
-    .transform((value) => value.toLowerCase()),
-  password: z.string().min(12).max(256),
-});
-
-const loginSchema = z.object({
-  email: z
-    .string()
-    .trim()
-    .email()
-    .transform((value) => value.toLowerCase()),
-  password: z.string().min(1).max(256),
-});
-
-const registerSchema = accountSchema.extend({
-  inviteCode: z.string().min(20).max(200),
-});
-
-const passwordChangeSchema = z
-  .object({
-    currentPassword: z.string().min(1).max(256),
-    newPassword: z.string().min(12).max(256),
-  })
-  .refine((input) => input.currentPassword !== input.newPassword, {
-    message: "New password must be different from the current password",
-    path: ["newPassword"],
-  });
-
-const displayNameSchema = accountSchema.pick({ name: true });
-
-/**
- * The provider settings screen, field by field.
- *
- * Every field is optional because the screen saves as it goes rather than as one form: an
- * operator pastes an address, checks it, pastes a client id, and each of those is a save. A
- * missing `clientSecret` therefore has to mean "leave the stored one alone" rather than
- * "clear it", or every other edit would silently forget the secret.
- */
-const oidcSettingsSchema = z.object({
-  enabled: z.boolean().optional(),
-  issuer: z.string().trim().max(400).optional(),
-  clientId: z.string().trim().max(300).optional(),
-  clientSecret: z.string().trim().max(600).optional(),
-  scopes: z.string().trim().max(300).optional(),
-  label: z.string().trim().max(60).optional(),
-  autoRegister: z.boolean().optional(),
-  allowedEmailDomains: z.string().trim().max(500).optional(),
-  redirectUri: z.string().trim().max(400).optional(),
-  signupProject: z.string().trim().max(100).optional(),
-});
-
-const oidcProbeSchema = z.object({
-  issuer: z.string().trim().min(1).max(400),
-  clientId: z.string().trim().max(300).optional(),
-});
-
-const pageStatus = z.enum(PAGE_STATUSES);
-const categorySlug = z
-  .string()
-  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
-  .max(40);
-const chapterSlug = z
-  .string()
-  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
-  .max(60);
-const calendarDay = z.string().refine(isCalendarDay, "Expected a YYYY-MM-DD day");
-/**
- * Values for the project's own fields, as a patch. `null` clears one; an absent key is left
- * alone. The shapes are checked here and the meanings against the project's definitions,
- * because only the project knows what `priority` is allowed to say.
- */
-const pageFieldPatch = z.record(
-  z
-    .string()
-    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
-    .max(40),
-  z.union([z.string().trim().max(200), z.number().finite(), z.boolean(), z.null()]),
-);
-const pageSchema = z.object({
-  title: z.string().trim().min(1).max(240),
-  description: z.string().trim().max(BODY_MAX_LENGTH).optional(),
-  category: categorySlug.nullable().optional(),
-  chapter: chapterSlug.nullable().optional(),
-  fields: pageFieldPatch.optional(),
-  blockedBy: z.array(z.string().uuid()).max(20).optional(),
-  status: pageStatus.optional(),
-  assigneeId: z.string().uuid().nullable().optional(),
-  estimate: z.number().finite().min(0).max(100_000).nullable().optional(),
-});
-/**
- * Compare-and-swap fields, sent only for the content a client is actually rewriting.
- * A save that omits them keeps the previous last-writer-wins behaviour, which is what
- * ordering and column moves want - a drag has no content to lose.
- */
-const contentPreconditions = {
-  expectedTitle: z.string().trim().max(240).optional(),
-  expectedDescription: z.string().trim().max(BODY_MAX_LENGTH).optional(),
-};
-const pageUpdateSchema = pageSchema.partial().extend({
-  /** A pasted reference - PR URL, #123, branch, or branch URL - or null to unlink. */
-  github: z.string().trim().max(400).nullable().optional(),
-  position: z.number().int().min(0).optional(),
-  ...contentPreconditions,
-});
-const projectSchema = z.object({
-  name: z.string().trim().min(2).max(80),
-});
-const projectUpdateSchema = z
-  .object({
-    name: z.string().trim().min(2).max(80).optional(),
-    description: z.string().trim().max(2000).optional(),
-    chaptersEnabled: z.boolean().optional(),
-    discordWebhook: z.string().trim().max(500).optional(),
-    recapOnClose: z.boolean().optional(),
-    githubRepo: z.string().trim().max(200).optional(),
-    githubToken: z.string().trim().max(300).optional(),
-    estimatesEnabled: z.boolean().optional(),
-  })
-  .refine(
-    (input) =>
-      input.name !== undefined ||
-      input.description !== undefined ||
-      input.chaptersEnabled !== undefined ||
-      input.githubRepo !== undefined ||
-      input.githubToken !== undefined ||
-      input.estimatesEnabled !== undefined ||
-      input.discordWebhook !== undefined ||
-      input.recapOnClose !== undefined,
-    { message: "Nothing to update" },
-  );
-const chapterState = z.enum(CHAPTER_STATES);
-const chapterCreateSchema = z.object({
-  name: z.string().trim().min(1).max(80),
-  description: z.string().trim().max(BODY_MAX_LENGTH).optional(),
-  startsOn: calendarDay.nullable().optional(),
-  endsOn: calendarDay.nullable().optional(),
-  state: chapterState.optional(),
-});
-/**
- * How a closing chapter disposes of what it did not finish. "next" is the planned chapter
- * after it, "release" sets the work loose, "keep" leaves it where it is, and a slug names
- * somewhere exactly.
- */
-const chapterCloseSchema = z.object({
-  rollover: z.union([z.literal("next"), z.literal("release"), z.literal("keep"), chapterSlug]).optional(),
-});
-const chapterUpdateSchema = chapterCreateSchema.partial().extend({
-  position: z.number().int().min(0).optional(),
-  expectedDescription: z.string().trim().max(BODY_MAX_LENGTH).optional(),
-});
-const categoryCreateSchema = z.object({
-  name: z.string().trim().min(1).max(32),
-  color: z.string().regex(/^#[0-9a-f]{6}$/i),
-});
-const categoryUpdateSchema = categoryCreateSchema.partial().extend({
-  position: z.number().int().min(0).optional(),
-});
-const fieldCreateSchema = z.object({
-  label: z.string().trim().min(1).max(40),
-  type: z.enum(FIELD_TYPES),
-  options: z.array(z.string().trim().min(1).max(40)).max(24).optional(),
-  showOnTile: z.boolean().optional(),
-});
-/**
- * The type is here only so a choice field can change how it asks. Every other type change is
- * still refused - `updateField` settles which pairings are safe, since it is the one that
- * knows what the stored values would have to survive.
- */
-const fieldUpdateSchema = fieldCreateSchema
-  .partial()
-  .extend({ position: z.number().int().min(0).optional() });
-const ideaState = z.enum(IDEA_STATES);
-const ideaSchema = z.object({
-  title: z.string().trim().min(1).max(240),
-  description: z.string().trim().max(BODY_MAX_LENGTH).optional(),
-  state: ideaState.optional(),
-});
-const ideaUpdateSchema = ideaSchema.partial().extend({
-  position: z.number().int().min(0).optional(),
-  ...contentPreconditions,
-});
-
-const memberRoleSchema = z.object({ role: z.enum(PROJECT_ROLES) }).strict();
-/** Naming an account outright, because the alternative is listing everyone to choose from. */
-const memberAddSchema = z.object({ email: z.string().trim().email().max(320) }).strict();
-
-const searchSchema = z.object({
-  q: z.string().trim().min(1).max(240),
-  limit: z.coerce.number().int().min(1).max(100).optional(),
-});
-
-/** Query strings validate through zod like every body does; hand-rolled parsing drifted. */
-const activityQuerySchema = z.object({
-  entity: z
-    .string()
-    .regex(/^[0-9a-z-]{1,64}$/i, "Invalid activity filter")
-    .optional(),
-  before: z.coerce.number().int().min(1).optional(),
-  limit: z.coerce.number().int().min(1).optional(),
-});
-
-const eventsQuerySchema = z.object({
-  client: z.string().max(100).optional(),
-});
-
-/**
- * One chapter is open at a time, so the second one has to be an explicit decision.
- * The interface turns this into a single confirm that closes the current chapter first.
- */
-const ALREADY_OPEN_MESSAGE = "Another chapter is already open. Close it before opening this one.";
-
-/** Omitting the sequence means "advance to whatever is newest right now". */
-const seenSchema = z.object({ sequence: z.number().int().min(0).optional() }).strict();
-
-const discussionBodySchema = z
-  .object({ body: z.string().trim().min(1).max(DISCUSSION_BODY_MAX_LENGTH) })
-  .strict();
-const discussionAnswerSchema = z.object({ answered: z.boolean() }).strict();
-
-const AGENT_PAGE_PATH = /^\/api\/pages\/[^/]+$/;
-const AGENT_IDEA_PATH = /^\/api\/ideas\/[^/]+$/;
-const AGENT_DISCUSSION_PATH = /^\/api\/pages\/[^/]+\/discussion$/;
-const AGENT_REPLY_PATH = /^\/api\/pages\/[^/]+\/discussion\/[^/]+\/replies$/;
-
-/**
- * Whether an agent token may use a route at all, and whether doing so is a write.
- *
- * The rule the list encodes: an agent may add and refine, and only a person may destroy or
- * restructure. So creating and editing pages and ideas is open, while archiving, restoring,
- * promoting an idea, and anything that reshapes the project - chapters, categories, members,
- * invitations, the project itself - is closed no matter how the token is scoped. Archiving
- * is the sharpest of those: its undo is eight seconds long and built for a person who just
- * clicked, so an agent that archived thirty pages would leave no path anyone would find.
- *
- * Account routes are closed because a delegated credential must not be able to escalate into
- * the identity it borrows. The event stream is closed because presence is derived from open
- * streams, and an agent holding one would appear to be a teammate sitting in the project.
- *
- * `null` means refuse. Reads are unmetered; writes are charged against the rate limit.
- */
-function agentMayReach(method: string, pathname: string): "read" | "write" | null {
-  if (method === "GET") {
-    if (pathname === "/api/health" || pathname === "/api/session") return "read";
-    if (pathname === "/api/board" || pathname === "/api/search" || pathname === "/api/ideas") return "read";
-    // One page, for an agent that already knows which one it wants. Reading a single page by
-    // pulling the whole board is what an agent had to do before, and on a large project that
-    // is most of a megabyte to answer a question about one title.
-    if (AGENT_PAGE_PATH.test(pathname)) return "read";
-    // Reading the discussion is how an agent finds out what it was asked, which is the point
-    // of letting it write there at all.
-    if (AGENT_DISCUSSION_PATH.test(pathname)) return "read";
-    // The activity log is owner-only, and the route enforces that against the person the
-    // token acts as. A token therefore never reads more than its issuer already could.
-    if (pathname === "/api/activity") return "read";
-    return null;
-  }
-  if (method === "POST" && (pathname === "/api/pages" || pathname === "/api/ideas")) return "write";
-  if (method === "PATCH" && (AGENT_PAGE_PATH.test(pathname) || AGENT_IDEA_PATH.test(pathname)))
-    return "write";
-  /*
-   * Opening a thread and replying to one are the two writes an agent is most obviously good
-   * for: reporting what it did, and answering when asked. Both are additions to a page that a
-   * person can read and argue with, which is exactly the shape of write agents are trusted
-   * with everywhere else here.
-   *
-   * Marking a thread answered is absent by design, and so is anything that would edit or
-   * delete what was said. An agent that could close the question it raised could report its
-   * own work settled, and the one judgement a discussion carries would stop meaning anything.
-   */
-  if (method === "POST" && (AGENT_DISCUSSION_PATH.test(pathname) || AGENT_REPLY_PATH.test(pathname)))
-    return "write";
-  // Marking a conversation read is a claim about a person's attention, and an agent has none.
-  return null;
-}
-
-const agentTokenCreateSchema = z.object({
-  name: z.string().trim().min(1).max(60),
-  scope: z.enum(AGENT_TOKEN_SCOPES),
-  /** Optional, because an agent that runs indefinitely is a legitimate thing to want. */
-  expiresAt: z.string().datetime().nullable().optional(),
-});
 
 export function createGrimoireServer(options: Options) {
   const database = openDatabase(options.databasePath);
