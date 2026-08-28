@@ -3009,6 +3009,39 @@ textarea:hover { border-color: var(--border-bright); }
 }
 .provider-button:hover { background: var(--surface-raised); border-color: var(--accent); }
 
+/*
+ * Google's button, to Google's specification rather than to ours.
+ *
+ * The fill, the 1px inside stroke, the text colour and the spacing either side of the mark are
+ * all published values, and they are not ours to tune - the whole worth of this button is that
+ * it looks like the one people have been taught to trust. Its Dark theme is used because this
+ * interface is dark, and putting the light button here would be the variant Google says not to.
+ *
+ * The one published value not met is the typeface: Google Sans is not distributable, and
+ * reaching for a webfont would mean an off-origin request the content security policy refuses
+ * and a sign-in screen that waits on a third party. The interface font at the specified size
+ * and weight is as close as this can honestly get.
+ */
+.google-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 2.5rem;
+  padding: 0 12px;
+  color: #e3e3e3;
+  background: #131314;
+  border: 1px solid #8e918f;
+  border-radius: 0.25rem;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  letter-spacing: 0.25px;
+  text-decoration: none;
+}
+.google-button:hover { background: #1c1c1d; }
+.google-button svg { flex: none; }
+
 /* A phone has no room for 2.75rem of padding around a form this size. */
 @media (max-width: 520px) {
   .auth-card { padding: 1.875rem 1.5rem; }

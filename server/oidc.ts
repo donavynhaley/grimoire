@@ -208,6 +208,30 @@ export function emailAllowed(email: string, allowed: string[]): boolean {
   );
 }
 
+/**
+ * Providers whose sign-in button is theirs to design rather than ours.
+ *
+ * Google publishes branding requirements for this button - an exact wording, an unmodified
+ * mark, a palette - and a home-made one is not merely less pretty. It is less trustworthy at
+ * the precise moment somebody is being asked to hand over their Google account, because the
+ * thing a person has been taught to look for is the familiar button.
+ *
+ * Decided from the issuer rather than from the label the operator typed, because the issuer is
+ * what is actually true. A Workspace tenant issues from the same address and is branded too,
+ * which is right: it is still signing in with Google.
+ */
+export type ProviderBrand = "google";
+
+export function providerBrand(issuer: string): ProviderBrand | null {
+  let host: string;
+  try {
+    host = new URL(issuer.includes("://") ? issuer : `https://${issuer}`).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+  return host === "accounts.google.com" ? "google" : null;
+}
+
 /** What the provider told us about the person, reduced to what an account needs. */
 export type OidcIdentity = {
   /**

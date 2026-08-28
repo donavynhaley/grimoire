@@ -23,6 +23,32 @@ describe("the sign-in screen", () => {
     expect(provider).toHaveAttribute("href", expect.stringContaining("/api/auth/oidc"));
   });
 
+  it("shows Google's own button when the provider is Google", () => {
+    render(<AuthScreen mode="login" oidc={{ label: "Google", brand: "google" }} onAuthenticated={nothingToDo} />);
+
+    // Google publishes the wording, and it is not "continue with <whatever the operator typed>".
+    const button = screen.getByRole("link", { name: "Sign in with Google" });
+    expect(button).toHaveClass("google-button");
+    expect(button).toHaveAttribute("href", expect.stringContaining("/api/auth/oidc"));
+    // The mark travels with it; the rules forbid the text alone as much as the mark alone.
+    expect(button.querySelector("svg")).toBeInTheDocument();
+  });
+
+  it("ignores the operator's label for a branded provider, since the wording is not theirs to set", () => {
+    render(
+      <AuthScreen mode="login" oidc={{ label: "Work Account", brand: "google" }} onAuthenticated={nothingToDo} />,
+    );
+    expect(screen.getByRole("link", { name: "Sign in with Google" })).toBeInTheDocument();
+    expect(screen.queryByText(/continue with Work Account/i)).not.toBeInTheDocument();
+  });
+
+  it("keeps the plain button for a provider that publishes no branding", () => {
+    render(<AuthScreen mode="login" oidc={{ label: "Authentik" }} onAuthenticated={nothingToDo} />);
+    const button = screen.getByRole("link", { name: /continue with Authentik/i });
+    expect(button).toHaveClass("provider-button");
+    expect(button.querySelector("svg")).not.toBeInTheDocument();
+  });
+
   it("offers nothing when the installation has no provider", () => {
     render(<AuthScreen mode="login" onAuthenticated={nothingToDo} />);
     expect(screen.queryByRole("link", { name: /continue with/i })).not.toBeInTheDocument();

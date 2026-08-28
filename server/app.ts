@@ -91,6 +91,7 @@ import {
   oidcHttpFetcher,
   parseIssuerInput,
   PendingSignIns,
+  providerBrand,
   safeReturnPath,
   type OidcConfig,
   type OidcFetcher,
@@ -658,7 +659,10 @@ export function createGrimoireServer(options: Options) {
       // a second door, and what to call it. Nothing here is a secret - the client id and the
       // provider's name are both public parts of the flow.
       const configured = currentOidc().config;
-      const signInOptions = configured ? { oidc: { label: configured.label } } : {};
+      const brand = configured ? providerBrand(configured.issuer) : null;
+      const signInOptions = configured
+        ? { oidc: { label: configured.label, ...(brand ? { brand } : {}) } }
+        : {};
       if (userCount(database) === 0) json(response, 200, { status: "setup_required", ...signInOptions });
       else if (!context.user) json(response, 200, { status: "anonymous", ...signInOptions });
       else {

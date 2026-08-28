@@ -29,7 +29,19 @@ export type User = {
  * Present on every session answer rather than only the signed-out ones, so the sign-in screen
  * knows what to offer before anybody has an account and nothing has to ask a second time.
  */
-export type SignInProviders = { oidc?: { label: string } };
+export type SignInProviders = {
+  oidc?: {
+    label: string;
+    /**
+     * Set when the provider publishes its own button, which then overrides the label.
+     *
+     * Not a style preference: Google requires a particular wording and an unmodified mark, and
+     * the button somebody has been taught to recognise is part of what makes handing over an
+     * account feel safe rather than like a phishing page.
+     */
+    brand?: "google";
+  };
+};
 
 export type SessionState = SignInProviders &
   ({ status: "setup_required" } | { status: "anonymous" } | { status: "authenticated"; user: User });

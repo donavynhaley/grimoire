@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { OidcSettings, OidcProviderDescription } from "../../shared/types";
-import { emailAllowed, oidcConfigFromEnvironment } from "../../server/oidc";
+import { emailAllowed, oidcConfigFromEnvironment, providerBrand } from "../../server/oidc";
 import { bootstrap, ownerAccount, startTestServer } from "./test-server";
 import { fakeProvider, ISSUER } from "./oidc-provider";
 
@@ -241,6 +241,31 @@ describe("reading a provider out of the environment", () => {
       GRIMOIRE_OIDC_ALLOWED_EMAIL_DOMAINS: "@team.example.test, example.org",
     });
     expect(config?.allowedEmailDomains).toEqual(["team.example.test", "example.org"]);
+  });
+});
+
+describe("which providers publish their own button", () => {
+  it("recognises Google, however the issuer was spelled", () => {
+    for (const issuer of [
+      "https://accounts.google.com",
+      "https://accounts.google.com/",
+      "accounts.google.com",
+      "https://accounts.google.com/.well-known/openid-configuration",
+    ]) {
+      expect(providerBrand(issuer), issuer).toBe("google");
+    }
+  });
+
+  it("leaves everything else to the plain button", () => {
+    // Including addresses that merely mention Google, which are not Google.
+    for (const issuer of [
+      "https://id.example.com",
+      "https://accounts.google.com.evil.example",
+      "https://mygoogle.example.com",
+      "not a url",
+    ]) {
+      expect(providerBrand(issuer), issuer).toBeNull();
+    }
   });
 });
 
