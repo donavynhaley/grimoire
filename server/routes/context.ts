@@ -42,6 +42,8 @@ export type AppContext = {
   broadcast: (projectId: string, scope: WorkspaceScope, excludedClientId: string | null) => void;
   broadcastPresence: (projectId: string) => void;
   disconnectUserEvents: (userId: string) => void;
+  /** Turns the current request into a registered live event stream; see app.ts for why it lives there. */
+  openEventStream: (context: RequestContext, clientId: string) => void;
   /** Reads a chapter's recap without posting it, so the owner can see what would go out. */
   recapFor: (projectId: string, chapterSlug: string) => unknown;
   /** Posts a chapter recap to the project's Discord webhook. */

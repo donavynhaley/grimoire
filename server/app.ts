@@ -3,129 +3,46 @@ import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { dirname, extname, join } from "node:path";
 import { ZodError } from "zod";
-import { PAGE_STATUS_LABELS, type PageGithubLink, type PageStatus, type User } from "../shared/types";
+import { PAGE_STATUS_LABELS, type PageStatus, type User } from "../shared/types";
+import { buildRecap, discordPoster, postRecap, recapMessages } from "./recap";
+import { githubApiFetcher, syncProjectGithub } from "./github";
+import { openDatabase, withTransaction } from "./database";
 import {
-  findThread,
-  listDiscussion,
-  markSeen as markDiscussionSeen,
-  openThread,
-  parseMentions,
-  replyToThread,
-  setThreadAnswered,
-} from "./discussion";
-import { buildRecap, discordPoster, postRecap, recapMessages, type DiscordPoster } from "./recap";
-import {
-  forgetOpenPullRequests,
-  githubApiFetcher,
-  listOpenPullRequests,
-  normalizeRepo,
-  parseGithubReference,
-  syncProjectGithub,
-  verifyRepoAccess,
-  type GithubFetcher,
-} from "./github";
-import { createProject, createWizardSimulatorProject, openDatabase, withTransaction } from "./database";
-import {
-  archivePage,
-  archiveProject,
   PageDependencyError,
-  pagesInChapter,
   categoriesForProject,
   chaptersEnabled,
   chaptersForProject,
-  createPage,
-  createCategory,
-  createChapter,
-  createField,
   defaultProjectIdForUser,
-  deleteCategory,
-  deleteChapter,
-  deleteField,
   fieldsForProject,
   EditConflictError,
-  findPage,
   findUserByEmail,
   findUserById,
   listPages,
-  listProjectsForUser,
-  advanceSeenCursor,
-  initializeSeenCursor,
-  listArchivedProjects,
-  addProjectMember,
   membersForProject,
   projectById,
-  projectSlug,
   publicUser,
-  seenCursor,
-  removeProjectMember,
-  renameProject,
-  restorePage,
-  restoreProject,
-  setChaptersEnabled,
-  setProjectDescription,
-  setMemberRole,
-  updatePage,
-  updateCategory,
-  updateChapter,
-  updateField,
   userCanAccessProject,
   userOwnsProject,
-  userCount,
-  projectGithubConfig,
-  setProjectGithub,
-  clearGithubStatus,
-  closeChapter,
-  nextChapterAfter,
   projectRecapConfig,
-  setProjectRecap,
   publicChapter,
-  setEstimatesEnabled,
   estimatesEnabled,
 } from "./repository";
-import { createOpaqueToken, hashPassword, hashToken, verifyPassword } from "./security";
+import { createOpaqueToken, hashPassword, hashToken } from "./security";
 import {
-  clientAddress,
   LOGIN_ACCOUNT_BURST,
   LOGIN_ACCOUNT_PER_MINUTE,
   LOGIN_ADDRESS_BURST,
   LOGIN_ADDRESS_PER_MINUTE,
   LoginRateLimiter,
 } from "./login-rate-limit";
-import {
-  DEFAULT_SCOPES as DEFAULT_OIDC_SCOPES,
-  newSignInSecrets,
-  OidcError,
-  oidcHttpFetcher,
-  parseIssuerInput,
-  PendingSignIns,
-  providerBrand,
-  safeReturnPath,
-  type OidcConfig,
-  type OidcFetcher,
-  type OidcIdentity,
-} from "./oidc";
-import {
-  emailAllowed,
-  oidcSettingsView,
-  OidcProviders,
-  resolveOidc,
-  saveOidcSettings,
-} from "./oidc-settings";
+import { oidcHttpFetcher, PendingSignIns, type OidcConfig, type OidcIdentity } from "./oidc";
+import { emailAllowed, OidcProviders, resolveOidc } from "./oidc-settings";
 import { findOidcLink, linkOidcIdentity, oidcLinkForUser, touchOidcLink } from "./oidc-identities";
-import {
-  AgentRateLimiter,
-  agentForToken,
-  issueAgentToken,
-  listAgentTokens,
-  revokeAgentToken,
-  touchAgentToken,
-  type AgentIdentity,
-} from "./agent-tokens";
-import { AVATAR_SIZE_LIMIT, AvatarStore, sniffAvatarType } from "./avatars";
-import { IMAGE_SIZE_LIMIT, ProjectImageStore, sniffImageType } from "./project-images";
+import { AgentRateLimiter, agentForToken, touchAgentToken, type AgentIdentity } from "./agent-tokens";
+import { AvatarStore } from "./avatars";
+import { ProjectImageStore } from "./project-images";
 import { MarkdownPageStore } from "./markdown-pages";
 import { MarkdownChapterStore } from "./markdown-chapters";
-import { createIdea, findIdea, getIdeas, promoteIdea, undoPromotion, updateIdea } from "./ideas-repository";
 import { MarkdownIdeaStore } from "./markdown-ideas";
 import type { EventClient, Options, RequestContext, WorkspaceScope } from "./app-types";
 import { agentMayReach } from "./agent-policy";
@@ -134,6 +51,7 @@ import { authRoutes } from "./routes/auth";
 import { boardRoutes } from "./routes/board";
 import { chapterRoutes } from "./routes/chapters";
 import { discussionRoutes } from "./routes/discussion";
+import { eventRoutes } from "./routes/events";
 import { fileRoutes } from "./routes/files";
 import { githubRoutes } from "./routes/github";
 import { ideaRoutes } from "./routes/ideas";
@@ -141,86 +59,24 @@ import { memberRoutes } from "./routes/members";
 import { pageCreateRoutes, pageRecordRoutes } from "./routes/pages";
 import { projectConfigRoutes } from "./routes/project-config";
 import { projectRoutes } from "./routes/projects";
-import { requireAdmin, requireUser, type AppContext } from "./routes/context";
+import { requireUser, type AppContext } from "./routes/context";
 import { matchRoute, type Route } from "./routes/route";
 import {
   HttpError,
   appendCookie,
   applySecurityHeaders,
   json,
-  oidcMessage,
   previewEntityId,
   readCookie,
-  readJson,
-  readRaw,
-  redirectToSignIn,
-  requestClientId,
   resolveStaticPath,
-  sendFile,
   serveDocument,
   serveFile,
 } from "./http";
-import {
-  ALREADY_OPEN_MESSAGE,
-  accountSchema,
-  activityQuerySchema,
-  agentTokenCreateSchema,
-  categoryCreateSchema,
-  categoryUpdateSchema,
-  chapterCloseSchema,
-  chapterCreateSchema,
-  chapterUpdateSchema,
-  discussionAnswerSchema,
-  discussionBodySchema,
-  displayNameSchema,
-  eventsQuerySchema,
-  fieldCreateSchema,
-  fieldUpdateSchema,
-  ideaSchema,
-  ideaUpdateSchema,
-  loginSchema,
-  memberAddSchema,
-  memberRoleSchema,
-  oidcProbeSchema,
-  oidcSettingsSchema,
-  pageSchema,
-  pageUpdateSchema,
-  passwordChangeSchema,
-  projectSchema,
-  projectUpdateSchema,
-  registerSchema,
-  seenSchema,
-} from "./schemas";
 import { pagePreview, ideaPreview, type LinkPreview } from "./link-preview";
-import {
-  CHAPTER_STATE_LABELS,
-  AUDIT_PAGE_SIZE,
-  pageChanges,
-  pageCreationChanges,
-  changeAction,
-  chapterAction,
-  chapterChanges,
-  chapterCreationChanges,
-  ideaChanges,
-  latestAuditSequence,
-  listAuditEvents,
-  listUnseenEvents,
-  recordAuditEvent,
-  summarize,
-  type PageLabels,
-  type RecordAuditInput,
-} from "./audit";
+import { recordAuditEvent, type PageLabels, type RecordAuditInput } from "./audit";
 
 const SESSION_COOKIE = "grimoire_session";
 const SESSION_AGE_SECONDS = 60 * 60 * 24 * 30;
-/**
- * Ties a provider callback to the browser that started the flow.
- *
- * Scoped to the callback route so it is sent on exactly one request, and `SameSite=Lax` rather
- * than `Strict` because the browser arrives back here from the provider's origin and a strict
- * cookie would not be sent on that navigation at all.
- */
-const OIDC_STATE_COOKIE = "grimoire_oidc_state";
 
 export function createGrimoireServer(options: Options) {
   const database = openDatabase(options.databasePath);
@@ -293,6 +149,7 @@ export function createGrimoireServer(options: Options) {
     broadcast,
     broadcastPresence,
     disconnectUserEvents,
+    openEventStream,
     recapFor,
     sendRecap,
     runGithubSync,
@@ -324,6 +181,7 @@ export function createGrimoireServer(options: Options) {
     ...projectConfigRoutes(appContext),
     ...chapterRoutes(appContext),
     ...memberRoutes(appContext),
+    ...eventRoutes(appContext),
     ...activityRoutes(appContext),
     ...pageCreateRoutes(appContext),
     ...ideaRoutes(appContext),
@@ -533,35 +391,42 @@ export function createGrimoireServer(options: Options) {
       return;
     }
 
-    if (method === "GET" && url.pathname === "/api/events") {
-      const user = requireUser(context);
-      const projectId = requireProject(context, user);
-      const clientId = eventsQuerySchema.parse(Object.fromEntries(url.searchParams)).client ?? "";
-      response.statusCode = 200;
-      response.setHeader("Content-Type", "text/event-stream; charset=utf-8");
-      response.setHeader("Cache-Control", "no-cache, no-transform");
-      response.setHeader("Connection", "keep-alive");
-      response.setHeader("X-Accel-Buffering", "no");
-      response.flushHeaders();
-      response.write(": connected\n\n");
-      const client: EventClient = {
-        clientId,
-        projectId,
-        response,
-        keepAlive: setInterval(() => sendEvent(client, ": keepalive\n\n"), 25_000),
-        userId: user.id,
-      };
-      eventClients.add(client);
-      broadcastPresence(projectId);
-      // A dead socket reports itself as a stream 'error', and an 'error' with no
-      // listener is an uncaught exception - so the listener is attached the moment
-      // the stream exists, not left to the next write to discover.
-      response.on("error", () => dropEventClient(client));
-      response.once("close", () => dropEventClient(client));
-      return;
-    }
-
+    // Sixty-eight routes used to live here as a flat chain; they live in the table now,
+    // and a path the table does not know is a path the server does not have.
     json(response, 404, { error: "Not found" });
+  }
+
+  /**
+   * Turns one request into a live event stream and registers it for broadcasts. Kept
+   * beside the broadcast machinery it feeds rather than in a route module, and reached
+   * through the context: presence is derived from these streams, so opening one is a
+   * statement about who is on the board.
+   */
+  function openEventStream(context: RequestContext, clientId: string): void {
+    const user = requireUser(context);
+    const projectId = requireProject(context, user);
+    const { response } = context;
+    response.statusCode = 200;
+    response.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+    response.setHeader("Cache-Control", "no-cache, no-transform");
+    response.setHeader("Connection", "keep-alive");
+    response.setHeader("X-Accel-Buffering", "no");
+    response.flushHeaders();
+    response.write(": connected\n\n");
+    const client: EventClient = {
+      clientId,
+      projectId,
+      response,
+      keepAlive: setInterval(() => sendEvent(client, ": keepalive\n\n"), 25_000),
+      userId: user.id,
+    };
+    eventClients.add(client);
+    broadcastPresence(projectId);
+    // A dead socket reports itself as a stream 'error', and an 'error' with no
+    // listener is an uncaught exception - so the listener is attached the moment
+    // the stream exists, not left to the next write to discover.
+    response.on("error", () => dropEventClient(client));
+    response.once("close", () => dropEventClient(client));
   }
 
   function withAvatar<T extends User>(user: T): T {
