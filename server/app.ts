@@ -681,16 +681,21 @@ export function createGrimoireServer(options: Options) {
     if (method === "POST" && url.pathname === "/api/auth/bootstrap") {
       if (userCount(database) !== 0) throw new HttpError(409, "Setup is already complete");
       const input = accountSchema.parse(await readJson(request));
-      if (userCount(database) !== 0) throw new HttpError(409, "Setup is already complete");
       const userId = randomUUID();
       const now = new Date().toISOString();
       const passwordHash = await hashPassword(input.password);
       // The one admin this installation ever has: whoever stood it up. Nothing grants the
       // role afterwards and nothing takes it away, which is what makes it the account that
-      // can never be locked out of its own instance.
-      database
-        .prepare("INSERT INTO users (id, name, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, 'admin', ?)")
+      // can never be locked out of its own instance. "One, ever" is enforced by the INSERT
+      // itself rather than by the check above, because that check and this write are
+      // separated by two awaits - two racing setup requests would both pass it.
+      const inserted = database
+        .prepare(
+          `INSERT INTO users (id, name, email, password_hash, role, created_at)
+           SELECT ?, ?, ?, ?, 'admin', ? WHERE NOT EXISTS (SELECT 1 FROM users)`,
+        )
         .run(userId, input.name, input.email, passwordHash, now);
+      if (Number(inserted.changes) !== 1) throw new HttpError(409, "Setup is already complete");
       let projectId: string;
       try {
         projectId = createWizardSimulatorProject(database, userId);
