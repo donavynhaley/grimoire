@@ -1,9 +1,12 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import {
+  BODY_MAX_LENGTH,
   ConflictError,
+  DISCUSSION_BODY_MAX_LENGTH,
   GrimoireClient,
   GrimoireError,
+  MCP_VERSION,
   type Board,
   type DiscussionThread,
   type Page,
@@ -24,22 +27,6 @@ import {
   resolvePage,
   resolveStatus,
 } from "./resolve.js";
-
-/**
- * How long a body may be, mirroring `BODY_MAX_LENGTH` in the server's shared/types.ts.
- *
- * Duplicated rather than imported because this package ships to npm on its own and takes no
- * dependency on the application source. The server is the one that enforces it; this copy only
- * saves an agent a round trip to be told the same thing. They must move together - and the
- * repo's mcp-contract test fails the suite when either drifts.
- */
-export const BODY_MAX_LENGTH = 50_000;
-
-/** Mirrors `DISCUSSION_BODY_MAX_LENGTH` in shared/types.ts, under the same contract test. */
-export const DISCUSSION_BODY_MAX_LENGTH = 4_000;
-
-/** Mirrors the package.json version; the contract test keeps the two saying the same thing. */
-export const MCP_VERSION = "0.3.0";
 
 /** What a field patch looks like coming from an agent. `null` clears one. */
 const fieldPatch = z

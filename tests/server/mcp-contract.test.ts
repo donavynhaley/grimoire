@@ -9,17 +9,18 @@ import {
   type Page,
   type SearchResults,
 } from "../../shared/types";
+// Imported from the package's dependency-free modules only - never from server.ts, whose
+// SDK import would make this suite depend on the package's own install step. The root
+// `npm test` must hold the contract on a fresh clone, and in CI it runs first.
 import {
   BODY_MAX_LENGTH as AGENT_BODY_MAX_LENGTH,
   DISCUSSION_BODY_MAX_LENGTH as AGENT_DISCUSSION_BODY_MAX_LENGTH,
   MCP_VERSION,
-} from "../../packages/grimoire-mcp/src/server";
-import { PAGE_COLUMNS, columnLabel } from "../../packages/grimoire-mcp/src/resolve";
-import type {
-  Board as AgentBoard,
-  Page as AgentPage,
-  SearchResults as AgentSearchResults,
+  type Board as AgentBoard,
+  type Page as AgentPage,
+  type SearchResults as AgentSearchResults,
 } from "../../packages/grimoire-mcp/src/client";
+import { PAGE_COLUMNS, columnLabel } from "../../packages/grimoire-mcp/src/resolve";
 
 /**
  * The MCP package re-declares the shapes it reads, deliberately: it ships to npm on its

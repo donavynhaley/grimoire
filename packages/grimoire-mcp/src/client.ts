@@ -14,6 +14,23 @@
 export const PAGE_COLUMNS = ["backlog", "ready", "in_progress", "review", "done"] as const;
 export type PageColumn = (typeof PAGE_COLUMNS)[number];
 
+/*
+ * The rest of what this package mirrors from the application it talks to. Duplicated
+ * rather than imported because the package ships to npm on its own and takes no
+ * dependency on the application source; the copies live in this dependency-free module
+ * so the repo's mcp-contract test can hold them to the originals without loading the
+ * MCP SDK, and each must move together with its counterpart.
+ */
+
+/** How long a body may be, mirroring BODY_MAX_LENGTH in the server's shared/types.ts. */
+export const BODY_MAX_LENGTH = 50_000;
+
+/** Mirrors DISCUSSION_BODY_MAX_LENGTH in shared/types.ts. */
+export const DISCUSSION_BODY_MAX_LENGTH = 4_000;
+
+/** Mirrors the package.json version; the contract test keeps the two saying the same thing. */
+export const MCP_VERSION = "0.3.0";
+
 export type FieldValue = string | number | boolean;
 
 export type ProjectField = {
