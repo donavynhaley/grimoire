@@ -1,5 +1,6 @@
 import type { ProjectCategory } from "../shared/types";
-import { PAGE_COLUMN_LABELS, IDEA_LIST_LABELS } from "./audit";
+import { PAGE_STATUS_LABELS } from "../shared/types";
+import { IDEA_LIST_LABELS } from "./audit";
 import type { StoredPage } from "./markdown-pages";
 import type { StoredIdea } from "./markdown-ideas";
 
@@ -37,7 +38,7 @@ export function pagePreview(input: {
   return {
     accent: category?.color ?? DEFAULT_ACCENT,
     details: [
-      page.archivedAt === null ? PAGE_COLUMN_LABELS[page.status] : "Archived",
+      page.archivedAt === null ? PAGE_STATUS_LABELS[page.status] : "Archived",
       page.blockedBy.length > 0 ? "Blocked" : null,
       category?.name ?? null,
       chapterName ?? null,
@@ -56,7 +57,9 @@ export function ideaPreview(input: {
   const { authorName, idea, projectName } = input;
   return {
     accent: DEFAULT_ACCENT,
-    details: ["Idea garden", ideaStanding(idea), authorName].filter((value): value is string => value !== null),
+    details: ["Idea garden", ideaStanding(idea), authorName].filter(
+      (value): value is string => value !== null,
+    ),
     projectName,
     title: idea.title,
   };

@@ -41,7 +41,10 @@ async function chapter(server: TestServer, name: string, state: Chapter["state"]
 }
 
 async function page(server: TestServer, input: Record<string, unknown>) {
-  const { body } = await server.request<{ page: Page }>("/api/pages", { method: "POST", body: JSON.stringify(input) });
+  const { body } = await server.request<{ page: Page }>("/api/pages", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
   return body.page;
 }
 
@@ -50,7 +53,10 @@ async function finish(server: TestServer, id: string) {
 }
 
 async function close(server: TestServer, slug: string, rollover = "keep") {
-  return server.request(`/api/chapters/${slug}/close`, { method: "POST", body: JSON.stringify({ rollover }) });
+  return server.request(`/api/chapters/${slug}/close`, {
+    method: "POST",
+    body: JSON.stringify({ rollover }),
+  });
 }
 
 /** Waits for the post that closing fires after it has already answered. */
@@ -68,7 +74,12 @@ describe("the recap a closing chapter posts", () => {
     await chapter(server, "Sprint Two");
 
     const me = (await board(server)).currentUser.id;
-    const done = await page(server, { title: "Shipped the circle", chapter: open.slug, estimate: 5, assigneeId: me });
+    const done = await page(server, {
+      title: "Shipped the circle",
+      chapter: open.slug,
+      estimate: 5,
+      assigneeId: me,
+    });
     await finish(server, done.id);
     await page(server, { title: "Still going", chapter: open.slug, estimate: 3, status: "in_progress" });
 
@@ -76,7 +87,7 @@ describe("the recap a closing chapter posts", () => {
     await settled();
 
     const text = discord.all();
-    expect(discord.posts[0].url).toBe("https://discord.test/hook");
+    expect(discord.posts[0]!.url).toBe("https://discord.test/hook");
     expect(text).toContain("Sprint One");
     expect(text).toContain("**Delivered:** 1 page");
     expect(text).toContain("**Velocity:** 5 pts");
@@ -165,7 +176,7 @@ describe("the recap a closing chapter posts", () => {
     expect(body.recap.deliveredEstimate).toBe(8);
     expect(body.recap.chapter.name).toBe("Sprint One");
     expect(body.recap.byPerson[0]).toMatchObject({ shipped: 1, shippedEstimate: 8 });
-    expect(body.recap.byPerson[0].titles).toContain("Shipped it");
+    expect(body.recap.byPerson[0]!.titles).toContain("Shipped it");
     expect(body.recap.project.total).toBeGreaterThan(0);
   });
 
@@ -177,12 +188,16 @@ describe("the recap a closing chapter posts", () => {
     const open = await chapter(server, "Sprint One", "open");
 
     const { body } = await server.request<{ sent: number; failed: number }>(
-      `/api/chapters/${open.slug}/recap`, { method: "POST", body: "{}" },
+      `/api/chapters/${open.slug}/recap`,
+      { method: "POST", body: "{}" },
     );
     expect(body.sent).toBeGreaterThan(0);
 
     const projectId = (await board(server)).project.id;
-    await server.request(`/api/projects/${projectId}`, { method: "PATCH", body: JSON.stringify({ discordWebhook: "" }) });
+    await server.request(`/api/projects/${projectId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ discordWebhook: "" }),
+    });
     const refused = await server.fetchRaw(`/api/chapters/${open.slug}/recap`, {
       method: "POST",
       headers: { "content-type": "application/json", cookie: server.cookie() },

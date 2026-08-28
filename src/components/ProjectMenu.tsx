@@ -1,5 +1,6 @@
 import { type FormEvent, useState } from "react";
 import type { ProjectSummary } from "../../shared/types";
+import { Growing } from "./Growing";
 
 export type ProjectActions = {
   select: (id: string) => Promise<void>;
@@ -35,7 +36,17 @@ type Props = {
  * every time it opens. Settings is offered to every member - the dialog itself decides what
  * a member may read versus what an owner may change.
  */
-export function ProjectMenu({ project, projects, isOwner, busy, actions, onOpenSettings, onOpenActivity, onOpenTeam, activityBadge = 0 }: Props) {
+export function ProjectMenu({
+  project,
+  projects,
+  isOwner,
+  busy,
+  actions,
+  onOpenSettings,
+  onOpenActivity,
+  onOpenTeam,
+  activityBadge = 0,
+}: Props) {
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
@@ -85,7 +96,9 @@ export function ProjectMenu({ project, projects, isOwner, busy, actions, onOpenS
         >
           {/* Named separately so a long project name can give way on narrow screens. */}
           <span className="project-menu-name">{project.name}</span>
-          <span aria-hidden="true" className="project-menu-caret">▾</span>
+          <span aria-hidden="true" className="project-menu-caret">
+            ▾
+          </span>
         </button>
       </h1>
       {open && (
@@ -110,35 +123,56 @@ export function ProjectMenu({ project, projects, isOwner, busy, actions, onOpenS
               </button>
             ))}
           </div>
-          <div className="project-menu-owner">
+          <Growing className="project-menu-owner">
             {/* Collapsed behind a reveal, the way every column's "+ add page" already works. */}
-            {isOwner && (creating ? (
-              <form className="project-menu-create" onSubmit={submitNewProject}>
-                <label className="sr-only" htmlFor="new-project-name">New project name</label>
-                <input
-                  autoFocus
-                  id="new-project-name"
-                  name="newProjectName"
-                  onChange={(event) => setNewName(event.target.value)}
-                  onKeyDown={(event) => { if (event.key === "Escape") setCreating(false); }}
-                  placeholder="New project name..."
-                  value={newName}
-                />
-                <button className="primary-button compact" disabled={busy || !newName.trim()} type="submit">create</button>
-              </form>
-            ) : (
-              <button className="project-menu-entry" onClick={() => setCreating(true)} role="menuitem" type="button">
-                <span aria-hidden="true" className="project-menu-glyph">+</span>New project
-              </button>
-            ))}
+            {isOwner &&
+              (creating ? (
+                <form className="project-menu-create" onSubmit={submitNewProject}>
+                  <label className="sr-only" htmlFor="new-project-name">
+                    New project name
+                  </label>
+                  <input
+                    autoFocus
+                    id="new-project-name"
+                    name="newProjectName"
+                    onChange={(event) => setNewName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") setCreating(false);
+                    }}
+                    placeholder="New project name..."
+                    value={newName}
+                  />
+                  <button className="primary-button compact" disabled={busy || !newName.trim()} type="submit">
+                    create
+                  </button>
+                </form>
+              ) : (
+                <button
+                  className="project-menu-entry"
+                  onClick={() => setCreating(true)}
+                  role="menuitem"
+                  type="button"
+                >
+                  <span aria-hidden="true" className="project-menu-glyph">
+                    +
+                  </span>
+                  New project
+                </button>
+              ))}
             {onOpenActivity && (
               <button
                 className="project-menu-entry phone-only"
-                onClick={() => { close(); onOpenActivity(); }}
+                onClick={() => {
+                  close();
+                  onOpenActivity();
+                }}
                 role="menuitem"
                 type="button"
               >
-                <span aria-hidden="true" className="project-menu-glyph">≡</span>Activity
+                <span aria-hidden="true" className="project-menu-glyph">
+                  ≡
+                </span>
+                Activity
                 {activityBadge > 0 && (
                   <span aria-label={`${activityBadge} changes since your last visit`} className="away-badge">
                     {activityBadge > 99 ? "99+" : activityBadge}
@@ -148,22 +182,38 @@ export function ProjectMenu({ project, projects, isOwner, busy, actions, onOpenS
             )}
             <button
               className="project-menu-entry phone-only"
-              onClick={() => { close(); onOpenTeam(); }}
+              onClick={() => {
+                close();
+                onOpenTeam();
+              }}
               role="menuitem"
               type="button"
             >
-              <span aria-hidden="true" className="project-menu-glyph">◔</span>Team
+              <span aria-hidden="true" className="project-menu-glyph">
+                ◔
+              </span>
+              Team
             </button>
             <button
               className="project-menu-entry settings"
-              onClick={() => { close(); onOpenSettings(); }}
+              onClick={() => {
+                close();
+                onOpenSettings();
+              }}
               role="menuitem"
               type="button"
             >
-              <span aria-hidden="true" className="project-menu-glyph">⚙</span>Project settings
+              <span aria-hidden="true" className="project-menu-glyph">
+                ⚙
+              </span>
+              Project settings
             </button>
-          </div>
-          {error && <p className="project-menu-error" role="alert">{error}</p>}
+          </Growing>
+          {error && (
+            <p className="project-menu-error" role="alert">
+              {error}
+            </p>
+          )}
         </div>
       )}
     </div>

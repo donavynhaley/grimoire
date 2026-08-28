@@ -29,10 +29,10 @@ describe("display name", () => {
     const board = (await server.request<BoardWorkspace>("/api/board")).body;
     expect(board.currentUser.name).toBe("Dono");
     expect(board.members.map((member) => member.name)).toEqual(["Dono"]);
-    expect(board.pages[0].createdByName).toBe("Dono");
+    expect(board.pages[0]!.createdByName).toBe("Dono");
 
     const ideas = (await server.request<IdeaWorkspace>("/api/ideas")).body;
-    expect(ideas.ideas[0].createdByName).toBe("Dono");
+    expect(ideas.ideas[0]!.createdByName).toBe("Dono");
   });
 
   it("trims the name and rejects one that is too short", async () => {

@@ -6,7 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { uploadImage } from "../../src/api/client";
 import { NotesField } from "../../src/components/NotesField";
-import { plainTextFromMarkdown } from "../../src/components/markdown-text";
+import { plainTextFromMarkdown } from "../../src/lib/markdown-text";
 
 vi.mock("../../src/api/client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../src/api/client")>();
@@ -104,7 +104,7 @@ describe("NotesField live preview", () => {
     expect(table).not.toBeNull();
     const headers = table?.querySelectorAll("th:not(.cm-lp-table-grow)") ?? [];
     expect(headers).toHaveLength(2);
-    expect(headers[0].textContent).toBe("Part");
+    expect(headers[0]!.textContent).toBe("Part");
     expect(table?.querySelector("td:not(.cm-lp-table-grow)")?.textContent).toBe("Door");
     expect((headers[1] as HTMLElement).style.textAlign).toBe("right");
   });
@@ -177,7 +177,9 @@ describe("NotesField Obsidian embeds", () => {
   });
 
   it("honors Obsidian display sizes and alt modifiers", () => {
-    const { container } = renderNotes("![[shot.png|300]]\n\n![[plan.png|300x200]]\n\n![[door.png|door sketch]]");
+    const { container } = renderNotes(
+      "![[shot.png|300]]\n\n![[plan.png|300x200]]\n\n![[door.png|door sketch]]",
+    );
 
     const images = container.querySelectorAll("img.cm-lp-image");
     expect(images[0]).toHaveAttribute("width", "300");
@@ -207,7 +209,10 @@ describe("NotesField Obsidian embeds", () => {
   it("leaves absolute image sources untouched", () => {
     const { container } = renderNotes("![chart](https://example.com/chart.png)");
 
-    expect(container.querySelector("img.cm-lp-image")).toHaveAttribute("src", "https://example.com/chart.png");
+    expect(container.querySelector("img.cm-lp-image")).toHaveAttribute(
+      "src",
+      "https://example.com/chart.png",
+    );
   });
 });
 
@@ -224,7 +229,9 @@ describe("NotesField task checkboxes", () => {
 
     fireEvent.mouseDown(box);
 
-    await waitFor(() => expect((container.querySelector("input.cm-lp-task") as HTMLInputElement).checked).toBe(true));
+    await waitFor(() =>
+      expect((container.querySelector("input.cm-lp-task") as HTMLInputElement).checked).toBe(true),
+    );
   });
 
   it("hands the box back as [ ] once the caret is on its line", async () => {
@@ -258,7 +265,12 @@ function PasteHarness({ onValue }: { onValue?: (value: string) => void } = {}) {
 describe("NotesField image paste", () => {
   const png = () => new File([Uint8Array.from([137, 80, 78, 71])], "screenshot.png", { type: "image/png" });
   /** A clipboard the editor can also read text out of, the way a real one would. */
-  const clipboard = (files: File[]) => ({ files, items: [], types: files.length ? ["Files"] : [], getData: () => "" });
+  const clipboard = (files: File[]) => ({
+    files,
+    items: [],
+    types: files.length ? ["Files"] : [],
+    getData: () => "",
+  });
 
   it("uploads a pasted screenshot and embeds it Obsidian-style", async () => {
     vi.mocked(uploadImage).mockResolvedValue({ name: "pasted-image-20260807-183045-ab12.png" });
@@ -385,13 +397,17 @@ describe("NotesField as a controlled field", () => {
   it("carries the resting height the rows asked for", () => {
     const { container } = renderNotes("");
 
-    expect((container.querySelector(".notes-field") as HTMLElement).style.getPropertyValue("--notes-rows")).toBe("6");
+    expect(
+      (container.querySelector(".notes-field") as HTMLElement).style.getPropertyValue("--notes-rows"),
+    ).toBe("6");
   });
 });
 
 describe("plainTextFromMarkdown", () => {
   it("strips the syntax that would clutter a page tile", () => {
-    const text = plainTextFromMarkdown("# Goal\n\nUse **bold** and [a link](https://example.com).\n\n- one\n- two");
+    const text = plainTextFromMarkdown(
+      "# Goal\n\nUse **bold** and [a link](https://example.com).\n\n- one\n- two",
+    );
     expect(text).toBe("Goal Use bold and a link. one two");
   });
 

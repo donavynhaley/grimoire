@@ -1,4 +1,11 @@
-import { createHash, createHmac, createPublicKey, randomBytes, timingSafeEqual, verify as verifySignature } from "node:crypto";
+import {
+  createHash,
+  createHmac,
+  createPublicKey,
+  randomBytes,
+  timingSafeEqual,
+  verify as verifySignature,
+} from "node:crypto";
 import { constants } from "node:crypto";
 import { z } from "zod";
 
@@ -123,7 +130,9 @@ const CLOCK_SKEW_SECONDS = 120;
  * who set two of the three variables has said what they want, and a silently missing sign-in
  * option is the hardest kind of misconfiguration to notice.
  */
-export function oidcConfigFromEnvironment(environment: Record<string, string | undefined>): OidcConfig | null {
+export function oidcConfigFromEnvironment(
+  environment: Record<string, string | undefined>,
+): OidcConfig | null {
   const issuer = environment.GRIMOIRE_OIDC_ISSUER?.trim();
   const clientId = environment.GRIMOIRE_OIDC_CLIENT_ID?.trim();
   const clientSecret = environment.GRIMOIRE_OIDC_CLIENT_SECRET?.trim() ?? "";
@@ -161,7 +170,9 @@ export function oidcConfigFromEnvironment(environment: Record<string, string | u
  * a support thread rather than a security property, so all three are accepted here and the
  * difference is remembered, because it decides one real check later - see `discover`.
  */
-export function parseIssuerInput(value: string): { issuer: string; hostname: string; pastedDiscovery: boolean } | { error: string } {
+export function parseIssuerInput(
+  value: string,
+): { issuer: string; hostname: string; pastedDiscovery: boolean } | { error: string } {
   const trimmed = value.trim();
   if (!trimmed) return { error: "is empty" };
   let parsed: URL;
@@ -179,7 +190,10 @@ export function parseIssuerInput(value: string): { issuer: string; hostname: str
 }
 
 export function parseScopes(value: string | undefined): string[] {
-  const scopes = (value ?? "").split(/[\s,]+/).map((scope) => scope.trim()).filter(Boolean);
+  const scopes = (value ?? "")
+    .split(/[\s,]+/)
+    .map((scope) => scope.trim())
+    .filter(Boolean);
   return scopes.length > 0 ? [...new Set(["openid", ...scopes])] : DEFAULT_SCOPES;
 }
 
@@ -339,7 +353,8 @@ export class OidcProvider {
     const { jwks_uri: jwksUri } = await this.discover();
     if (!jwksUri) throw new OidcError("The sign-in provider publishes no signing keys");
     const { status, body } = await this.fetcher(jwksUri);
-    if (status !== 200) throw new OidcError(`The sign-in provider's signing keys could not be read (${status})`);
+    if (status !== 200)
+      throw new OidcError(`The sign-in provider's signing keys could not be read (${status})`);
     const parsed = jwksSchema.safeParse(body);
     if (!parsed.success) throw new OidcError("The sign-in provider's signing keys are unusable");
     this.jwks = { keys: parsed.data.keys, fetchedAt: this.now() };
@@ -347,7 +362,12 @@ export class OidcProvider {
   }
 
   /** Where to send the browser to ask the provider who this is. */
-  async authorizationUrl(input: { redirectUri: string; state: string; nonce: string; verifier: string }): Promise<string> {
+  async authorizationUrl(input: {
+    redirectUri: string;
+    state: string;
+    nonce: string;
+    verifier: string;
+  }): Promise<string> {
     const { authorization_endpoint: endpoint } = await this.discover();
     const url = new URL(endpoint);
     url.searchParams.set("response_type", "code");
@@ -369,7 +389,12 @@ export class OidcProvider {
    * over TLS from the provider itself - the signature is what makes the claims evidence rather
    * than something a misrouted response could put in front of us.
    */
-  async identify(input: { code: string; redirectUri: string; verifier: string; nonce: string }): Promise<OidcIdentity> {
+  async identify(input: {
+    code: string;
+    redirectUri: string;
+    verifier: string;
+    nonce: string;
+  }): Promise<OidcIdentity> {
     const discovery = await this.discover();
     const parameters = new URLSearchParams({
       grant_type: "authorization_code",
@@ -430,7 +455,8 @@ export class OidcProvider {
     // An account is matched by email, so an email the provider itself will not vouch for is
     // an account takeover waiting for somebody to set their address to a colleague's. A
     // provider that says nothing about verification is trusted; one that says no is not.
-    if (emailVerified === false) throw new OidcError("The sign-in provider has not verified that email address");
+    if (emailVerified === false)
+      throw new OidcError("The sign-in provider has not verified that email address");
 
     return {
       issuer: discovery.issuer.replace(/\/+$/, ""),
@@ -440,10 +466,14 @@ export class OidcProvider {
     };
   }
 
-  private async verifyIdToken(token: string, nonce: string, discovery: Discovery): Promise<Record<string, unknown>> {
+  private async verifyIdToken(
+    token: string,
+    nonce: string,
+    discovery: Discovery,
+  ): Promise<Record<string, unknown>> {
     const segments = token.split(".");
     if (segments.length !== 3) throw new OidcError("The identity token is malformed");
-    const [headerSegment, payloadSegment, signatureSegment] = segments;
+    const [headerSegment, payloadSegment, signatureSegment] = segments as [string, string, string];
     const header = decodeSegment(headerSegment);
     const claims = decodeSegment(payloadSegment);
     const algorithm = typeof header.alg === "string" ? header.alg : "";
@@ -451,8 +481,11 @@ export class OidcProvider {
     const signed = Buffer.from(`${headerSegment}.${payloadSegment}`, "utf8");
 
     if (algorithm in HMAC_ALGORITHMS) {
-      if (!this.config.clientSecret) throw new OidcError("The identity token is signed with a secret we do not hold");
-      const expected = createHmac(HMAC_ALGORITHMS[algorithm], this.config.clientSecret).update(signed).digest();
+      if (!this.config.clientSecret)
+        throw new OidcError("The identity token is signed with a secret we do not hold");
+      const expected = createHmac(HMAC_ALGORITHMS[algorithm]!, this.config.clientSecret)
+        .update(signed)
+        .digest();
       if (expected.length !== signature.length || !timingSafeEqual(expected, signature)) {
         throw new OidcError("The identity token's signature is not valid");
       }
@@ -472,7 +505,8 @@ export class OidcProvider {
     }
 
     const audience = Array.isArray(claims.aud) ? claims.aud.map(String) : [String(claims.aud ?? "")];
-    if (!audience.includes(this.config.clientId)) throw new OidcError("The identity token was issued for another application");
+    if (!audience.includes(this.config.clientId))
+      throw new OidcError("The identity token was issued for another application");
     // With more than one audience the token is shared, and only `azp` says it was meant for us.
     if (audience.length > 1 && claims.azp !== undefined && claims.azp !== this.config.clientId) {
       throw new OidcError("The identity token was issued for another application");
@@ -617,7 +651,7 @@ function findKey(
   // Without a key id there must be no ambiguity about which key signed it, so a provider
   // publishing several is refused rather than guessed at.
   const candidates = usable.filter((key) => key.alg === undefined || key.alg === algorithm);
-  return candidates.length === 1 ? candidates[0] : null;
+  return candidates.length === 1 ? candidates[0]! : null;
 }
 
 function verifyAsymmetric(

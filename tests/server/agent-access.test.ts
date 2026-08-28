@@ -45,7 +45,10 @@ async function loginMember(server: TestServer) {
 
 /** Invites and registers Maren, leaving the session signed in as her. */
 async function registerMember(server: TestServer) {
-  const invite = await server.request<{ code: string }>("/api/invites", { method: "POST", body: JSON.stringify({}) });
+  const invite = await server.request<{ code: string }>("/api/invites", {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
   await server.request("/api/auth/register", {
     method: "POST",
     body: JSON.stringify({ ...MEMBER, inviteCode: invite.body.code }),
@@ -109,11 +112,13 @@ describe("agent access", () => {
       await server.close();
 
       const database = new DatabaseSync(server.databasePath);
-      const rows = database.prepare("SELECT token_hash FROM agent_tokens").all() as Array<{ token_hash: string }>;
+      const rows = database.prepare("SELECT token_hash FROM agent_tokens").all() as Array<{
+        token_hash: string;
+      }>;
       database.close();
       expect(rows).toHaveLength(1);
-      expect(rows[0].token_hash).not.toBe(created.body.secret);
-      expect(rows[0].token_hash).not.toContain("grim_");
+      expect(rows[0]!.token_hash).not.toBe(created.body.secret);
+      expect(rows[0]!.token_hash).not.toContain("grim_");
     });
 
     it("lets an agent write a page that a person can then see on the board", async () => {
@@ -127,7 +132,7 @@ describe("agent access", () => {
       const board = await server.request<BoardWorkspace>("/api/board");
       expect(board.body.pages.map((page) => page.title)).toContain("Ward the tower door");
       // The write is attributed to the person who issued the token, not to a machine account.
-      expect(board.body.pages[0].createdByName).toBe("Donavyn");
+      expect(board.body.pages[0]!.createdByName).toBe("Donavyn");
     });
 
     it("refuses a malformed, unknown, or unprefixed bearer token", async () => {
@@ -149,7 +154,12 @@ describe("agent access", () => {
       const revoked = await server.request(`/api/agent-tokens/${body.token.id}`, { method: "DELETE" });
       expect(revoked.response.status).toBe(200);
 
-      const afterwards = await asAgent(server, body.secret, "/api/pages", agentPage("Written after revoking"));
+      const afterwards = await asAgent(
+        server,
+        body.secret,
+        "/api/pages",
+        agentPage("Written after revoking"),
+      );
       expect(afterwards.response.status).toBe(401);
 
       const board = await server.request<BoardWorkspace>("/api/board");
@@ -241,7 +251,8 @@ describe("agent access", () => {
       const server = await startTestServer();
       await bootstrap(server);
       const { body } = await issue(server, { name: "Reader", scope: "read" });
-      const created = (await server.request<{ page: Page }>("/api/pages", agentPage("A page worth reading"))).body.page;
+      const created = (await server.request<{ page: Page }>("/api/pages", agentPage("A page worth reading")))
+        .body.page;
 
       const read = await asAgent(server, body.secret, `/api/pages/${created.id}`);
       expect(read.response.status).toBe(200);
@@ -259,7 +270,8 @@ describe("agent access", () => {
       const server = await startTestServer();
       await bootstrap(server);
       const { body } = await issue(server, { name: "Reader", scope: "read" });
-      const created = (await server.request<{ page: Page }>("/api/pages", agentPage("Soon archived"))).body.page;
+      const created = (await server.request<{ page: Page }>("/api/pages", agentPage("Soon archived"))).body
+        .page;
 
       const missing = await asAgent(server, body.secret, `/api/pages/${randomUUID()}`);
       expect(missing.response.status).toBe(404);
@@ -277,10 +289,12 @@ describe("agent access", () => {
       await bootstrap(server);
       const { body } = await issue(server);
       const page = (await server.request<{ page: Page }>("/api/pages", agentPage("A real page"))).body.page;
-      const idea = (await server.request<{ idea: { id: string } }>("/api/ideas", {
-        method: "POST",
-        body: JSON.stringify({ title: "A real idea" }),
-      })).body.idea;
+      const idea = (
+        await server.request<{ idea: { id: string } }>("/api/ideas", {
+          method: "POST",
+          body: JSON.stringify({ title: "A real idea" }),
+        })
+      ).body.idea;
 
       const forbidden = [
         [`/api/pages/${page.id}`, "DELETE"],
@@ -330,6 +344,25 @@ describe("agent access", () => {
       }
     });
 
+    it("refuses a route nobody has written yet, because the list is closed by default", async () => {
+      const server = await startTestServer();
+      await bootstrap(server);
+      const { body } = await issue(server);
+
+      // The lists above prove today's routes are refused; this proves the *policy* - the
+      // allow-list gate runs before routing, so a route added next month is closed to
+      // agents until someone opens it deliberately. If this refusal ever becomes a 404,
+      // routes have started answering agents before the policy sees them.
+      for (const method of ["GET", "POST", "PATCH", "DELETE"] as const) {
+        const attempt = await asAgent(server, body.secret, "/api/some-route-from-the-future", {
+          method,
+          ...(method === "GET" ? {} : { body: "{}" }),
+        });
+        expect(attempt.response.status, method).toBe(403);
+        expect(attempt.body.error, method).toContain("agent token");
+      }
+    });
+
     it("refuses to mint or revoke another token", async () => {
       const server = await startTestServer();
       await bootstrap(server);
@@ -341,7 +374,9 @@ describe("agent access", () => {
       });
       expect(minted.response.status).toBe(403);
       expect((await asAgent(server, body.secret, "/api/agent-tokens")).response.status).toBe(403);
-      const revoked = await asAgent(server, body.secret, `/api/agent-tokens/${body.token.id}`, { method: "DELETE" });
+      const revoked = await asAgent(server, body.secret, `/api/agent-tokens/${body.token.id}`, {
+        method: "DELETE",
+      });
       expect(revoked.response.status).toBe(403);
     });
 
@@ -360,10 +395,12 @@ describe("agent access", () => {
       const server = await startTestServer();
       await bootstrap(server);
       const first = (await server.request<BoardWorkspace>("/api/board")).body.project;
-      const second = (await server.request<{ project: { id: string } }>("/api/projects", {
-        method: "POST",
-        body: JSON.stringify({ name: "Second project" }),
-      })).body.project;
+      const second = (
+        await server.request<{ project: { id: string } }>("/api/projects", {
+          method: "POST",
+          body: JSON.stringify({ name: "Second project" }),
+        })
+      ).body.project;
       expect(second.id).not.toBe(first.id);
 
       // The token is issued while the owner is looking at the first project.
@@ -406,7 +443,9 @@ describe("agent access", () => {
       await asAgent(server, body.secret, "/api/pages", agentPage("Drafted by the agent"));
 
       const activity = await server.request<AuditPage>("/api/activity");
-      const event = activity.body.events.find((candidate) => candidate.entityTitle === "Drafted by the agent");
+      const event = activity.body.events.find(
+        (candidate) => candidate.entityTitle === "Drafted by the agent",
+      );
       expect(event).toBeDefined();
       // The person stays accountable, and the agent is named beside them.
       expect(event!.actorName).toBe("Donavyn");
@@ -421,7 +460,9 @@ describe("agent access", () => {
       await server.request(`/api/agent-tokens/${body.token.id}`, { method: "DELETE" });
 
       const activity = await server.request<AuditPage>("/api/activity");
-      const event = activity.body.events.find((candidate) => candidate.entityTitle === "Written then retired");
+      const event = activity.body.events.find(
+        (candidate) => candidate.entityTitle === "Written then retired",
+      );
       // Revoking must not rewrite what already happened.
       expect(event!.agentName).toBe("Planning agent");
     });
@@ -473,9 +514,9 @@ describe("agent access", () => {
       const row = stored
         .prepare("SELECT sequence, entity_title, agent_token_id FROM audit_events WHERE id = 'e1'")
         .get() as { sequence: number; entity_title: string; agent_token_id: string | null };
-      const constraint = (stored
-        .prepare("SELECT sql FROM sqlite_master WHERE name = 'audit_events'")
-        .get() as { sql: string }).sql;
+      const constraint = (
+        stored.prepare("SELECT sql FROM sqlite_master WHERE name = 'audit_events'").get() as { sql: string }
+      ).sql;
       stored.close();
 
       expect(row.agent_token_id).toBe("t1");
@@ -503,8 +544,8 @@ describe("agent access", () => {
 
       const forMaren = (await server.request<AwayState>("/api/away")).body;
       expect(forMaren.total).toBe(1);
-      expect(forMaren.events[0].entityTitle).toBe("Quietly drafted overnight");
-      expect(forMaren.events[0].agentName).toBe("Planning agent");
+      expect(forMaren.events[0]!.entityTitle).toBe("Quietly drafted overnight");
+      expect(forMaren.events[0]!.agentName).toBe("Planning agent");
 
       // The owner's own agent never fills the owner's digest, because the write is theirs.
       await loginOwner(server);
@@ -566,10 +607,12 @@ describe("agent access", () => {
     it("suspends a project's credentials the moment it is archived", async () => {
       const server = await startTestServer();
       await bootstrap(server);
-      const second = (await server.request<{ project: { id: string } }>("/api/projects", {
-        method: "POST",
-        body: JSON.stringify({ name: "Second project" }),
-      })).body.project;
+      const second = (
+        await server.request<{ project: { id: string } }>("/api/projects", {
+          method: "POST",
+          body: JSON.stringify({ name: "Second project" }),
+        })
+      ).body.project;
       const issued = await server.request<{ token: AgentToken; secret: string }>(
         `/api/agent-tokens?project=${second.id}`,
         { method: "POST", body: JSON.stringify({ name: "Doomed", scope: "write" }) },
@@ -597,7 +640,7 @@ describe("agent access", () => {
       const listed = await server.request<{ tokens: AgentToken[] }>("/api/agent-tokens");
       // "Last used" is the signal an owner reads to decide a credential is safe to revoke,
       // so a busy read-only agent must not list as never used.
-      expect(listed.body.tokens[0].lastUsedAt).not.toBeNull();
+      expect(listed.body.tokens[0]!.lastUsedAt).not.toBeNull();
     });
   });
 
@@ -614,7 +657,10 @@ describe("agent access", () => {
     it("shows a pinned credential only its own project", async () => {
       const server = await startTestServer();
       await bootstrap(server);
-      await server.request("/api/projects", { method: "POST", body: JSON.stringify({ name: "Second project" }) });
+      await server.request("/api/projects", {
+        method: "POST",
+        body: JSON.stringify({ name: "Second project" }),
+      });
       const { body } = await issue(server);
 
       const board = await asAgent(server, body.secret, "/api/board");

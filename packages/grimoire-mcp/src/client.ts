@@ -7,6 +7,30 @@
  * and because one process is meant to own a project directory at a time.
  */
 
+/**
+ * The board's columns in reading order - the vocabulary every page speaks. Mirrors
+ * PAGE_STATUSES in the server's shared/types.ts under the repo's mcp-contract test.
+ */
+export const PAGE_COLUMNS = ["backlog", "ready", "in_progress", "review", "done"] as const;
+export type PageColumn = (typeof PAGE_COLUMNS)[number];
+
+/*
+ * The rest of what this package mirrors from the application it talks to. Duplicated
+ * rather than imported because the package ships to npm on its own and takes no
+ * dependency on the application source; the copies live in this dependency-free module
+ * so the repo's mcp-contract test can hold them to the originals without loading the
+ * MCP SDK, and each must move together with its counterpart.
+ */
+
+/** How long a body may be, mirroring BODY_MAX_LENGTH in the server's shared/types.ts. */
+export const BODY_MAX_LENGTH = 50_000;
+
+/** Mirrors DISCUSSION_BODY_MAX_LENGTH in shared/types.ts. */
+export const DISCUSSION_BODY_MAX_LENGTH = 4_000;
+
+/** Mirrors the package.json version; the contract test keeps the two saying the same thing. */
+export const MCP_VERSION = "0.3.0";
+
 export type FieldValue = string | number | boolean;
 
 export type ProjectField = {
@@ -23,8 +47,7 @@ export type ProjectField = {
  * takes no dependency on the application source. They must move together.
  */
 export type PageGithubLink =
-  | { kind: "pr"; number: number; repo?: string }
-  | { kind: "branch"; name: string; repo?: string };
+  { kind: "pr"; number: number; repo?: string } | { kind: "branch"; name: string; repo?: string };
 
 /** What GitHub last said about a linked page, cached server-side between polls. */
 export type PageGithubStatus = {
@@ -47,7 +70,7 @@ export type Page = {
   /** Values for the project's own fields. Absent keys were never filled in. */
   fields: Record<string, FieldValue>;
   blockedBy: string[];
-  status: string;
+  status: PageColumn;
   position: number;
   assigneeId: string | null;
   assigneeName: string | null;
@@ -183,19 +206,21 @@ export class GrimoireClient {
       throw new ConflictError(body.field, body.current);
     }
     if (!response.ok) {
-      let message = typeof body === "object" && body !== null && "error" in body
-        ? String((body as { error: unknown }).error)
-        : `Grimoire returned ${response.status}`;
+      let message =
+        typeof body === "object" && body !== null && "error" in body
+          ? String((body as { error: unknown }).error)
+          : `Grimoire returned ${response.status}`;
       // Validation refusals carry field-level issues; dropping them would leave the agent
       // with a bare "Invalid request" and nothing to correct.
-      const details = typeof body === "object" && body !== null && "details" in body
-        ? (body as { details: unknown }).details
-        : null;
+      const details =
+        typeof body === "object" && body !== null && "details" in body
+          ? (body as { details: unknown }).details
+          : null;
       if (Array.isArray(details) && details.length > 0) {
         const issues = details
           .map((issue) => {
             const at = Array.isArray((issue as { path?: unknown }).path)
-              ? ((issue as { path: unknown[] }).path.join(".") || "request")
+              ? (issue as { path: unknown[] }).path.join(".") || "request"
               : "request";
             return `- ${at}: ${String((issue as { message?: unknown }).message ?? "invalid")}`;
           })
@@ -229,7 +254,9 @@ export class GrimoireClient {
    * to work from.
    */
   discussion(pageId: string): Promise<{ threads: DiscussionThread[] }> {
-    return this.request<{ threads: DiscussionThread[] }>(`/api/pages/${encodeURIComponent(pageId)}/discussion`);
+    return this.request<{ threads: DiscussionThread[] }>(
+      `/api/pages/${encodeURIComponent(pageId)}/discussion`,
+    );
   }
 
   openThread(pageId: string, body: string): Promise<{ thread: DiscussionThread }> {

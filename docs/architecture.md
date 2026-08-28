@@ -96,19 +96,19 @@ Uploads are verified by content signature (PNG, JPEG, WebP, or GIF), written ato
 ## Notes editing
 
 Notes are edited on a CodeMirror surface that is always rendered, which is Obsidian's Live Preview rather than a preview pane beside a source pane.
-`src/components/live-preview.ts` walks the parsed Markdown tree and hides the syntax that produced formatting, except on the lines the selection touches; an unfocused editor reveals nothing, because notes nobody is writing in are notes someone is reading.
-Everything is decided from the tree rather than from text patterns, so syntax inside code stays literal, exactly as `remarkObsidianEmbeds` already treats embeds.
+`src/lib/live-preview.ts` walks the parsed Markdown tree and hides the syntax that produced formatting, except on the lines the selection touches; an unfocused editor reveals nothing, because notes nobody is writing in are notes someone is reading.
+Everything is decided from the tree rather than from text patterns, so syntax inside code stays literal.
 
 Obsidian's `![[name]]` embeds are not Markdown and no parser reports them, so they are found in the text and then disqualified wherever the tree says Markdown has stopped applying.
 Tables and horizontal rules are replaced as whole blocks, which is why the decorations live in a state field rather than a view plugin: block replacements change how tall a line is, and CodeMirror only accepts them from the state.
 
 Nothing in the editor ever builds HTML from note text.
-Widgets are constructed element by element, so a note containing markup still shows that markup as characters, which is the same guarantee the read-only renderer gives by never enabling raw HTML.
+Widgets are constructed element by element, so a note containing markup still shows that markup as characters.
 
-The surface is a controlled field with the same value-and-`onChange` shape the textarea had, so the autosave and conflict handling in `use-content-editor.ts` are unchanged.
+The surface is a controlled field with the same value-and-`onChange` shape the textarea had, so the autosave and conflict handling in `src/hooks/use-content-editor.ts` are unchanged.
 A controlled value arrives a render late, by which time the document has usually moved on, so the editor keeps the short list of texts it has announced and treats a match as its own writing coming back rather than as an edit from elsewhere.
 
-`MarkdownView` remains the read-only renderer for surfaces that only ever display Markdown, and board and library tiles still reduce notes to plain text.
+Board and library tiles reduce notes to plain text; the separate read-only renderer the live preview replaced has been removed.
 
 ## Page format
 
@@ -365,6 +365,13 @@ A page with no row has never been opened by that person, so everything on it is 
 It is a timestamp rather than a sequence because it is scoped to one page rather than to the whole project's log, and a message already carries the moment it was written.
 The counts reach the board through one grouped query per project, the same way the open-thread counts do, and the marker is written only when the second column is actually turned to the conversation - an agent cannot write one at all, because it has no attention to spend.
 
+How the conversation looks is as deliberate as how it is stored.
+The history is a trail the system wrote about the page; this is what people said to each other about it, and keeping them in separate columns is what tells them apart - which is why a thread needs no card, border or raised surface of its own.
+It is a name, a time, and what was said, ruled off from the next one: no bubbles, no second typeface, nothing that would turn a work board into a chat client.
+At rest a thread shows only that; reply and answered reveal on hover, because seven open threads meant seven of each standing down a narrow column.
+And it does not work out whose turn it is or mark a thread as owing anybody an answer - a conversation between two people about one page does not need to be told who should speak next, and saying so on every other thread turned reading it into being chased.
+Answered threads fold away, which is what keeps a page with forty messages showing you two; nothing is deleted to get there, and reopening costs one click.
+
 
 ## Search
 
@@ -408,6 +415,26 @@ The preview carries the title, board name, column, category, assignee, and block
 That set is a deliberate boundary: holding the link is enough to read it, so the preview says only what a teammate needs to recognize the page.
 Ids are unique across projects, so a link carries only the id and the lookup walks the live projects to place it.
 An archived page and a promoted idea still describe themselves, and a link naming nothing that can be read falls back to the generic Grimoire preview rather than failing the page.
+
+## GitHub links
+
+A page can hold a link to a pull request, or to a branch a pull request will eventually be
+opened from. Grimoire polls the GitHub API for what those links point at and lets the board
+follow the code: a page whose pull request is open moves into Review, and a page whose pull
+request merged moves into Done.
+
+Polling, not webhooks, deliberately. A webhook needs a publicly reachable endpoint, a
+secret, and a configuration step inside GitHub for every repository - three things a
+self-hosted tool cannot assume. A token pasted into project settings is the whole setup,
+works from behind any tunnel, and for a small team's linked pages the poll traffic is noise.
+The interval is generous because nothing here is urgent: the merge already happened; the
+board is only catching up with the truth.
+
+The automation only ever moves a page forward, and only along the two edges it owns (into
+Review while a pull request is open, into Done once one merges). It never moves a page
+backwards, so a hand that placed a page somewhere always wins over the robot that would
+tidy it. Auto-moves are audited under the actor "GitHub" - a name, not a member - so the
+log says plainly that the robot did it.
 
 ## Reversible actions
 

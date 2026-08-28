@@ -1,7 +1,9 @@
 import { type FormEvent, useState } from "react";
 import { CATEGORY_COLOR_PALETTE, type ProjectCategory } from "../../shared/types";
+import { categoryColorStyle } from "../lib/category-style";
+import { ConfirmInline } from "./ConfirmInline";
 import { Growing } from "./Growing";
-import type { SettingsRun } from "./use-settings-action";
+import type { SettingsRun } from "../hooks/use-settings-action";
 
 export type CategoryActions = {
   create: (input: { name: string; color: string }) => Promise<void>;
@@ -51,8 +53,8 @@ export function CategoriesSection({ categories, busy, actions, canManage, run }:
   const move = (index: number, delta: -1 | 1) => {
     const target = index + delta;
     if (target < 0 || target >= ordered.length) return;
-    const moved = ordered[index];
-    const displaced = ordered[target];
+    const moved = ordered[index]!;
+    const displaced = ordered[target]!;
     void run(async () => {
       await actions.update(moved.slug, { position: target });
       await actions.update(displaced.slug, { position: index });
@@ -62,11 +64,13 @@ export function CategoriesSection({ categories, busy, actions, canManage, run }:
   if (!canManage) {
     return (
       <div className="settings-section">
-        <p className="settings-summary">The disciplines this project tags its pages with. Only an owner can change them.</p>
+        <p className="settings-summary">
+          The disciplines this project tags its pages with. Only an owner can change them.
+        </p>
         <ul className="settings-readonly-list">
           {ordered.map((category) => (
             <li key={category.slug}>
-              <span className="category-swatch" style={{ "--category-color": category.color } as React.CSSProperties} />
+              <span className="category-swatch" style={categoryColorStyle(category.color)} />
               {category.name}
             </li>
           ))}
@@ -88,15 +92,24 @@ export function CategoriesSection({ categories, busy, actions, canManage, run }:
               onClick={() => setRecoloring(recoloring === category.slug ? null : category.slug)}
               type="button"
             >
-              <span className="category-swatch" style={{ "--category-color": category.color } as React.CSSProperties} />
+              <span className="category-swatch" style={categoryColorStyle(category.color)} />
             </button>
-            <label className="sr-only" htmlFor={`category-name-${category.slug}`}>Rename {category.name}</label>
+            <label className="sr-only" htmlFor={`category-name-${category.slug}`}>
+              Rename {category.name}
+            </label>
             <input
               id={`category-name-${category.slug}`}
               name={`categoryName-${category.slug}`}
               onBlur={() => saveName(category)}
-              onChange={(event) => setDrafts((current) => ({ ...current, [category.slug]: event.target.value }))}
-              onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); saveName(category); } }}
+              onChange={(event) =>
+                setDrafts((current) => ({ ...current, [category.slug]: event.target.value }))
+              }
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  saveName(category);
+                }
+              }}
               value={drafts[category.slug] ?? category.name}
             />
             <span className="reorder-buttons">
@@ -106,38 +119,38 @@ export function CategoriesSection({ categories, busy, actions, canManage, run }:
                 disabled={busy || index === 0}
                 onClick={() => move(index, -1)}
                 type="button"
-              >↑</button>
+              >
+                ↑
+              </button>
               <button
                 aria-label={`Move ${category.name} down`}
                 className="icon-button"
                 disabled={busy || index === ordered.length - 1}
                 onClick={() => move(index, 1)}
                 type="button"
-              >↓</button>
+              >
+                ↓
+              </button>
             </span>
-            {removing === category.slug ? (
-              <span className="archive-confirm">
-                <span>remove?</span>
-                <button
-                  aria-label={`Confirm delete ${category.name}`}
-                  className="danger-text"
-                  disabled={busy}
-                  onClick={() => void run(async () => {
-                    await actions.remove(category.slug);
-                    setRemoving(null);
-                  }, "The category could not be deleted")}
-                  type="button"
-                >yes</button>
-                <button aria-label={`Cancel deleting ${category.name}`} onClick={() => setRemoving(null)} type="button">no</button>
-              </span>
-            ) : (
-              <button
-                aria-label={`Delete ${category.name}`}
-                className="icon-button"
-                onClick={() => setRemoving(category.slug)}
-                type="button"
-              >×</button>
-            )}
+            <ConfirmInline
+              cancelAriaLabel={`Cancel deleting ${category.name}`}
+              className="archive-confirm"
+              confirmAriaLabel={`Confirm delete ${category.name}`}
+              confirmDisabled={busy}
+              onCancel={() => setRemoving(null)}
+              onConfirm={() =>
+                void run(async () => {
+                  await actions.remove(category.slug);
+                  setRemoving(null);
+                }, "The category could not be deleted")
+              }
+              onOpen={() => setRemoving(category.slug)}
+              open={removing === category.slug}
+              question="remove?"
+              trigger="×"
+              triggerAriaLabel={`Delete ${category.name}`}
+              triggerClass="icon-button"
+            />
             {recoloring === category.slug && (
               <div aria-label={`Colors for ${category.name}`} className="category-palette">
                 {CATEGORY_COLOR_PALETTE.map((color) => (
@@ -146,11 +159,13 @@ export function CategoriesSection({ categories, busy, actions, canManage, run }:
                     aria-pressed={category.color === color}
                     className={category.color === color ? "selected" : ""}
                     key={color}
-                    onClick={() => void run(async () => {
-                      await actions.update(category.slug, { color });
-                      setRecoloring(null);
-                    }, "The color could not be changed")}
-                    style={{ "--category-color": color } as React.CSSProperties}
+                    onClick={() =>
+                      void run(async () => {
+                        await actions.update(category.slug, { color });
+                        setRecoloring(null);
+                      }, "The color could not be changed")
+                    }
+                    style={categoryColorStyle(color)}
                     type="button"
                   />
                 ))}
@@ -158,7 +173,9 @@ export function CategoriesSection({ categories, busy, actions, canManage, run }:
             )}
           </Growing>
         ))}
-        {ordered.length === 0 && <p className="empty-dependencies">No categories yet. Add the first one below.</p>}
+        {ordered.length === 0 && (
+          <p className="empty-dependencies">No categories yet. Add the first one below.</p>
+        )}
       </div>
 
       <form className="category-add" onSubmit={submitCreate}>
@@ -171,13 +188,15 @@ export function CategoriesSection({ categories, busy, actions, canManage, run }:
               className={newColor === color ? "selected" : ""}
               key={color}
               onClick={() => setNewColor(color)}
-              style={{ "--category-color": color } as React.CSSProperties}
+              style={categoryColorStyle(color)}
               type="button"
             />
           ))}
         </div>
         <div className="category-add-row">
-          <label className="sr-only" htmlFor="new-category-name">New category name</label>
+          <label className="sr-only" htmlFor="new-category-name">
+            New category name
+          </label>
           <input
             id="new-category-name"
             name="newCategoryName"
@@ -185,7 +204,9 @@ export function CategoriesSection({ categories, busy, actions, canManage, run }:
             placeholder="Category name..."
             value={newName}
           />
-          <button className="primary-button compact" disabled={busy || !newName.trim()} type="submit">add</button>
+          <button className="primary-button compact" disabled={busy || !newName.trim()} type="submit">
+            add
+          </button>
         </div>
       </form>
     </div>

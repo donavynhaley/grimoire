@@ -58,7 +58,11 @@ export function AuthScreen({ mode: initialMode, inviteCode, onAuthenticated, oid
     setError("");
     try {
       const path =
-        mode === "setup" ? "/api/auth/bootstrap" : mode === "register" ? "/api/auth/register" : "/api/auth/login";
+        mode === "setup"
+          ? "/api/auth/bootstrap"
+          : mode === "register"
+            ? "/api/auth/register"
+            : "/api/auth/login";
       const body = mode === "login" ? { email, password } : { name, email, password, inviteCode };
       const result = await mutate<{ user: User }>(path, "POST", body);
       await onAuthenticated(result.user);
@@ -108,7 +112,13 @@ export function AuthScreen({ mode: initialMode, inviteCode, onAuthenticated, oid
           {mode !== "login" && (
             <label>
               <span>Your name</span>
-              <input autoComplete="name" name="name" value={name} onChange={(event) => setName(event.target.value)} required />
+              <input
+                autoComplete="name"
+                name="name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                required
+              />
             </label>
           )}
           <label>
@@ -135,7 +145,11 @@ export function AuthScreen({ mode: initialMode, inviteCode, onAuthenticated, oid
             />
             {mode !== "login" && <small>Use at least 12 characters.</small>}
           </label>
-          {error && <div className="error-banner" role="alert">{error}</div>}
+          {error && (
+            <div className="error-banner" role="alert">
+              {error}
+            </div>
+          )}
           <button className="primary-button" disabled={busy} type="submit">
             {busy ? "working..." : setup ? "create workspace" : register ? "join project" : "sign in"}
           </button>
@@ -144,7 +158,9 @@ export function AuthScreen({ mode: initialMode, inviteCode, onAuthenticated, oid
             locked out, and it is only ever the account somebody makes here with a password. */}
         {oidc && !setup && (
           <>
-            <p className="auth-divider"><span>or</span></p>
+            <p className="auth-divider">
+              <span>or</span>
+            </p>
             {oidc.brand === "google" ? (
               <a className="google-button" href={providerHref()}>
                 <GoogleMark />
@@ -158,7 +174,9 @@ export function AuthScreen({ mode: initialMode, inviteCode, onAuthenticated, oid
           </>
         )}
         {!setup && !register && (
-          <p className="auth-footnote">Accounts are invitation-only. Ask the project owner for an invite link.</p>
+          <p className="auth-footnote">
+            Accounts are invitation-only. Ask the project owner for an invite link.
+          </p>
         )}
         {register && (
           <button className="text-button" onClick={() => setMode("login")} type="button">

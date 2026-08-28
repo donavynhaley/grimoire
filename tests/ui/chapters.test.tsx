@@ -1,28 +1,14 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { App } from "../../src/App";
 import type { BoardWorkspace, Page, Chapter } from "../../shared/types";
 import { boardFixture } from "../fixtures/board";
+import { installUiHarness, response, routeFetch, type RecordedCall } from "../fixtures/ui";
 
-afterEach(() => {
-  cleanup();
-  vi.unstubAllGlobals();
-  window.history.replaceState({}, "", "/");
-});
-
-function response(body: unknown, status = 200) {
-  return Promise.resolve(
-    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } }),
-  );
-}
-
-function requestUrl(input: RequestInfo | URL): string {
-  if (typeof input === "string") return input;
-  return input instanceof URL ? `${input.pathname}${input.search}` : input.url;
-}
+installUiHarness();
 
 function chapter(overrides: Partial<Chapter> = {}): Chapter {
   return {
@@ -38,17 +24,17 @@ function chapter(overrides: Partial<Chapter> = {}): Chapter {
     createdAt: "2026-08-13T00:00:00.000Z",
     updatedAt: "2026-08-13T00:00:00.000Z",
     closedAt: null,
-  carriedPages: null,
-  carriedEstimate: null,
-  carriedTo: null,
-  deliveredPages: null,
-  deliveredEstimate: null,
+    carriedPages: null,
+    carriedEstimate: null,
+    carriedTo: null,
+    deliveredPages: null,
+    deliveredEstimate: null,
     ...overrides,
   };
 }
 
 function page(overrides: Partial<Page>): Page {
-  const base = boardFixture().pages[1];
+  const base = boardFixture().pages[1]!;
   return { ...base, ...overrides };
 }
 
@@ -59,12 +45,33 @@ function chapteredBoard(): BoardWorkspace {
     ...board,
     project: { ...board.project, chaptersEnabled: true },
     velocity: [],
-  chapters: [chapter(), chapter({ slug: "second-brew", name: "Second Brew", state: "planned", startsOn: null, endsOn: null })],
+    chapters: [
+      chapter(),
+      chapter({ slug: "second-brew", name: "Second Brew", state: "planned", startsOn: null, endsOn: null }),
+    ],
     pages: [
-      page({ id: "page-in", title: "Inside the chapter", chapter: "first-brew", status: "ready", position: 0 }),
+      page({
+        id: "page-in",
+        title: "Inside the chapter",
+        chapter: "first-brew",
+        status: "ready",
+        position: 0,
+      }),
       page({ id: "page-out", title: "Outside the chapter", chapter: null, status: "ready", position: 1 }),
-      page({ id: "page-backlog", title: "Reserved for later", chapter: "first-brew", status: "backlog", position: 0 }),
-      page({ id: "page-unplaced", title: "Waiting to be placed", chapter: null, status: "backlog", position: 1 }),
+      page({
+        id: "page-backlog",
+        title: "Reserved for later",
+        chapter: "first-brew",
+        status: "backlog",
+        position: 0,
+      }),
+      page({
+        id: "page-unplaced",
+        title: "Waiting to be placed",
+        chapter: null,
+        status: "backlog",
+        position: 1,
+      }),
     ],
   };
 }
@@ -82,23 +89,8 @@ function withClosedChapter(): BoardWorkspace {
 }
 
 /** Mounts the app over a board, recording every write it makes. */
-function mountWith(board: BoardWorkspace) {
-  const calls: Array<{ url: string; method: string; body: unknown }> = [];
-  vi.stubGlobal("fetch", (input: RequestInfo | URL, init: RequestInit = {}) => {
-    const url = requestUrl(input);
-    const method = init.method ?? "GET";
-    if (method !== "GET") {
-      calls.push({ url, method, body: init.body ? JSON.parse(String(init.body)) : null });
-      return response({ ok: true });
-    }
-    if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
-    // The page dialog reads its discussion the same way it reads its history, on every open.
-    if (/^\/api\/pages\/[^/]+\/discussion/.test(url)) return response({ threads: [] });
-    if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
-    if (url.startsWith("/api/seen")) return response({ ok: true });
-    if (url.startsWith("/api/session")) return response({ status: "authenticated", user: board.currentUser });
-    return response(board);
-  });
+function mountWith(board: BoardWorkspace): RecordedCall[] {
+  const { calls } = routeFetch({ board });
   render(<App />);
   return calls;
 }
@@ -242,8 +234,7 @@ describe("chapters on the board", () => {
     const board = withClosedChapter();
     mountWith({
       ...board,
-      pages: board.pages.map((page) =>
-        page.id === "page-in" ? { ...page, chapter: "old-brew" } : page),
+      pages: board.pages.map((page) => (page.id === "page-in" ? { ...page, chapter: "old-brew" } : page)),
     });
 
     // Otherwise the chapter the page is actually in would be hidden, and the field would
@@ -263,9 +254,14 @@ describe("chapters on the board", () => {
     await user.click(within(dialog).getByRole("button", { name: /earlier/ }));
     await user.click(within(dialog).getByRole("button", { name: /Place in Old Brew/ }));
 
-    await waitFor(() => expect(calls.some((call) =>
-      call.url === "/api/pages/page-in" &&
-      (call.body as { chapter?: string }).chapter === "old-brew")).toBe(true));
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (call) =>
+            call.url === "/api/pages/page-in" && (call.body as { chapter?: string }).chapter === "old-brew",
+        ),
+      ).toBe(true),
+    );
   });
 
   it("shows the finished chapters on sight when the board is filtered to one", async () => {
@@ -298,18 +294,15 @@ describe("choosing which chapter is current", () => {
   it("promotes a dateless chapter from the picker, closing the open one first", async () => {
     const user = userEvent.setup();
     const board = chapteredBoard();
-    const patched: Array<{ slug: string; body: Record<string, unknown> }> = [];
-    vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = requestUrl(input);
-      if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
-      if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
-      if (url.startsWith("/api/seen")) return response({ ok: true });
-      if (url.startsWith("/api/session")) return response({ status: "authenticated", user: board.currentUser });
-      if (url.startsWith("/api/chapters/") && init?.method === "PATCH") {
-        patched.push({ slug: url.split("/").pop()!, body: JSON.parse(String(init.body)) });
-        return response({ chapter: board.chapters[1] });
-      }
-      return response(board);
+    const patched: Array<{ slug: string; body: unknown }> = [];
+    routeFetch({
+      board,
+      routes: {
+        "PATCH /api/chapters/": ({ url, body }) => {
+          patched.push({ slug: url.split("/").pop()!, body });
+          return response({ chapter: board.chapters[1] });
+        },
+      },
     });
     render(<App />);
 
@@ -318,10 +311,12 @@ describe("choosing which chapter is current", () => {
     await user.click(screen.getByRole("button", { name: "Make Second Brew the current chapter" }));
 
     // One chapter is open at a time, so this is two writes that read as a single decision.
-    await waitFor(() => expect(patched).toEqual([
-      { slug: "first-brew", body: { state: "closed" } },
-      { slug: "second-brew", body: { state: "open" } },
-    ]));
+    await waitFor(() =>
+      expect(patched).toEqual([
+        { slug: "first-brew", body: { state: "closed" } },
+        { slug: "second-brew", body: { state: "open" } },
+      ]),
+    );
   });
 
   it("offers no promotion for the chapter that is already current", async () => {
@@ -354,18 +349,15 @@ describe("pulling from the backlog", () => {
   it("offers the viewed chapter on every row and leaves the page in the Backlog", async () => {
     const user = userEvent.setup();
     const board = chapteredBoard();
-    const patched: Array<Record<string, unknown>> = [];
-    vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = requestUrl(input);
-      if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
-      if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
-      if (url.startsWith("/api/seen")) return response({ ok: true });
-      if (url.startsWith("/api/session")) return response({ status: "authenticated", user: board.currentUser });
-      if (init?.method === "PATCH") {
-        patched.push(JSON.parse(String(init.body)));
-        return response({ page: board.pages[0] });
-      }
-      return response(board);
+    const patched: unknown[] = [];
+    routeFetch({
+      board,
+      routes: {
+        "PATCH /api/": ({ body }) => {
+          patched.push(body);
+          return response({ page: board.pages[0] });
+        },
+      },
     });
     render(<App />);
 
@@ -385,7 +377,9 @@ describe("pulling from the backlog", () => {
     await user.click(await screen.findByRole("button", { name: /Open backlog/ }));
     const dialog = await screen.findByRole("dialog", { name: "Backlog" });
 
-    expect(within(dialog).getByRole("button", { name: /Remove Reserved for later from First Brew/ })).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: /Remove Reserved for later from First Brew/ }),
+    ).toBeInTheDocument();
   });
 });
 
@@ -397,17 +391,19 @@ describe("capturing into chapters", () => {
     const capture = await screen.findByLabelText("Capture work page");
     await user.type(capture, "Bottle the moonlight{Enter}");
 
-    await waitFor(() => expect(calls).toContainEqual({
-      url: "/api/pages",
-      method: "POST",
-      body: {
-        title: "Bottle the moonlight",
-        category: null,
-        chapter: "first-brew",
-        assigneeId: null,
-        status: "backlog",
-      },
-    }));
+    await waitFor(() =>
+      expect(calls).toContainEqual({
+        url: "/api/pages",
+        method: "POST",
+        body: {
+          title: "Bottle the moonlight",
+          category: null,
+          chapter: "first-brew",
+          assigneeId: null,
+          status: "backlog",
+        },
+      }),
+    );
   });
 });
 

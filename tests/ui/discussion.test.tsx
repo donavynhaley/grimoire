@@ -2,27 +2,13 @@
 
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { App } from "../../src/App";
 import type { BoardWorkspace, DiscussionThread } from "../../shared/types";
 import { boardFixture } from "../fixtures/board";
+import { installUiHarness, response, routeFetch, type RecordedCall } from "../fixtures/ui";
 
-afterEach(() => {
-  cleanup();
-  vi.unstubAllGlobals();
-  window.history.replaceState({}, "", "/");
-});
-
-function response(body: unknown, status = 200) {
-  return Promise.resolve(
-    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } }),
-  );
-}
-
-function requestUrl(input: RequestInfo | URL): string {
-  if (typeof input === "string") return input;
-  return input instanceof URL ? `${input.pathname}${input.search}` : input.url;
-}
+installUiHarness();
 
 const ME = "00000000-0000-4000-8000-000000000010";
 const THEM = "00000000-0000-4000-8000-000000000011";
@@ -39,7 +25,9 @@ function message(authorId: string, authorName: string, body: string, agentName: 
   };
 }
 
-function thread(overrides: Partial<DiscussionThread> & { body: string; authorId: string; authorName: string }): DiscussionThread {
+function thread(
+  overrides: Partial<DiscussionThread> & { body: string; authorId: string; authorName: string },
+): DiscussionThread {
   return {
     ...message(overrides.authorId, overrides.authorName, overrides.body),
     id: overrides.id ?? `t-${overrides.body.slice(0, 8)}`,
@@ -51,25 +39,10 @@ function thread(overrides: Partial<DiscussionThread> & { body: string; authorId:
   } as DiscussionThread;
 }
 
-type Calls = Array<{ url: string; method: string; body: unknown }>;
-
 /** Mounts the board with a fixed set of threads, and records every write that leaves. */
-function mountWith(threads: DiscussionThread[], board: BoardWorkspace = boardFixture()): Calls {
-  const calls: Calls = [];
-  vi.stubGlobal("fetch", (input: RequestInfo | URL, init: RequestInit = {}) => {
-    const url = requestUrl(input);
-    const method = init.method ?? "GET";
-    if (method !== "GET") {
-      calls.push({ url, method, body: init.body ? JSON.parse(String(init.body)) : null });
-      return response({ ok: true });
-    }
-    if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
-    if (/^\/api\/pages\/[^/]+\/discussion/.test(url)) return response({ threads });
-    if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
-    if (url.startsWith("/api/agent-tokens")) return response({ tokens: [] });
-    if (url.startsWith("/api/session")) return response({ status: "authenticated", user: board.currentUser });
-    return response(board);
-  });
+function mountWith(threads: DiscussionThread[], board: BoardWorkspace = boardFixture()): RecordedCall[] {
+  // The only GET under /api/pages/ is a page's discussion, so the prefix is the regex.
+  const { calls } = routeFetch({ board, routes: { "GET /api/pages/": { threads } } });
   render(<App />);
   return calls;
 }
@@ -91,7 +64,7 @@ function section() {
  */
 async function openPage(board: BoardWorkspace, { discussion = true } = {}) {
   const user = userEvent.setup();
-  await user.click(await screen.findByText(board.pages[1].title));
+  await user.click(await screen.findByText(board.pages[1]!.title));
   await screen.findByRole("dialog", { name: "Edit page" });
   if (discussion) await user.click(within(aside()).getByRole("button", { name: /Discussion/ }));
   return user;
@@ -114,8 +87,8 @@ describe("the discussion on a page", () => {
 
   it("opens on the properties, not on the conversation", async () => {
     const board = boardFixture();
-    board.pages[1].openThreads = 4;
-    board.pages[1].unseenMessages = 4;
+    board.pages[1]!.openThreads = 4;
+    board.pages[1]!.unseenMessages = 4;
     mountWith([thread({ authorId: THEM, authorName: "Maren", body: "Whose clock?" })], board);
     await openPage(board, { discussion: false });
 
@@ -145,7 +118,10 @@ describe("the discussion on a page", () => {
     mountWith([thread({ authorId: THEM, authorName: "Maren", body: "Whose clock?" })], board);
     const user = await openPage(board);
 
-    expect(within(aside()).getByRole("button", { name: /Discussion/ })).toHaveAttribute("aria-pressed", "true");
+    expect(within(aside()).getByRole("button", { name: /Discussion/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
     expect(within(aside()).getByRole("button", { name: "Details" })).toHaveAttribute("aria-pressed", "false");
 
     await user.click(within(aside()).getByRole("button", { name: "Details" }));
@@ -155,9 +131,9 @@ describe("the discussion on a page", () => {
 
   it("counts what has not been read, and says nothing when there is nothing", async () => {
     const board = boardFixture();
-    board.pages[1].unseenMessages = 3;
+    board.pages[1]!.unseenMessages = 3;
     // Resolved-ness is a different question, and not the one this number answers.
-    board.pages[1].openThreads = 0;
+    board.pages[1]!.openThreads = 0;
     mountWith([], board);
     await openPage(board, { discussion: false });
 
@@ -166,7 +142,10 @@ describe("the discussion on a page", () => {
 
     cleanup();
     const read = boardFixture();
-    read.pages.forEach((page) => { page.unseenMessages = 0; page.openThreads = 5; });
+    read.pages.forEach((page) => {
+      page.unseenMessages = 0;
+      page.openThreads = 5;
+    });
     mountWith([], read);
     await openPage(read, { discussion: false });
     // Five open threads you have already read are not news.
@@ -175,7 +154,7 @@ describe("the discussion on a page", () => {
 
   it("marks the conversation read when it is turned to, and not before", async () => {
     const board = boardFixture();
-    board.pages[1].unseenMessages = 2;
+    board.pages[1]!.unseenMessages = 2;
     const calls = mountWith([thread({ authorId: THEM, authorName: "Maren", body: "Whose clock?" })], board);
     const user = await openPage(board, { discussion: false });
 
@@ -185,16 +164,19 @@ describe("the discussion on a page", () => {
     await user.click(within(aside()).getByRole("button", { name: /Discussion/ }));
     const seen = calls.filter((call) => call.url.includes("/discussion/seen"));
     expect(seen).toHaveLength(1);
-    expect(seen[0].method).toBe("POST");
+    expect(seen[0]!.method).toBe("POST");
   });
 
   it("says the word and the count in exactly one place", async () => {
     const board = boardFixture();
-    board.pages[1].unseenMessages = 2;
-    mountWith([
-      thread({ authorId: THEM, authorName: "Maren", body: "One?" }),
-      thread({ authorId: THEM, authorName: "Maren", body: "Two?" }),
-    ], board);
+    board.pages[1]!.unseenMessages = 2;
+    mountWith(
+      [
+        thread({ authorId: THEM, authorName: "Maren", body: "One?" }),
+        thread({ authorId: THEM, authorName: "Maren", body: "Two?" }),
+      ],
+      board,
+    );
     await openPage(board);
 
     // The switch is the label, the count, and the way in and out. A heading inside the column
@@ -238,17 +220,20 @@ describe("the discussion on a page", () => {
   it("folds what has been answered away until it is asked for", async () => {
     const board = boardFixture();
     const now = new Date().toISOString();
-    mountWith([
-      thread({ authorId: THEM, authorName: "Maren", body: "Still deciding this one" }),
-      thread({
-        authorId: THEM,
-        authorName: "Maren",
-        body: "Settled a while ago",
-        answeredAt: now,
-        answeredById: ME,
-        answeredByName: "Donavyn",
-      }),
-    ], board);
+    mountWith(
+      [
+        thread({ authorId: THEM, authorName: "Maren", body: "Still deciding this one" }),
+        thread({
+          authorId: THEM,
+          authorName: "Maren",
+          body: "Settled a while ago",
+          answeredAt: now,
+          answeredById: ME,
+          answeredByName: "Donavyn",
+        }),
+      ],
+      board,
+    );
     const user = await openPage(board);
 
     const discussion = section();
@@ -261,10 +246,13 @@ describe("the discussion on a page", () => {
 
   it("says nothing about whose turn it is", async () => {
     const board = boardFixture();
-    mountWith([
-      thread({ id: "t-theirs", authorId: THEM, authorName: "Maren", body: "Asked of you" }),
-      thread({ id: "t-mine", authorId: ME, authorName: "Donavyn", body: "Asked by you" }),
-    ], board);
+    mountWith(
+      [
+        thread({ id: "t-theirs", authorId: THEM, authorName: "Maren", body: "Asked of you" }),
+        thread({ id: "t-mine", authorId: ME, authorName: "Donavyn", body: "Asked by you" }),
+      ],
+      board,
+    );
     await openPage(board);
 
     // A conversation between two people about one page does not need to be told who should
@@ -278,14 +266,17 @@ describe("the discussion on a page", () => {
 
   it("names the agent beside the person it wrote for", async () => {
     const board = boardFixture();
-    mountWith([
-      thread({
-        authorId: THEM,
-        authorName: "Maren",
-        body: "Deployed to dev; smoke tests green.",
-        agentName: "Planning agent",
-      } as Partial<DiscussionThread> & { body: string; authorId: string; authorName: string }),
-    ], board);
+    mountWith(
+      [
+        thread({
+          authorId: THEM,
+          authorName: "Maren",
+          body: "Deployed to dev; smoke tests green.",
+          agentName: "Planning agent",
+        } as Partial<DiscussionThread> & { body: string; authorId: string; authorName: string }),
+      ],
+      board,
+    );
     await openPage(board);
 
     const discussion = section();
@@ -345,9 +336,10 @@ describe("the discussion on a page", () => {
 
   it("replies into the thread that was asked, not a new one", async () => {
     const board = boardFixture();
-    const calls = mountWith([
-      thread({ id: "t-clock", authorId: THEM, authorName: "Maren", body: "Whose clock?" }),
-    ], board);
+    const calls = mountWith(
+      [thread({ id: "t-clock", authorId: THEM, authorName: "Maren", body: "Whose clock?" })],
+      board,
+    );
     const user = await openPage(board);
 
     await user.click(within(section()).getByRole("button", { name: "reply" }));
@@ -361,9 +353,10 @@ describe("the discussion on a page", () => {
 
   it("marks a thread answered", async () => {
     const board = boardFixture();
-    const calls = mountWith([
-      thread({ id: "t-open", authorId: THEM, authorName: "Maren", body: "Whose clock?" }),
-    ], board);
+    const calls = mountWith(
+      [thread({ id: "t-open", authorId: THEM, authorName: "Maren", body: "Whose clock?" })],
+      board,
+    );
     const user = await openPage(board);
 
     await user.click(within(section()).getByRole("button", { name: "answered" }));
@@ -372,31 +365,34 @@ describe("the discussion on a page", () => {
     expect(posted?.body).toEqual({ answered: true });
   });
 
-
   it("lights up your own name and leaves everyone else's quiet", async () => {
     const board = boardFixture();
-    mountWith([
-      thread({
-        authorId: THEM,
-        authorName: "Maren",
-        body: "@Donavyn can you take this? @Maren has Saturday.",
-        mentions: [ME, THEM],
-      } as Partial<DiscussionThread> & { body: string; authorId: string; authorName: string }),
-    ], board);
+    mountWith(
+      [
+        thread({
+          authorId: THEM,
+          authorName: "Maren",
+          body: "@Donavyn can you take this? @Maren has Saturday.",
+          mentions: [ME, THEM],
+        } as Partial<DiscussionThread> & { body: string; authorId: string; authorName: string }),
+      ],
+      board,
+    );
     await openPage(board);
 
     const marks = [...document.querySelectorAll(".mention")];
     expect(marks.map((mark) => mark.textContent)).toEqual(["@Donavyn", "@Maren"]);
     // Yours is filled; somebody else's is only there so the sentence reads as addressed.
-    expect(marks[0].className).toContain("you");
-    expect(marks[1].className).not.toContain("you");
+    expect(marks[0]!.className).toContain("you");
+    expect(marks[1]!.className).not.toContain("you");
   });
 
   it("leaves a name nobody resolved as plain text", async () => {
     const board = boardFixture();
-    mountWith([
-      thread({ authorId: THEM, authorName: "Maren", body: "@Nobody is on this project.", mentions: [] }),
-    ], board);
+    mountWith(
+      [thread({ authorId: THEM, authorName: "Maren", body: "@Nobody is on this project.", mentions: [] })],
+      board,
+    );
     await openPage(board);
 
     expect(document.querySelector(".mention")).toBeNull();
@@ -446,12 +442,9 @@ describe("the discussion on a page", () => {
     expect(document.querySelector(".mention-picker")).toBeNull();
   });
 
-
   it("backs out of a reply without closing the page", async () => {
     const board = boardFixture();
-    mountWith([
-      thread({ id: "t-clock", authorId: THEM, authorName: "Maren", body: "Whose clock?" }),
-    ], board);
+    mountWith([thread({ id: "t-clock", authorId: THEM, authorName: "Maren", body: "Whose clock?" })], board);
     const user = await openPage(board);
 
     await user.click(within(section()).getByRole("button", { name: "reply" }));
@@ -496,31 +489,22 @@ describe("the discussion on a page", () => {
 
   it("does not mark anything read while the conversation is still arriving", async () => {
     const board = boardFixture();
-    board.pages[1].unseenMessages = 2;
-    const calls: Array<{ url: string; method: string }> = [];
+    board.pages[1]!.unseenMessages = 2;
     // Assigned synchronously by the executor, but the compiler cannot see that, so it starts
     // as a callable no-op rather than null.
     let release = () => {};
-    const held = new Promise<void>((resolve) => { release = resolve; });
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
 
-    vi.stubGlobal("fetch", (input: RequestInfo | URL, init: RequestInit = {}) => {
-      const url = requestUrl(input);
-      const method = init.method ?? "GET";
-      if (method !== "GET") {
-        calls.push({ url, method });
-        return response({ ok: true });
-      }
-      if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
-      // The conversation never arrives until this test lets it.
-      if (/^\/api\/pages\/[^/]+\/discussion/.test(url)) return held.then(() => response({ threads: [] }));
-      if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
-      if (url.startsWith("/api/agent-tokens")) return response({ tokens: [] });
-      if (url.startsWith("/api/session")) return response({ status: "authenticated", user: board.currentUser });
-      return response(board);
+    // The conversation never arrives until this test lets it.
+    const { calls } = routeFetch({
+      board,
+      routes: { "GET /api/pages/": () => held.then(() => response({ threads: [] })) },
     });
     render(<App />);
     const user = userEvent.setup();
-    await user.click(await screen.findByText(board.pages[1].title));
+    await user.click(await screen.findByText(board.pages[1]!.title));
     await screen.findByRole("dialog", { name: "Edit page" });
     await user.click(within(aside()).getByRole("button", { name: /Discussion/ }));
 
@@ -531,20 +515,11 @@ describe("the discussion on a page", () => {
 
   it("says a conversation could not be loaded rather than drawing an empty one", async () => {
     const board = boardFixture();
-    board.pages[1].unseenMessages = 3;
-    vi.stubGlobal("fetch", (input: RequestInfo | URL, init: RequestInit = {}) => {
-      const url = requestUrl(input);
-      if ((init.method ?? "GET") !== "GET") return response({ ok: true });
-      if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
-      if (/^\/api\/pages\/[^/]+\/discussion/.test(url)) return Promise.reject(new Error("offline"));
-      if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
-      if (url.startsWith("/api/agent-tokens")) return response({ tokens: [] });
-      if (url.startsWith("/api/session")) return response({ status: "authenticated", user: board.currentUser });
-      return response(board);
-    });
+    board.pages[1]!.unseenMessages = 3;
+    routeFetch({ board, routes: { "GET /api/pages/": () => Promise.reject(new Error("offline")) } });
     render(<App />);
     const user = userEvent.setup();
-    await user.click(await screen.findByText(board.pages[1].title));
+    await user.click(await screen.findByText(board.pages[1]!.title));
     await screen.findByRole("dialog", { name: "Edit page" });
     await user.click(within(aside()).getByRole("button", { name: /Discussion/ }));
 
@@ -566,13 +541,13 @@ describe("the discussion on a page", () => {
     expect(options.length).toBeGreaterThan(0);
     expect(field).toHaveAttribute("aria-expanded", "true");
     expect(field).toHaveAttribute("aria-controls", listbox.id);
-    expect(field).toHaveAttribute("aria-activedescendant", options[0].id);
+    expect(field).toHaveAttribute("aria-activedescendant", options[0]!.id);
   });
 
   it("says on the switch when something unread named you", async () => {
     const board = boardFixture();
-    board.pages[1].unseenMessages = 3;
-    board.pages[1].unseenMentions = 1;
+    board.pages[1]!.unseenMessages = 3;
+    board.pages[1]!.unseenMentions = 1;
     mountWith([], board);
     await openPage(board, { discussion: false });
 
@@ -584,8 +559,8 @@ describe("the discussion on a page", () => {
 
     cleanup();
     const quiet = boardFixture();
-    quiet.pages[1].unseenMessages = 3;
-    quiet.pages[1].unseenMentions = 0;
+    quiet.pages[1]!.unseenMessages = 3;
+    quiet.pages[1]!.unseenMentions = 0;
     mountWith([], quiet);
     await openPage(quiet, { discussion: false });
     expect((document.querySelector(".discussion-unseen") as HTMLElement).className).not.toContain("named");
@@ -603,8 +578,8 @@ describe("the discussion on a page", () => {
 describe("open threads on a board tile", () => {
   it("shows a count only while something is waiting", async () => {
     const board = boardFixture();
-    board.pages[1].openThreads = 2;
-    board.pages[0].openThreads = 0;
+    board.pages[1]!.openThreads = 2;
+    board.pages[0]!.openThreads = 0;
     mountWith([], board);
 
     expect(await screen.findByTitle("2 open threads")).toBeTruthy();
@@ -613,7 +588,7 @@ describe("open threads on a board tile", () => {
 
   it("says it in the singular for one", async () => {
     const board = boardFixture();
-    board.pages[1].openThreads = 1;
+    board.pages[1]!.openThreads = 1;
     mountWith([], board);
 
     expect(await screen.findByTitle("1 open thread")).toBeTruthy();

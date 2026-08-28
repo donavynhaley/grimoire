@@ -5,6 +5,7 @@ import {
   fsyncSync,
   mkdirSync,
   openSync,
+  readdirSync,
   renameSync,
   unlinkSync,
   writeFileSync,
@@ -24,7 +25,7 @@ export function parseMarkdown(markdown: string): { metadata: Record<string, unkn
   const match = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)([\s\S]*)$/);
   if (!match) throw new Error("Expected YAML frontmatter enclosed by --- lines");
   const metadata: Record<string, unknown> = {};
-  for (const line of match[1].split(/\r?\n/)) {
+  for (const line of match[1]!.split(/\r?\n/)) {
     if (!line.trim()) continue;
     const separator = line.indexOf(":");
     if (separator < 1) throw new Error(`Invalid frontmatter line: ${line}`);
@@ -32,7 +33,7 @@ export function parseMarkdown(markdown: string): { metadata: Record<string, unkn
     if (key in metadata) throw new Error(`Duplicate frontmatter field: ${key}`);
     metadata[key] = parseScalar(line.slice(separator + 1).trim());
   }
-  let body = match[2].replace(/^\r?\n/, "");
+  let body = match[2]!.replace(/^\r?\n/, "");
   body = body.replace(/\r?\n$/, "");
   return { metadata, body };
 }
@@ -43,14 +44,15 @@ export function serializeMarkdown(metadata: Array<[string, FrontmatterValue]>, b
   return `---\n${frontmatter}\n---\n\n${body}${trailingNewline}`;
 }
 
-export function writeAtomic(path: string, content: string): void {
+export function writeAtomic(path: string, content: string | Buffer): void {
   const directory = dirname(path);
   mkdirSync(directory, { recursive: true });
   const temporaryPath = join(directory, `.${randomUUID()}.tmp`);
   let descriptor: number | null = null;
   try {
     descriptor = openSync(temporaryPath, "wx", 0o600);
-    writeFileSync(descriptor, content, "utf8");
+    if (typeof content === "string") writeFileSync(descriptor, content, "utf8");
+    else writeFileSync(descriptor, content);
     fsyncSync(descriptor);
     closeSync(descriptor);
     descriptor = null;
@@ -60,6 +62,42 @@ export function writeAtomic(path: string, content: string): void {
     if (existsSync(temporaryPath)) unlinkSync(temporaryPath);
     throw error;
   }
+}
+
+/** Every store keeps a project's records under the same guarded directory shape. */
+export function projectDirectory(rootDirectory: string, projectSlug: string): string {
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(projectSlug)) {
+    throw new Error(`Invalid project slug: ${projectSlug}`);
+  }
+  return join(rootDirectory, projectSlug);
+}
+
+/** The record files in a directory: Markdown only, hidden files and strays left alone. */
+export function markdownFilesIn(directory: string): string[] {
+  return readdirSync(directory, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".md") && !entry.name.startsWith("."))
+    .map((entry) => join(directory, entry.name));
+}
+
+/**
+ * Moves a record by writing the complete destination before removing the source, so an
+ * interruption can only leave the record present twice - the source still authoritative,
+ * the stray copy overwritten by the next attempt - never half-written.
+ */
+export function moveRecord(fromPath: string, toPath: string, content: string): void {
+  writeAtomic(toPath, content);
+  unlinkSync(fromPath);
+}
+
+/** The deterministic tie-break every record list sorts with: rank, position, creation, id. */
+export function compareRecords<T extends { position: number; createdAt: string; id: string }>(
+  rank: (record: T) => number,
+): (left: T, right: T) => number {
+  return (left, right) =>
+    rank(left) - rank(right) ||
+    left.position - right.position ||
+    left.createdAt.localeCompare(right.createdAt) ||
+    left.id.localeCompare(right.id);
 }
 
 export function isTimestamp(value: string): boolean {

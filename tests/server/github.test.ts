@@ -34,7 +34,7 @@ function fakeGithub(answers: Record<string, unknown>) {
     }
     const head = path.match(/^\/repos\/([^/]+\/[^/]+)\/pulls\?head=([^&]+)&/);
     if (head) {
-      const branch = decodeURIComponent(head[2]).split(":")[1];
+      const branch = decodeURIComponent(head[2]!).split(":")[1];
       const answer = answers[`${head[1]}@${branch}`];
       return { status: 200, body: answer ? [answer] : [] };
     }
@@ -79,25 +79,43 @@ describe("reading a pasted reference", () => {
     expect(parseGithubReference("#41", "o/r")).toEqual({ kind: "pr", number: 41 });
     expect(parseGithubReference("41", "o/r")).toEqual({ kind: "pr", number: 41 });
     expect(parseGithubReference("feat/rituals", "o/r")).toEqual({ kind: "branch", name: "feat/rituals" });
-    expect(parseGithubReference("https://github.com/o/r/tree/feat/rituals", "o/r")).toEqual({ kind: "branch", name: "feat/rituals" });
+    expect(parseGithubReference("https://github.com/o/r/tree/feat/rituals", "o/r")).toEqual({
+      kind: "branch",
+      name: "feat/rituals",
+    });
   });
 
   it("keeps a repository that differs from the project's, and drops one that matches", () => {
-    expect(parseGithubReference("https://github.com/other/repo/pull/7", "o/r")).toEqual({ kind: "pr", number: 7, repo: "other/repo" });
+    expect(parseGithubReference("https://github.com/other/repo/pull/7", "o/r")).toEqual({
+      kind: "pr",
+      number: 7,
+      repo: "other/repo",
+    });
     expect(parseGithubReference("https://github.com/o/r/pull/7", "o/r")).toEqual({ kind: "pr", number: 7 });
   });
 
   it("refuses bare references when the project has no repository to hang them on", () => {
     expect(parseGithubReference("#41", "")).toBeNull();
     expect(parseGithubReference("feat/rituals", "")).toBeNull();
-    expect(parseGithubReference("https://github.com/o/r/pull/41", "")).toEqual({ kind: "pr", number: 41, repo: "o/r" });
+    expect(parseGithubReference("https://github.com/o/r/pull/41", "")).toEqual({
+      kind: "pr",
+      number: 41,
+      repo: "o/r",
+    });
   });
 });
 
 describe("the board following the code", () => {
   it("stores the project repository, keeps the token server-side, and links a page", async () => {
     const github = fakeGithub({
-      "wizards/simulator#12": { number: 12, title: "Hold the circle", html_url: "https://github.com/wizards/simulator/pull/12", state: "open", draft: false, merged_at: null },
+      "wizards/simulator#12": {
+        number: 12,
+        title: "Hold the circle",
+        html_url: "https://github.com/wizards/simulator/pull/12",
+        state: "open",
+        draft: false,
+        merged_at: null,
+      },
     });
     const server = await startTestServer(undefined, { githubFetcher: github.fetcher });
     await bootstrap(server);
@@ -123,7 +141,14 @@ describe("the board following the code", () => {
 
   it("moves a page with an open pull request into Review, and never backwards", async () => {
     const github = fakeGithub({
-      "wizards/simulator#12": { number: 12, title: "t", html_url: "u", state: "open", draft: false, merged_at: null },
+      "wizards/simulator#12": {
+        number: 12,
+        title: "t",
+        html_url: "u",
+        state: "open",
+        draft: false,
+        merged_at: null,
+      },
     });
     const server = await startTestServer(undefined, { githubFetcher: github.fetcher });
     await bootstrap(server);
@@ -136,14 +161,24 @@ describe("the board following the code", () => {
     expect(current.status).toBe("review");
 
     // A hand pulls it back; the robot leaves it there.
-    await server.request(`/api/pages/${page.id}`, { method: "PATCH", body: JSON.stringify({ status: "in_progress", position: 0 }) });
+    await server.request(`/api/pages/${page.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "in_progress", position: 0 }),
+    });
     await refresh(server);
     current = (await board(server)).pages.find((candidate) => candidate.id === page.id)!;
     expect(current.status).toBe("in_progress");
   });
 
   it("moves a merged pull request's page into Done and audits it as GitHub", async () => {
-    const merged = { number: 12, title: "t", html_url: "u", state: "closed", draft: false, merged_at: "2026-08-18T12:00:00Z" };
+    const merged = {
+      number: 12,
+      title: "t",
+      html_url: "u",
+      state: "closed",
+      draft: false,
+      merged_at: "2026-08-18T12:00:00Z",
+    };
     const github = fakeGithub({ "wizards/simulator#12": merged });
     const server = await startTestServer(undefined, { githubFetcher: github.fetcher });
     await bootstrap(server);
@@ -158,9 +193,13 @@ describe("the board following the code", () => {
     expect(current.completedAt).not.toBeNull();
     expect(current.githubStatus?.state).toBe("merged");
 
-    const activity = await server.request<{ events: Array<{ actorName: string; action: string; changes: Array<{ field: string; to: string | null }> }> }>(
-      "/api/activity?limit=10",
-    );
+    const activity = await server.request<{
+      events: Array<{
+        actorName: string;
+        action: string;
+        changes: Array<{ field: string; to: string | null }>;
+      }>;
+    }>("/api/activity?limit=10");
     const moved = activity.body.events.find((event) => event.actorName === "GitHub");
     expect(moved).toBeDefined();
     expect(moved!.action).toBe("moved");
@@ -184,14 +223,28 @@ describe("the board following the code", () => {
     expect(current.githubStatus?.state).toBe("unchecked");
 
     // A PR appears from that branch.
-    answers["wizards/simulator@feat/rituals"] = { number: 77, title: "Rituals", html_url: "u77", state: "open", draft: false, merged_at: null };
+    answers["wizards/simulator@feat/rituals"] = {
+      number: 77,
+      title: "Rituals",
+      html_url: "u77",
+      state: "open",
+      draft: false,
+      merged_at: null,
+    };
     await refresh(server);
     current = (await board(server)).pages.find((candidate) => candidate.id === page.id)!;
     expect(current.status).toBe("review");
     expect(current.githubStatus?.prNumber).toBe(77);
 
     // And merges.
-    answers["wizards/simulator@feat/rituals"] = { number: 77, title: "Rituals", html_url: "u77", state: "closed", draft: false, merged_at: "2026-08-18T12:00:00Z" };
+    answers["wizards/simulator@feat/rituals"] = {
+      number: 77,
+      title: "Rituals",
+      html_url: "u77",
+      state: "closed",
+      draft: false,
+      merged_at: "2026-08-18T12:00:00Z",
+    };
     await refresh(server);
     current = (await board(server)).pages.find((candidate) => candidate.id === page.id)!;
     expect(current.status).toBe("done");
@@ -199,8 +252,22 @@ describe("the board following the code", () => {
 
   it("leaves draft and closed-unmerged pull requests where the hand put them", async () => {
     const github = fakeGithub({
-      "wizards/simulator#1": { number: 1, title: "draft", html_url: "u", state: "open", draft: true, merged_at: null },
-      "wizards/simulator#2": { number: 2, title: "closed", html_url: "u", state: "closed", draft: false, merged_at: null },
+      "wizards/simulator#1": {
+        number: 1,
+        title: "draft",
+        html_url: "u",
+        state: "open",
+        draft: true,
+        merged_at: null,
+      },
+      "wizards/simulator#2": {
+        number: 2,
+        title: "closed",
+        html_url: "u",
+        state: "closed",
+        draft: false,
+        merged_at: null,
+      },
     });
     const server = await startTestServer(undefined, { githubFetcher: github.fetcher });
     await bootstrap(server);
@@ -216,12 +283,21 @@ describe("the board following the code", () => {
     expect(after.pages.find((candidate) => candidate.id === drafted.id)!.status).toBe("in_progress");
     expect(after.pages.find((candidate) => candidate.id === drafted.id)!.githubStatus?.state).toBe("draft");
     expect(after.pages.find((candidate) => candidate.id === abandoned.id)!.status).toBe("in_progress");
-    expect(after.pages.find((candidate) => candidate.id === abandoned.id)!.githubStatus?.state).toBe("closed");
+    expect(after.pages.find((candidate) => candidate.id === abandoned.id)!.githubStatus?.state).toBe(
+      "closed",
+    );
   });
 
   it("unlinks cleanly and refuses an unreadable reference", async () => {
     const github = fakeGithub({
-      "wizards/simulator#12": { number: 12, title: "t", html_url: "u", state: "open", draft: false, merged_at: null },
+      "wizards/simulator#12": {
+        number: 12,
+        title: "t",
+        html_url: "u",
+        state: "open",
+        draft: false,
+        merged_at: null,
+      },
     });
     const server = await startTestServer(undefined, { githubFetcher: github.fetcher });
     await bootstrap(server);
@@ -237,7 +313,10 @@ describe("the board following the code", () => {
     expect(refused.status).toBe(400);
 
     await link(server, page.id, "#12");
-    await server.request(`/api/pages/${page.id}`, { method: "PATCH", body: JSON.stringify({ github: null }) });
+    await server.request(`/api/pages/${page.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ github: null }),
+    });
     const current = (await board(server)).pages.find((candidate) => candidate.id === page.id)!;
     expect(current.github).toBeNull();
     expect(current.githubStatus).toBeNull();
@@ -264,7 +343,14 @@ describe("the board following the code", () => {
 describe("linking answers with what GitHub said", () => {
   it("resolves a fresh link before replying, so nothing reads as unchecked", async () => {
     const github = fakeGithub({
-      "wizards/simulator#12": { number: 12, title: "Hold the circle", html_url: "u", state: "open", draft: false, merged_at: null },
+      "wizards/simulator#12": {
+        number: 12,
+        title: "Hold the circle",
+        html_url: "u",
+        state: "open",
+        draft: false,
+        merged_at: null,
+      },
     });
     const server = await startTestServer(undefined, { githubFetcher: github.fetcher });
     await bootstrap(server);
@@ -287,7 +373,8 @@ describe("checking the connection", () => {
     await configureRepo(server, (await board(server)).project.id, "t");
 
     const { body } = await server.request<{ ok: boolean; repo: string; private: boolean }>(
-      "/api/github/verify", { method: "POST", body: "{}" },
+      "/api/github/verify",
+      { method: "POST", body: "{}" },
     );
     expect(body).toEqual({ ok: true, repo: "wizards/simulator", private: true });
   });
@@ -298,9 +385,10 @@ describe("checking the connection", () => {
     await bootstrap(server);
     await configureRepo(server, (await board(server)).project.id, "t");
 
-    const { body } = await server.request<{ ok: boolean; message: string }>(
-      "/api/github/verify", { method: "POST", body: "{}" },
-    );
+    const { body } = await server.request<{ ok: boolean; message: string }>("/api/github/verify", {
+      method: "POST",
+      body: "{}",
+    });
     expect(body.ok).toBe(false);
     expect(body.message).toContain("token");
   });
@@ -310,9 +398,10 @@ describe("checking the connection", () => {
     const server = await startTestServer(undefined, { githubFetcher: github.fetcher });
     await bootstrap(server);
 
-    const { body } = await server.request<{ ok: boolean; reason: string }>(
-      "/api/github/verify", { method: "POST", body: "{}" },
-    );
+    const { body } = await server.request<{ ok: boolean; reason: string }>("/api/github/verify", {
+      method: "POST",
+      body: "{}",
+    });
     expect(body).toMatchObject({ ok: false, reason: "no_repo" });
   });
 });
@@ -321,8 +410,22 @@ describe("the pull request picker", () => {
   it("offers the repository's open and draft pull requests, newest first", async () => {
     const github = fakeGithub({
       "open:wizards/simulator": [
-        { number: 21, title: "Rework the circle", html_url: "u21", draft: false, head: { ref: "feat/circle" }, user: { login: "maren" } },
-        { number: 20, title: "Half-finished idea", html_url: "u20", draft: true, head: { ref: "feat/idea" }, user: { login: "mira" } },
+        {
+          number: 21,
+          title: "Rework the circle",
+          html_url: "u21",
+          draft: false,
+          head: { ref: "feat/circle" },
+          user: { login: "maren" },
+        },
+        {
+          number: 20,
+          title: "Half-finished idea",
+          html_url: "u20",
+          draft: true,
+          head: { ref: "feat/idea" },
+          user: { login: "mira" },
+        },
       ],
     });
     const server = await startTestServer(undefined, { githubFetcher: github.fetcher });
@@ -331,8 +434,22 @@ describe("the pull request picker", () => {
 
     const { body } = await server.request<{ pulls: Array<Record<string, unknown>> }>("/api/github/pulls");
     expect(body.pulls).toEqual([
-      { number: 21, title: "Rework the circle", url: "u21", state: "open", branch: "feat/circle", author: "maren" },
-      { number: 20, title: "Half-finished idea", url: "u20", state: "draft", branch: "feat/idea", author: "mira" },
+      {
+        number: 21,
+        title: "Rework the circle",
+        url: "u21",
+        state: "open",
+        branch: "feat/circle",
+        author: "maren",
+      },
+      {
+        number: 20,
+        title: "Half-finished idea",
+        url: "u20",
+        state: "draft",
+        branch: "feat/idea",
+        author: "mira",
+      },
     ]);
   });
 

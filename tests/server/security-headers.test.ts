@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync, mkdtempSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -14,7 +14,10 @@ function shellDirectory(): string {
 
 /** The directives a page has to be held to, whatever else the policy grows to say. */
 function directive(policy: string, name: string): string | null {
-  const found = policy.split(";").map((part) => part.trim()).find((part) => part.startsWith(`${name} `));
+  const found = policy
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${name} `));
   return found ? found.slice(name.length + 1) : null;
 }
 
@@ -60,5 +63,26 @@ describe("security headers", () => {
     expect(document.headers.get("content-security-policy")).toContain("script-src 'self'");
     expect(document.headers.get("x-frame-options")).toBe("DENY");
     expect(document.headers.get("x-content-type-options")).toBe("nosniff");
+  });
+
+  it("never serves a file the build directory does not contain", async () => {
+    const directory = shellDirectory();
+    // A real prize one directory up from the build, where a traversal would land.
+    writeFileSync(join(directory, "..", "secret.txt"), "the operator's secret");
+    const server = await startTestServer(undefined, { staticDirectory: directory });
+
+    // Spelled plainly and spelled through percent-encoding, which decodes after
+    // routing and so reaches the resolver as a real dot-dot.
+    for (const path of [
+      "/../secret.txt",
+      "/%2e%2e/secret.txt",
+      "/..%2fsecret.txt",
+      "/assets/%2e%2e/%2e%2e/secret.txt",
+    ]) {
+      const answer = await server.fetchRaw(path);
+      const body = await answer.text();
+      expect(body, path).not.toContain("the operator's secret");
+      expect(answer.headers.get("content-type"), path).toContain("text/html");
+    }
   });
 });

@@ -1,10 +1,16 @@
 import { type FormEvent, useState } from "react";
 import { FIELD_TYPES, fieldHasOptions, type FieldType, type ProjectField } from "../../shared/types";
+import { ConfirmInline } from "./ConfirmInline";
 import { Growing } from "./Growing";
-import type { SettingsRun } from "./use-settings-action";
+import type { SettingsRun } from "../hooks/use-settings-action";
 
 export type FieldActions = {
-  create: (input: { label: string; type: FieldType; options?: string[]; showOnTile?: boolean }) => Promise<void>;
+  create: (input: {
+    label: string;
+    type: FieldType;
+    options?: string[];
+    showOnTile?: boolean;
+  }) => Promise<void>;
   update: (
     key: string,
     input: { label?: string; type?: FieldType; options?: string[]; showOnTile?: boolean; position?: number },
@@ -58,10 +64,25 @@ function optionsToText(options: string[]): string {
 }
 
 function textToOptions(value: string): string[] {
-  return [...new Set(value.split(",").map((option) => option.trim()).filter(Boolean))];
+  return [
+    ...new Set(
+      value
+        .split(",")
+        .map((option) => option.trim())
+        .filter(Boolean),
+    ),
+  ];
 }
 
-export function FieldsSection({ estimatesEnabled, onSetEstimatesEnabled, fields, busy, actions, canManage, run }: Props) {
+export function FieldsSection({
+  estimatesEnabled,
+  onSetEstimatesEnabled,
+  fields,
+  busy,
+  actions,
+  canManage,
+  run,
+}: Props) {
   const [newLabel, setNewLabel] = useState("");
   const [newType, setNewType] = useState<FieldType>("text");
   const [newOptions, setNewOptions] = useState("");
@@ -109,8 +130,8 @@ export function FieldsSection({ estimatesEnabled, onSetEstimatesEnabled, fields,
   const move = (index: number, delta: -1 | 1) => {
     const target = index + delta;
     if (target < 0 || target >= ordered.length) return;
-    const moved = ordered[index];
-    const displaced = ordered[target];
+    const moved = ordered[index]!;
+    const displaced = ordered[target]!;
     void run(async () => {
       await actions.update(moved.key, { position: target });
       await actions.update(displaced.key, { position: index });
@@ -121,15 +142,17 @@ export function FieldsSection({ estimatesEnabled, onSetEstimatesEnabled, fields,
     return (
       <div className="settings-section">
         <p className="settings-summary">
-          Extra properties every page can carry — a priority, an estimate, whatever this project tracks.
-          Only an owner can change what exists; anyone can fill them in on a page.
+          Extra properties every page can carry — a priority, an estimate, whatever this project tracks. Only
+          an owner can change what exists; anyone can fill them in on a page.
         </p>
         <ul className="settings-readonly-list">
           {ordered.map((field) => (
             <li key={field.key}>
               {field.label}
               <span className="field-type">{TYPE_LABELS[field.type]}</span>
-              {fieldHasOptions(field.type) && <span className="settings-summary">{optionsToText(field.options)}</span>}
+              {fieldHasOptions(field.type) && (
+                <span className="settings-summary">{optionsToText(field.options)}</span>
+              )}
             </li>
           ))}
           {ordered.length === 0 && <li className="settings-summary">No fields yet.</li>}
@@ -150,10 +173,12 @@ export function FieldsSection({ estimatesEnabled, onSetEstimatesEnabled, fields,
                 checked={estimatesEnabled}
                 disabled={busy}
                 name="estimatesEnabled"
-                onChange={(event) => void run(
-                  () => onSetEstimatesEnabled(event.target.checked),
-                  "The estimates setting could not be changed",
-                )}
+                onChange={(event) =>
+                  void run(
+                    () => onSetEstimatesEnabled(event.target.checked),
+                    "The estimates setting could not be changed",
+                  )
+                }
                 type="checkbox"
               />
               <span aria-hidden="true" className="settings-knob" />
@@ -161,28 +186,37 @@ export function FieldsSection({ estimatesEnabled, onSetEstimatesEnabled, fields,
             </label>
           </div>
           <p className="settings-summary">
-            A number on every page saying how much work it is, in whatever unit this team
-            means by one. Nothing forecasts or multiplies it; with chapters on, it is added
-            up per chapter so a closed stretch can say what it delivered.
+            A number on every page saying how much work it is, in whatever unit this team means by one.
+            Nothing forecasts or multiplies it; with chapters on, it is added up per chapter so a closed
+            stretch can say what it delivered.
           </p>
         </Growing>
       )}
       <p className="settings-summary field-intro">
-        Extra properties every page can carry — a priority, an estimate, whatever this project tracks.
-        Nothing here is counted or added up.
+        Extra properties every page can carry — a priority, an estimate, whatever this project tracks. Nothing
+        here is counted or added up.
       </p>
 
       <div className="field-manager">
         {ordered.map((field, index) => (
           <Growing className="field-row" key={field.key}>
             <div className="field-row-top">
-              <label className="sr-only" htmlFor={`field-label-${field.key}`}>Rename {field.label}</label>
+              <label className="sr-only" htmlFor={`field-label-${field.key}`}>
+                Rename {field.label}
+              </label>
               <input
                 id={`field-label-${field.key}`}
                 name={`fieldLabel-${field.key}`}
                 onBlur={() => saveLabel(field)}
-                onChange={(event) => setLabelDrafts((current) => ({ ...current, [field.key]: event.target.value }))}
-                onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); saveLabel(field); } }}
+                onChange={(event) =>
+                  setLabelDrafts((current) => ({ ...current, [field.key]: event.target.value }))
+                }
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    saveLabel(field);
+                  }
+                }}
                 value={labelDrafts[field.key] ?? field.label}
               />
               {/* The type is fixed once values exist under it, except between the two choice
@@ -192,13 +226,17 @@ export function FieldsSection({ estimatesEnabled, onSetEstimatesEnabled, fields,
                   aria-label={`Show ${field.label} as ${TYPE_LABELS[otherChoiceType(field.type)]}`}
                   className="field-type as-toggle"
                   disabled={busy}
-                  onClick={() => void run(
-                    () => actions.update(field.key, { type: otherChoiceType(field.type) }),
-                    "The field could not be changed",
-                  )}
+                  onClick={() =>
+                    void run(
+                      () => actions.update(field.key, { type: otherChoiceType(field.type) }),
+                      "The field could not be changed",
+                    )
+                  }
                   title={TYPE_HINTS[otherChoiceType(field.type)]}
                   type="button"
-                >{TYPE_LABELS[field.type]}</button>
+                >
+                  {TYPE_LABELS[field.type]}
+                </button>
               ) : (
                 <span className="field-type">{TYPE_LABELS[field.type]}</span>
               )}
@@ -208,10 +246,12 @@ export function FieldsSection({ estimatesEnabled, onSetEstimatesEnabled, fields,
                   checked={field.showOnTile}
                   disabled={busy}
                   name={`fieldOnTile-${field.key}`}
-                  onChange={(event) => void run(
-                    () => actions.update(field.key, { showOnTile: event.target.checked }),
-                    "The field could not be changed",
-                  )}
+                  onChange={(event) =>
+                    void run(
+                      () => actions.update(field.key, { showOnTile: event.target.checked }),
+                      "The field could not be changed",
+                    )
+                  }
                   type="checkbox"
                 />
                 <span aria-hidden="true" className="settings-knob" />
@@ -224,38 +264,38 @@ export function FieldsSection({ estimatesEnabled, onSetEstimatesEnabled, fields,
                   disabled={busy || index === 0}
                   onClick={() => move(index, -1)}
                   type="button"
-                >↑</button>
+                >
+                  ↑
+                </button>
                 <button
                   aria-label={`Move ${field.label} down`}
                   className="icon-button"
                   disabled={busy || index === ordered.length - 1}
                   onClick={() => move(index, 1)}
                   type="button"
-                >↓</button>
+                >
+                  ↓
+                </button>
               </span>
-              {removing === field.key ? (
-                <span className="archive-confirm">
-                  <span>remove?</span>
-                  <button
-                    aria-label={`Confirm delete ${field.label}`}
-                    className="danger-text"
-                    disabled={busy}
-                    onClick={() => void run(async () => {
-                      await actions.remove(field.key);
-                      setRemoving(null);
-                    }, "The field could not be deleted")}
-                    type="button"
-                  >yes</button>
-                  <button aria-label={`Cancel deleting ${field.label}`} onClick={() => setRemoving(null)} type="button">no</button>
-                </span>
-              ) : (
-                <button
-                  aria-label={`Delete ${field.label}`}
-                  className="icon-button"
-                  onClick={() => setRemoving(field.key)}
-                  type="button"
-                >×</button>
-              )}
+              <ConfirmInline
+                cancelAriaLabel={`Cancel deleting ${field.label}`}
+                className="archive-confirm"
+                confirmAriaLabel={`Confirm delete ${field.label}`}
+                confirmDisabled={busy}
+                onCancel={() => setRemoving(null)}
+                onConfirm={() =>
+                  void run(async () => {
+                    await actions.remove(field.key);
+                    setRemoving(null);
+                  }, "The field could not be deleted")
+                }
+                onOpen={() => setRemoving(field.key)}
+                open={removing === field.key}
+                question="remove?"
+                trigger="×"
+                triggerAriaLabel={`Delete ${field.label}`}
+                triggerClass="icon-button"
+              />
             </div>
             {removing === field.key && (
               <p className="settings-summary field-warning">
@@ -264,13 +304,22 @@ export function FieldsSection({ estimatesEnabled, onSetEstimatesEnabled, fields,
             )}
             {fieldHasOptions(field.type) && (
               <div className="field-options">
-                <label className="sr-only" htmlFor={`field-options-${field.key}`}>Options for {field.label}</label>
+                <label className="sr-only" htmlFor={`field-options-${field.key}`}>
+                  Options for {field.label}
+                </label>
                 <input
                   id={`field-options-${field.key}`}
                   name={`fieldOptions-${field.key}`}
                   onBlur={() => saveOptions(field)}
-                  onChange={(event) => setOptionDrafts((current) => ({ ...current, [field.key]: event.target.value }))}
-                  onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); saveOptions(field); } }}
+                  onChange={(event) =>
+                    setOptionDrafts((current) => ({ ...current, [field.key]: event.target.value }))
+                  }
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      saveOptions(field);
+                    }
+                  }}
                   placeholder="p0, p1, p2"
                   value={optionDrafts[field.key] ?? optionsToText(field.options)}
                 />
@@ -281,7 +330,9 @@ export function FieldsSection({ estimatesEnabled, onSetEstimatesEnabled, fields,
             )}
           </Growing>
         ))}
-        {ordered.length === 0 && <p className="empty-dependencies">No fields yet. Add the first one below.</p>}
+        {ordered.length === 0 && (
+          <p className="empty-dependencies">No fields yet. Add the first one below.</p>
+        )}
       </div>
 
       <form className="field-add" onSubmit={submitCreate}>
@@ -294,12 +345,16 @@ export function FieldsSection({ estimatesEnabled, onSetEstimatesEnabled, fields,
               key={type}
               onClick={() => setNewType(type)}
               type="button"
-            >{TYPE_LABELS[type]}</button>
+            >
+              {TYPE_LABELS[type]}
+            </button>
           ))}
         </div>
         <p className="settings-summary">{TYPE_HINTS[newType]}</p>
         <div className="field-add-row">
-          <label className="sr-only" htmlFor="new-field-label">New field name</label>
+          <label className="sr-only" htmlFor="new-field-label">
+            New field name
+          </label>
           <input
             id="new-field-label"
             name="newFieldLabel"
@@ -309,7 +364,9 @@ export function FieldsSection({ estimatesEnabled, onSetEstimatesEnabled, fields,
           />
           {fieldHasOptions(newType) && (
             <>
-              <label className="sr-only" htmlFor="new-field-options">Options</label>
+              <label className="sr-only" htmlFor="new-field-options">
+                Options
+              </label>
               <input
                 id="new-field-options"
                 name="newFieldOptions"
@@ -321,9 +378,13 @@ export function FieldsSection({ estimatesEnabled, onSetEstimatesEnabled, fields,
           )}
           <button
             className="primary-button compact"
-            disabled={busy || !newLabel.trim() || (fieldHasOptions(newType) && textToOptions(newOptions).length === 0)}
+            disabled={
+              busy || !newLabel.trim() || (fieldHasOptions(newType) && textToOptions(newOptions).length === 0)
+            }
             type="submit"
-          >add</button>
+          >
+            add
+          </button>
         </div>
       </form>
     </div>

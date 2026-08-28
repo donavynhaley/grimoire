@@ -3,29 +3,13 @@ import type { DiscussionMessage, DiscussionThread, Member } from "../../shared/t
 import { DISCUSSION_BODY_MAX_LENGTH } from "../../shared/types";
 import { Avatar } from "./Avatar";
 import { Growing } from "./Growing";
-import { relativeLabel } from "./activity-copy";
-import { withMentions } from "./mention-text";
+import { relativeLabel } from "../lib/activity-copy";
+import { withMentions } from "../lib/mention-text";
 
 /**
- * The conversation on a page, in a column of its own beside the writing.
- *
- * The history is a trail the system wrote about the page; this is what people said to each
- * other about it. Keeping them in separate columns is what tells them apart, which is why a
- * thread needs no card, border or raised surface of its own - it is a name, a time, and what
- * was said, ruled off from the next one. No bubbles, no second typeface, nothing that would
- * turn a work board into a chat client.
- *
- * At rest a thread shows only that. Reply and answered are revealed on hover, because seven
- * open threads meant seven of each standing down a narrow column.
- *
- * It is a discussion and nothing more. It does not work out whose turn it is or mark a thread
- * as owing anybody an answer: a conversation between two people about one page does not need
- * to be told who should speak next, and saying so on every other thread turned reading it into
- * being chased.
- *
- * A thread carries exactly one piece of state: open, or answered. Answered threads fold away,
- * which is what keeps a page with forty messages on it showing you two. Nothing is deleted to
- * get there, and reopening costs one click.
+ * The conversation on a page, in a column of its own beside the writing. A thread is a name,
+ * a time, and what was said - one piece of state, open or answered - and the reasons it looks
+ * and behaves this way are design record, in docs/architecture.md under "Discussion".
  */
 
 type Props = {
@@ -40,7 +24,15 @@ type Props = {
   onSetAnswered: (threadId: string, answered: boolean) => Promise<void>;
 };
 
-export function DiscussionSection({ threads, failed, members, currentUserId, onAsk, onReply, onSetAnswered }: Props) {
+export function DiscussionSection({
+  threads,
+  failed,
+  members,
+  currentUserId,
+  onAsk,
+  onReply,
+  onSetAnswered,
+}: Props) {
   const [showingAnswered, setShowingAnswered] = useState(false);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
 
@@ -59,48 +51,64 @@ export function DiscussionSection({ threads, failed, members, currentUserId, onA
    */
   return (
     <div className="page-discussion">
-      {failed
-        ? <p className="empty-dependencies">The conversation could not be loaded. Close the page and open it again.</p>
-        : threads === null
-        ? <p className="empty-dependencies">Reading the discussion...</p>
-        : (
-          <div className="discussion-threads">
-            {shown.map((thread) => (
-              <Thread
-                currentUserId={currentUserId}
-                key={thread.id}
-                members={members}
-                onReply={(body) => onReply(thread.id, body)}
-                onReplyingChange={(active) => setReplyingTo(active ? thread.id : null)}
-                onSetAnswered={(answer) => onSetAnswered(thread.id, answer)}
-                replying={replyingTo === thread.id}
-                thread={thread}
-              />
-            ))}
-            {shown.length === 0 && (
-              <p className="empty-dependencies">
-                {answered.length > 0 ? "Everything here has been answered." : "Nothing has been said here yet."}
-              </p>
-            )}
-            {answered.length > 0 && (
-              <button
-                aria-expanded={showingAnswered}
-                className="text-button discussion-fold"
-                onClick={() => setShowingAnswered((showing) => !showing)}
-                type="button"
-              >
-                {showingAnswered ? `hide ${answered.length} answered` : `show ${answered.length} answered`}
-              </button>
-            )}
-          </div>
-        )}
+      {failed ? (
+        <p className="empty-dependencies">
+          The conversation could not be loaded. Close the page and open it again.
+        </p>
+      ) : threads === null ? (
+        <p className="empty-dependencies">Reading the discussion...</p>
+      ) : (
+        <Growing className="discussion-threads">
+          {shown.map((thread) => (
+            <Thread
+              currentUserId={currentUserId}
+              key={thread.id}
+              members={members}
+              onReply={(body) => onReply(thread.id, body)}
+              onReplyingChange={(active) => setReplyingTo(active ? thread.id : null)}
+              onSetAnswered={(answer) => onSetAnswered(thread.id, answer)}
+              replying={replyingTo === thread.id}
+              thread={thread}
+            />
+          ))}
+          {shown.length === 0 && (
+            <p className="empty-dependencies">
+              {answered.length > 0 ? "Everything here has been answered." : "Nothing has been said here yet."}
+            </p>
+          )}
+          {answered.length > 0 && (
+            <button
+              aria-expanded={showingAnswered}
+              className="text-button discussion-fold"
+              onClick={() => setShowingAnswered((showing) => !showing)}
+              type="button"
+            >
+              {showingAnswered ? `hide ${answered.length} answered` : `show ${answered.length} answered`}
+            </button>
+          )}
+        </Growing>
+      )}
 
-      <Composer label="Start a thread" members={members} onSubmit={onAsk} placeholder="Say something about this page..." sendLabel="post" />
+      <Composer
+        label="Start a thread"
+        members={members}
+        onSubmit={onAsk}
+        placeholder="Say something about this page..."
+        sendLabel="post"
+      />
     </div>
   );
 }
 
-function Thread({ thread, members, currentUserId, replying, onReply, onReplyingChange, onSetAnswered }: {
+function Thread({
+  thread,
+  members,
+  currentUserId,
+  replying,
+  onReply,
+  onReplyingChange,
+  onSetAnswered,
+}: {
   thread: DiscussionThread;
   members: Member[];
   currentUserId: string;
@@ -121,16 +129,18 @@ function Thread({ thread, members, currentUserId, replying, onReply, onReplyingC
          * standing under every thread. Seven open threads meant seven REPLY buttons and seven
          * MARK ANSWERED down a narrow column, which is more furniture than conversation.
          */
-        action={(
+        action={
           <span className="thread-actions">
             {!answered && !replying && (
-              <button className="text-button" onClick={() => onReplyingChange(true)} type="button">reply</button>
+              <button className="text-button" onClick={() => onReplyingChange(true)} type="button">
+                reply
+              </button>
             )}
             <button className="text-button" onClick={() => void onSetAnswered(!answered)} type="button">
               {answered ? "reopen" : "answered"}
             </button>
           </span>
-        )}
+        }
         currentUserId={currentUserId}
         members={members}
         message={thread}
@@ -148,17 +158,34 @@ function Thread({ thread, members, currentUserId, replying, onReply, onReplyingC
       ))}
       {answered && (
         <p className="thread-settled">
-          Answered{thread.answeredByName ? ` by ${thread.answeredByName}` : ""} {relativeLabel(thread.answeredAt as string, now)}
+          Answered{thread.answeredByName ? ` by ${thread.answeredByName}` : ""}{" "}
+          {relativeLabel(thread.answeredAt as string, now)}
         </p>
       )}
       {replying && (
-        <Composer autoFocus label="Reply" members={members} onCancel={() => onReplyingChange(false)} onSubmit={onReply} placeholder="Reply..." reply sendLabel="reply" />
+        <Composer
+          autoFocus
+          label="Reply"
+          members={members}
+          onCancel={() => onReplyingChange(false)}
+          onSubmit={onReply}
+          placeholder="Reply..."
+          reply
+          sendLabel="reply"
+        />
       )}
     </Growing>
   );
 }
 
-function Message({ message, members, currentUserId, now, action, reply }: {
+function Message({
+  message,
+  members,
+  currentUserId,
+  now,
+  action,
+  reply,
+}: {
   message: DiscussionMessage;
   members: Member[];
   currentUserId: string;
@@ -210,7 +237,16 @@ function fitToContent(element: HTMLTextAreaElement): void {
  * than they meant to. Enter sends and shift-enter breaks the line, which is what everyone
  * expects from a field that looks like this.
  */
-function Composer({ onSubmit, onCancel, placeholder, label, sendLabel, members, reply, autoFocus }: {
+function Composer({
+  onSubmit,
+  onCancel,
+  placeholder,
+  label,
+  sendLabel,
+  members,
+  reply,
+  autoFocus,
+}: {
   onSubmit: (body: string) => Promise<void>;
   onCancel?: () => void;
   placeholder: string;
@@ -245,9 +281,7 @@ function Composer({ onSubmit, onCancel, placeholder, label, sendLabel, members, 
   const pickerId = useId();
 
   const matches = naming
-    ? members
-      .filter((member) => member.name.toLowerCase().startsWith(naming.query.toLowerCase()))
-      .slice(0, 6)
+    ? members.filter((member) => member.name.toLowerCase().startsWith(naming.query.toLowerCase())).slice(0, 6)
     : [];
 
   const readCaret = (element: HTMLTextAreaElement) => {
@@ -260,14 +294,14 @@ function Composer({ onSubmit, onCancel, placeholder, label, sendLabel, members, 
       setDismissed(null);
       return;
     }
-    const at = caret - match[1].length - 1;
-    const key = `${at}:${match[1]}`;
+    const at = caret - match[1]!.length - 1;
+    const key = `${at}:${match[1]!}`;
     if (key === dismissed) {
       setNaming(null);
       return;
     }
     setDismissed(null);
-    setNaming({ query: match[1], at });
+    setNaming({ query: match[1]!, at });
     setHighlighted(0);
   };
 
@@ -343,7 +377,10 @@ function Composer({ onSubmit, onCancel, placeholder, label, sendLabel, members, 
         aria-expanded={matches.length > 0}
         aria-label={label}
         maxLength={DISCUSSION_BODY_MAX_LENGTH}
-        onChange={(event) => { setValue(event.target.value); readCaret(event.target); }}
+        onChange={(event) => {
+          setValue(event.target.value);
+          readCaret(event.target);
+        }}
         onKeyDown={(event) => {
           /*
            * While a name is being picked those keys belong to the picker. Enter especially:
@@ -362,7 +399,7 @@ function Composer({ onSubmit, onCancel, placeholder, label, sendLabel, members, 
             }
             if (event.key === "Enter" || event.key === "Tab") {
               event.preventDefault();
-              choose(matches[highlighted]);
+              choose(matches[highlighted]!);
               return;
             }
             if (event.key === "Escape") {
@@ -412,7 +449,10 @@ function Composer({ onSubmit, onCancel, placeholder, label, sendLabel, members, 
               id={`${pickerId}-${index}`}
               key={member.id}
               // The field blurs before a click lands, which would close the picker first.
-              onMouseDown={(event) => { event.preventDefault(); choose(member); }}
+              onMouseDown={(event) => {
+                event.preventDefault();
+                choose(member);
+              }}
               role="option"
             >
               <Avatar avatarUrl={member.avatarUrl} className="avatar tiny" name={member.name} />
@@ -428,7 +468,11 @@ function Composer({ onSubmit, onCancel, placeholder, label, sendLabel, members, 
         panel that commits something, and the product already has a look for that.
       */}
       <div className="composer-tools">
-        {onCancel && <button className="text-button" onClick={onCancel} type="button">cancel</button>}
+        {onCancel && (
+          <button className="text-button" onClick={onCancel} type="button">
+            cancel
+          </button>
+        )}
         <button
           className="primary-button compact"
           disabled={!value.trim() || busy}

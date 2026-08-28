@@ -1,28 +1,14 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { App } from "../../src/App";
 import type { BoardWorkspace, ProjectField } from "../../shared/types";
 import { boardFixture } from "../fixtures/board";
+import { installUiHarness, routeFetch, type RecordedCall } from "../fixtures/ui";
 
-afterEach(() => {
-  cleanup();
-  vi.unstubAllGlobals();
-  window.history.replaceState({}, "", "/");
-});
-
-function response(body: unknown, status = 200) {
-  return Promise.resolve(
-    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } }),
-  );
-}
-
-function requestUrl(input: RequestInfo | URL): string {
-  if (typeof input === "string") return input;
-  return input instanceof URL ? `${input.pathname}${input.search}` : input.url;
-}
+installUiHarness();
 
 const priority: ProjectField = {
   key: "priority",
@@ -52,23 +38,8 @@ const estimate: ProjectField = {
 };
 
 /** Mounts the app over a board, recording every write the field UI makes. */
-function mountWith(board: BoardWorkspace) {
-  const calls: Array<{ url: string; method: string; body: unknown }> = [];
-  vi.stubGlobal("fetch", (input: RequestInfo | URL, init: RequestInit = {}) => {
-    const url = requestUrl(input);
-    const method = init.method ?? "GET";
-    if (method !== "GET") {
-      calls.push({ url, method, body: init.body ? JSON.parse(String(init.body)) : null });
-      return response({ ok: true });
-    }
-    if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
-    // The page dialog reads its discussion the same way it reads its history, on every open.
-    if (/^\/api\/pages\/[^/]+\/discussion/.test(url)) return response({ threads: [] });
-    if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
-    if (url.startsWith("/api/agent-tokens")) return response({ tokens: [] });
-    if (url.startsWith("/api/session")) return response({ status: "authenticated", user: board.currentUser });
-    return response(board);
-  });
+function mountWith(board: BoardWorkspace): RecordedCall[] {
+  const { calls } = routeFetch({ board });
   render(<App />);
   return calls;
 }
@@ -173,7 +144,7 @@ describe("page fields", () => {
     const board = { ...boardFixture(), fields: [region] };
     const calls = mountWith(board);
 
-    await user.click(await screen.findByText(board.pages[1].title));
+    await user.click(await screen.findByText(board.pages[1]!.title));
     await user.click(screen.getByRole("button", { name: "Change Region" }));
     await user.type(screen.getByLabelText("Find a Region option"), "fore");
     // The list narrows to what was typed instead of offering every option as a button.
@@ -183,7 +154,7 @@ describe("page fields", () => {
     await waitFor(() =>
       expect(calls).toContainEqual(
         expect.objectContaining({
-          url: `/api/pages/${board.pages[1].id}`,
+          url: `/api/pages/${board.pages[1]!.id}`,
           method: "PATCH",
           body: { fields: { region: "deep forest" } },
         }),
@@ -196,7 +167,7 @@ describe("page fields", () => {
     const board = { ...boardFixture(), fields: [region, estimate] };
     mountWith(board);
 
-    await user.click(await screen.findByText(board.pages[1].title));
+    await user.click(await screen.findByText(board.pages[1]!.title));
     const rail = screen.getByLabelText("Page properties");
 
     await user.click(screen.getByRole("button", { name: "Change Region" }));
@@ -224,14 +195,15 @@ describe("page fields", () => {
     const board = { ...boardFixture(), fields: [region] };
     mountWith(board);
 
-    await user.click(await screen.findByText(board.pages[1].title));
+    await user.click(await screen.findByText(board.pages[1]!.title));
     await user.click(screen.getByRole("button", { name: "Change Region" }));
     expect(screen.getByRole("dialog", { name: "Choose a Region" })).toBeInTheDocument();
 
     // Clicking elsewhere is the way out people reach for before they find the cancel.
     await user.click(screen.getByLabelText("Page properties"));
     await waitFor(() =>
-      expect(screen.queryByRole("dialog", { name: "Choose a Region" })).not.toBeInTheDocument());
+      expect(screen.queryByRole("dialog", { name: "Choose a Region" })).not.toBeInTheDocument(),
+    );
   });
 
   it("filters a searchable choice's capture picker by typing", async () => {
@@ -432,7 +404,7 @@ describe("page fields", () => {
     const user = userEvent.setup();
     const board = { ...boardFixture(), fields: [priority, estimate] };
     // The second fixture page is the one in a column the board actually draws.
-    board.pages[1] = { ...board.pages[1], fields: { estimate: 5 } };
+    board.pages[1] = { ...board.pages[1]!, fields: { estimate: 5 } };
     const calls = mountWith(board);
 
     await user.click(await screen.findByRole("button", { name: /Open Model the potion workbench/ }));
@@ -440,7 +412,7 @@ describe("page fields", () => {
 
     // A patch, so the estimate the page already carries is not restated and cannot be lost.
     expect(calls).toContainEqual({
-      url: `/api/pages/${board.pages[1].id}`,
+      url: `/api/pages/${board.pages[1]!.id}`,
       method: "PATCH",
       body: { fields: { priority: "p0" } },
     });
@@ -449,14 +421,14 @@ describe("page fields", () => {
   it("clears a value with none, which is how a field is emptied", async () => {
     const user = userEvent.setup();
     const board = { ...boardFixture(), fields: [priority] };
-    board.pages[1] = { ...board.pages[1], fields: { priority: "p1" } };
+    board.pages[1] = { ...board.pages[1]!, fields: { priority: "p1" } };
     const calls = mountWith(board);
 
     await user.click(await screen.findByRole("button", { name: /Open Model the potion workbench/ }));
     await user.click(await screen.findByRole("button", { name: "Clear Priority" }));
 
     expect(calls).toContainEqual({
-      url: `/api/pages/${board.pages[1].id}`,
+      url: `/api/pages/${board.pages[1]!.id}`,
       method: "PATCH",
       body: { fields: { priority: null } },
     });
@@ -464,7 +436,7 @@ describe("page fields", () => {
 
   it("shows only tile-marked fields on the board, and only where a page has one", async () => {
     const board = { ...boardFixture(), fields: [priority, estimate] };
-    board.pages[1] = { ...board.pages[1], fields: { priority: "p0", estimate: 8 } };
+    board.pages[1] = { ...board.pages[1]!, fields: { priority: "p0", estimate: 8 } };
     mountWith(board);
 
     // Priority is marked for tiles; the estimate is not, so 8 stays inside the page.

@@ -340,6 +340,8 @@ Canonical project files are stored beneath `data/pages` by default.
 Set `GRIMOIRE_CARDS_DIRECTORY` to a directory inside the Wizard Simulator repository if the work and ideas should share its Git history.
 
 See [docs/architecture.md](docs/architecture.md) for the storage boundary, page format, migration behavior, and editing guarantees.
+See [docs/coding-standards.md](docs/coding-standards.md) for the standards contributions are held to, each with a citable ID.
+See [docs/ui-standards.md](docs/ui-standards.md) for how interface work is built: motion, dialogs, accessibility, and CSS.
 See [docs/deployment.md](docs/deployment.md) for the isolated Proxmox VM, Cloudflare Tunnel, automatic deployment, and backup procedure.
 
 ## Verification

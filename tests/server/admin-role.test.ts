@@ -20,7 +20,10 @@ async function login(server: TestServer, account: { email: string; password: str
 }
 
 async function registerMember(server: TestServer) {
-  const invite = await server.request<{ code: string }>("/api/invites", { method: "POST", body: JSON.stringify({}) });
+  const invite = await server.request<{ code: string }>("/api/invites", {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
   await server.request("/api/auth/register", {
     method: "POST",
     body: JSON.stringify({ ...MEMBER, inviteCode: invite.body.code }),
@@ -72,9 +75,12 @@ describe("the admin, and ownership that belongs to a project", () => {
     // Maren is a plain member of the installation and still owns what she makes.
     const hers = await createProject(server, "Marla's Notebook");
     expect(hers.response.status).toBe(201);
-    const board = await server.request<{ viewerIsOwner: boolean; currentUser: { role: string } }>("/api/board", {
-      headers: { "x-grimoire-project": hers.body.project.id },
-    });
+    const board = await server.request<{ viewerIsOwner: boolean; currentUser: { role: string } }>(
+      "/api/board",
+      {
+        headers: { "x-grimoire-project": hers.body.project.id },
+      },
+    );
     expect(board.body.currentUser.role).toBe("member");
     expect(board.body.viewerIsOwner).toBe(true);
 
@@ -90,7 +96,7 @@ describe("the admin, and ownership that belongs to a project", () => {
     await bootstrap(server);
     await registerMember(server);
     await login(server, ownerAccount);
-    const wizard = (await server.request<{ projects: ProjectSummary[] }>("/api/projects")).body.projects[0];
+    const wizard = (await server.request<{ projects: ProjectSummary[] }>("/api/projects")).body.projects[0]!;
     const second = await createProject(server, "Familiar Tycoon");
     const maren = (await members(server, wizard.id)).find((member) => member.email === MEMBER.email)!;
     expect((await setRole(server, maren.id, "owner", wizard.id)).response.status).toBe(200);
@@ -104,7 +110,9 @@ describe("the admin, and ownership that belongs to a project", () => {
     });
     expect(shaped.response.status).toBe(201);
     // ...and not so much as a reader of the one she was not.
-    const other = await server.request("/api/board", { headers: { "x-grimoire-project": second.body.project.id } });
+    const other = await server.request("/api/board", {
+      headers: { "x-grimoire-project": second.body.project.id },
+    });
     expect(other.response.status).toBe(404);
   });
 
@@ -116,7 +124,7 @@ describe("the admin, and ownership that belongs to a project", () => {
 
     // Demoted where the admin is the owner - which is not where she is one.
     await login(server, ownerAccount);
-    const wizard = (await server.request<{ projects: ProjectSummary[] }>("/api/projects")).body.projects[0];
+    const wizard = (await server.request<{ projects: ProjectSummary[] }>("/api/projects")).body.projects[0]!;
     const maren = (await members(server, wizard.id)).find((member) => member.email === MEMBER.email)!;
     expect((await setRole(server, maren.id, "member", wizard.id)).response.status).toBe(200);
 
@@ -132,7 +140,7 @@ describe("the admin, and ownership that belongs to a project", () => {
     await bootstrap(server);
     await registerMember(server);
     await login(server, ownerAccount);
-    const wizard = (await server.request<{ projects: ProjectSummary[] }>("/api/projects")).body.projects[0];
+    const wizard = (await server.request<{ projects: ProjectSummary[] }>("/api/projects")).body.projects[0]!;
     const maren = (await members(server, wizard.id)).find((member) => member.email === MEMBER.email)!;
     await setRole(server, maren.id, "owner", wizard.id);
     const admin = (await members(server, wizard.id)).find((member) => member.email === ownerAccount.email)!;
@@ -163,8 +171,11 @@ describe("the admin, and ownership that belongs to a project", () => {
     expect(seen.response.status).toBe(200);
     // Reaching it is not enough; the admin can put it right, which is the point of the role.
     expect(seen.body.viewerIsOwner).toBe(true);
-    expect((await server.request<{ projects: ProjectSummary[] }>("/api/projects")).body.projects
-      .map((project) => project.name)).toContain("Marla's Notebook");
+    expect(
+      (await server.request<{ projects: ProjectSummary[] }>("/api/projects")).body.projects.map(
+        (project) => project.name,
+      ),
+    ).toContain("Marla's Notebook");
   });
 });
 
@@ -172,7 +183,13 @@ describe("the admin, and ownership that belongs to a project", () => {
  * Builds a database in the shape the live installation is in now: an account role that is
  * also the project role, and the spillage from writing it across every membership row.
  */
-async function legacyDatabase(): Promise<{ directory: string; first: string; second: string; alpha: string; beta: string }> {
+async function legacyDatabase(): Promise<{
+  directory: string;
+  first: string;
+  second: string;
+  alpha: string;
+  beta: string;
+}> {
   const directory = mkdtempSync(join(tmpdir(), "grimoire-legacy-"));
   const database = new DatabaseSync(join(directory, "grimoire.sqlite"));
   database.exec(`CREATE TABLE users (
@@ -205,7 +222,9 @@ async function legacyDatabase(): Promise<{ directory: string; first: string; sec
   const hash = await hashPassword(ownerAccount.password);
   const addUser = (id: string, name: string, email: string, role: string, at: string) =>
     database
-      .prepare("INSERT INTO users (id, name, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+      .prepare(
+        "INSERT INTO users (id, name, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+      )
       .run(id, name, email, hash, role, at);
   // Both are account-wide owners, which is the only way a second owner could exist before.
   addUser(first, "Donavyn", ownerAccount.email, "owner", "2026-01-01T00:00:00.000Z");
@@ -234,7 +253,10 @@ async function legacyDatabase(): Promise<{ directory: string; first: string; sec
 
 function rolesIn(directory: string) {
   const database = new DatabaseSync(join(directory, "grimoire.sqlite"));
-  const accounts = database.prepare("SELECT id, role FROM users").all() as Array<{ id: string; role: string }>;
+  const accounts = database.prepare("SELECT id, role FROM users").all() as Array<{
+    id: string;
+    role: string;
+  }>;
   const memberships = database
     .prepare("SELECT project_id, user_id, role FROM project_members")
     .all() as Array<{ project_id: string; user_id: string; role: string }>;
@@ -291,10 +313,14 @@ describe("reconciling an installation that predates the split", () => {
       created_at TEXT NOT NULL
     );`);
     database
-      .prepare("INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)")
+      .prepare(
+        "INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)",
+      )
       .run(randomUUID(), first, "a-token-hash", "2099-01-01T00:00:00.000Z", "2026-05-01T00:00:00.000Z");
     database
-      .prepare("INSERT INTO invites (id, code_hash, created_by, expires_at, created_at) VALUES (?, ?, ?, ?, ?)")
+      .prepare(
+        "INSERT INTO invites (id, code_hash, created_by, expires_at, created_at) VALUES (?, ?, ?, ?, ?)",
+      )
       .run(randomUUID(), "an-invite-hash", first, "2099-01-01T00:00:00.000Z", "2026-05-01T00:00:00.000Z");
     database.close();
 
@@ -303,15 +329,16 @@ describe("reconciling an installation that predates the split", () => {
     database = new DatabaseSync(path);
     // Nothing was orphaned, and the guard the migration runs before committing agrees.
     expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
-    const sessions = database
-      .prepare("SELECT user_id FROM sessions")
-      .all() as Array<{ user_id: string }>;
+    const sessions = database.prepare("SELECT user_id FROM sessions").all() as Array<{ user_id: string }>;
     expect(sessions.map((session) => session.user_id)).toEqual([first]);
     expect(database.prepare("SELECT COUNT(*) AS count FROM invites").get()).toMatchObject({ count: 1 });
     // And the row every one of them points at is the reconciled admin, not a fresh account.
-    expect(database.prepare("SELECT role FROM users WHERE id = ?").get(first)).toMatchObject({ role: "admin" });
-    expect(database.prepare("SELECT COUNT(*) AS count FROM project_members WHERE project_id = ?").get(alpha))
-      .toMatchObject({ count: 2 });
+    expect(database.prepare("SELECT role FROM users WHERE id = ?").get(first)).toMatchObject({
+      role: "admin",
+    });
+    expect(
+      database.prepare("SELECT COUNT(*) AS count FROM project_members WHERE project_id = ?").get(alpha),
+    ).toMatchObject({ count: 2 });
     database.close();
   });
 
@@ -328,8 +355,9 @@ describe("reconciling an installation that predates the split", () => {
     database.close();
 
     await (await startTestServer(directory)).close();
-    expect(rolesIn(directory).memberships
-      .find((row) => row.project_id === alpha && row.user_id === second)!.role).toBe("owner");
+    expect(
+      rolesIn(directory).memberships.find((row) => row.project_id === alpha && row.user_id === second)!.role,
+    ).toBe("owner");
   });
 
   it("lets the reconciled admin sign in and reach both projects", async () => {
@@ -338,8 +366,10 @@ describe("reconciling an installation that predates the split", () => {
 
     expect((await login(server, ownerAccount)).response.status).toBe(200);
     const listed = await server.request<{ projects: ProjectSummary[] }>("/api/projects");
-    expect(listed.body.projects.map((project) => project.name).sort())
-      .toEqual(["Familiar Tycoon", "Wizard Simulator"]);
+    expect(listed.body.projects.map((project) => project.name).sort()).toEqual([
+      "Familiar Tycoon",
+      "Wizard Simulator",
+    ]);
     await server.close();
   });
 
@@ -373,7 +403,9 @@ describe("reconciling an installation that predates the split", () => {
     const { directory, alpha } = await legacyDatabase();
     const server = await startTestServer(directory);
 
-    expect((await login(server, { email: MEMBER.email, password: ownerAccount.password })).response.status).toBe(200);
+    expect(
+      (await login(server, { email: MEMBER.email, password: ownerAccount.password })).response.status,
+    ).toBe(200);
     // She is still on Wizard Simulator and can still work there; she just no longer runs it.
     const board = await server.request<{ viewerIsOwner: boolean }>("/api/board", {
       headers: { "x-grimoire-project": alpha },

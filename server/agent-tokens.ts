@@ -55,11 +55,16 @@ export type IssuedAgentToken = {
 
 export function issueAgentToken(
   database: DatabaseSync,
-  input: { projectId: string; userId: string; name: string; scope: AgentTokenScope; expiresAt?: string | null },
+  input: {
+    projectId: string;
+    userId: string;
+    name: string;
+    scope: AgentTokenScope;
+    expiresAt?: string | null;
+  },
 ): IssuedAgentToken | null {
   const owner = database.prepare("SELECT name FROM users WHERE id = ?").get(input.userId) as
-    | { name: string }
-    | undefined;
+    { name: string } | undefined;
   if (!owner) return null;
 
   const secret = `${AGENT_TOKEN_PREFIX}${createOpaqueToken()}`;
@@ -70,7 +75,16 @@ export function issueAgentToken(
       `INSERT INTO agent_tokens (id, project_id, user_id, name, token_hash, scope, created_at, expires_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(id, input.projectId, input.userId, input.name, hashToken(secret), input.scope, createdAt, input.expiresAt ?? null);
+    .run(
+      id,
+      input.projectId,
+      input.userId,
+      input.name,
+      hashToken(secret),
+      input.scope,
+      createdAt,
+      input.expiresAt ?? null,
+    );
 
   return {
     secret,
@@ -119,7 +133,7 @@ export function revokeAgentToken(database: DatabaseSync, projectId: string, toke
   const result = database
     .prepare("UPDATE agent_tokens SET revoked_at = ? WHERE id = ? AND project_id = ? AND revoked_at IS NULL")
     .run(new Date().toISOString(), tokenId, projectId);
-  return Number(result.changes) > 0;
+  return Number(result.changes) === 1;
 }
 
 /**
@@ -174,7 +188,9 @@ export function agentForToken(database: DatabaseSync, secret: string): AgentIden
 
 /** Best-effort "when did this last do anything", for the settings list. */
 export function touchAgentToken(database: DatabaseSync, tokenId: string): void {
-  database.prepare("UPDATE agent_tokens SET last_used_at = ? WHERE id = ?").run(new Date().toISOString(), tokenId);
+  database
+    .prepare("UPDATE agent_tokens SET last_used_at = ? WHERE id = ?")
+    .run(new Date().toISOString(), tokenId);
 }
 
 /**

@@ -24,7 +24,9 @@ describe("the sign-in screen", () => {
   });
 
   it("shows Google's own button when the provider is Google", () => {
-    render(<AuthScreen mode="login" oidc={{ label: "Google", brand: "google" }} onAuthenticated={nothingToDo} />);
+    render(
+      <AuthScreen mode="login" oidc={{ label: "Google", brand: "google" }} onAuthenticated={nothingToDo} />,
+    );
 
     // Google publishes the wording, and it is not "continue with <whatever the operator typed>".
     const button = screen.getByRole("link", { name: "Sign in with Google" });
@@ -36,7 +38,11 @@ describe("the sign-in screen", () => {
 
   it("ignores the operator's label for a branded provider, since the wording is not theirs to set", () => {
     render(
-      <AuthScreen mode="login" oidc={{ label: "Work Account", brand: "google" }} onAuthenticated={nothingToDo} />,
+      <AuthScreen
+        mode="login"
+        oidc={{ label: "Work Account", brand: "google" }}
+        onAuthenticated={nothingToDo}
+      />,
     );
     expect(screen.getByRole("link", { name: "Sign in with Google" })).toBeInTheDocument();
     expect(screen.queryByText(/continue with Work Account/i)).not.toBeInTheDocument();
@@ -71,7 +77,12 @@ describe("the sign-in screen", () => {
 
   it("carries the invitation, which is what lets a provider sign-in make an account", () => {
     render(
-      <AuthScreen inviteCode="an-invitation-code" mode="register" oidc={{ label: "Authentik" }} onAuthenticated={nothingToDo} />,
+      <AuthScreen
+        inviteCode="an-invitation-code"
+        mode="register"
+        oidc={{ label: "Authentik" }}
+        onAuthenticated={nothingToDo}
+      />,
     );
 
     const href = screen.getByRole("link", { name: /continue with Authentik/i }).getAttribute("href")!;
@@ -93,7 +104,14 @@ describe("the sign-in screen", () => {
 
   it("does not carry a failed attempt's message into the next one", () => {
     window.history.replaceState({}, "", "/?signin_error=No+Grimoire+account+uses+that+email+address.");
-    render(<AuthScreen mode="login" oidc={{ label: "Authentik" }} onAuthenticated={nothingToDo} providerError="No Grimoire account uses that email address." />);
+    render(
+      <AuthScreen
+        mode="login"
+        oidc={{ label: "Authentik" }}
+        onAuthenticated={nothingToDo}
+        providerError="No Grimoire account uses that email address."
+      />,
+    );
 
     const href = screen.getByRole("link", { name: /continue with Authentik/i }).getAttribute("href")!;
     expect(new URLSearchParams(href.split("?")[1]).get("return")).toBe("/");

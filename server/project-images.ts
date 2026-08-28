@@ -1,6 +1,7 @@
-import { randomBytes, randomUUID } from "node:crypto";
-import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { projectDirectory, writeAtomic } from "./markdown-files";
 
 export type ProjectImageType = "image/png" | "image/jpeg" | "image/webp" | "image/gif";
 
@@ -56,7 +57,7 @@ export class ProjectImageStore {
 
   get(projectSlug: string, imageName: string): StoredProjectImage | null {
     const match = imageName.match(IMAGE_NAME_PATTERN);
-    const contentType = match ? CONTENT_TYPES[match[1].toLowerCase()] : undefined;
+    const contentType = match ? CONTENT_TYPES[match[1]!.toLowerCase()] : undefined;
     if (!contentType) return null;
     const path = join(this.imagesDirectory(projectSlug), imageName);
     return existsSync(path) ? { path, contentType } : null;
@@ -65,27 +66,11 @@ export class ProjectImageStore {
   save(projectSlug: string, data: Buffer, contentType: ProjectImageType): string {
     const stamp = new Date().toISOString().replace(/[-:]/g, "").replace("T", "-").slice(0, 15);
     const name = `pasted-image-${stamp}-${randomBytes(2).toString("hex")}.${EXTENSIONS[contentType]}`;
-    const directory = this.imagesDirectory(projectSlug);
-    mkdirSync(directory, { recursive: true });
-    const temporaryPath = join(directory, `.${randomUUID()}.tmp`);
-    let descriptor: number | null = null;
-    try {
-      descriptor = openSync(temporaryPath, "wx", 0o600);
-      writeFileSync(descriptor, data);
-      fsyncSync(descriptor);
-      closeSync(descriptor);
-      descriptor = null;
-      renameSync(temporaryPath, join(directory, name));
-    } catch (error) {
-      if (descriptor !== null) closeSync(descriptor);
-      if (existsSync(temporaryPath)) unlinkSync(temporaryPath);
-      throw error;
-    }
+    writeAtomic(join(this.imagesDirectory(projectSlug), name), data);
     return name;
   }
 
   private imagesDirectory(projectSlug: string): string {
-    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(projectSlug)) throw new Error(`Invalid project slug: ${projectSlug}`);
-    return join(this.rootDirectory, projectSlug, "images");
+    return join(projectDirectory(this.rootDirectory, projectSlug), "images");
   }
 }

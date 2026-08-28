@@ -1,8 +1,20 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { ConflictError, GrimoireClient, GrimoireError, type Board, type DiscussionThread, type Page } from "./client.js";
 import {
+  BODY_MAX_LENGTH,
+  ConflictError,
+  DISCUSSION_BODY_MAX_LENGTH,
+  GrimoireClient,
+  GrimoireError,
+  MCP_VERSION,
+  type Board,
+  type DiscussionThread,
+  type Page,
+} from "./client.js";
+import {
+  PAGE_COLUMNS,
   ResolutionError,
+  UUID_SHAPE,
   categoryName,
   chapterName,
   columnLabel,
@@ -15,15 +27,6 @@ import {
   resolvePage,
   resolveStatus,
 } from "./resolve.js";
-
-/**
- * How long a body may be, mirroring `BODY_MAX_LENGTH` in the server's shared/types.ts.
- *
- * Duplicated rather than imported because this package ships to npm on its own and takes no
- * dependency on the application source. The server is the one that enforces it; this copy only
- * saves an agent a round trip to be told the same thing. They must move together.
- */
-const BODY_MAX_LENGTH = 50_000;
 
 /** What a field patch looks like coming from an agent. `null` clears one. */
 const fieldPatch = z
@@ -57,7 +60,7 @@ export type ServerOptions = {
 export function createServer(client: GrimoireClient, options: ServerOptions = {}): McpServer {
   const writable = options.scope !== "read";
   const server = new McpServer(
-    { name: "grimoire", version: "0.3.0" },
+    { name: "grimoire", version: MCP_VERSION },
     {
       instructions:
         "Grimoire is a small collaborative work board. A unit of work is a page, and pages sit " +
@@ -88,7 +91,7 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
             "too. Those are deliberately left to a person. Before rewriting a page's title or " +
             "notes, read them with grimoire_read_page and pass what you read as expectedTitle or " +
             "expectedNotes."
-        : "This credential is read-only: you can read the board, search, list ideas, and read " +
+          : "This credential is read-only: you can read the board, search, list ideas, and read " +
             "the discussion on any page, and nothing here can write. Ask the project owner for " +
             "a write-scoped credential if this agent should create or edit work, or report in " +
             "a page's discussion."),
@@ -141,10 +144,13 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
         const lines = results.hits.map(
           (hit) =>
             `- [${hit.group}] ${hit.title} · ${hit.where}` +
+            `${hit.category ? ` · ${hit.category}` : ""}` +
             `${hit.assigneeName ? ` · ${hit.assigneeName}` : ""}` +
             `\n  id: ${hit.id}${hit.snippet ? `\n  ${hit.snippet}` : ""}`,
         );
-        return text(`${results.total} match${results.total === 1 ? "" : "es"} for "${query}":\n${lines.join("\n")}`);
+        return text(
+          `${results.total} match${results.total === 1 ? "" : "es"} for "${query}":\n${lines.join("\n")}`,
+        );
       } catch (error) {
         return failure(error);
       }
@@ -165,12 +171,16 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
     },
     async ({ page }) => {
       try {
+        // An id names its page outright, so it is answered by the one-page route rather
+        // than by pulling the whole board across - most of a megabyte on a large project,
+        // to read a single title. Only a title needs the board to resolve against.
+        if (UUID_SHAPE.test(page)) {
+          const { page: target } = await client.page(page);
+          return text(`# ${target.title}\n${describePage(null, target)}\n\n${verbatimNotes(target)}`);
+        }
         const board = await client.board();
         const target = resolvePage(board, page);
-        return text(
-          `# ${target.title}\n${describePage(board, target)}\n\n` +
-            (target.description ? `Notes (verbatim):\n${target.description}` : "No notes yet."),
-        );
+        return text(`# ${target.title}\n${describePage(board, target)}\n\n${verbatimNotes(target)}`);
       } catch (error) {
         return failure(error);
       }
@@ -192,7 +202,10 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
         if (ideas.length === 0) return text("The idea garden is empty.");
         return text(
           ideas
-            .map((idea) => `- [${idea.state}] ${idea.title}\n  id: ${idea.id}${idea.description ? `\n  ${firstLine(idea.description)}` : ""}`)
+            .map(
+              (idea) =>
+                `- [${idea.state}] ${idea.title}\n  id: ${idea.id}${idea.description ? `\n  ${firstLine(idea.description)}` : ""}`,
+            )
             .join("\n"),
         );
       } catch (error) {
@@ -200,7 +213,6 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
       }
     },
   );
-
 
   server.registerTool(
     "grimoire_read_discussion",
@@ -256,7 +268,7 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
           .describe("Backlog, Up Next, In progress, Review or Done. Defaults to Backlog."),
         category: z.string().optional().describe("A category name that exists in this project."),
         chapter: z.string().optional().describe("A chapter name, if the project uses chapters."),
-        assignee: z.string().optional().describe("A member's name or email, or \"me\"."),
+        assignee: z.string().optional().describe('A member\'s name or email, or "me".'),
         blockedBy: z
           .array(z.string())
           .max(20)
@@ -313,9 +325,9 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
           .optional()
           .describe("The notes you read before deciding to rewrite them, verbatim from grimoire_read_page."),
         column: z.string().optional().describe("Move it to another column."),
-        category: z.string().optional().describe("A category name, or \"none\" to clear it."),
-        chapter: z.string().optional().describe("A chapter name, or \"none\" to clear it."),
-        assignee: z.string().optional().describe("A member's name or email, \"me\", or \"nobody\"."),
+        category: z.string().optional().describe('A category name, or "none" to clear it.'),
+        chapter: z.string().optional().describe('A chapter name, or "none" to clear it.'),
+        assignee: z.string().optional().describe('A member\'s name or email, "me", or "nobody".'),
         blockedBy: z.array(z.string()).max(20).optional().describe("Replaces the blocker list."),
         fields: fieldPatch.optional(),
         github: z
@@ -324,7 +336,7 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
           .nullable()
           .optional()
           .describe(
-            "The GitHub work this page is tied to: a pull request URL, \"#123\", a branch URL, " +
+            'The GitHub work this page is tied to: a pull request URL, "#123", a branch URL, ' +
               "or a branch name. Pass null to unlink. Grimoire then tracks it - the page moves " +
               "itself to Review when the pull request opens and to Done when it merges, so " +
               "linking is usually better than moving the page by hand.",
@@ -411,7 +423,9 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
         const target = resolvePage(board, page);
         const status = resolveStatus(column);
         const { page: moved } = await client.updatePage(target.id, { status });
-        return text(`Moved "${moved.title}" from ${columnLabel(target.status)} to ${columnLabel(moved.status)}.`);
+        return text(
+          `Moved "${moved.title}" from ${columnLabel(target.status)} to ${columnLabel(moved.status)}.`,
+        );
       } catch (error) {
         return failure(error);
       }
@@ -459,7 +473,7 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
           .string()
           .trim()
           .min(1)
-          .max(4000)
+          .max(DISCUSSION_BODY_MAX_LENGTH)
           .describe(
             "What you want to say. Plain prose; one message, not a transcript. Write @ and " +
               "somebody's name, exactly as grimoire_board gives it, to address them - Grimoire " +
@@ -500,7 +514,7 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
           .string()
           .trim()
           .min(1)
-          .max(4000)
+          .max(DISCUSSION_BODY_MAX_LENGTH)
           .describe("Your answer. @ and a member's name addresses them, as in a new thread."),
       },
     },
@@ -581,15 +595,30 @@ function githubSummary(page: Page, options: { url?: boolean } = {}): string | nu
   return `github: ${named}${where}${adopted} - ${status.state}${url}`;
 }
 
-function describePage(board: Board, page: Page): string {
+function verbatimNotes(page: Page): string {
+  return page.description ? `Notes (verbatim):\n${page.description}` : "No notes yet.";
+}
+
+/**
+ * With no board to translate against - the one-page read deliberately skips fetching it -
+ * categories and chapters appear as their slugs and fields by their keys, which the write
+ * tools accept just as readily as the display names.
+ */
+function describePage(board: Board | null, page: Page): string {
   const parts = [`column: ${columnLabel(page.status)}`];
-  const category = categoryName(board, page.category);
+  const category = board ? categoryName(board, page.category) : page.category;
   if (category) parts.push(`category: ${category}`);
-  const chapter = chapterName(board, page.chapter);
+  const chapter = board ? chapterName(board, page.chapter) : page.chapter;
   if (chapter) parts.push(`chapter: ${chapter}`);
   if (page.assigneeName) parts.push(`assignee: ${page.assigneeName}`);
   if (page.blockedBy.length > 0) parts.push(`blocked by ${page.blockedBy.length}`);
-  parts.push(...fieldSummary(board, page.fields));
+  if (board) parts.push(...fieldSummary(board, page.fields));
+  else parts.push(...Object.entries(page.fields ?? {}).map(([key, value]) => `${key}: ${String(value)}`));
+  // The question a person is waiting on lives in the discussion, and nothing else on the
+  // page says it exists - an agent that cannot see the count will never go looking.
+  if (page.openThreads) {
+    parts.push(`${page.openThreads} open question${page.openThreads === 1 ? "" : "s"} in the discussion`);
+  }
   const github = githubSummary(page, { url: true });
   if (github) parts.push(github);
   return `${parts.join(" · ")}\nid: ${page.id}`;
@@ -619,12 +648,15 @@ function renderBoard(board: Board): string {
   if (board.fields && board.fields.length > 0) {
     sections.push(
       `Fields: ${board.fields
-        .map((field) => `${field.label} (${field.type === "select" || field.type === "search-select" ? field.options.join(" | ") : field.type})`)
+        .map(
+          (field) =>
+            `${field.label} (${field.type === "select" || field.type === "search-select" ? field.options.join(" | ") : field.type})`,
+        )
         .join(", ")}`,
     );
   }
 
-  for (const status of ["backlog", "ready", "in_progress", "review", "done"]) {
+  for (const status of PAGE_COLUMNS) {
     const pages = board.pages.filter((page) => page.status === status);
     sections.push("", `${columnLabel(status)} (${pages.length})`);
     if (pages.length === 0) {
@@ -640,6 +672,9 @@ function renderBoard(board: Board): string {
       if (page.assigneeName) bits.push(page.assigneeName);
       if (page.blockedBy.length > 0) bits.push(`blocked by ${page.blockedBy.length}`);
       bits.push(...fieldSummary(board, page.fields));
+      if (page.openThreads) {
+        bits.push(`${page.openThreads} open question${page.openThreads === 1 ? "" : "s"}`);
+      }
       const github = githubSummary(page);
       if (github) bits.push(github);
       sections.push(`  - ${page.title}${bits.length ? ` · ${bits.join(" · ")}` : ""}`);

@@ -9,7 +9,10 @@ type TestServer = Awaited<ReturnType<typeof startTestServer>>;
 const MEMBER = { name: "Maren", email: "maren@example.com", password: "a long enough password" };
 
 async function defineField(server: TestServer, body: Record<string, unknown>) {
-  return server.request<{ field: ProjectField }>("/api/fields", { method: "POST", body: JSON.stringify(body) });
+  return server.request<{ field: ProjectField }>("/api/fields", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }
 
 async function priority(server: TestServer) {
@@ -34,7 +37,7 @@ async function board(server: TestServer) {
 function pageFile(server: TestServer, slug = "wizard-simulator"): string {
   const directory = join(server.pagesDirectory, slug, "pages");
   const [file] = readdirSync(directory).filter((name) => name.endsWith(".md"));
-  return readFileSync(join(directory, file), "utf8");
+  return readFileSync(join(directory, file!), "utf8");
 }
 
 describe("custom page fields", () => {
@@ -71,7 +74,9 @@ describe("custom page fields", () => {
 
       expect((await defineField(server, { label: "Priority", type: "text" })).response.status).toBe(409);
       expect((await defineField(server, { label: "Risk", type: "select" })).response.status).toBe(400);
-      expect((await defineField(server, { label: "Risk", type: "select", options: [] })).response.status).toBe(400);
+      expect(
+        (await defineField(server, { label: "Risk", type: "select", options: [] })).response.status,
+      ).toBe(400);
       expect((await defineField(server, { label: "!!!", type: "text" })).response.status).toBe(400);
     });
 
@@ -105,17 +110,20 @@ describe("custom page fields", () => {
       const made = await createPage(server, { title: "Ship it", fields: { priority: "p1" } });
       expect(made.response.status).toBe(201);
 
-      const swapped = await server.request<{ field: ProjectField; cleared: number }>(`/api/fields/${field.key}`, {
-        method: "PATCH",
-        body: JSON.stringify({ type: "search-select" }),
-      });
+      const swapped = await server.request<{ field: ProjectField; cleared: number }>(
+        `/api/fields/${field.key}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ type: "search-select" }),
+        },
+      );
       expect(swapped.response.status).toBe(200);
       expect(swapped.body.field.type).toBe("search-select");
       expect(swapped.body.field.options).toEqual(["p0", "p1", "p2", "p3"]);
       // The point of allowing this one swap: nothing already written is disturbed by it.
       expect(swapped.body.cleared).toBe(0);
       expect(pageFile(server)).toContain("p1");
-      expect((await board(server)).pages[0].fields).toEqual({ priority: "p1" });
+      expect((await board(server)).pages[0]!.fields).toEqual({ priority: "p1" });
 
       // And back again, because which one reads better is a judgement a team may revisit.
       const back = await server.request<{ field: ProjectField }>(`/api/fields/${field.key}`, {
@@ -123,7 +131,7 @@ describe("custom page fields", () => {
         body: JSON.stringify({ type: "select" }),
       });
       expect(back.body.field.type).toBe("select");
-      expect((await board(server)).pages[0].fields).toEqual({ priority: "p1" });
+      expect((await board(server)).pages[0]!.fields).toEqual({ priority: "p1" });
     });
 
     it("refuses every other type change, because the stored values would not survive it", async () => {
@@ -139,8 +147,8 @@ describe("custom page fields", () => {
         });
         expect(refused.response.status).toBe(400);
       }
-      expect((await board(server)).fields[0].type).toBe("select");
-      expect((await board(server)).pages[0].fields).toEqual({ priority: "p1" });
+      expect((await board(server)).fields[0]!.type).toBe("select");
+      expect((await board(server)).pages[0]!.fields).toEqual({ priority: "p1" });
     });
 
     it("records the swap in the audit trail, so a changed control has a reason on it", async () => {
@@ -187,7 +195,7 @@ describe("custom page fields", () => {
       expect(pageFile(server)).toContain('fields: {"priority":"p0","estimate":3}');
 
       const [page] = (await board(server)).pages;
-      expect(page.fields).toEqual({ priority: "p0", estimate: 3 });
+      expect(page!.fields).toEqual({ priority: "p0", estimate: 3 });
     });
 
     it("treats an update as a patch, so setting one value never blanks the others", async () => {
@@ -195,10 +203,12 @@ describe("custom page fields", () => {
       await bootstrap(server);
       await priority(server);
       await defineField(server, { label: "Estimate", type: "number" });
-      const page = (await createPage(server, {
-        title: "Reconcile the backlog",
-        fields: { priority: "p2", estimate: 5 },
-      })).body.page;
+      const page = (
+        await createPage(server, {
+          title: "Reconcile the backlog",
+          fields: { priority: "p2", estimate: 5 },
+        })
+      ).body.page;
 
       const patched = await server.request<{ page: Page }>(`/api/pages/${page.id}`, {
         method: "PATCH",
@@ -242,7 +252,8 @@ describe("custom page fields", () => {
       const server = await startTestServer();
       await bootstrap(server);
       await priority(server);
-      const page = (await createPage(server, { title: "Reconcile the backlog", fields: { priority: "p2" } })).body.page;
+      const page = (await createPage(server, { title: "Reconcile the backlog", fields: { priority: "p2" } }))
+        .body.page;
       await server.request(`/api/pages/${page.id}`, {
         method: "PATCH",
         body: JSON.stringify({ fields: { priority: "p0" } }),
@@ -262,10 +273,13 @@ describe("custom page fields", () => {
       await createPage(server, { title: "Still valid", fields: { priority: "p0" } });
       await createPage(server, { title: "About to be cleared", fields: { priority: "p3" } });
 
-      const narrowed = await server.request<{ field: ProjectField; cleared: number }>(`/api/fields/${field.key}`, {
-        method: "PATCH",
-        body: JSON.stringify({ options: ["p0", "p1"] }),
-      });
+      const narrowed = await server.request<{ field: ProjectField; cleared: number }>(
+        `/api/fields/${field.key}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ options: ["p0", "p1"] }),
+        },
+      );
       expect(narrowed.body.cleared).toBe(1);
 
       const pages = (await board(server)).pages;
@@ -279,10 +293,12 @@ describe("custom page fields", () => {
       const field = await priority(server);
       await createPage(server, { title: "Reconcile the backlog", fields: { priority: "p0" } });
 
-      const removed = await server.request<{ cleared: number }>(`/api/fields/${field.key}`, { method: "DELETE" });
+      const removed = await server.request<{ cleared: number }>(`/api/fields/${field.key}`, {
+        method: "DELETE",
+      });
       expect(removed.body.cleared).toBe(1);
       expect((await board(server)).fields).toEqual([]);
-      expect((await board(server)).pages[0].fields).toEqual({});
+      expect((await board(server)).pages[0]!.fields).toEqual({});
       expect(pageFile(server)).not.toContain("fields:");
     });
 
@@ -297,7 +313,7 @@ describe("custom page fields", () => {
         body: JSON.stringify({ label: "Urgency" }),
       });
       expect(renamed.body.field).toEqual(expect.objectContaining({ key: "priority", label: "Urgency" }));
-      expect((await board(server)).pages[0].fields).toEqual({ priority: "p0" });
+      expect((await board(server)).pages[0]!.fields).toEqual({ priority: "p0" });
     });
   });
 
@@ -324,15 +340,23 @@ describe("custom page fields", () => {
       expect((await created.json()).page.fields).toEqual({ priority: "p1" });
 
       // Defining the shape of the project stays with a person, whatever the token's scope.
-      expect((await asAgent("/api/fields", {
-        method: "POST",
-        body: JSON.stringify({ label: "Velocity", type: "number" }),
-      })).status).toBe(403);
+      expect(
+        (
+          await asAgent("/api/fields", {
+            method: "POST",
+            body: JSON.stringify({ label: "Velocity", type: "number" }),
+          })
+        ).status,
+      ).toBe(403);
       expect((await asAgent(`/api/fields/${field.key}`, { method: "DELETE" })).status).toBe(403);
-      expect((await asAgent(`/api/fields/${field.key}`, {
-        method: "PATCH",
-        body: JSON.stringify({ label: "Urgency" }),
-      })).status).toBe(403);
+      expect(
+        (
+          await asAgent(`/api/fields/${field.key}`, {
+            method: "PATCH",
+            body: JSON.stringify({ label: "Urgency" }),
+          })
+        ).status,
+      ).toBe(403);
     });
   });
 
@@ -354,7 +378,7 @@ describe("custom page fields", () => {
         body: JSON.stringify({ email: ownerAccount.email, password: ownerAccount.password }),
       });
       const pages = (await reopened.request<BoardWorkspace>("/api/board")).body.pages;
-      expect(pages[0].fields).toEqual({ priority: "p0", blocked: true });
+      expect(pages[0]!.fields).toEqual({ priority: "p0", blocked: true });
     });
   });
 });

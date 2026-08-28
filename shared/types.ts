@@ -13,7 +13,8 @@ export type AccountRole = "admin" | "member";
  * What somebody is on one project. Whoever creates a project owns it, and an owner may
  * reshape it: its name, categories, chapters, fields, agent access and membership.
  */
-export type ProjectRole = "owner" | "member";
+export const PROJECT_ROLES = ["owner", "member"] as const;
+export type ProjectRole = (typeof PROJECT_ROLES)[number];
 
 export type User = {
   id: string;
@@ -111,6 +112,20 @@ export type Member = User & {
 
 export const PAGE_STATUSES = ["backlog", "ready", "in_progress", "review", "done"] as const;
 export type PageStatus = (typeof PAGE_STATUSES)[number];
+
+/**
+ * The one name each column has, wherever a reader meets it - board headings, the activity
+ * log, search results, the capture bar. This map lived in five separate copies before it
+ * lived here, and five copies of a vocabulary is four opportunities for the product to
+ * disagree with itself.
+ */
+export const PAGE_STATUS_LABELS: Record<PageStatus, string> = {
+  backlog: "Backlog",
+  ready: "Up Next",
+  in_progress: "In progress",
+  review: "Review",
+  done: "Done",
+};
 
 /**
  * How long a page, chapter, or idea body may be.
@@ -334,8 +349,7 @@ export type ChapterVelocity = {
  * configured one; a link pasted as a full URL may name another and carries it here.
  */
 export type PageGithubLink =
-  | { kind: "pr"; number: number; repo?: string }
-  | { kind: "branch"; name: string; repo?: string };
+  { kind: "pr"; number: number; repo?: string } | { kind: "branch"; name: string; repo?: string };
 
 /** What GitHub last said about a linked page, cached server-side between polls. */
 export type PageGithubStatus = {
@@ -412,7 +426,7 @@ export type Page = {
  *
  * A message with no `parentId` opens a thread; every other message answers one. There is no
  * third level, because a conversation between two people about one page has never needed a
- * tree and a tree is how a card ends up unreadable.
+ * tree and a tree is how a page ends up unreadable.
  *
  * `agentName` is set when an agent wrote this on its issuer's behalf, exactly as the activity
  * log does it: the person stays the author and the agent is named beside them.
@@ -493,6 +507,13 @@ export type BoardWorkspace = {
 export const IDEA_STATES = ["inbox", "shortlist", "parked"] as const;
 export type IdeaState = (typeof IDEA_STATES)[number];
 
+/** The lists of the idea garden by name. The activity log alone says "Idea inbox", because a mixed log needs the word. */
+export const IDEA_STATE_LABELS: Record<IdeaState, string> = {
+  inbox: "Inbox",
+  shortlist: "Shortlist",
+  parked: "Parked",
+};
+
 export type Idea = {
   id: string;
   title: string;
@@ -557,7 +578,16 @@ export type EditConflict<T> = {
   current: T;
 };
 
-export const AUDIT_ENTITY_TYPES = ["page", "idea", "project", "category", "chapter", "member", "agent", "field"] as const;
+export const AUDIT_ENTITY_TYPES = [
+  "page",
+  "idea",
+  "project",
+  "category",
+  "chapter",
+  "member",
+  "agent",
+  "field",
+] as const;
 export type AuditEntityType = (typeof AUDIT_ENTITY_TYPES)[number];
 
 export const AUDIT_ACTIONS = [

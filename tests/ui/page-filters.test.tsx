@@ -6,7 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Page, ProjectCategory, ProjectField } from "../../shared/types";
 import { PageFilters } from "../../src/components/PageFilters";
-import type { FacetContext, FacetSelection } from "../../src/components/page-facets";
+import type { FacetContext, FacetSelection } from "../../src/lib/page-facets";
 
 afterEach(cleanup);
 
@@ -18,7 +18,14 @@ const categories: ProjectCategory[] = [
 ];
 
 const fields: ProjectField[] = [
-  { key: "priority", label: "Priority", type: "select", options: ["Critical", "High"], position: 0, showOnTile: true },
+  {
+    key: "priority",
+    label: "Priority",
+    type: "select",
+    options: ["Critical", "High"],
+    position: 0,
+    showOnTile: true,
+  },
 ];
 
 function page(id: string, over: Partial<Page>): Page {
@@ -123,7 +130,12 @@ describe("the filter panel", () => {
   });
 
   it("closes on Escape and on a click outside it", async () => {
-    render(<><Harness /><button type="button">elsewhere</button></>);
+    render(
+      <>
+        <Harness />
+        <button type="button">elsewhere</button>
+      </>,
+    );
     const trigger = screen.getByRole("button", { name: "Filter pages" });
 
     await userEvent.click(trigger);

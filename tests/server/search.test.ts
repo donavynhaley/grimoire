@@ -43,7 +43,11 @@ describe("project search", () => {
 
     await addPage(server, { title: "Reagent rarity colours", status: "ready" });
     await addPage(server, { title: "Weather system affects reagent potency", status: "backlog" });
-    await addPage(server, { title: "First playable brewing loop", status: "done" }, "Three reagents in, one potion out.");
+    await addPage(
+      server,
+      { title: "First playable brewing loop", status: "done" },
+      "Three reagents in, one potion out.",
+    );
     await addIdea(server, "Seasonal reagents that appear one week a year", "shortlist");
     const archived = await addPage(server, { title: "Reagent shelf prototype", status: "backlog" });
     await server.request(`/api/pages/${archived.id}`, { method: "DELETE" });
@@ -71,8 +75,8 @@ describe("project search", () => {
     const { body } = await search(server, "moonlight");
 
     expect(body.hits.map((hit) => hit.where)).toEqual(["In progress", "Backlog", "Parked"]);
-    expect(body.hits[0].category).toBe("VFX");
-    expect(body.hits[0].categoryColor).toBe("#d284d3");
+    expect(body.hits[0]!.category).toBe("VFX");
+    expect(body.hits[0]!.categoryColor).toBe("#d284d3");
   });
 
   it("matches note bodies and returns a plain-text window around the match", async () => {
@@ -87,9 +91,9 @@ describe("project search", () => {
     const { body } = await search(server, "sludge");
 
     expect(body.total).toBe(1);
-    expect(body.hits[0].snippet).toContain("Failed combinations produce sludge");
-    expect(body.hits[0].snippet).not.toContain("**");
-    expect(body.hits[0].snippet).not.toContain("##");
+    expect(body.hits[0]!.snippet).toContain("Failed combinations produce sludge");
+    expect(body.hits[0]!.snippet).not.toContain("**");
+    expect(body.hits[0]!.snippet).not.toContain("##");
   });
 
   it("ranks a title match above a mention buried in notes", async () => {
@@ -112,8 +116,8 @@ describe("project search", () => {
     const { body } = await search(server, "rival shop");
 
     expect(body.total).toBe(1);
-    expect(body.hits[0].kind).toBe("page");
-    expect(body.hits[0].group).toBe("backlog");
+    expect(body.hits[0]!.kind).toBe("page");
+    expect(body.hits[0]!.group).toBe("backlog");
   });
 
   it("stops listing a page as archived once it has been restored", async () => {
@@ -131,8 +135,8 @@ describe("project search", () => {
 
     const after = await search(server, "drying rack");
     expect(after.body.total).toBe(1);
-    expect(after.body.hits[0].group).toBe("backlog");
-    expect(after.body.hits[0].where).toBe("Backlog");
+    expect(after.body.hits[0]!.group).toBe("backlog");
+    expect(after.body.hits[0]!.where).toBe("Backlog");
   });
 
   it("answers an unmatched query with nothing rather than everything", async () => {

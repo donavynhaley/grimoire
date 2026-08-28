@@ -50,11 +50,28 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
   if (init.body && !headers.has("content-type")) headers.set("content-type", "application/json");
   if (activeProjectId) headers.set("x-grimoire-project", activeProjectId);
   const response = await fetch(path, { ...init, headers, credentials: "same-origin" });
-  const body = (await response.json()) as T & { error?: string };
-  if (!response.ok) {
-    throw new ApiError(body.error ?? `Request failed with status ${response.status}`, response.status, body);
+  // Read as text before parsing: a failure body is not always JSON. A proxy
+  // answering 502 with an HTML page must still become an ApiError the interface
+  // can act on, not a SyntaxError that bypasses every handler built for one.
+  const text = await response.text();
+  let body: unknown = null;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {
+    body = null;
   }
-  return body;
+  if (!response.ok) {
+    throw new ApiError(errorMessage(body, response.status), response.status, body);
+  }
+  return body as T;
+}
+
+function errorMessage(body: unknown, status: number): string {
+  if (body && typeof body === "object" && "error" in body) {
+    const error = (body as { error: unknown }).error;
+    if (typeof error === "string" && error) return error;
+  }
+  return `Request failed with status ${status}`;
 }
 
 export function session(): Promise<SessionState> {
@@ -69,7 +86,9 @@ export function ideas(): Promise<IdeaWorkspace> {
   return request<IdeaWorkspace>("/api/ideas");
 }
 
-export function activity(options: { entityId?: string; before?: number; limit?: number } = {}): Promise<AuditPage> {
+export function activity(
+  options: { entityId?: string; before?: number; limit?: number } = {},
+): Promise<AuditPage> {
   const params = new URLSearchParams();
   if (options.entityId) params.set("entity", options.entityId);
   if (options.before !== undefined) params.set("before", String(options.before));
@@ -95,7 +114,11 @@ export function openThread(pageId: string, body: string): Promise<{ thread: Disc
   });
 }
 
-export function replyToThread(pageId: string, threadId: string, body: string): Promise<{ thread: DiscussionThread }> {
+export function replyToThread(
+  pageId: string,
+  threadId: string,
+  body: string,
+): Promise<{ thread: DiscussionThread }> {
   return request<{ thread: DiscussionThread }>(`/api/pages/${pageId}/discussion/${threadId}/replies`, {
     method: "POST",
     body: JSON.stringify({ body }),
@@ -153,8 +176,7 @@ export function openPullRequests(): Promise<{ pulls: OpenPullRequest[] }> {
 
 /** Asks the server whether its GitHub repository and token actually answer. */
 export type GithubVerification =
-  | { ok: true; repo: string; private: boolean }
-  | { ok: false; reason: string; message: string };
+  { ok: true; repo: string; private: boolean } | { ok: false; reason: string; message: string };
 
 export function verifyGithub(): Promise<GithubVerification> {
   return request<GithubVerification>("/api/github/verify", { method: "POST", body: "{}" });
@@ -165,7 +187,9 @@ export function oidcSettings(): Promise<{ settings: OidcSettings }> {
   return request<{ settings: OidcSettings }>("/api/auth/oidc/settings");
 }
 
-export function saveOidcSettings(input: Partial<OidcSettings> & { clientSecret?: string }): Promise<{ settings: OidcSettings }> {
+export function saveOidcSettings(
+  input: Partial<OidcSettings> & { clientSecret?: string },
+): Promise<{ settings: OidcSettings }> {
   return request<{ settings: OidcSettings }>("/api/auth/oidc/settings", {
     method: "PATCH",
     body: JSON.stringify(input),
@@ -179,11 +203,20 @@ export function saveOidcSettings(input: Partial<OidcSettings> & { clientSecret?:
  * answer is a description or a reason, never a thrown error, so a wrong address is something
  * the screen can say out loud rather than a failure it has to guess at.
  */
-export function probeOidcProvider(issuer: string): Promise<{ provider?: OidcProviderDescription; error?: string }> {
-  return request<{ provider?: OidcProviderDescription; error?: string }>("/api/auth/oidc/probe", {
-    method: "POST",
-    body: JSON.stringify({ issuer }),
-  });
+export async function probeOidcProvider(
+  issuer: string,
+): Promise<{ provider?: OidcProviderDescription; error?: string }> {
+  try {
+    return await request<{ provider: OidcProviderDescription }>("/api/auth/oidc/probe", {
+      method: "POST",
+      body: JSON.stringify({ issuer }),
+    });
+  } catch (error) {
+    // A refused probe is an answer the screen shows in place, not a failure to throw
+    // past it - the server says why, and the why is the whole point of the button.
+    if (error instanceof ApiError) return { error: error.message };
+    throw error;
+  }
 }
 
 /** The owner's restore list: every project that has been archived, newest first. */

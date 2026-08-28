@@ -1,23 +1,14 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { App } from "../../src/App";
-import type { SearchResults } from "../../shared/types";
+import type { BoardWorkspace, SearchResults } from "../../shared/types";
 import { boardFixture, ideaFixture } from "../fixtures/board";
+import { installUiHarness, routeFetch, type RouteReply } from "../fixtures/ui";
 
-afterEach(() => {
-  cleanup();
-  vi.unstubAllGlobals();
-  window.history.replaceState({}, "", "/");
-});
-
-function response(body: unknown, status = 200) {
-  return Promise.resolve(
-    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } }),
-  );
-}
+installUiHarness();
 
 const results: SearchResults = {
   query: "door",
@@ -59,23 +50,15 @@ const results: SearchResults = {
   ],
 };
 
-function stubFetch(board = boardFixture(), search: SearchResults = results) {
-  const mock = vi
-    .fn<typeof fetch>()
-    .mockImplementationOnce(() => response({ status: "authenticated", user: board.currentUser }))
-    .mockImplementationOnce(() => response(board));
-  vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = typeof input === "string" ? input : input instanceof URL ? input.pathname + input.search : input.url;
-    if (url.startsWith("/api/search")) return response(search);
-    if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
-    // The page dialog reads its discussion the same way it reads its history, on every open.
-    if (/^\/api\/pages\/[^/]+\/discussion/.test(url)) return response({ threads: [] });
-    if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
-    if (url.startsWith("/api/seen")) return response({ ok: true });
-    if (url.startsWith("/api/ideas")) return response(ideaFixture());
-    return mock(input, init);
-  });
-  return mock;
+/** Stubs the canned results behind /api/search; extra routes carry a test's own writes. */
+function stubFetch(
+  board: BoardWorkspace | (() => BoardWorkspace) = boardFixture(),
+  routes: Record<string, RouteReply> = {},
+) {
+  return routeFetch({
+    board,
+    routes: { "GET /api/search": results, "GET /api/ideas": ideaFixture(), ...routes },
+  }).fetchMock;
 }
 
 async function openSearch() {
@@ -105,7 +88,9 @@ describe("searching the whole project", () => {
     await userEvent.type(within(dialog).getByRole("searchbox"), "door");
 
     await screen.findByText("Make the tower door remember Maren");
-    const groups = [...dialog.querySelectorAll(".search-group-label")].map((label) => label.textContent?.trim());
+    const groups = [...dialog.querySelectorAll(".search-group-label")].map((label) =>
+      label.textContent?.trim(),
+    );
     expect(groups).toEqual(["Backlog 1", "Ideas 1", "Archived 1"]);
     expect(within(dialog).getByText("Doors that recognise who knocked")).toBeInTheDocument();
     expect(within(dialog).getByText("Archived Aug 2026")).toBeInTheDocument();
@@ -132,7 +117,9 @@ describe("searching the whole project", () => {
     await screen.findByText("Old door prototype");
 
     // An archived page has no editable home to open, so the row reads and restores.
-    const rows = within(dialog).getAllByRole("button").map((button) => button.textContent ?? "");
+    const rows = within(dialog)
+      .getAllByRole("button")
+      .map((button) => button.textContent ?? "");
     expect(rows.some((label) => label.includes("Old door prototype"))).toBe(false);
     expect(within(dialog).getByText("Replaced by the tower door work.")).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Restore Old door prototype" })).toBeInTheDocument();
@@ -141,15 +128,18 @@ describe("searching the whole project", () => {
   it("restores an archived page and shows where it landed", async () => {
     const board = boardFixture();
     const restored = {
-      ...board.pages[0],
+      ...board.pages[0]!,
       id: "00000000-0000-4000-8000-000000000099",
       title: "Old door prototype",
       status: "backlog" as const,
     };
-    const mock = stubFetch(board);
-    mock
-      .mockImplementationOnce(() => response({ page: restored }))
-      .mockImplementationOnce(() => response({ ...board, pages: [restored, ...board.pages] }));
+    let workspace = board;
+    const mock = stubFetch(() => workspace, {
+      [`POST /api/pages/${restored.id}/restore`]: () => {
+        workspace = { ...board, pages: [restored, ...board.pages] };
+        return { page: restored };
+      },
+    });
 
     render(<App />);
     const dialog = await openSearch();

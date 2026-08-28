@@ -42,7 +42,12 @@ describe("page board", () => {
     expect(workspace.fields).toEqual([]);
     expect(workspace.project).toEqual(expect.objectContaining({ name: "Wizard Simulator" }));
     expect(workspace.projects).toEqual([expect.objectContaining({ name: "Wizard Simulator" })]);
-    expect(workspace.categories[0]).toEqual({ slug: "design", name: "Design", color: "#d6bc78", position: 0 });
+    expect(workspace.categories[0]).toEqual({
+      slug: "design",
+      name: "Design",
+      color: "#d6bc78",
+      position: 0,
+    });
     expect(workspace.pages).toEqual(expect.any(Array));
     expect(workspace).not.toHaveProperty("pillars");
     expect(workspace).not.toHaveProperty("milestones");
@@ -64,12 +69,7 @@ describe("page board", () => {
       assigneeName: "Donavyn",
       position: 0,
     });
-    const activePath = join(
-      server.pagesDirectory,
-      "wizard-simulator",
-      "pages",
-      `${created.body.page.id}.md`,
-    );
+    const activePath = join(server.pagesDirectory, "wizard-simulator", "pages", `${created.body.page.id}.md`);
     const markdown = readFileSync(activePath, "utf8");
     expect(markdown).toMatch(/^---\n/);
     expect(markdown).toContain(`id: ${created.body.page.id}`);
@@ -110,7 +110,10 @@ describe("page board", () => {
       body: JSON.stringify({}),
     });
     expect(restored.response.status).toBe(200);
-    expect(restored.body.page).toMatchObject({ id: created.body.page.id, title: "Polish the potion workbench" });
+    expect(restored.body.page).toMatchObject({
+      id: created.body.page.id,
+      title: "Polish the potion workbench",
+    });
     expect((await board(server)).pages.map((page) => page.id)).toContain(created.body.page.id);
     expect(existsSync(activePath)).toBe(true);
   });
@@ -249,17 +252,23 @@ describe("page board", () => {
       blocker.body.page.id,
     ]);
 
-    expect((await server.request(`/api/pages/${blocker.body.page.id}`, { method: "DELETE" })).response.status).toBe(200);
-    expect((await board(server)).pages.find((page) => page.id === dependent.body.page.id)?.blockedBy).toEqual([]);
     expect(
-      (await server.request(`/api/pages/${blocker.body.page.id}/restore`, {
-        method: "POST",
-        body: JSON.stringify({}),
-      })).response.status,
+      (await server.request(`/api/pages/${blocker.body.page.id}`, { method: "DELETE" })).response.status,
     ).toBe(200);
-    expect((await board(server)).pages.find((page) => page.id === dependent.body.page.id)?.blockedBy).toEqual([
-      blocker.body.page.id,
-    ]);
+    expect((await board(server)).pages.find((page) => page.id === dependent.body.page.id)?.blockedBy).toEqual(
+      [],
+    );
+    expect(
+      (
+        await server.request(`/api/pages/${blocker.body.page.id}/restore`, {
+          method: "POST",
+          body: JSON.stringify({}),
+        })
+      ).response.status,
+    ).toBe(200);
+    expect((await board(server)).pages.find((page) => page.id === dependent.body.page.id)?.blockedBy).toEqual(
+      [blocker.body.page.id],
+    );
   });
 
   it("persists pages after the server restarts", async () => {
@@ -369,5 +378,31 @@ describe("body length", () => {
 
     expect(response.status).toBe(400);
   });
-});
 
+  it("serves a board whose file names people the project does not know", async () => {
+    const server = await startTestServer();
+    await bootstrap(server);
+    const created = await server.request<{ page: Page }>("/api/pages", {
+      method: "POST",
+      body: JSON.stringify({ title: "Edited from outside", description: "" }),
+    });
+
+    // An external editor can write any address into a page file. That is
+    // ordinary weather for a directory of Markdown, and it must cost that page
+    // its assignee - not the whole project its board.
+    const path = join(server.pagesDirectory, "wizard-simulator", "pages", `${created.body.page.id}.md`);
+    const rewritten = readFileSync(path, "utf8")
+      .replace("assignee: null", "assignee: stranger@example.com")
+      .replace(`created_by: ${ownerAccount.email}`, "created_by: departed@example.com");
+    writeFileSync(path, rewritten);
+
+    const workspace = await board(server);
+    const page = workspace.pages.find((candidate) => candidate.id === created.body.page.id);
+    expect(page).toMatchObject({
+      assigneeId: null,
+      assigneeName: null,
+      createdById: "",
+      createdByName: "departed@example.com",
+    });
+  });
+});

@@ -3,7 +3,11 @@ import { LoginRateLimiter } from "../../server/login-rate-limit";
 import { bootstrap, ownerAccount, startTestServer } from "./test-server";
 
 /** One wrong guess at the owner's password, from a stated source address. */
-function guess(server: Awaited<ReturnType<typeof startTestServer>>, address: string, password = "not the password") {
+function guess(
+  server: Awaited<ReturnType<typeof startTestServer>>,
+  address: string,
+  password = "not the password",
+) {
   return server.fetchRaw("/api/auth/login", {
     method: "POST",
     headers: { "content-type": "application/json", "x-forwarded-for": address },

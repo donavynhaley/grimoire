@@ -1,10 +1,24 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import { IDEA_STATES, type Page, type Idea, type IdeaState, type IdeaWorkspace, type User } from "../shared/types";
+import { placeInOrder, renumber } from "./ordering";
+import {
+  IDEA_STATES,
+  type Page,
+  type Idea,
+  type IdeaState,
+  type IdeaWorkspace,
+  type User,
+} from "../shared/types";
 import { MarkdownPageStore } from "./markdown-pages";
 import { MarkdownChapterStore } from "./markdown-chapters";
 import { MarkdownIdeaStore, type StoredIdea } from "./markdown-ideas";
-import { PageDependencyError, createPage, membersForProject, projectById, requireUnchangedContent } from "./repository";
+import {
+  PageDependencyError,
+  createPage,
+  membersForProject,
+  projectById,
+  requireUnchangedContent,
+} from "./repository";
 
 type IdeaInput = {
   title: string;
@@ -101,16 +115,11 @@ export function updateIdea(
   }
 
   for (const state of IDEA_STATES) {
-    const ordered = ideas.filter((idea) => idea.id !== ideaId && idea.state === state);
-    if (state === nextState) {
-      const requestedPosition = input.position ?? ordered.length;
-      ordered.splice(Math.max(0, Math.min(requestedPosition, ordered.length)), 0, updated);
-    }
-    ordered.forEach((idea, position) => {
-      const positioned = { ...idea, position };
-      if (idea.id === ideaId || idea.position !== position) ideaStore.save(projectSlug, positioned);
-      if (idea.id === ideaId) updated.position = position;
-    });
+    const others = ideas.filter((idea) => idea.id !== ideaId && idea.state === state);
+    const ordered =
+      state === nextState ? placeInOrder(others, updated, input.position ?? others.length) : others;
+    const settled = renumber(ordered, (idea) => ideaStore.save(projectSlug, idea), ideaId);
+    if (settled >= 0) updated.position = settled;
   }
   return publicIdea(updated, members);
 }
@@ -174,11 +183,10 @@ export function undoPromotion(
   }
 
   pageStore.remove(projectSlug, promotedPage.id);
-  pages
-    .filter((page) => page.id !== promotedPage.id && page.status === promotedPage.status)
-    .forEach((page, position) => {
-      if (page.position !== position) pageStore.save(projectSlug, { ...page, position });
-    });
+  renumber(
+    pages.filter((page) => page.id !== promotedPage.id && page.status === promotedPage.status),
+    (page) => pageStore.save(projectSlug, page),
+  );
 
   const restored: StoredIdea = {
     ...archived,
@@ -187,35 +195,35 @@ export function undoPromotion(
     updatedAt: new Date().toISOString(),
   };
   ideaStore.restore(projectSlug, restored);
-  const ideas = ideaStore.list(projectSlug).filter((idea) => idea.id !== restored.id && idea.state === restored.state);
-  ideas.splice(Math.max(0, Math.min(restored.position, ideas.length)), 0, restored);
-  ideas.forEach((idea, position) => {
-    if (idea.position !== position) ideaStore.save(projectSlug, { ...idea, position });
-    if (idea.id === restored.id) restored.position = position;
-  });
+  const ordered = placeInOrder(
+    ideaStore.list(projectSlug).filter((idea) => idea.id !== restored.id && idea.state === restored.state),
+    restored,
+    restored.position,
+  );
+  renumber(ordered, (idea) => ideaStore.save(projectSlug, idea));
+  restored.position = ordered.findIndex((idea) => idea.id === restored.id);
   return publicIdea(restored, membersForProject(database, projectId));
 }
 
 function normalizeIdeaPositions(ideaStore: MarkdownIdeaStore, projectSlug: string, state: IdeaState): void {
-  ideaStore
-    .list(projectSlug)
-    .filter((idea) => idea.state === state)
-    .forEach((idea, position) => {
-      if (idea.position !== position) ideaStore.save(projectSlug, { ...idea, position });
-    });
+  renumber(
+    ideaStore.list(projectSlug).filter((idea) => idea.state === state),
+    (idea) => ideaStore.save(projectSlug, idea),
+  );
 }
 
 function publicIdea(value: StoredIdea, members: ReturnType<typeof membersForProject>): Idea {
+  // The same grace pages and chapters extend: a creator the project no longer
+  // knows keeps their written email as a name rather than failing the garden.
   const creator = members.find((member) => member.email.toLowerCase() === value.createdBy.toLowerCase());
-  if (!creator) throw new Error(`Idea ${value.id} references a non-member creator`);
   return {
     id: value.id,
     title: value.title,
     description: value.description,
     state: value.state,
     position: value.position,
-    createdById: creator.id,
-    createdByName: creator.name,
+    createdById: creator ? creator.id : "",
+    createdByName: creator ? creator.name : value.createdBy,
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
   };

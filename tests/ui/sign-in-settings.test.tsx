@@ -1,19 +1,13 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { OidcSettings } from "../../shared/types";
 import { SignInSection } from "../../src/components/SignInSection";
+import { installUiHarness, requestUrl, response } from "../fixtures/ui";
 
-afterEach(() => {
-  cleanup();
-  vi.unstubAllGlobals();
-});
-
-function response(body: unknown, status = 200) {
-  return Promise.resolve(new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } }));
-}
+installUiHarness();
 
 function settings(overrides: Partial<OidcSettings> = {}): OidcSettings {
   return {
@@ -40,8 +34,9 @@ function mount(options: { settings?: Partial<OidcSettings>; probe?: unknown } = 
   const saved: Array<Record<string, unknown>> = [];
   let current = settings(options.settings);
   vi.stubGlobal("fetch", (input: RequestInfo | URL, init: RequestInit = {}) => {
-    const url = typeof input === "string" ? input : input instanceof URL ? input.pathname : input.url;
-    if (url.startsWith("/api/auth/oidc/probe")) return response(options.probe ?? { error: "not configured for this test" });
+    const url = requestUrl(input);
+    if (url.startsWith("/api/auth/oidc/probe"))
+      return response(options.probe ?? { error: "not configured for this test" });
     if (url.startsWith("/api/auth/oidc/settings")) {
       if (init.method === "PATCH") {
         const body = JSON.parse(String(init.body)) as Record<string, unknown>;
@@ -76,13 +71,17 @@ describe("the sign-in settings screen", () => {
     await userEvent.tab();
 
     await waitFor(() => expect(saved).toHaveLength(1));
-    expect(saved[0].redirectUri).toBe(`${location.origin}/api/auth/oidc/callback`);
+    expect(saved[0]!.redirectUri).toBe(`${location.origin}/api/auth/oidc/callback`);
   });
 
   it("leaves an address that is already pinned alone", async () => {
-    const { saved } = mount({ settings: { redirectUri: "https://grimoire.example.com/api/auth/oidc/callback" } });
+    const { saved } = mount({
+      settings: { redirectUri: "https://grimoire.example.com/api/auth/oidc/callback" },
+    });
 
-    expect(await screen.findByText("https://grimoire.example.com/api/auth/oidc/callback")).toBeInTheDocument();
+    expect(
+      await screen.findByText("https://grimoire.example.com/api/auth/oidc/callback"),
+    ).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText("Client id"), "grimoire");
     await userEvent.tab();
 
@@ -149,7 +148,13 @@ describe("the sign-in settings screen", () => {
 
   it("reads but does not pretend to edit a provider set in the environment", async () => {
     mount({
-      settings: { source: "environment", enabled: true, issuer: "https://id.example.com", clientId: "grimoire", label: "Authentik" },
+      settings: {
+        source: "environment",
+        enabled: true,
+        issuer: "https://id.example.com",
+        clientId: "grimoire",
+        label: "Authentik",
+      },
     });
 
     expect(await screen.findByText(/configured in the environment/i)).toBeInTheDocument();

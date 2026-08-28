@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Drawer } from "./Drawer";
 import { type Page, type PageCategory, type Member, type ProjectCategory } from "../../shared/types";
-import { categoryDisplay, categoryStyle } from "./category-style";
-import { useTypingFocus } from "./use-typing-focus";
+import { categoryDisplay, categoryStyle } from "../lib/category-style";
+import { compareCompletion } from "../lib/page-order";
+import { pageText } from "../lib/page-search";
+import { useTypingFocus } from "../hooks/use-typing-focus";
 
 type Props = {
   busy: boolean;
@@ -14,47 +16,57 @@ type Props = {
   onReopen: (id: string) => Promise<void>;
 };
 
-export function DoneHistoryDialog({ busy, pages, categories, members, onClose, onOpenPage, onReopen }: Props) {
+export function DoneHistoryDialog({
+  busy,
+  pages,
+  categories,
+  members,
+  onClose,
+  onOpenPage,
+  onReopen,
+}: Props) {
   const focusForTyping = useTypingFocus<HTMLInputElement>();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<PageCategory | null>(null);
   const [person, setPerson] = useState<string | null>(null);
   const normalizedQuery = query.trim().toLowerCase();
   const usedCategories = useMemo(
-    () => [...new Set(pages.map((page) => page.category).filter((value): value is PageCategory => Boolean(value)))],
+    () => [
+      ...new Set(pages.map((page) => page.category).filter((value): value is PageCategory => Boolean(value))),
+    ],
     [pages],
   );
   const visiblePages = useMemo(
-    () => pages
-      .filter((page) => {
-        if (category && page.category !== category) return false;
-        if (person && (page.assigneeId ?? "unassigned") !== person) return false;
-        return !normalizedQuery || pageText(page).includes(normalizedQuery);
-      })
-      .sort(compareCompletion),
+    () =>
+      pages
+        .filter((page) => {
+          if (category && page.category !== category) return false;
+          if (person && (page.assigneeId ?? "unassigned") !== person) return false;
+          return !normalizedQuery || pageText(page).includes(normalizedQuery);
+        })
+        .sort(compareCompletion),
     [pages, category, normalizedQuery, person],
   );
   const groups = useMemo(() => groupByMonth(visiblePages), [visiblePages]);
 
-  useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      onClose();
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [onClose]);
-
   return (
-    <Drawer backdropClassName="library-backdrop" className="library-dialog" labelledBy="history-dialog-title" onClose={onClose}>
+    <Drawer
+      backdropClassName="library-backdrop"
+      className="library-dialog"
+      labelledBy="history-dialog-title"
+      onClose={onClose}
+    >
       <header className="dialog-header library-header">
         <div>
           <p className="eyebrow">project record</p>
           <h2 id="history-dialog-title">Completed work</h2>
-          <p>{pages.length} finished page{pages.length === 1 ? "" : "s"}</p>
+          <p>
+            {pages.length} finished page{pages.length === 1 ? "" : "s"}
+          </p>
         </div>
-        <button aria-label="Close completed work" className="icon-button" onClick={onClose} type="button">×</button>
+        <button aria-label="Close completed work" className="icon-button" onClick={onClose} type="button">
+          ×
+        </button>
       </header>
 
       <div className="library-tools">
@@ -72,7 +84,14 @@ export function DoneHistoryDialog({ busy, pages, categories, members, onClose, o
           />
         </label>
         <div aria-label="Completed work filters" className="library-filters">
-          <button aria-pressed={person === "unassigned"} className={person === "unassigned" ? "active" : ""} onClick={() => setPerson(person === "unassigned" ? null : "unassigned")} type="button">unassigned</button>
+          <button
+            aria-pressed={person === "unassigned"}
+            className={person === "unassigned" ? "active" : ""}
+            onClick={() => setPerson(person === "unassigned" ? null : "unassigned")}
+            type="button"
+          >
+            unassigned
+          </button>
           {members.map((member) => (
             <button
               aria-pressed={person === member.id}
@@ -80,7 +99,9 @@ export function DoneHistoryDialog({ busy, pages, categories, members, onClose, o
               key={member.id}
               onClick={() => setPerson(person === member.id ? null : member.id)}
               type="button"
-            >{member.name}</button>
+            >
+              {member.name}
+            </button>
           ))}
         </div>
         {usedCategories.length > 0 && (
@@ -92,7 +113,10 @@ export function DoneHistoryDialog({ busy, pages, categories, members, onClose, o
                 key={value}
                 onClick={() => setCategory(category === value ? null : value)}
                 type="button"
-              ><span className="category-swatch" style={categoryStyle(categories, value)} />{categoryDisplay(categories, value)}</button>
+              >
+                <span className="category-swatch" style={categoryStyle(categories, value)} />
+                {categoryDisplay(categories, value)}
+              </button>
             ))}
           </div>
         )}
@@ -101,16 +125,37 @@ export function DoneHistoryDialog({ busy, pages, categories, members, onClose, o
       <div className="history-results" aria-live="polite">
         {groups.map(([label, groupPages]) => (
           <section className="history-group" key={label}>
-            <header><h3>{label}</h3><span>{groupPages.length}</span></header>
+            <header>
+              <h3>{label}</h3>
+              <span>{groupPages.length}</span>
+            </header>
             <div>
               {groupPages.map((page) => (
-                <article className={`history-page ${page.category ? "" : "category-none"}`} key={page.id} style={categoryStyle(categories, page.category)}>
+                <article
+                  className={`history-page ${page.category ? "" : "category-none"}`}
+                  key={page.id}
+                  style={categoryStyle(categories, page.category)}
+                >
                   <button className="history-page-main" onClick={() => onOpenPage(page.id)} type="button">
-                    <span className={`category-swatch ${page.category ? "" : "category-none"}`} style={categoryStyle(categories, page.category)} />
-                    <span><strong>{page.title}</strong><small>{page.assigneeName ?? "unassigned"}</small></span>
+                    <span
+                      className={`category-swatch ${page.category ? "" : "category-none"}`}
+                      style={categoryStyle(categories, page.category)}
+                    />
+                    <span>
+                      <strong>{page.title}</strong>
+                      <small>{page.assigneeName ?? "unassigned"}</small>
+                    </span>
                     <time dateTime={page.completedAt ?? page.updatedAt}>{formatCompletion(page)}</time>
                   </button>
-                  <button aria-label={`Move ${page.title} to Up Next`} className="history-reopen" disabled={busy} onClick={() => void onReopen(page.id)} type="button">reopen</button>
+                  <button
+                    aria-label={`Move ${page.title} to Up Next`}
+                    className="history-reopen"
+                    disabled={busy}
+                    onClick={() => void onReopen(page.id)}
+                    type="button"
+                  >
+                    reopen
+                  </button>
                 </article>
               ))}
             </div>
@@ -119,21 +164,16 @@ export function DoneHistoryDialog({ busy, pages, categories, members, onClose, o
         {visiblePages.length === 0 && (
           <div className="library-empty">
             <strong>{pages.length === 0 ? "Nothing finished yet." : "No completed pages match."}</strong>
-            <span>{pages.length === 0 ? "Finished work will collect here automatically." : "Try a broader search or remove a filter."}</span>
+            <span>
+              {pages.length === 0
+                ? "Finished work will collect here automatically."
+                : "Try a broader search or remove a filter."}
+            </span>
           </div>
         )}
       </div>
     </Drawer>
   );
-}
-
-function pageText(page: Page): string {
-  return `${page.title}\n${page.description}\n${page.category ?? "uncategorized"}\n${page.assigneeName ?? "unassigned"}`.toLowerCase();
-}
-
-function compareCompletion(left: Page, right: Page): number {
-  const timestamp = (right.completedAt ?? right.updatedAt).localeCompare(left.completedAt ?? left.updatedAt);
-  return timestamp || right.position - left.position;
 }
 
 function groupByMonth(pages: Page[]): Array<[string, Page[]]> {

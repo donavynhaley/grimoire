@@ -11,24 +11,10 @@ import {
 } from "./repository";
 
 /**
- * How a page keeps up with the work in GitHub.
- *
- * A page can hold a link to a pull request, or to a branch a pull request will eventually be
- * opened from. Grimoire polls the GitHub API for what those links point at and lets the board
- * follow the code: a page whose pull request is open moves into Review, and a page whose pull
- * request merged moves into Done.
- *
- * Polling, not webhooks, deliberately. A webhook needs a publicly reachable endpoint, a
- * secret, and a configuration step inside GitHub for every repository - three things a
- * self-hosted tool cannot assume. A token pasted into project settings is the whole setup,
- * works from behind any tunnel, and for a small team's linked pages the poll traffic is
- * noise. The interval is generous because nothing here is urgent: the merge already
- * happened; the board is only catching up with the truth.
- *
- * The automation only ever moves a page forward, and only along the two edges it owns
- * (into Review while a pull request is open, into Done once one merges). It never moves a
- * page backwards, so a hand that placed a page somewhere always wins over the robot that
- * would tidy it.
+ * How a page keeps up with the work in GitHub: the board follows the code, forward only,
+ * by polling. The reasoning - why polling beats webhooks for a self-hosted tool, and why
+ * the automation never moves a page backwards - is design record, and lives in
+ * docs/architecture.md under "GitHub links".
  */
 
 /** What a page's link resolves to, said the way the rest of the product says it. */
@@ -40,10 +26,7 @@ export type ResolvedPullRequest = {
 };
 
 /** The one seam the poller has on the outside world, so tests can be the outside world. */
-export type GithubFetcher = (
-  path: string,
-  token: string,
-) => Promise<{ status: number; body: unknown }>;
+export type GithubFetcher = (path: string, token: string) => Promise<{ status: number; body: unknown }>;
 
 export const githubApiFetcher: GithubFetcher = async (path, token) => {
   const response = await fetch(`https://api.github.com${path}`, {
@@ -71,14 +54,14 @@ export function parseGithubReference(raw: string, projectRepo: string): PageGith
 
   const pull = value.match(/^https?:\/\/github\.com\/([^/\s]+\/[^/\s]+)\/pull\/(\d+)/i);
   if (pull) {
-    const repo = normalizeRepo(pull[1]);
-    return { kind: "pr", number: Number(pull[2]), ...(repo !== projectRepo ? { repo } : {}) };
+    const repo = normalizeRepo(pull[1]!);
+    return { kind: "pr", number: Number(pull[2]!), ...(repo !== projectRepo ? { repo } : {}) };
   }
 
   const tree = value.match(/^https?:\/\/github\.com\/([^/\s]+\/[^/\s]+)\/tree\/(.+)$/i);
   if (tree) {
-    const repo = normalizeRepo(tree[1]);
-    const name = decodeURIComponent(tree[2]).replace(/\/+$/, "");
+    const repo = normalizeRepo(tree[1]!);
+    const name = decodeURIComponent(tree[2]!).replace(/\/+$/, "");
     return { kind: "branch", name, ...(repo !== projectRepo ? { repo } : {}) };
   }
 
@@ -93,10 +76,18 @@ export function parseGithubReference(raw: string, projectRepo: string): PageGith
 }
 
 export function normalizeRepo(value: string): string {
-  return value.trim().replace(/^https?:\/\/github\.com\//i, "").replace(/\.git$/, "").replace(/\/+$/, "");
+  return value
+    .trim()
+    .replace(/^https?:\/\/github\.com\//i, "")
+    .replace(/\.git$/, "")
+    .replace(/\/+$/, "");
 }
 
-function prState(pr: { state?: string; merged_at?: string | null; draft?: boolean }): ResolvedPullRequest["state"] {
+function prState(pr: {
+  state?: string;
+  merged_at?: string | null;
+  draft?: boolean;
+}): ResolvedPullRequest["state"] {
   if (pr.merged_at) return "merged";
   if (pr.state === "closed") return "closed";
   return pr.draft ? "draft" : "open";
@@ -166,19 +157,19 @@ export async function syncProjectGithub(deps: SyncDependencies, projectId: strin
     const resolved = await resolveLink(fetcher, config.repo, config.token, page.github);
     const next: PageGithubStatus = resolved
       ? {
-        state: resolved.state,
-        prNumber: resolved.number,
-        prTitle: resolved.title,
-        prUrl: resolved.url,
-        checkedAt: new Date().toISOString(),
-      }
+          state: resolved.state,
+          prNumber: resolved.number,
+          prTitle: resolved.title,
+          prUrl: resolved.url,
+          checkedAt: new Date().toISOString(),
+        }
       : {
-        state: page.github.kind === "branch" ? "unchecked" : "missing",
-        prNumber: null,
-        prTitle: null,
-        prUrl: null,
-        checkedAt: new Date().toISOString(),
-      };
+          state: page.github.kind === "branch" ? "unchecked" : "missing",
+          prNumber: null,
+          prTitle: null,
+          prUrl: null,
+          checkedAt: new Date().toISOString(),
+        };
 
     if (statusDiffers(before, next)) changed = true;
     saveGithubStatus(database, projectId, page.id, next);
@@ -187,12 +178,14 @@ export async function syncProjectGithub(deps: SyncDependencies, projectId: strin
     // a page moves when GitHub's answer changes, never merely because it still holds. A hand
     // that pulled a page back out of Review while its pull request stayed open has decided
     // something, and a robot that re-filed it every two minutes would be unbearable.
-    const to = resolved?.state === "merged" && before?.state !== "merged" && page.status !== "done"
-      ? "done" as const
-      : (resolved?.state === "open" && before?.state !== "open" &&
-          (page.status === "backlog" || page.status === "ready" || page.status === "in_progress"))
-        ? "review" as const
-        : null;
+    const to =
+      resolved?.state === "merged" && before?.state !== "merged" && page.status !== "done"
+        ? ("done" as const)
+        : resolved?.state === "open" &&
+            before?.state !== "open" &&
+            (page.status === "backlog" || page.status === "ready" || page.status === "in_progress")
+          ? ("review" as const)
+          : null;
     if (to) {
       const moved = updatePage(database, pageStore, chapterStore, projectId, page.id, { status: to });
       if (moved) deps.onMoved({ projectId, page: moved, from: page.status, to });
@@ -204,7 +197,9 @@ export async function syncProjectGithub(deps: SyncDependencies, projectId: strin
 }
 
 function statusDiffers(before: PageGithubStatus | undefined, next: PageGithubStatus): boolean {
-  return before?.state !== next.state || before?.prNumber !== next.prNumber || before?.prTitle !== next.prTitle;
+  return (
+    before?.state !== next.state || before?.prNumber !== next.prNumber || before?.prTitle !== next.prTitle
+  );
 }
 
 export type RepoVerification =
@@ -231,7 +226,11 @@ export async function verifyRepoAccess(
       return { ok: true, repo: target, private: Boolean((body as Record<string, unknown>).private) };
     }
     if (status === 401) {
-      return { ok: false, reason: "unauthorized", message: "GitHub refused the token. It may be expired or mistyped." };
+      return {
+        ok: false,
+        reason: "unauthorized",
+        message: "GitHub refused the token. It may be expired or mistyped.",
+      };
     }
     return {
       ok: false,
@@ -279,13 +278,16 @@ export async function listOpenPullRequests(
   const cached = openPullRequestCache.get(target);
   if (cached && now - cached.at < OPEN_PR_CACHE_MS) return cached.items;
 
-  const { status, body } = await fetcher(`/repos/${target}/pulls?state=open&sort=updated&direction=desc&per_page=50`, token);
+  const { status, body } = await fetcher(
+    `/repos/${target}/pulls?state=open&sort=updated&direction=desc&per_page=50`,
+    token,
+  );
   if (status !== 200 || !Array.isArray(body)) return cached?.items ?? [];
   const items = (body as Array<Record<string, unknown>>).map((pr) => ({
     number: Number(pr.number),
     title: String(pr.title ?? ""),
     url: String(pr.html_url ?? ""),
-    state: pr.draft ? "draft" as const : "open" as const,
+    state: pr.draft ? ("draft" as const) : ("open" as const),
     branch: String((pr.head as Record<string, unknown> | undefined)?.ref ?? ""),
     author: String((pr.user as Record<string, unknown> | undefined)?.login ?? ""),
   }));

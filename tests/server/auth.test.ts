@@ -20,6 +20,27 @@ describe("authentication", () => {
     expect(duplicate.response.status).toBe(409);
   });
 
+  it("admits exactly one admin when two setup requests race", async () => {
+    const server = await startTestServer();
+
+    // Both requests pass the early emptiness check before either inserts - the
+    // password hashing between them yields the event loop. The INSERT itself is
+    // what must refuse the second one.
+    const [first, second] = await Promise.all([
+      fetch(`${server.baseUrl}/api/auth/bootstrap`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(ownerAccount),
+      }),
+      fetch(`${server.baseUrl}/api/auth/bootstrap`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...ownerAccount, email: "rival@example.com" }),
+      }),
+    ]);
+    expect([first.status, second.status].sort()).toEqual([201, 409]);
+  });
+
   it("supports logout and password login without exposing password data", async () => {
     const server = await startTestServer();
     await bootstrap(server);
@@ -137,7 +158,9 @@ describe("authentication", () => {
       }),
     });
     const memberId = registration.body.user.id;
-    const memberBoard = await server.request<{ members: Array<{ id: string; projectRole: string }> }>("/api/board");
+    const memberBoard = await server.request<{ members: Array<{ id: string; projectRole: string }> }>(
+      "/api/board",
+    );
     // Owning the project is a project role now; the account beside it says only "admin".
     const ownerId = memberBoard.body.members.find((member) => member.projectRole === "owner")!.id;
 

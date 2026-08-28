@@ -76,7 +76,9 @@ describe("link previews", () => {
     const html = await unfurl(server, `/?page=${page.body.page.id}`);
 
     // Enough to recognise the page, which is the same boundary the rest of the preview holds.
-    expect(html).toContain('<meta property="og:description" content="In progress · Modeling · First Brew" />');
+    expect(html).toContain(
+      '<meta property="og:description" content="In progress · Modeling · First Brew" />',
+    );
   });
 
   it("names the assignee and flags blocked and archived pages", async () => {

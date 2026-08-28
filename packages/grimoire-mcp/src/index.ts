@@ -43,7 +43,14 @@ const client = new GrimoireClient({
 const scope = await client
   .session()
   .then((session) => session.agent?.scope)
-  .catch(() => undefined);
+  .catch((error: unknown) => {
+    // Said on stderr rather than swallowed: a revoked token would otherwise register the
+    // full write surface in silence and only explain itself on the first refused call.
+    console.error(
+      `grimoire-mcp: could not read the credential's scope (${error instanceof Error ? error.message : String(error)}); registering every tool`,
+    );
+    return undefined;
+  });
 
 const server = createServer(client, { scope });
 const transport = new StdioServerTransport();

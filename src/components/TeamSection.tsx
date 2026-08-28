@@ -1,8 +1,9 @@
 import { useState } from "react";
 import type { Member, User, ProjectRole } from "../../shared/types";
 import { Avatar } from "./Avatar";
+import { ConfirmInline } from "./ConfirmInline";
 import { Growing } from "./Growing";
-import type { SettingsRun } from "./use-settings-action";
+import type { SettingsRun } from "../hooks/use-settings-action";
 
 type Props = {
   currentUser: User;
@@ -22,7 +23,18 @@ type Props = {
   run: SettingsRun;
 };
 
-export function TeamSection({ currentUser, isOwner, members, online, busy, onAddMember, onCreateInvite, onChangeMemberRole, onRemoveMember, run }: Props) {
+export function TeamSection({
+  currentUser,
+  isOwner,
+  members,
+  online,
+  busy,
+  onAddMember,
+  onCreateInvite,
+  onChangeMemberRole,
+  onRemoveMember,
+  run,
+}: Props) {
   const [invite, setInvite] = useState("");
   const [addEmail, setAddEmail] = useState("");
   const [removingId, setRemovingId] = useState<string | null>(null);
@@ -59,11 +71,11 @@ export function TeamSection({ currentUser, isOwner, members, online, busy, onAdd
             <Avatar avatarUrl={member.avatarUrl} name={member.name} online={online.has(member.id)} />
             <div className="team-member-copy">
               {/*
-                * The admin sits beside the name rather than in the role column, because it is
-                * a fact about the installation and the column is about this project. Without
-                * it the one account that can reach everything reads as an ordinary owner, and
-                * there is nowhere else in the product that says otherwise.
-                */}
+               * The admin sits beside the name rather than in the role column, because it is
+               * a fact about the installation and the column is about this project. Without
+               * it the one account that can reach everything reads as an ordinary owner, and
+               * there is nowhere else in the product that says otherwise.
+               */}
               <strong>
                 {member.name}
                 {member.role === "admin" && <span className="member-admin">admin</span>}
@@ -73,36 +85,47 @@ export function TeamSection({ currentUser, isOwner, members, online, busy, onAdd
             </div>
             {isOwner && member.id !== currentUser.id ? (
               <div className="member-actions">
-                {removingId === member.id ? (
-                  <>
-                    <span>remove?</span>
-                    <button
-                      aria-label={`Confirm remove ${member.name}`}
-                      className="danger-text"
-                      disabled={busy}
-                      onClick={() => void run(async () => {
-                        await onRemoveMember(member.id);
-                        setRemovingId(null);
-                      }, `${member.name} could not be removed`)}
-                      type="button"
-                    >yes</button>
-                    <button aria-label={`Cancel removing ${member.name}`} disabled={busy} onClick={() => setRemovingId(null)} type="button">no</button>
-                  </>
-                ) : (
+                {removingId !== member.id && (
                   <>
                     <span className="member-role">{member.projectRole}</span>
                     <button
-                      aria-label={member.projectRole === "owner" ? `Make ${member.name} a member` : `Make ${member.name} an owner`}
+                      aria-label={
+                        member.projectRole === "owner"
+                          ? `Make ${member.name} a member`
+                          : `Make ${member.name} an owner`
+                      }
                       className="member-role-change"
                       disabled={busy}
                       onClick={() => changeRole(member)}
                       type="button"
-                    >{member.projectRole === "owner" ? "make member" : "make owner"}</button>
-                    <button aria-label={`Remove ${member.name}`} className="member-remove" onClick={() => setRemovingId(member.id)} type="button">remove</button>
+                    >
+                      {member.projectRole === "owner" ? "make member" : "make owner"}
+                    </button>
                   </>
                 )}
+                <ConfirmInline
+                  cancelAriaLabel={`Cancel removing ${member.name}`}
+                  cancelDisabled={busy}
+                  confirmAriaLabel={`Confirm remove ${member.name}`}
+                  confirmDisabled={busy}
+                  onCancel={() => setRemovingId(null)}
+                  onConfirm={() =>
+                    void run(async () => {
+                      await onRemoveMember(member.id);
+                      setRemovingId(null);
+                    }, `${member.name} could not be removed`)
+                  }
+                  onOpen={() => setRemovingId(member.id)}
+                  open={removingId === member.id}
+                  question="remove?"
+                  trigger="remove"
+                  triggerAriaLabel={`Remove ${member.name}`}
+                  triggerClass="member-remove"
+                />
               </div>
-            ) : <span className="member-role">{member.projectRole}</span>}
+            ) : (
+              <span className="member-role">{member.projectRole}</span>
+            )}
           </Growing>
         ))}
       </div>
@@ -111,21 +134,26 @@ export function TeamSection({ currentUser, isOwner, members, online, busy, onAdd
           {/* The reach is named where the button lives, because the reach is the part people
               assume - and what they assume is bigger than what this grants. */}
           <p className="settings-summary role-reach-note">
-            An owner can reshape this project. The role reaches this project only: it grants nothing
-            anywhere else, and adds them to nothing.
+            An owner can reshape this project. The role reaches this project only: it grants nothing anywhere
+            else, and adds them to nothing.
           </p>
           {/*
-            * Two ways in, because they answer different questions: somebody who already has
-            * an account needs adding, not inviting, and an invitation would refuse them.
-            */}
+           * Two ways in, because they answer different questions: somebody who already has
+           * an account needs adding, not inviting, and an invitation would refuse them.
+           */}
           <div className="invite-box">
             <div>
               <span className="field-label">Add someone already on Grimoire</span>
-              <p>They join this project as a member. Nothing is sent; it is simply there next time they look.</p>
+              <p>
+                They join this project as a member. Nothing is sent; it is simply there next time they look.
+              </p>
             </div>
             <form
               className="member-add"
-              onSubmit={(event) => { event.preventDefault(); addMember(); }}
+              onSubmit={(event) => {
+                event.preventDefault();
+                addMember();
+              }}
             >
               <input
                 aria-label="Email address"
@@ -137,20 +165,43 @@ export function TeamSection({ currentUser, isOwner, members, online, busy, onAdd
                 type="email"
                 value={addEmail}
               />
-              <button className="quiet-button" disabled={busy || !addEmail.trim()} type="submit">add</button>
+              <button className="quiet-button" disabled={busy || !addEmail.trim()} type="submit">
+                add
+              </button>
             </form>
           </div>
           <div className="invite-box">
-            <div><span className="field-label">Invite someone new</span><p>One person can use this link. Creating another revokes this one. It expires after seven days.</p></div>
+            <div>
+              <span className="field-label">Invite someone new</span>
+              <p>
+                One person can use this link. Creating another revokes this one. It expires after seven days.
+              </p>
+            </div>
             {!invite ? (
               <button
                 className="primary-button"
                 disabled={busy}
-                onClick={() => void run(async () => setInvite(await onCreateInvite()), "The invitation could not be created")}
+                onClick={() =>
+                  void run(
+                    async () => setInvite(await onCreateInvite()),
+                    "The invitation could not be created",
+                  )
+                }
                 type="button"
-              >create invite</button>
+              >
+                create invite
+              </button>
             ) : (
-              <div className="invite-link"><input aria-label="Invite link" name="inviteLink" readOnly value={invite} /><button className="quiet-button" onClick={() => navigator.clipboard?.writeText(invite)} type="button">copy</button></div>
+              <div className="invite-link">
+                <input aria-label="Invite link" name="inviteLink" readOnly value={invite} />
+                <button
+                  className="quiet-button"
+                  onClick={() => navigator.clipboard?.writeText(invite)}
+                  type="button"
+                >
+                  copy
+                </button>
+              </div>
             )}
           </div>
         </>

@@ -1,19 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { FieldValue, PageFields as PageFieldValues, ProjectField } from "../../shared/types";
 import { Growing } from "./Growing";
+import { useDismissOnOutside } from "../hooks/use-dismiss-on-outside";
+import { fieldValueText } from "../lib/field-text";
 
 type Props = {
   fields: ProjectField[];
   values: PageFieldValues;
   onUpdate: (input: Record<string, unknown>) => Promise<void>;
 };
-
-/** What a value looks like once it is only being read. */
-export function fieldValueText(field: ProjectField, value: FieldValue | undefined): string {
-  if (value === undefined) return "—";
-  if (field.type === "checkbox") return value ? "yes" : "no";
-  return String(value);
-}
 
 /**
  * The project's own fields, on one page.
@@ -68,7 +63,9 @@ export function PageFieldsEditor({ fields, values, onUpdate }: Props) {
                 className={values[field.key] === undefined ? "choice active" : "choice"}
                 onClick={() => void set(field.key, null)}
                 type="button"
-              >none</button>
+              >
+                none
+              </button>
               {field.options.map((option) => (
                 <button
                   aria-label={`Set ${field.label} to ${option}`}
@@ -76,7 +73,9 @@ export function PageFieldsEditor({ fields, values, onUpdate }: Props) {
                   key={option}
                   onClick={() => void set(field.key, option)}
                   type="button"
-                >{option}</button>
+                >
+                  {option}
+                </button>
               ))}
             </div>
           ) : field.type === "checkbox" ? (
@@ -86,19 +85,25 @@ export function PageFieldsEditor({ fields, values, onUpdate }: Props) {
                 className={values[field.key] === true ? "choice active" : "choice"}
                 onClick={() => void set(field.key, true)}
                 type="button"
-              >yes</button>
+              >
+                yes
+              </button>
               <button
                 aria-label={`Set ${field.label} to no`}
                 className={values[field.key] === false ? "choice active" : "choice"}
                 onClick={() => void set(field.key, false)}
                 type="button"
-              >no</button>
+              >
+                no
+              </button>
               <button
                 aria-label={`Clear ${field.label}`}
                 className={values[field.key] === undefined ? "choice active" : "choice"}
                 onClick={() => void set(field.key, null)}
                 type="button"
-              >none</button>
+              >
+                none
+              </button>
             </div>
           ) : editingKey === field.key ? (
             <input
@@ -108,7 +113,10 @@ export function PageFieldsEditor({ fields, values, onUpdate }: Props) {
               onBlur={() => commitDraft(field)}
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === "Enter") { event.preventDefault(); commitDraft(field); }
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  commitDraft(field);
+                }
                 if (event.key === "Escape") setEditingKey(null);
               }}
               placeholder={field.type === "date" ? "YYYY-MM-DD" : ""}
@@ -126,12 +134,86 @@ export function PageFieldsEditor({ fields, values, onUpdate }: Props) {
                   setEditingKey(field.key);
                 }}
                 type="button"
-              >change</button>
+              >
+                change
+              </button>
             </div>
           )}
         </Growing>
       ))}
     </>
+  );
+}
+
+/**
+ * How much work a page is, said as a number and nothing more.
+ *
+ * It rests as its value and edits as a plain input, like the written fields beside it, and an
+ * emptied box clears it rather than storing a nought - "nobody has said" and "no work at all"
+ * are different answers and the board counts them differently.
+ */
+export function EstimateRow({
+  estimate,
+  onUpdate,
+}: {
+  estimate: number | null;
+  onUpdate: (input: Record<string, unknown>) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+
+  const commit = () => {
+    setEditing(false);
+    const trimmed = draft.trim();
+    if (!trimmed) {
+      if (estimate !== null) void onUpdate({ estimate: null });
+      return;
+    }
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed) || parsed < 0 || parsed === estimate) return;
+    void onUpdate({ estimate: parsed });
+  };
+
+  if (editing) {
+    return (
+      <input
+        aria-label="Estimate"
+        autoFocus
+        inputMode="decimal"
+        name="estimate"
+        onBlur={commit}
+        onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            commit();
+          }
+          if (event.key === "Escape") {
+            event.stopPropagation();
+            setEditing(false);
+          }
+        }}
+        type="text"
+        value={draft}
+      />
+    );
+  }
+
+  return (
+    <div className="rail-value">
+      <span className="rail-current">{estimate === null ? "—" : estimate}</span>
+      <button
+        aria-label="Change estimate"
+        className="rail-change"
+        onClick={() => {
+          setDraft(estimate === null ? "" : String(estimate));
+          setEditing(true);
+        }}
+        type="button"
+      >
+        change
+      </button>
+    </div>
   );
 }
 
@@ -153,7 +235,11 @@ const MIN_LIST = 96;
  * rests at, and the search is a layer on top of it. It is a popover entering rather than a
  * section unfolding, which is the case the height rule leaves to CSS.
  */
-function SearchableChoice({ field, onSet, value }: {
+function SearchableChoice({
+  field,
+  onSet,
+  value,
+}: {
   field: ProjectField;
   onSet: (value: string | null) => void;
   value: FieldValue | undefined;
@@ -193,16 +279,7 @@ function SearchableChoice({ field, onSet, value }: {
     setSearching(true);
   };
 
-  // Clicking anywhere else is the ordinary way out of a popover, and the one people reach for
-  // before they find the cancel it covers.
-  useEffect(() => {
-    if (!searching) return;
-    const closeOnOutside = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) close();
-    };
-    document.addEventListener("mousedown", closeOnOutside);
-    return () => document.removeEventListener("mousedown", closeOnOutside);
-  }, [searching]);
+  useDismissOnOutside(rootRef, searching, close);
 
   return (
     <div className="field-search-anchor" ref={rootRef}>
@@ -215,7 +292,9 @@ function SearchableChoice({ field, onSet, value }: {
           className="rail-change"
           onClick={() => (searching ? close() : open())}
           type="button"
-        >change</button>
+        >
+          change
+        </button>
       </div>
       {searching && (
         <div
@@ -233,7 +312,7 @@ function SearchableChoice({ field, onSet, value }: {
               onKeyDown={(event) => {
                 if (event.key === "Enter" && matches.length > 0) {
                   event.preventDefault();
-                  onSet(matches[0]);
+                  onSet(matches[0]!);
                   close();
                   return;
                 }
@@ -252,7 +331,10 @@ function SearchableChoice({ field, onSet, value }: {
               <button
                 aria-label={`Set ${field.label} to ${option}`}
                 key={option}
-                onClick={() => { onSet(option); close(); }}
+                onClick={() => {
+                  onSet(option);
+                  close();
+                }}
                 type="button"
               >
                 <span>{option === value ? <strong>{option} ✓</strong> : <strong>{option}</strong>}</span>
@@ -262,9 +344,20 @@ function SearchableChoice({ field, onSet, value }: {
           </div>
           <div className="field-search-actions">
             {value !== undefined && (
-              <button className="text-button" onClick={() => { onSet(null); close(); }} type="button">clear</button>
+              <button
+                className="text-button"
+                onClick={() => {
+                  onSet(null);
+                  close();
+                }}
+                type="button"
+              >
+                clear
+              </button>
             )}
-            <button className="text-button" onClick={close} type="button">cancel</button>
+            <button className="text-button" onClick={close} type="button">
+              cancel
+            </button>
           </div>
         </div>
       )}

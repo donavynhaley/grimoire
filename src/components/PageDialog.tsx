@@ -1,36 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  PAGE_STATUSES,
-  type AuditEvent,
-  type AuditPage,
-  type Page,
-  type PageStatus,
-  type Chapter,
-  type DiscussionThread,
-  type Member,
-  type ProjectCategory,
-  type ProjectField,
+import type {
+  AuditPage,
+  Page,
+  Chapter,
+  DiscussionThread,
+  Member,
+  ProjectCategory,
+  ProjectField,
 } from "../../shared/types";
-import { Avatar } from "./Avatar";
-import { PageFieldsEditor } from "./PageFields";
-import { EditorState, otherEditorName } from "./EditorState";
-import { Growing } from "./Growing";
+import { ConfirmInline } from "./ConfirmInline";
+import { otherEditorName, SaveState } from "./SaveState";
 import { NotesField } from "./NotesField";
-import { describeChange, describeEvent, relativeLabel } from "./activity-copy";
 import { DiscussionSection } from "./DiscussionSection";
 import { Drawer } from "./Drawer";
 import { GithubLink } from "./GithubLink";
-import { useContentEditor } from "./use-content-editor";
-
-const PAGE_HISTORY_LIMIT = 6;
-
-const labels: Record<PageStatus, string> = {
-  backlog: "Backlog",
-  ready: "Up Next",
-  in_progress: "In progress",
-  review: "Review",
-  done: "Done",
-};
+import { useContentEditor } from "../hooks/use-content-editor";
+import { PageHistory } from "./PageHistory";
+import { PageRail } from "./PageRail";
+import { usePageHistory } from "../hooks/use-page-history";
+import { usePageDiscussion } from "../hooks/use-page-discussion";
 
 type Props = {
   page: Page;
@@ -58,13 +46,27 @@ type Props = {
   onSeeDiscussion: (pageId: string) => Promise<void>;
 };
 
-export function PageDialog({ page, pages, categories, chapters, estimatesEnabled, fields, currentUserId, githubRepo, members, revision, onUpdate, onArchive, onClose, onLoadActivity, onLoadDiscussion, onAsk, onReply, onSetAnswered, onSeeDiscussion }: Props) {
-  const categoryColor = (slug: string | null) =>
-    slug ? categories.find((category) => category.slug === slug)?.color : undefined;
-  const swatchStyle = (slug: string | null) => {
-    const color = categoryColor(slug);
-    return color ? ({ "--category-color": color } as React.CSSProperties) : undefined;
-  };
+export function PageDialog({
+  page,
+  pages,
+  categories,
+  chapters,
+  estimatesEnabled,
+  fields,
+  currentUserId,
+  githubRepo,
+  members,
+  revision,
+  onUpdate,
+  onArchive,
+  onClose,
+  onLoadActivity,
+  onLoadDiscussion,
+  onAsk,
+  onReply,
+  onSetAnswered,
+  onSeeDiscussion,
+}: Props) {
   const [confirmArchive, setConfirmArchive] = useState(false);
   /**
    * Which half of the page is on screen when there is only room for one.
@@ -86,32 +88,11 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
    */
   const [aside, setAside] = useState<"details" | "discussion">("details");
   /**
-   * Category is the only attribute long enough to be worth folding: ten choices against four
-   * or five everywhere else, and it is usually set once at capture time with `#` and rarely
-   * revisited. Column, assignee, and chapter stay one click, because those are the ones
-   * someone opens a page to change.
-   */
-  const [changingCategory, setChangingCategory] = useState(false);
-  /**
    * History starts folded. Editing a page refetches it, so an open list would redraw
    * itself under the notes on every save — motion next to the field someone is typing
    * in, for a section most visits never read.
    */
   const [showingHistory, setShowingHistory] = useState(false);
-  /*
-   * Finished chapters fold away here for the same reason they do in the board's picker: they
-   * accumulate for the life of the project, and a project a year in offers a page fifteen
-   * buttons of which one is live. The fold opens on sight when this page belongs to a closed
-   * chapter, because otherwise the row would show no selection and the reason would be hidden.
-   */
-  const inClosedChapter = chapters.some(
-    (chapter) => chapter.state === "closed" && chapter.slug === page.chapter,
-  );
-  const [showingClosedChapters, setShowingClosedChapters] = useState(inClosedChapter);
-  const liveChapters = chapters.filter((chapter) => chapter.state !== "closed");
-  const closedChapters = chapters.filter((chapter) => chapter.state === "closed");
-  const [findingBlocker, setFindingBlocker] = useState(false);
-  const [blockerQuery, setBlockerQuery] = useState("");
   const updateRef = useRef(onUpdate);
   updateRef.current = onUpdate;
 
@@ -127,46 +108,20 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
 
   // Opening a different page starts every fold where it would have started on first sight,
   // so reaching into the earlier chapters for one page is not a choice the next page inherits.
+  // The rail's own folds get the same start by remounting under the page's key.
   useEffect(() => {
-    setFindingBlocker(false);
-    setBlockerQuery("");
-    setChangingCategory(false);
     setShowingHistory(false);
     setPane("notes");
     setAside("details");
     marked.current = null;
-    setShowingClosedChapters(inClosedChapter);
-    // `inClosedChapter` is read for the page being opened, not tracked: a page moved into a
-    // closed chapter from the open fold must not re-run this and fold it away underneath.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page.id]);
 
-  const blockers = page.blockedBy
-    .map((id) => pages.find((candidate) => candidate.id === id))
-    .filter((candidate): candidate is Page => Boolean(candidate));
-  const normalizedBlockerQuery = blockerQuery.trim().toLowerCase();
-  const blockerResults = normalizedBlockerQuery
-    ? pages
-      .filter((candidate) =>
-        candidate.id !== page.id &&
-        candidate.status !== "done" &&
-        !page.blockedBy.includes(candidate.id) &&
-        `${candidate.title}\n${candidate.category ?? "uncategorized"}`.toLowerCase().includes(normalizedBlockerQuery))
-      .slice(0, 6)
-    : [];
-
-  const addBlocker = async (id: string) => {
-    await onUpdate({ blockedBy: [...page.blockedBy, id] });
-    setFindingBlocker(false);
-    setBlockerQuery("");
-  };
-
-  const removeBlocker = (id: string) => onUpdate({
-    blockedBy: page.blockedBy.filter((dependencyId) => dependencyId !== id),
-  });
-
   const history = usePageHistory(page.id, revision, onLoadActivity);
-  const { threads, failed: discussionFailed, reload: reloadDiscussion } = usePageDiscussion(page.id, revision, onLoadDiscussion);
+  const {
+    threads,
+    failed: discussionFailed,
+    reload: reloadDiscussion,
+  } = usePageDiscussion(page.id, revision, onLoadDiscussion);
   /*
    * What the control counts is what has not been read, not what is unresolved.
    *
@@ -204,8 +159,13 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
   return (
     <Drawer className="dialog-panel page-editor" labelledBy="dialog-panel-title" onClose={close}>
       <header className="dialog-header">
-        <div><p className="eyebrow">page details</p><h2 id="dialog-panel-title">Edit page</h2></div>
-        <button aria-label="Close page" className="icon-button" onClick={() => void close()} type="button">×</button>
+        <div>
+          <p className="eyebrow">page details</p>
+          <h2 id="dialog-panel-title">Edit page</h2>
+        </div>
+        <button aria-label="Close page" className="icon-button" onClick={() => void close()} type="button">
+          ×
+        </button>
       </header>
 
       {/*
@@ -215,11 +175,21 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
         listener here.
       */}
       <div aria-label="Page halves" className="page-editor-panes" role="group">
-        <button aria-pressed={pane === "notes"} className="pane-tab" onClick={() => setPane("notes")} type="button">Notes</button>
+        <button
+          aria-pressed={pane === "notes"}
+          className="pane-tab"
+          onClick={() => setPane("notes")}
+          type="button"
+        >
+          Notes
+        </button>
         <button
           aria-pressed={pane === "aside" && aside === "details"}
           className="pane-tab"
-          onClick={() => { setPane("aside"); setAside("details"); }}
+          onClick={() => {
+            setPane("aside");
+            setAside("details");
+          }}
           type="button"
         >
           Details
@@ -227,17 +197,28 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
         <button
           aria-pressed={pane === "aside" && aside === "discussion"}
           className="pane-tab"
-          onClick={() => { setPane("aside"); setAside("discussion"); }}
+          onClick={() => {
+            setPane("aside");
+            setAside("discussion");
+          }}
           type="button"
         >
-          Discussion{unseenCount > 0 ? ` · ${unseenCount}` : ""}{namedCount > 0 ? " @" : ""}
+          Discussion{unseenCount > 0 ? ` · ${unseenCount}` : ""}
+          {namedCount > 0 ? " @" : ""}
         </button>
       </div>
 
       <div className="page-editor-split" data-pane={pane}>
         <div className="page-editor-main">
           <div className="record-form">
-            <label><span>Title</span><input name="title" onChange={(event) => editor.setTitle(event.target.value)} value={editor.title} /></label>
+            <label>
+              <span>Title</span>
+              <input
+                name="title"
+                onChange={(event) => editor.setTitle(event.target.value)}
+                value={editor.title}
+              />
+            </label>
           </div>
 
           {/* The notes take whatever height the column has left over, and are the only
@@ -254,7 +235,6 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
           />
 
           <GithubLink github={page.github} onUpdate={onUpdate} repo={githubRepo} status={page.githubStatus} />
-
         </div>
 
         {/*
@@ -288,7 +268,11 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
               */}
               {unseenCount > 0 && (
                 <span
-                  aria-label={namedCount > 0 ? `${unseenCount} unread, ${namedCount} naming you` : `${unseenCount} unread`}
+                  aria-label={
+                    namedCount > 0
+                      ? `${unseenCount} unread, ${namedCount} naming you`
+                      : `${unseenCount} unread`
+                  }
                   className={namedCount > 0 ? "discussion-unseen named" : "discussion-unseen"}
                 >
                   {unseenCount}
@@ -302,8 +286,14 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
               currentUserId={currentUserId}
               failed={discussionFailed}
               members={members}
-              onAsk={async (body) => { await onAsk(page.id, body); await reloadDiscussion(); }}
-              onReply={async (threadId, body) => { await onReply(page.id, threadId, body); await reloadDiscussion(); }}
+              onAsk={async (body) => {
+                await onAsk(page.id, body);
+                await reloadDiscussion();
+              }}
+              onReply={async (threadId, body) => {
+                await onReply(page.id, threadId, body);
+                await reloadDiscussion();
+              }}
               onSetAnswered={async (threadId, answered) => {
                 await onSetAnswered(page.id, threadId, answered);
                 await reloadDiscussion();
@@ -311,186 +301,20 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
               threads={threads}
             />
           ) : (
-        <div aria-label="Page properties" className="page-rail">
-          <div className="rail-row">
-            <span className="field-label">Column</span>
-            <div className="choice-grid status-choices">
-              {PAGE_STATUSES.map((status) => (
-                <button
-                  aria-label={`Move to ${labels[status]}`}
-                  className={page.status === status ? "choice active" : "choice"}
-                  key={status}
-                  onClick={() => onUpdate({ status, position: 99_999 })}
-                  type="button"
-                >
-                  <span className={`column-dot ${status}`} />{labels[status]}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="rail-row">
-            <span className="field-label">Who</span>
-            <div className="choice-grid assignee-choices">
-              <button className={!page.assigneeId ? "choice active" : "choice"} onClick={() => onUpdate({ assigneeId: null })} type="button">unassigned</button>
-              {members.map((member) => (
-                <button
-                  aria-label={`Assign ${member.name}`}
-                  className={page.assigneeId === member.id ? "choice active" : "choice"}
-                  key={member.id}
-                  onClick={() => onUpdate({ assigneeId: member.id })}
-                  type="button"
-                >
-                  <Avatar avatarUrl={member.avatarUrl} className="avatar tiny" name={member.name} />{member.name}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {chapters.length > 0 && (
-            <Growing className="rail-row">
-              <span className="field-label">Chapter</span>
-              <div className="choice-grid chapter-choices">
-                <button
-                  aria-label="Remove from every chapter"
-                  className={!page.chapter ? "choice active" : "choice"}
-                  onClick={() => onUpdate({ chapter: null })}
-                  type="button"
-                >
-                  none
-                </button>
-                {liveChapters.map((chapter) => (
-                  <ChapterChoice chapter={chapter} key={chapter.slug} onUpdate={onUpdate} page={page} />
-                ))}
-              </div>
-              {closedChapters.length > 0 && (
-                <>
-                  <button
-                    aria-expanded={showingClosedChapters}
-                    className="chapter-group-label as-toggle in-rail"
-                    onClick={() => setShowingClosedChapters((showing) => !showing)}
-                    type="button"
-                  >
-                    <span>earlier</span>
-                    <span className="chapter-group-count">{closedChapters.length}</span>
-                    <span aria-hidden="true" className="chapter-group-caret">{showingClosedChapters ? "▾" : "▸"}</span>
-                  </button>
-                  {showingClosedChapters && (
-                    <div className="choice-grid chapter-choices">
-                      {closedChapters.map((chapter) => (
-                        <ChapterChoice chapter={chapter} key={chapter.slug} onUpdate={onUpdate} page={page} />
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-            </Growing>
-          )}
-
-          <Growing className="rail-row">
-            <span className="field-label">Category</span>
-            {changingCategory ? (
-              <div className="choice-grid category-choices">
-                <button
-                  aria-label="Clear category"
-                  className={!page.category ? "choice active" : "choice"}
-                  onClick={() => { void onUpdate({ category: null }); setChangingCategory(false); }}
-                  type="button"
-                >
-                  none
-                </button>
-                {categories.map((category) => (
-                  <button
-                    aria-label={`Categorize as ${category.name}`}
-                    className={page.category === category.slug ? "choice active" : "choice"}
-                    key={category.slug}
-                    onClick={() => { void onUpdate({ category: category.slug }); setChangingCategory(false); }}
-                    type="button"
-                  >
-                    <span className="category-swatch" style={{ "--category-color": category.color } as React.CSSProperties} />{category.name}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className="rail-value">
-                <span className="rail-current">
-                  <span className={`category-swatch ${page.category ? "" : "category-none"}`} style={swatchStyle(page.category)} />
-                  {page.category ? categories.find((category) => category.slug === page.category)?.name ?? page.category : "uncategorized"}
-                </span>
-                <button
-                  aria-label="Change category"
-                  className="rail-change"
-                  onClick={() => setChangingCategory(true)}
-                  type="button"
-                >change</button>
-              </div>
-            )}
-          </Growing>
-
-          {estimatesEnabled && (
-            <Growing className="rail-row">
-              <span className="field-label">Estimate</span>
-              <EstimateRow estimate={page.estimate} onUpdate={onUpdate} />
-            </Growing>
-          )}
-
-          <PageFieldsEditor fields={fields} values={page.fields} onUpdate={onUpdate} />
-
-          <Growing className="rail-row dependency-section">
-            <span className="field-label">Blocked by</span>
-            {blockers.length > 0 ? (
-              <div className="dependency-list">
-                {blockers.map((blocker) => (
-                  <div className={blocker.status === "done" ? "dependency resolved" : "dependency"} key={blocker.id}>
-                    <span className={`category-swatch ${blocker.category ? "" : "category-none"}`} style={swatchStyle(blocker.category)} />
-                    <span><strong>{blocker.title}</strong><small>{blocker.status === "done" ? "resolved" : labels[blocker.status]}</small></span>
-                    <button aria-label={`Remove blocker ${blocker.title}`} onClick={() => void removeBlocker(blocker.id)} type="button">×</button>
-                  </div>
-                ))}
-              </div>
-            ) : <p className="empty-dependencies">This page can move forward now.</p>}
-            {findingBlocker ? (
-              <div className="dependency-search">
-                <label>
-                  <span className="sr-only">Find a blocking page</span>
-                  <input
-                    aria-label="Find a blocking page"
-                    autoFocus
-                    onChange={(event) => setBlockerQuery(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key !== "Escape") return;
-                      // Leaving the search must not also close the whole page.
-                      event.stopPropagation();
-                      setFindingBlocker(false);
-                    }}
-                    placeholder="Type a page title..."
-                    type="search"
-                    value={blockerQuery}
-                  />
-                </label>
-                {normalizedBlockerQuery && (
-                  <div className="dependency-results">
-                    {blockerResults.map((candidate) => (
-                      <button
-                        aria-label={`Blocked by ${candidate.title}`}
-                        key={candidate.id}
-                        onClick={() => void addBlocker(candidate.id)}
-                        type="button"
-                      >
-                        <span className={`category-swatch ${candidate.category ? "" : "category-none"}`} style={swatchStyle(candidate.category)} />
-                        <span><strong>{candidate.title}</strong><small>{candidate.category ? categories.find((category) => category.slug === candidate.category)?.name ?? candidate.category : "uncategorized"}</small></span>
-                      </button>
-                    ))}
-                    {blockerResults.length === 0 && <p>No matching open pages.</p>}
-                  </div>
-                )}
-                <button className="text-button" onClick={() => { setFindingBlocker(false); setBlockerQuery(""); }} type="button">cancel</button>
-              </div>
-            ) : (
-              <button aria-label="Add blocking page" className="add-dependency" onClick={() => setFindingBlocker(true)} type="button">+ add blocking page</button>
-            )}
-          </Growing>
-        </div>
+            /* Keyed by the page so opening a different page starts every fold and picker in
+               the rail where it would have started on first sight, not where the previous
+               page left it. */
+            <PageRail
+              categories={categories}
+              chapters={chapters}
+              estimatesEnabled={estimatesEnabled}
+              fields={fields}
+              key={page.id}
+              members={members}
+              onUpdate={onUpdate}
+              page={page}
+              pages={pages}
+            />
           )}
         </div>
       </div>
@@ -509,218 +333,25 @@ export function PageDialog({ page, pages, categories, chapters, estimatesEnabled
 
       {/* The autosave line and the archive stand under both halves rather than inside the
           writing, so a refused save is still in sight from the details. */}
-      <EditorState editor={editor} who={otherEditor} />
+      <SaveState editor={editor} who={otherEditor} />
 
       <footer className="dialog-footer">
         <span>created by {page.createdByName}</span>
-        {confirmArchive ? (
-          <div className="archive-confirm"><span>archive this page?</span><button className="danger-button" onClick={onArchive} type="button">yes, archive</button><button className="text-button" onClick={() => setConfirmArchive(false)} type="button">cancel</button></div>
-        ) : <button className="text-button danger-text" onClick={() => setConfirmArchive(true)} type="button">archive page</button>}
+        <ConfirmInline
+          cancelClass="text-button"
+          cancelLabel="cancel"
+          className="archive-confirm"
+          confirmClass="danger-button"
+          confirmLabel="yes, archive"
+          onCancel={() => setConfirmArchive(false)}
+          onConfirm={onArchive}
+          onOpen={() => setConfirmArchive(true)}
+          open={confirmArchive}
+          question="archive this page?"
+          trigger="archive page"
+          triggerClass="text-button danger-text"
+        />
       </footer>
     </Drawer>
-  );
-}
-
-/**
- * One chapter this page could be placed in.
- *
- * Shared by the live chapters and the folded ones so a chapter reads and behaves identically
- * either side of the fold: what is hidden is a group, never a different kind of control.
- */
-function ChapterChoice({ chapter, onUpdate, page }: {
-  chapter: Chapter;
-  onUpdate: (input: Record<string, unknown>) => Promise<void>;
-  page: Page;
-}) {
-  return (
-    <button
-      aria-label={`Place in ${chapter.name}`}
-      className={page.chapter === chapter.slug ? "choice active" : "choice"}
-      onClick={() => onUpdate({ chapter: chapter.slug })}
-      type="button"
-    >
-      {chapter.name}
-      {chapter.state === "open" && <span className="choice-note">open</span>}
-    </button>
-  );
-}
-
-/**
- * Loads the recent history for one page.
- *
- * Results are kept alongside the page they belong to, so a refetch triggered by an
- * autosave leaves the list in place instead of collapsing the section on every
- * keystroke pause, while switching pages still hides the previous page's history.
- *
- * A failed lookup stays silent: the history is context, and an error banner over it
- * would sit above editing controls that still work perfectly well.
- *
- * The load runs even while the section is folded, because the same events name whoever
- * else touched this page in the conflict bar.
- */
-function usePageHistory(
-  pageId: string,
-  revision: number,
-  load: (options: { entityId?: string; limit?: number }) => Promise<AuditPage>,
-): AuditEvent[] | null {
-  const [loaded, setLoaded] = useState<{ pageId: string; events: AuditEvent[] } | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    load({ entityId: pageId, limit: PAGE_HISTORY_LIMIT })
-      .then((page) => { if (alive) setLoaded({ pageId, events: page.events }); })
-      .catch(() => { if (alive) setLoaded({ pageId, events: [] }); });
-    return () => { alive = false; };
-  }, [pageId, load, revision]);
-
-  return loaded?.pageId === pageId ? loaded.events : null;
-}
-
-/**
- * Loads the conversation on one page.
- *
- * Kept beside the page it belongs to for the same reason the history is: a refetch triggered
- * by an autosave should leave the threads in place rather than blanking them mid-read, while
- * switching pages must never show the previous page's conversation for a frame.
- *
- * `reload` is what a post calls once the write has landed, so the list reflects the server's
- * answer rather than a guess assembled on the client.
- */
-function usePageDiscussion(
-  pageId: string,
-  revision: number,
-  load: (pageId: string) => Promise<{ threads: DiscussionThread[] }>,
-): { threads: DiscussionThread[] | null; failed: boolean; reload: () => Promise<void> } {
-  const [loaded, setLoaded] = useState<{ pageId: string; threads: DiscussionThread[] } | null>(null);
-  const [failed, setFailed] = useState<string | null>(null);
-  const [reloads, setReloads] = useState(0);
-
-  useEffect(() => {
-    let alive = true;
-    load(pageId)
-      .then((result) => { if (alive) { setLoaded({ pageId, threads: result.threads }); setFailed(null); } })
-      /*
-       * A conversation that could not be fetched is not an empty one.
-       *
-       * Drawing nothing beside a badge saying three things are unread says the messages are
-       * gone, and marking them read on the strength of that would lose them for good.
-       */
-      .catch(() => { if (alive) setFailed(pageId); });
-    return () => { alive = false; };
-  }, [pageId, load, revision, reloads]);
-
-  return {
-    threads: loaded?.pageId === pageId ? loaded.threads : null,
-    failed: failed === pageId,
-    reload: async () => { setReloads((count) => count + 1); },
-  };
-}
-
-/**
- * The header is always present so the section never appears or resizes on its own;
- * only what someone asked to see is drawn.
- */
-function PageHistory({ events, members, onToggle, open }: {
-  events: AuditEvent[] | null;
-  members: Member[];
-  onToggle: () => void;
-  open: boolean;
-}) {
-  return (
-    <Growing className="dialog-section page-history">
-      <button aria-expanded={open} className="history-toggle" onClick={onToggle} type="button">
-        <span aria-hidden="true" className="history-caret">{open ? "▾" : "▸"}</span>
-        <span className="field-label">History</span>
-      </button>
-      {open && <HistoryEvents events={events} members={members} />}
-    </Growing>
-  );
-}
-
-function HistoryEvents({ events, members }: { events: AuditEvent[] | null; members: Member[] }) {
-  const now = useMemo(() => new Date(), [events]);
-  if (events === null) return <p className="empty-dependencies">Reading the record...</p>;
-  if (events.length === 0) return <p className="empty-dependencies">No recorded changes yet.</p>;
-  return (
-    <ol>
-      {events.map((event) => {
-        const { lead } = describeEvent(event);
-        const actor = members.find((member) => member.id === event.actorId);
-        return (
-          <li key={event.id}>
-            <Avatar avatarUrl={actor?.avatarUrl} className="avatar tiny" name={event.actorName} />
-            <span>
-              <strong>{event.actorName}</strong>
-              {event.agentName && <span className="via-agent"> via {event.agentName}</span>} {lead}
-              {event.changes.length > 0 && (
-                <span className="activity-changes">
-                  {event.changes.map((change) => <span key={change.field}>{describeChange(change)}</span>)}
-                </span>
-              )}
-            </span>
-            <time dateTime={event.createdAt}>{relativeLabel(event.createdAt, now)}</time>
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
-
-/**
- * How much work a page is, said as a number and nothing more.
- *
- * It rests as its value and edits as a plain input, like the written fields beside it, and an
- * emptied box clears it rather than storing a nought - "nobody has said" and "no work at all"
- * are different answers and the board counts them differently.
- */
-function EstimateRow({ estimate, onUpdate }: {
-  estimate: number | null;
-  onUpdate: (input: Record<string, unknown>) => Promise<void>;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState("");
-
-  const commit = () => {
-    setEditing(false);
-    const trimmed = draft.trim();
-    if (!trimmed) {
-      if (estimate !== null) void onUpdate({ estimate: null });
-      return;
-    }
-    const parsed = Number(trimmed);
-    if (!Number.isFinite(parsed) || parsed < 0 || parsed === estimate) return;
-    void onUpdate({ estimate: parsed });
-  };
-
-  if (editing) {
-    return (
-      <input
-        aria-label="Estimate"
-        autoFocus
-        inputMode="decimal"
-        name="estimate"
-        onBlur={commit}
-        onChange={(event) => setDraft(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") { event.preventDefault(); commit(); }
-          if (event.key === "Escape") { event.stopPropagation(); setEditing(false); }
-        }}
-        type="text"
-        value={draft}
-      />
-    );
-  }
-
-  return (
-    <div className="rail-value">
-      <span className="rail-current">{estimate === null ? "—" : estimate}</span>
-      <button
-        aria-label="Change estimate"
-        className="rail-change"
-        onClick={() => { setDraft(estimate === null ? "" : String(estimate)); setEditing(true); }}
-        type="button"
-      >change</button>
-    </div>
   );
 }

@@ -29,7 +29,11 @@ export function fakeProvider(options: { config?: Partial<OidcConfig> } = {}) {
   // A second key that is never published, so a token signed with it is what a forgery or a
   // relayed token from somewhere else looks like on the wire.
   const rogue = generateKeyPairSync("rsa", { modulusLength: 2048 });
-  const jwk = { ...(publicKey.export({ format: "jwk" }) as Record<string, unknown>), kid: "test-key", alg: "RS256" };
+  const jwk = {
+    ...(publicKey.export({ format: "jwk" }) as Record<string, unknown>),
+    kid: "test-key",
+    alg: "RS256",
+  };
   const settings = { ...config, ...options.config };
 
   const claimsForCode = new Map<string, { claims: Record<string, unknown>; forged: boolean }>();
@@ -66,7 +70,10 @@ export function fakeProvider(options: { config?: Partial<OidcConfig> } = {}) {
       if (!registered) return { status: 400, body: { error: "invalid_grant" } };
       return {
         status: 200,
-        body: { id_token: idToken(registered.claims, registered.forged), access_token: "provider-access-token" },
+        body: {
+          id_token: idToken(registered.claims, registered.forged),
+          access_token: "provider-access-token",
+        },
       };
     }
     return { status: 404, body: null };

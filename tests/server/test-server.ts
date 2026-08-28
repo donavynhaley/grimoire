@@ -99,7 +99,7 @@ export async function startTestServer(
       // own state alongside the session it creates, so the session is picked out by name
       // rather than by being the only one there.
       const session = response.headers.getSetCookie().find((value) => value.startsWith("grimoire_session="));
-      if (session) cookie = session.split(";")[0];
+      if (session) cookie = session.split(";")[0]!;
       const body = (await response.json()) as T;
       return { response, body };
     },

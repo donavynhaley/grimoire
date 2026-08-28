@@ -19,3 +19,4 @@ demo-data/
 
 # Local preview instance data, never part of the project.
 .live/
+coverage/

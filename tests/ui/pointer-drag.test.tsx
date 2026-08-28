@@ -2,7 +2,7 @@
 
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { usePointerDrag } from "../../src/components/use-pointer-drag";
+import { usePointerDrag } from "../../src/hooks/use-pointer-drag";
 
 afterEach(cleanup);
 
@@ -15,14 +15,29 @@ type Recorded = {
 
 function Harness({ log }: { log: Recorded }) {
   const drag = usePointerDrag({
-    onLift: (id) => { log.lifts.push(id); },
-    onMove: (point) => { log.moves.push(point); },
-    onDrop: (point) => { log.drops.push(point); },
-    onCancel: () => { log.cancels += 1; },
+    onLift: (id) => {
+      log.lifts.push(id);
+    },
+    onMove: (point) => {
+      log.moves.push(point);
+    },
+    onDrop: (point) => {
+      log.drops.push(point);
+    },
+    onCancel: () => {
+      log.cancels += 1;
+    },
   });
   return (
     <article data-testid="card" onPointerDown={(event) => drag.start(event, "page-1")}>
-      <button onClick={() => { if (!drag.consumeClick()) log.lifts.push("opened"); }} type="button">open</button>
+      <button
+        onClick={() => {
+          if (!drag.consumeClick()) log.lifts.push("opened");
+        }}
+        type="button"
+      >
+        open
+      </button>
       <span data-testid="state">{drag.dragging ? "lifted" : "resting"}</span>
     </article>
   );
@@ -55,18 +70,34 @@ describe("carrying a card with a pointer", () => {
       const { log, card, state } = mount();
 
       // A touch that sets off straight away was scrolling the board.
-      fireEvent.pointerDown(card, { pointerId: 2, pointerType: "touch", button: 0, clientX: 10, clientY: 300 });
+      fireEvent.pointerDown(card, {
+        pointerId: 2,
+        pointerType: "touch",
+        button: 0,
+        clientX: 10,
+        clientY: 300,
+      });
       fireEvent.pointerMove(window, { pointerId: 2, pointerType: "touch", clientX: 10, clientY: 260 });
-      act(() => { vi.advanceTimersByTime(500); });
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
       expect(state()).toBe("resting");
       expect(log.lifts).toEqual([]);
       fireEvent.pointerUp(window, { pointerId: 2, pointerType: "touch", clientX: 10, clientY: 260 });
       expect(log.drops).toEqual([]);
 
       // Holding still lifts it.
-      fireEvent.pointerDown(card, { pointerId: 3, pointerType: "touch", button: 0, clientX: 10, clientY: 300 });
+      fireEvent.pointerDown(card, {
+        pointerId: 3,
+        pointerType: "touch",
+        button: 0,
+        clientX: 10,
+        clientY: 300,
+      });
       expect(state()).toBe("resting");
-      act(() => { vi.advanceTimersByTime(300); });
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
       expect(state()).toBe("lifted");
       expect(log.lifts).toEqual(["page-1"]);
     } finally {

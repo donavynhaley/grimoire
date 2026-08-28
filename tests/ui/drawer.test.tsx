@@ -163,7 +163,8 @@ function stubScreen({ width, coarse }: { width: number; coarse: boolean }) {
         if (maxWidth) return width <= Number(maxWidth[1]);
         if (/pointer:\s*coarse/.test(condition)) return coarse;
         return false;
-      }));
+      }),
+    );
 
   Object.defineProperty(window, "matchMedia", {
     configurable: true,

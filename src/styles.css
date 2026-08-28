@@ -15,7 +15,13 @@
   --accent-soft: #233021;
   --red: #d87578;
   --amber: #d6bc78;
+  --green: #9ece6a;
+  --purple: #c3a6ff;
   --blue: #8bb9c9;
+  /* The border that says "accent" without filling with it; it appeared as a literal 17 times. */
+  --accent-border: #465f3c;
+  /* Any value tall enough turns a box into a pill; this one was spelled out 34 times. */
+  --radius-pill: 62.4375rem;
 }
 
 * { box-sizing: border-box; }
@@ -119,6 +125,8 @@ textarea:focus-visible {
   font-weight: 900;
 }
 
+
+/* The board shell and top bar ----------------------------------------------- */
 .board-shell {
   display: flex;
   height: 100vh;
@@ -176,6 +184,8 @@ textarea:focus-visible {
 .board-project { display: grid; justify-items: center; }
 .board-project h1 { margin: 0; font-size: 0.6875rem; text-transform: lowercase; }
 
+
+/* The project menu ---------------------------------------------------------- */
 .project-menu { position: relative; display: grid; justify-items: center; }
 
 .project-menu-trigger {
@@ -316,6 +326,8 @@ textarea:focus-visible {
 .member-faces { padding-left: 0.4375rem; }
 .member-faces .avatar { margin-left: -0.4375rem; box-shadow: 0 0 0 0.125rem var(--background); }
 
+
+/* Avatars and presence ------------------------------------------------------ */
 .avatar {
   display: grid;
   width: 1.75rem;
@@ -324,7 +336,7 @@ textarea:focus-visible {
   place-items: center;
   color: #182016;
   background: #c8d0c2;
-  border-radius: 62.4375rem;
+  border-radius: var(--radius-pill);
   font-size: 0.5625rem;
   font-weight: 900;
 }
@@ -370,11 +382,15 @@ textarea:focus-visible {
 
 .quiet-button:hover { color: var(--text); border-color: var(--border-bright); }
 
+/* The digest travels out through its slot; flex keeps the margin inside what gets measured. */
+
+/* While you were away ------------------------------------------------------- */
+.away-digest-slot { display: flex; flex-direction: column; }
 .away-digest {
   margin: 1rem clamp(1rem, 4vw, 2.125rem) 0;
   padding: 0.8125rem 1rem 0.75rem;
   background: var(--surface);
-  border: 1px solid #465f3c;
+  border: 1px solid var(--accent-border);
   border-left: 0.1875rem solid var(--accent);
   border-radius: 0.5625rem;
 }
@@ -406,7 +422,7 @@ textarea:focus-visible {
   width: 0.4375rem;
   height: 0.4375rem;
   background: var(--accent);
-  border-radius: 62.4375rem;
+  border-radius: var(--radius-pill);
   box-shadow: 0 0 0.5625rem color-mix(in srgb, var(--accent) 55%, transparent);
   content: "";
 }
@@ -424,7 +440,7 @@ textarea:focus-visible {
   place-items: center;
   background: var(--accent);
   color: var(--background);
-  border-radius: 62.4375rem;
+  border-radius: var(--radius-pill);
   font-size: 0.5rem;
   font-weight: 700;
 }
@@ -448,6 +464,8 @@ textarea:focus-visible {
   content: "";
 }
 
+
+/* The board main area ------------------------------------------------------- */
 .board-main {
   display: flex;
   width: 100%;
@@ -479,6 +497,8 @@ textarea:focus-visible {
 }
 .workspace-capture .primary-button { width: 5.375rem; }
 
+
+/* Quick capture ------------------------------------------------------------- */
 .quick-capture {
   position: relative;
   width: min(42.5rem, 60vw);
@@ -523,7 +543,7 @@ textarea:focus-visible {
   color: var(--faint);
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 62.4375rem;
+  border-radius: var(--radius-pill);
   font-size: 0.5rem;
   cursor: pointer;
 }
@@ -531,7 +551,7 @@ textarea:focus-visible {
 .capture-field > span:first-child { color: var(--muted); font-weight: 900; }
 .capture-field:hover,
 .reset-settings:hover { color: var(--text); border-color: var(--border-bright); }
-.capture-field.active { color: var(--accent); background: var(--accent-soft); border-color: #465f3c; }
+.capture-field.active { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-border); }
 .capture-field[aria-expanded="true"] { color: var(--background); background: var(--accent); border-color: var(--accent); }
 
 .reset-settings {
@@ -674,6 +694,8 @@ textarea:hover { border-color: var(--border-bright); }
 .primary-button.compact { min-height: 1.875rem; padding: 0 0.6875rem; }
 .danger-button { min-height: 1.875rem; color: #211313; background: var(--red); }
 
+
+/* Board filters ------------------------------------------------------------- */
 .work-filters {
   display: flex;
   width: 100%;
@@ -696,13 +718,13 @@ textarea:hover { border-color: var(--border-bright); }
   color: var(--faint);
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 62.4375rem;
+  border-radius: var(--radius-pill);
   font-size: 0.5rem;
   cursor: pointer;
 }
 
 .people-filters button:hover { color: var(--text); border-color: var(--border-bright); }
-.people-filters button.active { color: var(--accent); background: var(--accent-soft); border-color: #465f3c; }
+.people-filters button.active { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-border); }
 .people-filters button:has(.avatar) { width: 1.875rem; padding: 0.25rem; justify-content: center; }
 .people-filters button.self-filter {
   position: relative;
@@ -776,7 +798,7 @@ textarea:hover { border-color: var(--border-bright); }
 }
 .filters-trigger:hover { color: var(--text); border-color: var(--border-bright); }
 .filters-glyph { color: var(--faint); font-size: 0.6875rem; line-height: 1; }
-.filters-trigger.filtering { color: var(--accent); background: var(--accent-soft); border-color: #465f3c; }
+.filters-trigger.filtering { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-border); }
 .filters-trigger.filtering .filters-glyph { color: var(--accent); }
 .filters-trigger strong {
   display: grid;
@@ -786,7 +808,7 @@ textarea:hover { border-color: var(--border-bright); }
   place-items: center;
   color: var(--accent);
   background: var(--accent-soft);
-  border-radius: 62.4375rem;
+  border-radius: var(--radius-pill);
   font-size: 0.5rem;
 }
 .filters-trigger.filtering strong { color: #151b13; background: var(--accent); }
@@ -856,7 +878,7 @@ textarea:hover { border-color: var(--border-bright); }
   place-items: center;
   color: var(--accent);
   background: var(--accent-soft);
-  border-radius: 62.4375rem;
+  border-radius: var(--radius-pill);
   font-size: 0.5rem;
 }
 
@@ -914,7 +936,7 @@ textarea:hover { border-color: var(--border-bright); }
   place-items: center;
   color: var(--accent);
   background: var(--accent-soft);
-  border-radius: 62.4375rem;
+  border-radius: var(--radius-pill);
   font-size: 0.5rem;
 }
 .library-trigger kbd { color: var(--faint); font-size: 0.4375rem; }
@@ -923,6 +945,8 @@ textarea:hover { border-color: var(--border-bright); }
 .library-trigger.drop-ready { border-style: dashed; }
 .library-trigger.drop-ready:hover { color: var(--accent); background: var(--accent-soft); border-color: var(--accent); }
 
+
+/* The kanban ---------------------------------------------------------------- */
 .kanban {
   display: grid;
   width: 100%;
@@ -935,6 +959,8 @@ textarea:hover { border-color: var(--border-bright); }
   overflow: hidden;
 }
 
+
+/* The idea garden ----------------------------------------------------------- */
 .ideas-main {
   width: 100%;
   min-height: 0;
@@ -1036,12 +1062,14 @@ textarea:hover { border-color: var(--border-bright); }
   font-size: 0.5rem;
   cursor: pointer;
 }
-.idea-actions button:hover { color: var(--accent); background: var(--accent-soft); border-color: #465f3c; }
+.idea-actions button:hover { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-border); }
 .parked-card { opacity: 0.72; }
 .empty-ideas { display: grid; min-height: 5.625rem; padding: 1.125rem; place-items: center; color: var(--faint); border: 1px dashed var(--border); border-radius: 0.4375rem; font-size: 0.5rem; line-height: 1.6; text-align: center; }
 .ideas-loading { color: var(--muted); }
 .promotion-footer { align-items: center; }
 
+
+/* Kanban columns ------------------------------------------------------------ */
 .kanban-column {
   display: flex;
   min-width: 0;
@@ -1069,7 +1097,7 @@ textarea:hover { border-color: var(--border-bright); }
   height: 0.4375rem;
   flex: none;
   background: var(--faint);
-  border-radius: 62.4375rem;
+  border-radius: var(--radius-pill);
 }
 
 .column-ready .column-dot,
@@ -1091,7 +1119,7 @@ textarea:hover { border-color: var(--border-bright); }
   place-items: center;
   color: var(--muted);
   background: var(--surface-soft);
-  border-radius: 62.4375rem;
+  border-radius: var(--radius-pill);
   font-size: 0.5625rem;
   white-space: nowrap;
 }
@@ -1108,6 +1136,8 @@ textarea:hover { border-color: var(--border-bright); }
   scrollbar-gutter: stable;
 }
 
+
+/* Board page tiles ---------------------------------------------------------- */
 .board-page {
   --category-color: var(--border-bright);
   position: relative;
@@ -1138,6 +1168,8 @@ textarea:hover { border-color: var(--border-bright); }
 .board-page.drag-hidden,
 .idea-card.drag-hidden { display: none; }
 
+
+/* The capture flight -------------------------------------------------------- */
 .capture-flight {
   position: fixed;
   z-index: 90;
@@ -1178,6 +1210,8 @@ textarea:hover { border-color: var(--border-bright); }
   border-radius: 0.4375rem;
 }
 
+
+/* The open page tile -------------------------------------------------------- */
 .page-open {
   display: grid;
   width: 100%;
@@ -1213,7 +1247,7 @@ textarea:hover { border-color: var(--border-bright); }
   min-height: 1.0625rem;
   padding: 0 0.375rem;
   align-items: center;
-  border-radius: 62.4375rem;
+  border-radius: var(--radius-pill);
   font-size: 0.4375rem;
   font-weight: 800;
 }
@@ -1227,7 +1261,7 @@ textarea:hover { border-color: var(--border-bright); }
   height: 0.3125rem;
   margin-right: 0.3125rem;
   background: var(--category-color);
-  border-radius: 62.4375rem;
+  border-radius: var(--radius-pill);
   content: "";
 }
 .page-blocked {
@@ -1248,7 +1282,7 @@ textarea:hover { border-color: var(--border-bright); }
   color: var(--muted);
   background: var(--surface-soft);
   border: 1px solid var(--border);
-  border-radius: 62.4375rem;
+  border-radius: var(--radius-pill);
   font-size: 0.4375rem;
   font-weight: 800;
 }
@@ -1260,7 +1294,7 @@ textarea:hover { border-color: var(--border-bright); }
   min-height: 1.0625rem;
   padding: 0 0.375rem;
   align-items: center;
-  border-radius: 62.4375rem;
+  border-radius: var(--radius-pill);
   font-size: 0.4375rem;
   font-weight: 800;
   color: var(--faint);
@@ -1272,7 +1306,7 @@ textarea:hover { border-color: var(--border-bright); }
   white-space: nowrap;
 }
 .github-state-open { color: var(--blue); background: color-mix(in srgb, var(--blue) 10%, transparent); border-color: color-mix(in srgb, var(--blue) 30%, transparent); }
-.github-state-merged { color: var(--accent); background: var(--accent-soft); border-color: #465f3c; }
+.github-state-merged { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-border); }
 .github-state-closed { color: var(--red); background: color-mix(in srgb, var(--red) 9%, transparent); border-color: color-mix(in srgb, var(--red) 25%, transparent); }
 .github-state-draft { color: var(--muted); }
 
@@ -1283,6 +1317,8 @@ textarea:hover { border-color: var(--border-bright); }
  * a bespoke field: the same shape everywhere means the same gesture everywhere. The panel is
  * as wide as the column so a pull request title can be read rather than guessed at.
  */
+
+/* GitHub on a page ---------------------------------------------------------- */
 .page-github { display: grid; gap: 0.5rem; }
 .github-picker { position: relative; }
 .github-current { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
@@ -1311,7 +1347,7 @@ textarea:hover { border-color: var(--border-bright); }
 .github-trigger-title { min-width: 0; overflow: hidden; color: var(--muted); font-size: 0.625rem; text-overflow: ellipsis; white-space: nowrap; }
 .github-trigger-caret { color: var(--faint); font-size: 0.5rem; }
 .github-trigger.github-state-open { color: var(--blue); border-color: color-mix(in srgb, var(--blue) 32%, var(--border)); }
-.github-trigger.github-state-merged { color: var(--accent); background: var(--accent-soft); border-color: #465f3c; }
+.github-trigger.github-state-merged { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-border); }
 .github-trigger.github-state-closed { color: var(--red); border-color: color-mix(in srgb, var(--red) 28%, var(--border)); }
 .github-open-link { color: var(--faint); font-size: 0.5625rem; }
 .github-open-link:hover { color: var(--accent); }
@@ -1371,7 +1407,7 @@ textarea:hover { border-color: var(--border-bright); }
   color: var(--muted);
   background: var(--surface-soft);
   border: 1px solid var(--border);
-  border-radius: 62.4375rem;
+  border-radius: var(--radius-pill);
   font-size: 0.4375rem;
   font-style: normal;
   font-weight: 800;
@@ -1410,7 +1446,7 @@ textarea:hover { border-color: var(--border-bright); }
   color: var(--faint);
   background: transparent;
   border: 1px solid var(--border);
-  border-radius: 62.4375rem;
+  border-radius: var(--radius-pill);
   font: inherit;
   font-size: 0.6875rem;
   font-weight: 800;
@@ -1419,7 +1455,7 @@ textarea:hover { border-color: var(--border-bright); }
 }
 .github-help:hover,
 .github-help:focus-visible { color: var(--text); border-color: var(--border-bright); }
-.github-help[aria-expanded="true"] { color: var(--accent); background: var(--accent-soft); border-color: #465f3c; }
+.github-help[aria-expanded="true"] { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-border); }
 .github-setup-fold { display: block; }
 .github-setup { display: grid; margin: 0.875rem 0 1rem; padding-left: 1.125rem; gap: 0.5rem; color: var(--muted); font-size: 0.6875rem; line-height: 1.6; max-width: 62ch; }
 .github-setup a { color: var(--accent); }
@@ -1496,7 +1532,7 @@ textarea:hover { border-color: var(--border-bright); }
 }
 .drag-grip:hover,
 .drag-grip:focus-visible { color: var(--text); border-color: var(--border-bright); opacity: 1; }
-.drag-grip[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); border-color: #465f3c; opacity: 1; }
+.drag-grip[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-border); opacity: 1; }
 
 /* The shortlist keeps its actions in a row, so the grip joins them rather than floating. */
 .idea-actions .drag-grip { position: static; flex: none; }
@@ -1539,6 +1575,8 @@ textarea:hover { border-color: var(--border-bright); }
 .dragging-card * { cursor: grabbing !important; }
 
 /* A card is a scroll surface first on a phone, which is why a lift there needs a moment. */
+
+/* Dragging a page ----------------------------------------------------------- */
 .board-page,
 .idea-card { touch-action: pan-y; -webkit-touch-callout: none; }
 
@@ -1591,7 +1629,7 @@ textarea:hover { border-color: var(--border-bright); }
   flex-wrap: wrap;
   color: var(--accent);
   background: var(--accent-soft);
-  border: 1px solid #465f3c;
+  border: 1px solid var(--accent-border);
   border-radius: 0.5rem;
   font-size: 0.625rem;
 }
@@ -1599,7 +1637,6 @@ textarea:hover { border-color: var(--border-bright); }
 .moving-bar kbd { color: var(--faint); font: inherit; font-size: 0.5rem; }
 
 .assignee { width: fit-content; min-height: 1.25rem; gap: 0.375rem; color: var(--muted); font-size: 0.5rem; }
-.assignee.assigned { color: var(--muted); }
 
 .empty-column {
   display: grid;
@@ -1748,7 +1785,7 @@ textarea:hover { border-color: var(--border-bright); }
   width: 2.375rem;
   height: 0.25rem;
   background: var(--border-bright);
-  border-radius: 62.4375rem;
+  border-radius: var(--radius-pill);
   transition: background 120ms ease;
 }
 .drawer-grabber:active > span { background: var(--faint); }
@@ -1908,7 +1945,7 @@ textarea:hover { border-color: var(--border-bright); }
   width: 0.25rem;
   height: 0.25rem;
   background: var(--amber);
-  border-radius: 62.4375rem;
+  border-radius: var(--radius-pill);
   content: "";
 }
 .search-everything { display: inline-flex; align-items: center; gap: 0.375rem; color: var(--accent); }
@@ -1950,12 +1987,12 @@ textarea:hover { border-color: var(--border-bright); }
   color: var(--faint);
   background: var(--background);
   border: 1px solid var(--border);
-  border-radius: 62.4375rem;
+  border-radius: var(--radius-pill);
   font-size: 0.5rem;
   cursor: pointer;
 }
 .library-filters button:hover { color: var(--text); border-color: var(--border-bright); }
-.library-filters button.active { color: var(--accent); background: var(--accent-soft); border-color: #465f3c; }
+.library-filters button.active { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-border); }
 .library-chapter-fold { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 0.3125rem; }
 .library-filters .library-chapter-fold-toggle { border-style: dashed; }
 .library-chapter-fold-toggle span { color: var(--faint); }
@@ -2102,7 +2139,7 @@ textarea:hover { border-color: var(--border-bright); }
   padding: 0.125rem 0.4375rem;
   color: var(--faint);
   background: var(--surface-soft);
-  border-radius: 62.4375rem;
+  border-radius: var(--radius-pill);
   font-size: 0.4375rem;
   line-height: 1.6;
 }
@@ -2246,10 +2283,6 @@ textarea:hover { border-color: var(--border-bright); }
 
 /*
  * Live preview: what the Markdown produces, drawn in place of the Markdown.
- *
- * These are deliberately the same values `.markdown-body` uses, because they are the same
- * document seen from the other side - notes should not change size or colour depending on
- * whether a caret happens to be in them.
  */
 .cm-lp-heading { font-weight: 700; }
 .cm-lp-h1 { font-size: 0.9375rem; }
@@ -2257,7 +2290,7 @@ textarea:hover { border-color: var(--border-bright); }
 .cm-lp-strong { font-weight: 700; }
 .cm-lp-emphasis { font-style: italic; }
 .cm-lp-strikethrough { color: var(--muted); text-decoration: line-through; }
-/* No font of its own: the whole interface is already set in one, as `.markdown-body` assumes. */
+/* No font of its own: the whole interface is already set in one. */
 .cm-lp-code { padding: 1px 0.3125rem; background: var(--surface-soft); border-radius: 0.25rem; font-size: 0.75rem; }
 .cm-lp-quote { padding-left: 0.625rem; border-left: 0.125rem solid var(--border-bright); color: var(--muted); }
 .cm-lp-code-line { background: var(--surface-soft); font-size: 0.75rem; }
@@ -2324,55 +2357,13 @@ textarea:hover { border-color: var(--border-bright); }
 }
 
 /* Only fenced code is coloured; everything else is drawn as what it produces. */
-.cm-lp-token-keyword { color: var(--purple, #c3a6ff); }
-.cm-lp-token-string { color: var(--green, #9ece6a); }
+.cm-lp-token-keyword { color: var(--purple); }
+.cm-lp-token-string { color: var(--green); }
 .cm-lp-token-comment { color: var(--faint); font-style: italic; }
 .cm-lp-token-number { color: var(--amber); }
 .cm-lp-token-name { color: var(--blue); }
 .cm-lp-token-type { color: var(--blue); }
 
-.markdown-body { font-size: 0.8125rem; line-height: 1.6; overflow-wrap: break-word; }
-.markdown-body > :first-child { margin-top: 0; }
-.markdown-body > :last-child { margin-bottom: 0; }
-.markdown-body p,
-.markdown-body ul,
-.markdown-body ol,
-.markdown-body blockquote,
-.markdown-body pre,
-.markdown-body table { margin: 0 0 0.625rem; }
-.markdown-body h1,
-.markdown-body h2,
-.markdown-body h3,
-.markdown-body h4,
-.markdown-body h5,
-.markdown-body h6 { margin: 0.875rem 0 0.375rem; font-size: 0.8125rem; }
-.markdown-body h1 { font-size: 0.9375rem; }
-.markdown-body h2 { font-size: 0.875rem; }
-.markdown-body ul,
-.markdown-body ol { padding-left: 1.25rem; }
-.markdown-body li { margin: 0.125rem 0; }
-.markdown-body li::marker { color: var(--faint); }
-.markdown-body ul.contains-task-list { padding-left: 0.25rem; list-style: none; }
-.markdown-body input[type="checkbox"] {
-  width: 0.75rem;
-  height: 0.75rem;
-  margin: 0 0.375rem 0 0;
-  padding: 0;
-  vertical-align: -1px;
-  accent-color: var(--accent);
-}
-.markdown-body code { padding: 1px 0.3125rem; background: var(--surface-soft); border-radius: 0.25rem; font-size: 0.75rem; }
-.markdown-body pre { padding: 0.625rem 0.75rem; background: var(--surface-soft); border: 1px solid var(--border); border-radius: 0.375rem; overflow-x: auto; }
-.markdown-body pre code { padding: 0; background: none; font-size: 0.75rem; }
-.markdown-body a { color: var(--blue); text-decoration-color: rgb(139 185 201 / 45%); }
-.markdown-body a:hover { text-decoration-color: currentcolor; }
-.markdown-body blockquote { padding-left: 0.625rem; border-left: 0.125rem solid var(--border-bright); color: var(--muted); }
-.markdown-body hr { margin: 0.75rem 0; border: 0; border-top: 1px solid var(--border); }
-.markdown-body table { display: block; border-collapse: collapse; font-size: 0.75rem; overflow-x: auto; }
-.markdown-body th,
-.markdown-body td { padding: 0.25rem 0.5rem; border: 1px solid var(--border); text-align: left; }
-.markdown-body th { background: var(--surface-soft); }
-.markdown-body img { max-width: 100%; border-radius: 0.375rem; }
 
 .autosave-state {
   display: flex;
@@ -2384,7 +2375,7 @@ textarea:hover { border-color: var(--border-bright); }
   font-size: 0.5rem;
 }
 
-.autosave-dot { width: 0.375rem; height: 0.375rem; background: var(--accent); border-radius: 62.4375rem; }
+.autosave-dot { width: 0.375rem; height: 0.375rem; background: var(--accent); border-radius: var(--radius-pill); }
 .autosave-state:not(.saved) .autosave-dot { background: var(--amber); }
 .autosave-state.title-required,
 .autosave-state.save-failed { color: var(--red); }
@@ -2446,7 +2437,7 @@ textarea:hover { border-color: var(--border-bright); }
 }
 
 .choice:hover { color: var(--text); border-color: var(--border-bright); }
-.choice.active { color: var(--accent); background: var(--accent-soft); border-color: #465f3c; }
+.choice.active { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-border); }
 
 .category-choices .choice { min-height: 1.9375rem; }
 .category-swatch {
@@ -2454,7 +2445,7 @@ textarea:hover { border-color: var(--border-bright); }
   height: 0.4375rem;
   flex: none;
   background: var(--category-color);
-  border-radius: 62.4375rem;
+  border-radius: var(--radius-pill);
   box-shadow: 0 0 0.4375rem color-mix(in srgb, var(--category-color) 28%, transparent);
 }
 
@@ -2541,7 +2532,7 @@ textarea:hover { border-color: var(--border-bright); }
   flex: none;
   color: var(--accent);
   background: var(--accent-soft);
-  border-radius: 62.4375rem;
+  border-radius: var(--radius-pill);
   font-size: 0.4375rem;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -2557,7 +2548,7 @@ textarea:hover { border-color: var(--border-bright); }
   color: var(--muted);
   background: var(--surface-soft);
   border: 1px solid var(--border);
-  border-radius: 62.4375rem;
+  border-radius: var(--radius-pill);
   font-size: 0.4375rem;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -2585,7 +2576,7 @@ textarea:hover { border-color: var(--border-bright); }
   background: none;
   cursor: pointer;
 }
-.field-type.as-toggle:hover:not(:disabled) { color: var(--muted); background: var(--surface-soft); border-color: var(--line); }
+.field-type.as-toggle:hover:not(:disabled) { color: var(--muted); background: var(--surface-soft); border-color: var(--border); }
 .field-type.as-toggle:disabled { cursor: default; }
 @media (pointer: coarse) {
   .field-type.as-toggle { min-height: 1.75rem; }
@@ -2616,7 +2607,7 @@ textarea:hover { border-color: var(--border-bright); }
   color: var(--faint);
   background: var(--surface-soft);
   border: 1px solid var(--border);
-  border-radius: 62.4375rem;
+  border-radius: var(--radius-pill);
   font-size: 0.5rem;
   letter-spacing: 0.04em;
   white-space: nowrap;
@@ -2637,7 +2628,6 @@ textarea:hover { border-color: var(--border-bright); }
 .member-actions button.danger-text:hover,
 .member-remove:hover { color: var(--red); }
 .member-actions button:disabled { opacity: 0.45; cursor: not-allowed; }
-.team-error { margin-top: 0.75rem; }
 
 .invite-box {
   display: grid;
@@ -2721,7 +2711,7 @@ textarea:hover { border-color: var(--border-bright); }
   overflow: hidden;
   background: var(--surface-raised);
   border: 1px solid var(--border);
-  border-radius: 62.4375rem;
+  border-radius: var(--radius-pill);
   cursor: pointer;
 }
 .profile-icon-option:hover { border-color: var(--border-bright); transform: translateY(-1px); }
@@ -2792,7 +2782,7 @@ textarea:hover { border-color: var(--border-bright); }
   height: 1.125rem;
   background: var(--category-color);
   border: 0.125rem solid transparent;
-  border-radius: 62.4375rem;
+  border-radius: var(--radius-pill);
   cursor: pointer;
 }
 
@@ -2828,7 +2818,7 @@ textarea:hover { border-color: var(--border-bright); }
   padding: 0.625rem;
   color: var(--accent);
   background: var(--accent-soft);
-  border: 1px solid #465f3c;
+  border: 1px solid var(--accent-border);
   border-radius: 0.375rem;
   font-size: 0.5625rem;
 }
@@ -2867,7 +2857,7 @@ textarea:hover { border-color: var(--border-bright); }
   font-size: 0.5625rem;
 }
 
-.connection-dot { width: 0.4375rem; height: 0.4375rem; background: var(--accent); border-radius: 62.4375rem; box-shadow: 0 0 0.5625rem var(--accent); }
+.connection-dot { width: 0.4375rem; height: 0.4375rem; background: var(--accent); border-radius: var(--radius-pill); box-shadow: 0 0 0.5625rem var(--accent); }
 .global-error { top: 4.875rem; bottom: auto; color: #f0c5c5; border-color: #6c393c; }
 .global-error button { margin-left: 0.375rem; color: inherit; background: none; border: 0; cursor: pointer; }
 
@@ -3368,10 +3358,10 @@ textarea:hover { border-color: var(--border-bright); }
   height: 0.375rem;
   flex: none;
   background: var(--faint);
-  border-radius: 62.4375rem;
+  border-radius: var(--radius-pill);
 }
 /* Only a chapter that is actually open gets the live accent. */
-.chapter-trigger.live { color: var(--accent); background: var(--accent-soft); border-color: #465f3c; }
+.chapter-trigger.live { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-border); }
 .chapter-trigger.live .chapter-dot {
   background: var(--accent);
   box-shadow: 0 0 0.5625rem color-mix(in srgb, var(--accent) 55%, transparent);
@@ -3607,7 +3597,7 @@ textarea:hover { border-color: var(--border-bright); }
 .chapter-state-pill {
   padding: 0.125rem 0.5rem;
   flex: none;
-  border-radius: 62.4375rem;
+  border-radius: var(--radius-pill);
   color: var(--faint);
   background: var(--surface-soft);
   font-size: 0.5rem;
@@ -3790,7 +3780,7 @@ textarea:hover { border-color: var(--border-bright); }
   .settings-section textarea { min-height: 6.875rem; }
 }
 
-/* ---------- agent access ---------- */
+/* Agent access ----------------------------------------------------------- */
 
 /* Beside every actor name a machine wrote for: quiet, but never absent. */
 .via-agent { color: var(--muted); font-size: 0.92em; }
@@ -3899,7 +3889,7 @@ textarea:hover { border-color: var(--border-bright); }
   height: 1.0625rem;
   background: var(--surface-soft);
   border: 1px solid var(--border-bright);
-  border-radius: 62.4375rem;
+  border-radius: var(--radius-pill);
   transition: background 140ms ease, border-color 140ms ease;
 }
 .settings-knob::after {
@@ -3909,11 +3899,11 @@ textarea:hover { border-color: var(--border-bright); }
   width: 0.6875rem;
   height: 0.6875rem;
   background: var(--faint);
-  border-radius: 62.4375rem;
+  border-radius: var(--radius-pill);
   content: "";
   transition: transform 140ms ease, background 140ms ease;
 }
-.settings-toggle input:checked + .settings-knob { background: var(--accent-soft); border-color: #465f3c; }
+.settings-toggle input:checked + .settings-knob { background: var(--accent-soft); border-color: var(--accent-border); }
 .settings-toggle input:checked + .settings-knob::after { background: var(--accent); transform: translateX(0.8125rem); }
 .settings-toggle input:focus-visible + .settings-knob { outline: 0.125rem solid var(--accent); outline-offset: 0.125rem; }
 .settings-toggle-label {
@@ -4011,7 +4001,7 @@ textarea:hover { border-color: var(--border-bright); }
   gap: 0.3125rem;
   color: var(--accent);
   background: var(--accent-soft);
-  border: 1px solid #465f3c;
+  border: 1px solid var(--accent-border);
   border-radius: 0.375rem;
 }
 .library-page-actions .library-promote:hover:not(:disabled) { color: var(--background); background: var(--accent); border-color: var(--accent); }
@@ -4410,7 +4400,6 @@ textarea:hover { border-color: var(--border-bright); }
   flex-direction: column;
   gap: 0.625rem;
 }
-.discussion-open { color: var(--accent); font-size: 0.5rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
 /*
  * How much of this conversation you have not read.
  *
@@ -4423,7 +4412,7 @@ textarea:hover { border-color: var(--border-bright); }
   height: 1.0625rem;
   padding: 0 0.25rem;
   place-items: center;
-  border-radius: 62.4375rem;
+  border-radius: var(--radius-pill);
   font-size: 0.4375rem;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
@@ -4561,8 +4550,8 @@ textarea:hover { border-color: var(--border-bright); }
   align-items: center;
   color: var(--accent);
   background: var(--accent-soft);
-  border: 1px solid #465f3c;
-  border-radius: 62.4375rem;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-pill);
   font-size: 0.4375rem;
   font-weight: 800;
   white-space: nowrap;

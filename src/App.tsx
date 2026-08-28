@@ -1,10 +1,36 @@
 import { useCallback, useEffect, useState } from "react";
-import type { AwayState, BoardWorkspace, FieldType, PageStatus, IdeaState, IdeaWorkspace, SessionState, User, ProjectRole } from "../shared/types";
-import { activity as loadActivity, ApiError, away as loadAway, board as loadBoard, discussion as loadDiscussion, editConflict, ideas as loadIdeas, liveEventsUrl, markDiscussionSeen, markSeen, mutate, openThread, replyToThread, request, session, setActiveProjectId, setThreadAnswered, uploadAvatar } from "./api/client";
+import type {
+  BoardWorkspace,
+  FieldType,
+  IdeaWorkspace,
+  SessionState,
+  User,
+  ProjectRole,
+} from "../shared/types";
+import {
+  activity as loadActivity,
+  ApiError,
+  board as loadBoard,
+  discussion as loadDiscussion,
+  editConflict,
+  ideas as loadIdeas,
+  markDiscussionSeen,
+  mutate,
+  openThread,
+  replyToThread,
+  request,
+  session,
+  setActiveProjectId,
+  setThreadAnswered,
+  uploadAvatar,
+} from "./api/client";
 import { AuthScreen } from "./components/AuthScreen";
 import { Board } from "./components/Board";
 import type { CapturePageInput } from "./components/QuickCapture";
 import { type UndoNotice, UndoToast } from "./components/UndoToast";
+import { useAwayState } from "./hooks/use-away-state";
+import { useLiveEvents } from "./hooks/use-live-events";
+import { applyOptimisticPageUpdate } from "./lib/optimistic-page";
 
 type PendingUndo = UndoNotice & {
   run: () => Promise<void>;
@@ -20,22 +46,10 @@ export function App() {
   const [projectOpening, setProjectOpening] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [online, setOnline] = useState<ReadonlySet<string>>(() => new Set());
   const [undoNotice, setUndoNotice] = useState<PendingUndo | null>(null);
-  const [awayState, setAwayState] = useState<AwayState | null>(null);
   const dismissUndo = useCallback(() => setUndoNotice(null), []);
-
-  /**
-   * Marks everything current as seen, but only while the tab is actually on screen.
-   * A board reloading behind a hidden tab stays unseen so it can greet the reader
-   * on their next visit instead of silently slipping past them.
-   */
-  const advanceSeen = useCallback(() => {
-    if (document.visibilityState !== "visible") return;
-    markSeen().catch(() => {
-      // A missed advance only means the same changes greet the reader again.
-    });
-  }, []);
+  const authenticated = sessionState?.status === "authenticated";
+  const { awayState, advanceSeen } = useAwayState(authenticated, board?.project.id);
 
   // Bumped on every canonical reload so open history views know to refetch.
   const [revision, setRevision] = useState(0);
@@ -70,93 +84,23 @@ export function App() {
           }
         }
       })
-      .catch((value) => alive && setError(value instanceof Error ? value.message : "Could not reach Grimoire"));
-    return () => { alive = false; };
+      .catch(
+        (value) => alive && setError(value instanceof Error ? value.message : "Could not reach Grimoire"),
+      );
+    return () => {
+      alive = false;
+    };
   }, []);
 
-  // The away boundary is captured once per project session: what the digest and
-  // markers show stays stable for the whole visit even as the cursor advances.
-  useEffect(() => {
-    if (sessionState?.status !== "authenticated" || !board) return;
-    let alive = true;
-    setAwayState(null);
-    loadAway()
-      .then((value) => {
-        if (!alive) return;
-        setAwayState(value);
-        advanceSeen();
-      })
-      .catch(() => {
-        // The board works without its welcome-back decoration.
-      });
-    return () => { alive = false; };
-  }, [advanceSeen, board?.project.id, sessionState?.status]);
-
-  useEffect(() => {
-    if (sessionState?.status !== "authenticated") return;
-    const onVisibilityChange = () => advanceSeen();
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
-  }, [advanceSeen, sessionState?.status]);
-
-  useEffect(() => {
-    if (sessionState?.status !== "authenticated" || !board || typeof EventSource === "undefined") return;
-    const source = new EventSource(liveEventsUrl());
-    let pendingWork = false;
-    let pendingIdeas = false;
-    let refreshing = false;
-
-    const flush = async () => {
-      if (refreshing) return;
-      refreshing = true;
-      try {
-        while (pendingWork || pendingIdeas) {
-          const work = pendingWork;
-          const ideaGarden = pendingIdeas;
-          pendingWork = false;
-          pendingIdeas = false;
-          await Promise.all([
-            work ? refreshBoard() : Promise.resolve(),
-            ideaGarden && ideas !== null ? refreshIdeas() : Promise.resolve(),
-          ]);
-          // Watching a live change happen counts as seeing it; hidden tabs skip this.
-          advanceSeen();
-        }
-      } catch (value) {
-        setError(value instanceof ApiError ? value.message : "Live changes could not be loaded");
-      } finally {
-        refreshing = false;
-      }
-    };
-
-    const receiveWorkspaceChange = (event: Event) => {
-      try {
-        const scope = JSON.parse((event as MessageEvent<string>).data) as { scope?: string };
-        pendingWork ||= scope.scope === "work" || scope.scope === "both";
-        pendingIdeas ||= scope.scope === "ideas" || scope.scope === "both";
-        void flush();
-      } catch {
-        // Ignore malformed stream messages and keep the connection alive.
-      }
-    };
-    const receivePresence = (event: Event) => {
-      try {
-        const payload = JSON.parse((event as MessageEvent<string>).data) as { online?: unknown };
-        if (Array.isArray(payload.online)) setOnline(new Set(payload.online.map(String)));
-      } catch {
-        // Ignore malformed stream messages and keep the connection alive.
-      }
-    };
-
-    source.addEventListener("workspace", receiveWorkspaceChange);
-    source.addEventListener("presence", receivePresence);
-    return () => {
-      source.removeEventListener("workspace", receiveWorkspaceChange);
-      source.removeEventListener("presence", receivePresence);
-      source.close();
-      setOnline(new Set());
-    };
-  }, [advanceSeen, board?.project.id, ideas !== null, refreshBoard, refreshIdeas, sessionState?.status]);
+  const online = useLiveEvents({
+    active: authenticated && board !== null,
+    projectId: board?.project.id,
+    ideasLoaded: ideas !== null,
+    refreshBoard,
+    refreshIdeas,
+    advanceSeen,
+    onError: setError,
+  });
 
   const onAuthenticated = async (_user: User) => {
     await refreshBoard();
@@ -193,8 +137,7 @@ export function App() {
     }
   };
 
-  const createPage = (input: CapturePageInput) =>
-    perform(() => mutate("/api/pages", "POST", input));
+  const createPage = (input: CapturePageInput) => perform(() => mutate("/api/pages", "POST", input));
 
   /**
    * A refused save is the editor's business, not the banner's.
@@ -204,7 +147,11 @@ export function App() {
    * collided with, in the editor holding the text. So the canonical state is reloaded and
    * the refusal is rethrown for the dialog to answer.
    */
-  const performEdit = async (change: () => Promise<unknown>, reload: () => Promise<void>, message: string) => {
+  const performEdit = async (
+    change: () => Promise<unknown>,
+    reload: () => Promise<void>,
+    message: string,
+  ) => {
     setBusy(true);
     setError("");
     try {
@@ -319,7 +266,11 @@ export function App() {
 
   const createIdea = (input: { title: string }) => performIdea(() => mutate("/api/ideas", "POST", input));
   const updateIdea = (id: string, input: Record<string, unknown>) =>
-    performEdit(() => mutate(`/api/ideas/${id}`, "PATCH", input), refreshIdeas, "The idea could not be saved");
+    performEdit(
+      () => mutate(`/api/ideas/${id}`, "PATCH", input),
+      refreshIdeas,
+      "The idea could not be saved",
+    );
   const promoteIdea = async (id: string) => {
     const title = ideas?.ideas.find((idea) => idea.id === id)?.title ?? "idea";
     await performIdea(() => mutate(`/api/ideas/${id}/promote`, "POST"));
@@ -447,8 +398,7 @@ export function App() {
     });
   };
 
-  const restoreProject = (id: string) =>
-    performSettings(() => mutate(`/api/projects/${id}/restore`, "POST"));
+  const restoreProject = (id: string) => performSettings(() => mutate(`/api/projects/${id}/restore`, "POST"));
 
   const createCategory = (input: { name: string; color: string }) =>
     performSettings(() => mutate("/api/categories", "POST", input));
@@ -474,7 +424,9 @@ export function App() {
 
   const deleteChapter = (slug: string) => performSettings(() => mutate(`/api/chapters/${slug}`, "DELETE"));
   const setChaptersEnabled = (enabled: boolean) =>
-    performSettings(() => mutate(`/api/projects/${board?.project.id}`, "PATCH", { chaptersEnabled: enabled }));
+    performSettings(() =>
+      mutate(`/api/projects/${board?.project.id}`, "PATCH", { chaptersEnabled: enabled }),
+    );
 
   const logout = async () => {
     await request("/api/auth/logout", { method: "POST", body: JSON.stringify({}) });
@@ -484,10 +436,23 @@ export function App() {
   };
 
   if (error && !sessionState) {
-    return <div className="loading-screen"><span className="brand-mark">g</span><p>{error}</p><button className="quiet-button" onClick={() => location.reload()} type="button">retry</button></div>;
+    return (
+      <div className="loading-screen">
+        <span className="brand-mark">g</span>
+        <p>{error}</p>
+        <button className="quiet-button" onClick={() => location.reload()} type="button">
+          retry
+        </button>
+      </div>
+    );
   }
   if (!sessionState || (sessionState.status === "authenticated" && !board)) {
-    return <div className="loading-screen"><span className="brand-mark pulse">g</span><p>opening grimoire...</p></div>;
+    return (
+      <div className="loading-screen">
+        <span className="brand-mark pulse">g</span>
+        <p>opening grimoire...</p>
+      </div>
+    );
   }
   if (sessionState.status === "setup_required") {
     return <AuthScreen mode="setup" onAuthenticated={onAuthenticated} />;
@@ -509,20 +474,39 @@ export function App() {
   }
   if (!board) return null;
   if (projectOpening) {
-    return <div className="loading-screen"><span className="brand-mark pulse">g</span><p>opening project...</p></div>;
+    return (
+      <div className="loading-screen">
+        <span className="brand-mark pulse">g</span>
+        <p>opening project...</p>
+      </div>
+    );
   }
 
   return (
     <>
-      {error && <div className="error-banner global-error" role="alert">{error}<button aria-label="Dismiss error" onClick={() => setError("")} type="button">×</button></div>}
-      {undoNotice && <UndoToast notice={undoNotice} onDismiss={dismissUndo} onUndo={() => void undoLastChange()} />}
+      {error && (
+        <div className="error-banner global-error" role="alert">
+          {error}
+          <button aria-label="Dismiss error" onClick={() => setError("")} type="button">
+            ×
+          </button>
+        </div>
+      )}
+      {undoNotice && (
+        <UndoToast notice={undoNotice} onDismiss={dismissUndo} onUndo={() => void undoLastChange()} />
+      )}
       <Board
         away={awayState}
         board={board}
         busy={busy}
         categoryActions={{ create: createCategory, update: updateCategory, remove: deleteCategory }}
         fieldActions={{ create: createField, update: updateField, remove: deleteField }}
-        chapterActions={{ create: createChapter, update: updateChapter, close: closeChapter, remove: deleteChapter }}
+        chapterActions={{
+          create: createChapter,
+          update: updateChapter,
+          close: closeChapter,
+          remove: deleteChapter,
+        }}
         ideas={ideas}
         key={board.project.id}
         onChangeAvatar={changeAvatar}
@@ -552,19 +536,34 @@ export function App() {
         onUpdate={updatePage}
         onUpdateIdea={updateIdea}
         onViewChange={changeView}
-        projectActions={{ select: selectProject, create: createProject, rename: renameProject, archive: archiveProject }}
+        projectActions={{
+          select: selectProject,
+          create: createProject,
+          rename: renameProject,
+          archive: archiveProject,
+        }}
         projectSettingsActions={{
           rename: (name) => renameProject(board.project.id, name),
           setDescription: (description) => describeProject(board.project.id, description),
           setChaptersEnabled,
           setEstimatesEnabled: (enabled) =>
-            performSettings(() => mutate(`/api/projects/${board.project.id}`, "PATCH", { estimatesEnabled: enabled })),
+            performSettings(() =>
+              mutate(`/api/projects/${board.project.id}`, "PATCH", { estimatesEnabled: enabled }),
+            ),
           setDiscordWebhook: (webhook) =>
-            performSettings(() => mutate(`/api/projects/${board.project.id}`, "PATCH", { discordWebhook: webhook })),
+            performSettings(() =>
+              mutate(`/api/projects/${board.project.id}`, "PATCH", { discordWebhook: webhook }),
+            ),
           setRecapOnClose: (enabled) =>
-            performSettings(() => mutate(`/api/projects/${board.project.id}`, "PATCH", { recapOnClose: enabled })),
-          setGithubRepo: (repo) => performSettings(() => mutate(`/api/projects/${board.project.id}`, "PATCH", { githubRepo: repo })),
-          setGithubToken: (token) => performSettings(() => mutate(`/api/projects/${board.project.id}`, "PATCH", { githubToken: token })),
+            performSettings(() =>
+              mutate(`/api/projects/${board.project.id}`, "PATCH", { recapOnClose: enabled }),
+            ),
+          setGithubRepo: (repo) =>
+            performSettings(() => mutate(`/api/projects/${board.project.id}`, "PATCH", { githubRepo: repo })),
+          setGithubToken: (token) =>
+            performSettings(() =>
+              mutate(`/api/projects/${board.project.id}`, "PATCH", { githubToken: token }),
+            ),
           archive: () => archiveProject(board.project.id),
           restore: restoreProject,
         }}
@@ -572,45 +571,4 @@ export function App() {
       />
     </>
   );
-}
-
-function applyOptimisticPageUpdate(
-  board: BoardWorkspace,
-  id: string,
-  input: Record<string, unknown>,
-): BoardWorkspace {
-  const current = board.pages.find((page) => page.id === id);
-  if (!current) return board;
-  // The github reference travels as pasted text and only the server can read it into a
-  // link, so the optimistic page keeps what it had until the parsed truth arrives.
-  const { github: _github, ...safeInput } = input;
-  input = safeInput;
-  const targetStatus = (input.status as PageStatus | undefined) ?? current.status;
-  const targetPosition = typeof input.position === "number" ? input.position : current.position;
-  const completedAt = targetStatus === "done"
-    ? current.status === "done" ? current.completedAt : new Date().toISOString()
-    : null;
-  const assigneeId = input.assigneeId === undefined ? current.assigneeId : (input.assigneeId as string | null);
-  const assignee = board.members.find((member) => member.id === assigneeId);
-  const remaining = board.pages.filter((page) => page.id !== id);
-  const targetPages = remaining
-    .filter((page) => page.status === targetStatus)
-    .sort((a, b) => a.position - b.position);
-  const insertAt = Math.max(0, Math.min(targetPosition, targetPages.length));
-  targetPages.splice(insertAt, 0, {
-    ...current,
-    ...input,
-    status: targetStatus,
-    completedAt,
-    assigneeId,
-    assigneeName: assignee?.name ?? null,
-  });
-  const reordered = targetPages.map((page, position) => ({ ...page, position }));
-  return {
-    ...board,
-    pages: [
-      ...remaining.filter((page) => page.status !== targetStatus),
-      ...reordered,
-    ],
-  };
 }

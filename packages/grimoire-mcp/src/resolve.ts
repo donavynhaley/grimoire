@@ -1,4 +1,6 @@
-import type { Board, FieldValue, Page, ProjectField } from "./client.js";
+import { PAGE_COLUMNS, type Board, type FieldValue, type Page, type ProjectField } from "./client.js";
+
+export { PAGE_COLUMNS };
 
 /**
  * Turning what an agent says into what the API needs.
@@ -34,7 +36,7 @@ const COLUMN_NAMES: Record<string, string> = {
   completed: "done",
 };
 
-const COLUMN_LABELS: Record<string, string> = {
+const COLUMN_LABELS: Record<(typeof PAGE_COLUMNS)[number], string> = {
   backlog: "Backlog",
   ready: "Up Next",
   in_progress: "In progress",
@@ -43,7 +45,9 @@ const COLUMN_LABELS: Record<string, string> = {
 };
 
 export function columnLabel(status: string): string {
-  return COLUMN_LABELS[status] ?? status;
+  // Tolerant of a status this build has never heard of: the server is the authority on
+  // the vocabulary, and an unknown word reads better than a refused board.
+  return (COLUMN_LABELS as Record<string, string | undefined>)[status] ?? status;
 }
 
 /** Accepts what a person would say for a column, not only the stored enum value. */
@@ -105,7 +109,7 @@ export function resolveAssignee(board: Board, value: string): string {
   throw new ResolutionError(`"${value}" is not a member of this project. Members: ${available}.`);
 }
 
-const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Finds one page from an id or its exact title, and nothing looser.

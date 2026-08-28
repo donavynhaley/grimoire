@@ -2,7 +2,7 @@
 
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { useTypingFocus } from "../../src/components/use-typing-focus";
+import { useTypingFocus } from "../../src/hooks/use-typing-focus";
 
 afterEach(() => {
   cleanup();
@@ -13,7 +13,12 @@ function stubPointer(coarse: boolean) {
   Object.defineProperty(window, "matchMedia", {
     configurable: true,
     writable: true,
-    value: (query: string) => ({ matches: coarse, media: query, addEventListener() {}, removeEventListener() {} }),
+    value: (query: string) => ({
+      matches: coarse,
+      media: query,
+      addEventListener() {},
+      removeEventListener() {},
+    }),
   });
 }
 

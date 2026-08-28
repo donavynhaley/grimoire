@@ -1,8 +1,15 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, unlinkSync } from "node:fs";
 import { basename, join } from "node:path";
 import { z } from "zod";
 import { CHAPTER_STATES, type ChapterState } from "../shared/types";
-import { isTimestamp, parseMarkdown, serializeMarkdown, writeAtomic } from "./markdown-files";
+import {
+  isTimestamp,
+  markdownFilesIn,
+  parseMarkdown,
+  projectDirectory,
+  serializeMarkdown,
+  writeAtomic,
+} from "./markdown-files";
 
 export type StoredChapter = {
   slug: string;
@@ -32,7 +39,10 @@ export function isCalendarDay(value: string): boolean {
 
 const metadataSchema = z
   .object({
-    slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(60),
+    slug: z
+      .string()
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+      .max(60),
     name: z.string().trim().min(1).max(80),
     state: z.enum(CHAPTER_STATES),
     position: z.number().int().min(0),
@@ -44,7 +54,12 @@ const metadataSchema = z
     closed_at: z.string().refine(isTimestamp, "closed_at must be an ISO timestamp").nullable().optional(),
     carried_pages: z.number().int().min(0).nullable().optional(),
     carried_estimate: z.number().finite().min(0).nullable().optional(),
-    carried_to: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(60).nullable().optional(),
+    carried_to: z
+      .string()
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+      .max(60)
+      .nullable()
+      .optional(),
     delivered_pages: z.number().int().min(0).nullable().optional(),
     delivered_estimate: z.number().finite().min(0).nullable().optional(),
   })
@@ -73,9 +88,8 @@ export class MarkdownChapterStore {
   list(projectSlug: string): StoredChapter[] {
     const directory = this.chaptersDirectory(projectSlug);
     if (!existsSync(directory)) return [];
-    return readdirSync(directory, { withFileTypes: true })
-      .filter((entry) => entry.isFile() && entry.name.endsWith(".md") && !entry.name.startsWith("."))
-      .map((entry) => this.readPath(join(directory, entry.name)))
+    return markdownFilesIn(directory)
+      .map((path) => this.readPath(path))
       .sort(compareChapters);
   }
 
@@ -133,8 +147,7 @@ export class MarkdownChapterStore {
   }
 
   private projectDirectory(projectSlug: string): string {
-    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(projectSlug)) throw new Error(`Invalid project slug: ${projectSlug}`);
-    return join(this.rootDirectory, projectSlug);
+    return projectDirectory(this.rootDirectory, projectSlug);
   }
 }
 

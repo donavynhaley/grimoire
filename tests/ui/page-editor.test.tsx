@@ -1,41 +1,17 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { App } from "../../src/App";
 import type { BoardWorkspace } from "../../shared/types";
 import { boardFixture } from "../fixtures/board";
+import { installUiHarness, routeFetch } from "../fixtures/ui";
 
-afterEach(() => {
-  cleanup();
-  vi.unstubAllGlobals();
-  window.history.replaceState({}, "", "/");
-});
-
-function response(body: unknown, status = 200) {
-  return Promise.resolve(
-    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } }),
-  );
-}
-
-function requestUrl(input: RequestInfo | URL): string {
-  if (typeof input === "string") return input;
-  return input instanceof URL ? `${input.pathname}${input.search}` : input.url;
-}
+installUiHarness();
 
 function mountWith(board: BoardWorkspace) {
-  vi.stubGlobal("fetch", (input: RequestInfo | URL, init: RequestInit = {}) => {
-    const url = requestUrl(input);
-    if ((init.method ?? "GET") !== "GET") return response({ ok: true });
-    if (url.startsWith("/api/activity")) return response({ events: [], hasMore: false });
-    // The page dialog reads its discussion the same way it reads its history, on every open.
-    if (/^\/api\/pages\/[^/]+\/discussion/.test(url)) return response({ threads: [] });
-    if (url.startsWith("/api/away")) return response({ since: 0, latest: 0, total: 0, events: [] });
-    if (url.startsWith("/api/agent-tokens")) return response({ tokens: [] });
-    if (url.startsWith("/api/session")) return response({ status: "authenticated", user: board.currentUser });
-    return response(board);
-  });
+  routeFetch({ board });
   render(<App />);
 }
 
@@ -50,7 +26,7 @@ describe("the page editor's two halves", () => {
     const board = boardFixture();
     mountWith(board);
 
-    await user.click(await screen.findByText(board.pages[1].title));
+    await user.click(await screen.findByText(board.pages[1]!.title));
     const split = document.querySelector(".page-editor-split");
     // The strip is the one that chooses down here; the second column has a switch of its own
     // for what it holds, and that one is hidden at these widths.
@@ -74,7 +50,7 @@ describe("the page editor's two halves", () => {
     const board = boardFixture();
     mountWith(board);
 
-    await user.click(await screen.findByText(board.pages[1].title));
+    await user.click(await screen.findByText(board.pages[1]!.title));
     const panel = screen.getByRole("dialog", { name: "Edit page" });
 
     // Whichever half is showing, these are still the panel's own furniture.

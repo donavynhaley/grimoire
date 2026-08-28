@@ -1,9 +1,26 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, unlinkSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
+import { withTransaction } from "./database";
 import { z } from "zod";
-import { PAGE_STATUSES, type PageGithubLink, type PageCategory, type PageFields, type PageStatus } from "../shared/types";
-import { isTimestamp, parseMarkdown, serializeMarkdown, writeAtomic, type FrontmatterValue } from "./markdown-files";
+import {
+  PAGE_STATUSES,
+  type PageGithubLink,
+  type PageCategory,
+  type PageFields,
+  type PageStatus,
+} from "../shared/types";
+import {
+  compareRecords,
+  isTimestamp,
+  markdownFilesIn,
+  moveRecord,
+  parseMarkdown,
+  projectDirectory,
+  serializeMarkdown,
+  writeAtomic,
+  type FrontmatterValue,
+} from "./markdown-files";
 
 export type StoredPage = {
   id: string;
@@ -32,8 +49,18 @@ const metadataSchema = z
   .object({
     id: z.string().uuid(),
     title: z.string().trim().min(1).max(240),
-    category: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(40).nullable().optional(),
-    chapter: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(60).nullable().optional(),
+    category: z
+      .string()
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+      .max(40)
+      .nullable()
+      .optional(),
+    chapter: z
+      .string()
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+      .max(60)
+      .nullable()
+      .optional(),
     fields: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
     blocked_by: z.array(z.string().uuid()).optional(),
     unblocked_cards: z.array(z.string().uuid()).optional(),
@@ -43,13 +70,21 @@ const metadataSchema = z
     created_by: z.string().email(),
     created_at: z.string().refine(isTimestamp, "created_at must be an ISO timestamp"),
     updated_at: z.string().refine(isTimestamp, "updated_at must be an ISO timestamp"),
-    completed_at: z.string().refine(isTimestamp, "completed_at must be an ISO timestamp").nullable().optional(),
+    completed_at: z
+      .string()
+      .refine(isTimestamp, "completed_at must be an ISO timestamp")
+      .nullable()
+      .optional(),
     archived_at: z.string().refine(isTimestamp, "archived_at must be an ISO timestamp").nullable().optional(),
     estimate: z.number().finite().min(0).max(100_000).nullable().optional(),
     github: z
       .union([
         z.object({ kind: z.literal("pr"), number: z.number().int().min(1), repo: z.string().optional() }),
-        z.object({ kind: z.literal("branch"), name: z.string().min(1).max(200), repo: z.string().optional() }),
+        z.object({
+          kind: z.literal("branch"),
+          name: z.string().min(1).max(200),
+          repo: z.string().optional(),
+        }),
       ])
       .nullable()
       .optional(),
@@ -64,9 +99,8 @@ export class MarkdownPageStore {
   list(projectSlug: string): StoredPage[] {
     const directory = this.activeDirectory(projectSlug);
     mkdirSync(directory, { recursive: true });
-    return readdirSync(directory, { withFileTypes: true })
-      .filter((entry) => entry.isFile() && entry.name.endsWith(".md") && !entry.name.startsWith("."))
-      .map((entry) => this.readPath(join(directory, entry.name)))
+    return markdownFilesIn(directory)
+      .map((path) => this.readPath(path))
       .filter((page) => page.archivedAt === null)
       .sort(comparePages);
   }
@@ -85,9 +119,8 @@ export class MarkdownPageStore {
   listArchived(projectSlug: string): StoredPage[] {
     const directory = this.archiveDirectory(projectSlug);
     if (!existsSync(directory)) return [];
-    return readdirSync(directory, { withFileTypes: true })
-      .filter((entry) => entry.isFile() && entry.name.endsWith(".md") && !entry.name.startsWith("."))
-      .map((entry) => this.readPath(join(directory, entry.name)))
+    return markdownFilesIn(directory)
+      .map((path) => this.readPath(path))
       .sort((left, right) => (right.archivedAt ?? "").localeCompare(left.archivedAt ?? ""));
   }
 
@@ -100,22 +133,17 @@ export class MarkdownPageStore {
   archive(projectSlug: string, page: StoredPage): void {
     const activePath = this.activePath(projectSlug, page.id);
     if (!existsSync(activePath)) throw new Error(`Page file does not exist: ${activePath}`);
-    const archiveDirectory = this.archiveDirectory(projectSlug);
-    mkdirSync(archiveDirectory, { recursive: true });
-    const archivePath = this.archivePath(projectSlug, page.id);
-    if (existsSync(archivePath)) throw new Error(`Archived page file already exists: ${archivePath}`);
-    renameSync(activePath, archivePath);
-    writeAtomic(archivePath, serializePage(page));
+    moveRecord(activePath, this.archivePath(projectSlug, page.id), serializePage(page));
   }
 
   restore(projectSlug: string, page: StoredPage): void {
     const archivePath = this.archivePath(projectSlug, page.id);
     if (!existsSync(archivePath)) throw new Error(`Archived page file does not exist: ${archivePath}`);
-    const activePath = this.activePath(projectSlug, page.id);
-    if (existsSync(activePath)) throw new Error(`Active page file already exists: ${activePath}`);
-    mkdirSync(this.activeDirectory(projectSlug), { recursive: true });
-    renameSync(archivePath, activePath);
-    writeAtomic(activePath, serializePage({ ...page, archivedAt: null }));
+    moveRecord(
+      archivePath,
+      this.activePath(projectSlug, page.id),
+      serializePage({ ...page, archivedAt: null }),
+    );
   }
 
   remove(projectSlug: string, pageId: string): void {
@@ -155,15 +183,10 @@ export class MarkdownPageStore {
       writeAtomic(path, serializePage(page));
     }
 
-    database.exec("BEGIN IMMEDIATE");
-    try {
+    withTransaction(database, () => {
       const remove = database.prepare("DELETE FROM cards WHERE id = ?");
       for (const row of legacyPages) remove.run(String(row.id));
-      database.exec("COMMIT");
-    } catch (error) {
-      database.exec("ROLLBACK");
-      throw error;
-    }
+    });
     return legacyPages.length;
   }
 
@@ -213,10 +236,8 @@ export class MarkdownPageStore {
   }
 
   private projectDirectory(projectSlug: string): string {
-    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(projectSlug)) throw new Error(`Invalid project slug: ${projectSlug}`);
-    return join(this.rootDirectory, projectSlug);
+    return projectDirectory(this.rootDirectory, projectSlug);
   }
-
 }
 
 function parsePage(markdown: string): StoredPage {
@@ -304,10 +325,4 @@ function legacyRowToPage(row: LegacyPageRow): StoredPage {
   };
 }
 
-function comparePages(left: StoredPage, right: StoredPage): number {
-  const status = PAGE_STATUSES.indexOf(left.status) - PAGE_STATUSES.indexOf(right.status);
-  if (status !== 0) return status;
-  if (left.position !== right.position) return left.position - right.position;
-  const created = left.createdAt.localeCompare(right.createdAt);
-  return created !== 0 ? created : left.id.localeCompare(right.id);
-}
+const comparePages = compareRecords<StoredPage>((page) => PAGE_STATUSES.indexOf(page.status));

@@ -59,10 +59,13 @@ describe("setting up a provider from the settings screen", () => {
     await bootstrap(server);
 
     for (const address of [`${ISSUER}/`, `${ISSUER}/.well-known/openid-configuration`]) {
-      const probed = await server.request<{ provider?: OidcProviderDescription; error?: string }>("/api/auth/oidc/probe", {
-        method: "POST",
-        body: JSON.stringify({ issuer: address }),
-      });
+      const probed = await server.request<{ provider?: OidcProviderDescription; error?: string }>(
+        "/api/auth/oidc/probe",
+        {
+          method: "POST",
+          body: JSON.stringify({ issuer: address }),
+        },
+      );
       expect(probed.body.error, `${address} was refused`).toBeUndefined();
       expect(probed.body.provider?.issuer).toBe(ISSUER);
     }
@@ -77,7 +80,8 @@ describe("setting up a provider from the settings screen", () => {
       method: "POST",
       body: JSON.stringify({ issuer: "https://not-a-provider.example.com" }),
     });
-    expect(probed.response.status).toBe(200);
+    // An upstream failure answers like one; this was the one route that said no with a 200.
+    expect(probed.response.status).toBe(502);
     expect(probed.body.error).toContain("openid-configuration");
 
     const refused = await server.request<{ error?: string }>("/api/auth/oidc/probe", {
@@ -159,7 +163,10 @@ describe("setting up a provider from the settings screen", () => {
     const server = await startTestServer(undefined, { oidcFetcher: provider.fetcher });
     await bootstrap(server);
 
-    const invite = await server.request<{ code: string }>("/api/invites", { method: "POST", body: JSON.stringify({}) });
+    const invite = await server.request<{ code: string }>("/api/invites", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
     await server.request("/api/auth/logout", { method: "POST" });
     // Joining through the invitation makes an owner of nothing and a member of one project.
     await server.request("/api/auth/register", {
@@ -188,7 +195,10 @@ describe("setting up a provider from the settings screen", () => {
 
   it("lets the environment win, and says so rather than pretending the screen is live", async () => {
     const provider = fakeProvider();
-    const server = await startTestServer(undefined, { oidc: provider.settings, oidcFetcher: provider.fetcher });
+    const server = await startTestServer(undefined, {
+      oidc: provider.settings,
+      oidcFetcher: provider.fetcher,
+    });
     await bootstrap(server);
 
     const read = await readSettings(server);
@@ -229,9 +239,15 @@ describe("reading a provider out of the environment", () => {
   it("defaults to auto-registration, and takes the operator's word over it", () => {
     const base = { GRIMOIRE_OIDC_ISSUER: "https://id.example.com", GRIMOIRE_OIDC_CLIENT_ID: "grimoire" };
     expect(oidcConfigFromEnvironment(base)?.autoRegister).toBe(true);
-    expect(oidcConfigFromEnvironment({ ...base, GRIMOIRE_OIDC_AUTO_REGISTER: "false" })?.autoRegister).toBe(false);
-    expect(oidcConfigFromEnvironment({ ...base, GRIMOIRE_OIDC_AUTO_REGISTER: "0" })?.autoRegister).toBe(false);
-    expect(oidcConfigFromEnvironment({ ...base, GRIMOIRE_OIDC_AUTO_REGISTER: "yes" })?.autoRegister).toBe(true);
+    expect(oidcConfigFromEnvironment({ ...base, GRIMOIRE_OIDC_AUTO_REGISTER: "false" })?.autoRegister).toBe(
+      false,
+    );
+    expect(oidcConfigFromEnvironment({ ...base, GRIMOIRE_OIDC_AUTO_REGISTER: "0" })?.autoRegister).toBe(
+      false,
+    );
+    expect(oidcConfigFromEnvironment({ ...base, GRIMOIRE_OIDC_AUTO_REGISTER: "yes" })?.autoRegister).toBe(
+      true,
+    );
   });
 
   it("reads allowed domains however they were separated, and ignores a leading @", () => {
@@ -300,9 +316,14 @@ describe("who the allow list lets through", () => {
 
   it("refuses a half-written configuration rather than starting without the button", () => {
     expect(oidcConfigFromEnvironment({})).toBeNull();
-    expect(() => oidcConfigFromEnvironment({ GRIMOIRE_OIDC_ISSUER: "https://id.example.com" })).toThrow(/CLIENT_ID/);
+    expect(() => oidcConfigFromEnvironment({ GRIMOIRE_OIDC_ISSUER: "https://id.example.com" })).toThrow(
+      /CLIENT_ID/,
+    );
     expect(() =>
-      oidcConfigFromEnvironment({ GRIMOIRE_OIDC_ISSUER: "http://id.example.com", GRIMOIRE_OIDC_CLIENT_ID: "grimoire" }),
+      oidcConfigFromEnvironment({
+        GRIMOIRE_OIDC_ISSUER: "http://id.example.com",
+        GRIMOIRE_OIDC_CLIENT_ID: "grimoire",
+      }),
     ).toThrow(/https/);
     expect(() =>
       oidcConfigFromEnvironment({

@@ -1,3 +1,5 @@
+import { readdirSync, rmSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { BoardWorkspace } from "../../shared/types";
 import { bootstrap, startTestServer } from "./test-server";
@@ -22,7 +24,7 @@ describe("profile pictures", () => {
 
     const board = (await server.request<BoardWorkspace>("/api/board")).body;
     expect(board.currentUser.avatarUrl).toBe(uploaded.body.avatarUrl);
-    expect(board.members[0].avatarUrl).toBe(uploaded.body.avatarUrl);
+    expect(board.members[0]!.avatarUrl).toBe(uploaded.body.avatarUrl);
 
     const image = await server.fetchRaw(uploaded.body.avatarUrl);
     expect(image.status).toBe(200);
@@ -46,6 +48,26 @@ describe("profile pictures", () => {
     });
     expect(rejected.response.status).toBe(400);
     expect(rejected.body.error).toContain("PNG, JPEG, or WebP");
+  });
+
+  it("survives a picture file vanishing between the lookup and the read", async () => {
+    const server = await startTestServer();
+    await bootstrap(server);
+
+    const uploaded = await server.request<{ avatarUrl: string }>("/api/account/avatar", {
+      method: "PUT",
+      body: ONE_PIXEL_PNG,
+      headers: { "content-type": "image/png" },
+    });
+    const avatarsDirectory = join(dirname(server.databasePath), "avatars");
+    for (const name of readdirSync(avatarsDirectory)) rmSync(join(avatarsDirectory, name));
+
+    // The store still remembers the picture; only the bytes are gone. The wrong
+    // answer here is an unhandled stream error, which kills the process rather
+    // than the request.
+    const missing = await server.fetchRaw(uploaded.body.avatarUrl);
+    expect(missing.status).toBe(404);
+    expect((await server.request("/api/board")).response.status).toBe(200);
   });
 
   it("requires authentication to view pictures", async () => {
