@@ -365,6 +365,13 @@ A page with no row has never been opened by that person, so everything on it is 
 It is a timestamp rather than a sequence because it is scoped to one page rather than to the whole project's log, and a message already carries the moment it was written.
 The counts reach the board through one grouped query per project, the same way the open-thread counts do, and the marker is written only when the second column is actually turned to the conversation - an agent cannot write one at all, because it has no attention to spend.
 
+How the conversation looks is as deliberate as how it is stored.
+The history is a trail the system wrote about the page; this is what people said to each other about it, and keeping them in separate columns is what tells them apart - which is why a thread needs no card, border or raised surface of its own.
+It is a name, a time, and what was said, ruled off from the next one: no bubbles, no second typeface, nothing that would turn a work board into a chat client.
+At rest a thread shows only that; reply and answered reveal on hover, because seven open threads meant seven of each standing down a narrow column.
+And it does not work out whose turn it is or mark a thread as owing anybody an answer - a conversation between two people about one page does not need to be told who should speak next, and saying so on every other thread turned reading it into being chased.
+Answered threads fold away, which is what keeps a page with forty messages showing you two; nothing is deleted to get there, and reopening costs one click.
+
 
 ## Search
 

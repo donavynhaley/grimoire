@@ -7,25 +7,9 @@ import { relativeLabel } from "../lib/activity-copy";
 import { withMentions } from "../lib/mention-text";
 
 /**
- * The conversation on a page, in a column of its own beside the writing.
- *
- * The history is a trail the system wrote about the page; this is what people said to each
- * other about it. Keeping them in separate columns is what tells them apart, which is why a
- * thread needs no card, border or raised surface of its own - it is a name, a time, and what
- * was said, ruled off from the next one. No bubbles, no second typeface, nothing that would
- * turn a work board into a chat client.
- *
- * At rest a thread shows only that. Reply and answered are revealed on hover, because seven
- * open threads meant seven of each standing down a narrow column.
- *
- * It is a discussion and nothing more. It does not work out whose turn it is or mark a thread
- * as owing anybody an answer: a conversation between two people about one page does not need
- * to be told who should speak next, and saying so on every other thread turned reading it into
- * being chased.
- *
- * A thread carries exactly one piece of state: open, or answered. Answered threads fold away,
- * which is what keeps a page with forty messages on it showing you two. Nothing is deleted to
- * get there, and reopening costs one click.
+ * The conversation on a page, in a column of its own beside the writing. A thread is a name,
+ * a time, and what was said - one piece of state, open or answered - and the reasons it looks
+ * and behaves this way are design record, in docs/architecture.md under "Discussion".
  */
 
 type Props = {
