@@ -1475,13 +1475,15 @@ export type ChapterCloseResult =
 /**
  * Closes a chapter and decides what happens to the work it did not finish.
  *
- * This is one act rather than a close followed by a sweep of page edits, because a chapter
- * that closed while its rollover half-happened would leave the board lying about what a
- * stretch delivered. The pages move, the totals are counted, and the chapter records them
- * together or none of it happens.
- *
  * What is recorded is counted here rather than derived later: once the pages belong to the
  * next chapter, nothing about them still says they were carried out of this one.
+ *
+ * The chapter record is written before any page moves, and the writes share no
+ * transaction - the filesystem has none to offer. An interruption therefore leaves a
+ * correctly closed chapter whose carried pages have not all traveled yet; they sit in the
+ * closed chapter, which is a state the board already supports, and `carriedTo` says where
+ * each was headed. The other order could under-count what a finished stretch carried,
+ * and a recorded total that lies is the worse leftover.
  *
  * `carryTo` names where unfinished work goes - another chapter, or null to set it loose.
  * Only unfinished pages move; a page finished inside this chapter stays in it, which is what
@@ -1514,15 +1516,6 @@ export function closeChapter(
   const carriedEstimate = total(unfinished);
   const now = new Date().toISOString();
 
-  // Rollover is only a move when somewhere was named; "leave them here" closes over work
-  // that keeps belonging to the chapter it was not finished in, which is also a fact worth
-  // recording rather than a nothing.
-  if (carryTo !== undefined) {
-    for (const page of unfinished) {
-      pageStore.save(projectSlug, { ...page, chapter: carryTo, updatedAt: now });
-    }
-  }
-
   const closed: StoredChapter = {
     ...chapter,
     state: "closed",
@@ -1537,6 +1530,15 @@ export function closeChapter(
     deliveredEstimate: total(delivered),
   };
   chapterStore.save(projectSlug, closed);
+
+  // Rollover is only a move when somewhere was named; "leave them here" closes over work
+  // that keeps belonging to the chapter it was not finished in, which is also a fact worth
+  // recording rather than a nothing.
+  if (carryTo !== undefined) {
+    for (const page of unfinished) {
+      pageStore.save(projectSlug, { ...page, chapter: carryTo, updatedAt: now });
+    }
+  }
   return {
     chapter: publicChapter(database, closed, membersForProject(database, projectId)),
     carried: { pages: unfinished.length, estimate: carriedEstimate, to: carryTo ?? null },
