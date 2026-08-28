@@ -125,6 +125,8 @@ textarea:focus-visible {
   font-weight: 900;
 }
 
+
+/* The board shell and top bar ----------------------------------------------- */
 .board-shell {
   display: flex;
   height: 100vh;
@@ -182,6 +184,8 @@ textarea:focus-visible {
 .board-project { display: grid; justify-items: center; }
 .board-project h1 { margin: 0; font-size: 0.6875rem; text-transform: lowercase; }
 
+
+/* The project menu ---------------------------------------------------------- */
 .project-menu { position: relative; display: grid; justify-items: center; }
 
 .project-menu-trigger {
@@ -322,6 +326,8 @@ textarea:focus-visible {
 .member-faces { padding-left: 0.4375rem; }
 .member-faces .avatar { margin-left: -0.4375rem; box-shadow: 0 0 0 0.125rem var(--background); }
 
+
+/* Avatars and presence ------------------------------------------------------ */
 .avatar {
   display: grid;
   width: 1.75rem;
@@ -377,6 +383,8 @@ textarea:focus-visible {
 .quiet-button:hover { color: var(--text); border-color: var(--border-bright); }
 
 /* The digest travels out through its slot; flex keeps the margin inside what gets measured. */
+
+/* While you were away ------------------------------------------------------- */
 .away-digest-slot { display: flex; flex-direction: column; }
 .away-digest {
   margin: 1rem clamp(1rem, 4vw, 2.125rem) 0;
@@ -456,6 +464,8 @@ textarea:focus-visible {
   content: "";
 }
 
+
+/* The board main area ------------------------------------------------------- */
 .board-main {
   display: flex;
   width: 100%;
@@ -487,6 +497,8 @@ textarea:focus-visible {
 }
 .workspace-capture .primary-button { width: 5.375rem; }
 
+
+/* Quick capture ------------------------------------------------------------- */
 .quick-capture {
   position: relative;
   width: min(42.5rem, 60vw);
@@ -682,6 +694,8 @@ textarea:hover { border-color: var(--border-bright); }
 .primary-button.compact { min-height: 1.875rem; padding: 0 0.6875rem; }
 .danger-button { min-height: 1.875rem; color: #211313; background: var(--red); }
 
+
+/* Board filters ------------------------------------------------------------- */
 .work-filters {
   display: flex;
   width: 100%;
@@ -931,6 +945,8 @@ textarea:hover { border-color: var(--border-bright); }
 .library-trigger.drop-ready { border-style: dashed; }
 .library-trigger.drop-ready:hover { color: var(--accent); background: var(--accent-soft); border-color: var(--accent); }
 
+
+/* The kanban ---------------------------------------------------------------- */
 .kanban {
   display: grid;
   width: 100%;
@@ -943,6 +959,8 @@ textarea:hover { border-color: var(--border-bright); }
   overflow: hidden;
 }
 
+
+/* The idea garden ----------------------------------------------------------- */
 .ideas-main {
   width: 100%;
   min-height: 0;
@@ -1050,6 +1068,8 @@ textarea:hover { border-color: var(--border-bright); }
 .ideas-loading { color: var(--muted); }
 .promotion-footer { align-items: center; }
 
+
+/* Kanban columns ------------------------------------------------------------ */
 .kanban-column {
   display: flex;
   min-width: 0;
@@ -1116,6 +1136,8 @@ textarea:hover { border-color: var(--border-bright); }
   scrollbar-gutter: stable;
 }
 
+
+/* Board page tiles ---------------------------------------------------------- */
 .board-page {
   --category-color: var(--border-bright);
   position: relative;
@@ -1146,6 +1168,8 @@ textarea:hover { border-color: var(--border-bright); }
 .board-page.drag-hidden,
 .idea-card.drag-hidden { display: none; }
 
+
+/* The capture flight -------------------------------------------------------- */
 .capture-flight {
   position: fixed;
   z-index: 90;
@@ -1186,6 +1210,8 @@ textarea:hover { border-color: var(--border-bright); }
   border-radius: 0.4375rem;
 }
 
+
+/* The open page tile -------------------------------------------------------- */
 .page-open {
   display: grid;
   width: 100%;
@@ -1291,6 +1317,8 @@ textarea:hover { border-color: var(--border-bright); }
  * a bespoke field: the same shape everywhere means the same gesture everywhere. The panel is
  * as wide as the column so a pull request title can be read rather than guessed at.
  */
+
+/* GitHub on a page ---------------------------------------------------------- */
 .page-github { display: grid; gap: 0.5rem; }
 .github-picker { position: relative; }
 .github-current { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
@@ -1547,6 +1575,8 @@ textarea:hover { border-color: var(--border-bright); }
 .dragging-card * { cursor: grabbing !important; }
 
 /* A card is a scroll surface first on a phone, which is why a lift there needs a moment. */
+
+/* Dragging a page ----------------------------------------------------------- */
 .board-page,
 .idea-card { touch-action: pan-y; -webkit-touch-callout: none; }
 
@@ -3750,7 +3780,7 @@ textarea:hover { border-color: var(--border-bright); }
   .settings-section textarea { min-height: 6.875rem; }
 }
 
-/* ---------- agent access ---------- */
+/* Agent access ----------------------------------------------------------- */
 
 /* Beside every actor name a machine wrote for: quiet, but never absent. */
 .via-agent { color: var(--muted); font-size: 0.92em; }
