@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync } from "node:fs";
 import { basename, join } from "node:path";
 import { z } from "zod";
 import { IDEA_STATES, type IdeaState } from "../shared/types";
@@ -59,25 +59,24 @@ export class MarkdownIdeaStore {
     writeAtomic(this.activePath(projectSlug, idea.id), serializeIdea(idea));
   }
 
+  /*
+   * Destination first, source removed second - the same interruption story the page
+   * store tells: a crash leaves the record twice, never half-written.
+   */
   archive(projectSlug: string, idea: StoredIdea): void {
     const activePath = this.activePath(projectSlug, idea.id);
     if (!existsSync(activePath)) throw new Error(`Idea file does not exist: ${activePath}`);
-    const directory = this.archiveDirectory(projectSlug);
-    mkdirSync(directory, { recursive: true });
-    const archivePath = this.archivePath(projectSlug, idea.id);
-    if (existsSync(archivePath)) throw new Error(`Archived idea file already exists: ${archivePath}`);
-    renameSync(activePath, archivePath);
-    writeAtomic(archivePath, serializeIdea(idea));
+    mkdirSync(this.archiveDirectory(projectSlug), { recursive: true });
+    writeAtomic(this.archivePath(projectSlug, idea.id), serializeIdea(idea));
+    unlinkSync(activePath);
   }
 
   restore(projectSlug: string, idea: StoredIdea): void {
     const archivePath = this.archivePath(projectSlug, idea.id);
     if (!existsSync(archivePath)) throw new Error(`Archived idea file does not exist: ${archivePath}`);
-    const activePath = this.activePath(projectSlug, idea.id);
-    if (existsSync(activePath)) throw new Error(`Active idea file already exists: ${activePath}`);
     mkdirSync(this.activeDirectory(projectSlug), { recursive: true });
-    renameSync(archivePath, activePath);
-    writeAtomic(activePath, serializeIdea(idea));
+    writeAtomic(this.activePath(projectSlug, idea.id), serializeIdea(idea));
+    unlinkSync(archivePath);
   }
 
   private readPath(path: string): StoredIdea {

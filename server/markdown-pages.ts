@@ -97,25 +97,26 @@ export class MarkdownPageStore {
     writeAtomic(this.activePath(projectSlug, page.id), serializePage(page));
   }
 
+  /*
+   * Both moves write the complete destination file before removing the source, so an
+   * interruption can only leave the record present twice - the source still authoritative,
+   * the stray copy overwritten by the next attempt. The old order, rename first and add the
+   * metadata second, could leave an archived file with no archived_at at all.
+   */
   archive(projectSlug: string, page: StoredPage): void {
     const activePath = this.activePath(projectSlug, page.id);
     if (!existsSync(activePath)) throw new Error(`Page file does not exist: ${activePath}`);
-    const archiveDirectory = this.archiveDirectory(projectSlug);
-    mkdirSync(archiveDirectory, { recursive: true });
-    const archivePath = this.archivePath(projectSlug, page.id);
-    if (existsSync(archivePath)) throw new Error(`Archived page file already exists: ${archivePath}`);
-    renameSync(activePath, archivePath);
-    writeAtomic(archivePath, serializePage(page));
+    mkdirSync(this.archiveDirectory(projectSlug), { recursive: true });
+    writeAtomic(this.archivePath(projectSlug, page.id), serializePage(page));
+    unlinkSync(activePath);
   }
 
   restore(projectSlug: string, page: StoredPage): void {
     const archivePath = this.archivePath(projectSlug, page.id);
     if (!existsSync(archivePath)) throw new Error(`Archived page file does not exist: ${archivePath}`);
-    const activePath = this.activePath(projectSlug, page.id);
-    if (existsSync(activePath)) throw new Error(`Active page file already exists: ${activePath}`);
     mkdirSync(this.activeDirectory(projectSlug), { recursive: true });
-    renameSync(archivePath, activePath);
-    writeAtomic(activePath, serializePage({ ...page, archivedAt: null }));
+    writeAtomic(this.activePath(projectSlug, page.id), serializePage({ ...page, archivedAt: null }));
+    unlinkSync(archivePath);
   }
 
   remove(projectSlug: string, pageId: string): void {
