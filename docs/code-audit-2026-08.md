@@ -37,7 +37,7 @@ Everything in §A was verified by hand against the source, not just reported.
 
 The standards are canon as of this audit's adoption; here is where each one
 stands. **met** means no violation found; **short** names the findings that close
-the gap. 18 of 45 standards are met today.
+the gap. 18 of 47 standards are met today.
 
 | Standard | Verdict | What closes the gap |
 |---|---|---|
@@ -57,6 +57,7 @@ the gap. 18 of 45 standards are met today.
 | NAME-1 file naming | met | two hooks living in `.tsx` files move in F4 |
 | NAME-2 pages, not cards | short | E: `AccountDialog.tsx:171` user-facing copy; stale comment `shared/types.ts:415` |
 | NAME-3 names say what, not how | short | E: three handler-naming strays |
+| NAME-4 directories group by kind | short | H1: 50 flat files of three kinds |
 | SRV-1 strict validation at the edge | met | — |
 | SRV-2 security defaults | short | A3, A4, A10 |
 | SRV-3 loud, actionable errors | short | A5, A7; the probe's 200-with-error |
@@ -85,6 +86,7 @@ the gap. 18 of 45 standards are met today.
 | DOC-1 comments state what code can't | met | A8 is where comments overstate |
 | DOC-2 commit voice | met | — |
 | DOC-3 architecture.md moves with behavior | met | — |
+| DOC-4 comments are a paragraph, why-only | short | H2: 72 blocks of 10+ lines |
 | TOOL-1 Prettier via `npm run check` | short | B4: add Prettier, remove the two stale `eslint-disable` comments |
 
 ---
@@ -477,6 +479,32 @@ per-`describe` reuse with a reset would take the biggest cost out of `npm test`.
 harness (that does boot the real thing). When D2's contract work lands, give the
 package a vitest suite so the type-equality assertions have somewhere to live.
 
+## H. Taste — measured
+
+**H1 — `src/components/` is a flat folder of three kinds of file.** *(NAME-4)*
+50 files: 32 components, 8 hooks, 10 pure helpers, zero subdirectories. Reading
+the listing tells you nothing about the app's shape, and the misfiled hybrids the
+earlier sections found (hooks living inside `.tsx` files, `page-facets.ts`
+importing from a component) are symptoms of the same missing structure. Fix is
+mechanical: `git mv` into `src/components/`, `src/hooks/`, `src/lib/` plus an
+import sweep — one PR, no behavior change. The server's version of this is
+already F1/F2 (`server/routes/`, stores beside their domain).
+
+**H2 — Inline comments run to essays.** *(DOC-4)*
+14.3% of all lines are comments; **72 blocks of ten or more lines**, the largest
+29. Sampling the biggest blocks: they are almost all *why*-prose, and good prose —
+the how-narration DOC-1 bans is genuinely rare. But they are design record at
+essay length, inline: the 21-line header on `DiscussionSection.tsx:9` is product
+rationale (why threads have no bubbles, why answered folds away) that belongs in
+`docs/architecture.md` with one pointing sentence left behind; `use-height-swap.ts:7`
+and `page-facets.ts:180` blend the why with mechanism narration that the code
+should carry itself. The earned exceptions stay: `database.ts:268` (29 lines) is
+data-protecting invariants — the paging cursor and the AUTOINCREMENT high-water
+mark — stated exactly where they can be broken, which is what DOC-4's exception
+is for. The pass is per-block judgment: relocate the design essays, trim the
+blended blocks to their one-paragraph why, keep the invariants. Do it file by
+file as Phase 5 touches them, not as one sweep.
+
 ---
 
 ## The plan
@@ -486,8 +514,8 @@ sizes are S (≤half a day), M (a day or two), L (several days).
 
 **Phase 0 — Sign-off (you). ✅ Done.** Every standard was adopted as written; the
 observed/proposed labels are gone and the document is canon. TOOL-1 resolved to
-Prettier alone. The scorecard above is the review against that canon: 18 of 45
-standards met.
+Prettier alone; NAME-4 and DOC-4 (grouping and comment taste) adopted after. The
+scorecard above is the review against that canon: 18 of 47 standards met.
 
 **Phase 1 — Launch blockers (S each, independent).**
 A1 `sendFile` with error handling · A2 guarded SSE writes · A3 bootstrap
@@ -511,12 +539,16 @@ base · D5 client families (`ConfirmInline`, `useDismissOnOutside`,
 `useCardBoard`, `useRecordEditor`, library-dialog shell) · E consistency
 sweep (one PR per row is fine; most are S). D2 MCP contract enforcement (M).
 
-**Phase 5 — The splits (L, one seam per PR).** F1 app.ts (zero-risk moves
-first, then route groups, route table last) · F2 repository split +
-auth-repository · F3 Board extractions · F4 the other three · F5 types + CSS
-organization. The test suite you already have is what makes these safe; G2's
-harness consolidation (M) is worth doing before F3 so the UI-test churn is
-cheap. G3 (M) any time.
+**Phase 5 — The splits (L, one seam per PR).** Opens with H1's grouping move
+(S — one mechanical PR: `src/components/` → `components/` + `hooks/` + `lib/`,
+so every file the splits create lands in its right home). Then F1 app.ts
+(zero-risk moves first, then route groups, route table last) · F2 repository
+split + auth-repository · F3 Board extractions · F4 the other three · F5 types +
+CSS organization. Each split PR also carries H2's comment pass for the files it
+touches: design essays relocate to `architecture.md`, blended blocks trim to
+their one-paragraph why, invariants stay. The test suite you already have is
+what makes these safe; G2's harness consolidation (M) is worth doing before F3
+so the UI-test churn is cheap. G3 (M) any time.
 
 **What this buys before launch:** Phase 1 removes every known crash and race.
 Phases 2-3 make the codebase honest about what it enforces and drop two

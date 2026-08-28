@@ -86,6 +86,14 @@ different word and stays.
 **NAME-3.** A name says what a thing is, not how it is implemented.
 `seenCursor`, not `seenCursorMap`; `restorePage`, not `handleRestoreClick2`.
 
+**NAME-4.** A directory holds one kind of thing, and its listing is readable.
+`src/components/` holds components (`.tsx`); hooks live in `src/hooks/`; pure
+logic helpers in `src/lib/`. A component's private helper stays inside its file
+until a second file needs it — then it moves to the directory its kind belongs
+in, not to a neighbouring loose file. The server groups the same way: HTTP route
+modules under `server/routes/`, persistence stores beside their domain. A flat
+folder of fifty files of three kinds is not an organization scheme.
+
 ## 4. Server
 
 **SRV-1.** Validation is strict and at the edge. Every request body is
@@ -214,6 +222,15 @@ subject says why it matters, not which files moved.
 **DOC-3.** `docs/architecture.md` is updated in the same PR as the
 behavior it describes. A PR that changes a documented decision without touching the
 doc is incomplete.
+
+**DOC-4.** A comment is a paragraph at most, and it says why, never how. Why-prose
+longer than a paragraph is design record — it moves to `docs/architecture.md` and
+leaves one pointing sentence at the site. How-narration longer than a paragraph is
+the code asking to be restructured until the narration is unnecessary. The one
+earned exception is an invariant that protects data, stated at the exact point it
+can be broken — a rebuild that must carry the paging cursor, a copy that must keep
+the AUTOINCREMENT high-water mark. Those stay, at whatever length correctness
+needs.
 
 ## 9. Tooling
 
