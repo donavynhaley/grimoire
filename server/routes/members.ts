@@ -81,9 +81,7 @@ export function memberRoutes(app: AppContext): Route[] {
         const user = requireUser(context);
         await readJson(context.request);
         const projectId = app.requireProjectOwner(context, user, "Only the project owner can remove members");
-        const removedMember = membersForProject(database, projectId).find(
-          (value) => value.id === match![1]!,
-        );
+        const removedMember = membersForProject(database, projectId).find((value) => value.id === match![1]!);
         const result = removeProjectMember(database, pageStore, projectId, match![1]!);
         if (result === "owner") throw new HttpError(409, "The project owner cannot be removed");
         if (result === "admin") throw new HttpError(409, "The admin cannot be removed");

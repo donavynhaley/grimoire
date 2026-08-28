@@ -1,4 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
+import type { AgentRateLimiter } from "../agent-tokens";
 import type { User } from "../../shared/types";
 import type { Options, RequestContext, WorkspaceScope } from "../app-types";
 import type { PageLabels, RecordAuditInput } from "../audit";
@@ -46,6 +47,8 @@ export type AppContext = {
   ) => Promise<"not_found" | "no_webhook" | { sent: number; failed: number }>;
   /** Brings every linked page up to date with GitHub, now rather than on the poll. */
   runGithubSync: (projectId: string) => Promise<void>;
+  /** The per-credential write allowance, so revoking a token also forgets its bucket. */
+  writeLimiter: AgentRateLimiter;
 };
 
 export function requireUser(context: RequestContext): User {

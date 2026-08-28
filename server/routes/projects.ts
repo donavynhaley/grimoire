@@ -36,7 +36,11 @@ export function projectRoutes(app: AppContext): Route[] {
       pattern: "/api/invites",
       handler: async (context) => {
         const user = requireUser(context);
-        const projectId = app.requireProjectOwner(context, user, "Only the project owner can create invitations");
+        const projectId = app.requireProjectOwner(
+          context,
+          user,
+          "Only the project owner can create invitations",
+        );
         await readJson(context.request);
         const code = createOpaqueToken();
         const now = new Date();
@@ -183,7 +187,11 @@ export function projectRoutes(app: AppContext): Route[] {
           setProjectGithub(database, projectId, { token: input.githubToken });
           const hasToken = input.githubToken !== "";
           if (hadToken !== hasToken) {
-            changes.push({ field: "github token", from: hadToken ? "set" : null, to: hasToken ? "set" : null });
+            changes.push({
+              field: "github token",
+              from: hadToken ? "set" : null,
+              to: hasToken ? "set" : null,
+            });
           }
         }
 

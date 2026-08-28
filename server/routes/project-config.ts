@@ -1,11 +1,11 @@
-import {
-  issueAgentToken,
-  listAgentTokens,
-  revokeAgentToken,
-  type AgentRateLimiter,
-} from "../agent-tokens";
+import { issueAgentToken, listAgentTokens, revokeAgentToken } from "../agent-tokens";
 import { HttpError, json, readJson, requestClientId } from "../http";
-import { categoriesForProject, createCategory, deleteCategory, updateCategory } from "../repository/categories";
+import {
+  categoriesForProject,
+  createCategory,
+  deleteCategory,
+  updateCategory,
+} from "../repository/categories";
 import { createField, deleteField, fieldsForProject, updateField } from "../repository/fields";
 import {
   agentTokenCreateSchema,
@@ -24,9 +24,7 @@ const fieldPattern = /^\/api\/fields\/([^/]+)$/;
 /** The owner's configuration surfaces: agent credentials, categories, and fields. */
 export function projectConfigRoutes(app: AppContext): Route[] {
   const { database, pageStore } = app;
-  // `writeLimiter` still lives in the server closure and is not on AppContext yet;
-  // the integrator wires it onto the context object this module receives.
-  const writeLimiter = (app as AppContext & { writeLimiter: AgentRateLimiter }).writeLimiter;
+  const { writeLimiter } = app;
   return [
     // Agent access. Issuing a credential is the owner deciding something may write on their
     // behalf, so an agent can never reach these at all: a token that could mint another
@@ -122,9 +120,7 @@ export function projectConfigRoutes(app: AppContext): Route[] {
         const user = requireUser(context);
         const projectId = app.requireProjectOwner(context, user, "Only the owner can manage categories");
         const input = categoryUpdateSchema.parse(await readJson(context.request));
-        const previous = categoriesForProject(database, projectId).find(
-          (value) => value.slug === match![1]!,
-        );
+        const previous = categoriesForProject(database, projectId).find((value) => value.slug === match![1]!);
         const category = updateCategory(database, projectId, match![1]!, input);
         if (!category) throw new HttpError(404, "Category not found");
         const categoryEdits = previous
@@ -157,9 +153,7 @@ export function projectConfigRoutes(app: AppContext): Route[] {
       handler: (context, match) => {
         const user = requireUser(context);
         const projectId = app.requireProjectOwner(context, user, "Only the owner can manage categories");
-        const removed = categoriesForProject(database, projectId).find(
-          (value) => value.slug === match![1]!,
-        );
+        const removed = categoriesForProject(database, projectId).find((value) => value.slug === match![1]!);
         if (!deleteCategory(database, pageStore, projectId, match![1]!)) {
           throw new HttpError(404, "Category not found");
         }

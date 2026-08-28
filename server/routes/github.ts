@@ -47,7 +47,8 @@ export function githubRoutes(app: AppContext): Route[] {
         await readJson(context.request);
         const result = await app.sendRecap(projectId, match![1]!);
         if (result === "not_found") throw new HttpError(404, "Chapter not found");
-        if (result === "no_webhook") throw new HttpError(400, "This project has no Discord webhook to post to");
+        if (result === "no_webhook")
+          throw new HttpError(400, "This project has no Discord webhook to post to");
         json(context.response, 200, result);
       },
     },
@@ -56,7 +57,11 @@ export function githubRoutes(app: AppContext): Route[] {
       pattern: "/api/github/verify",
       handler: async (context) => {
         const user = requireUser(context);
-        const projectId = app.requireProjectOwner(context, user, "Only the owner can check the GitHub connection");
+        const projectId = app.requireProjectOwner(
+          context,
+          user,
+          "Only the owner can check the GitHub connection",
+        );
         await readJson(context.request);
         const config = projectGithubConfig(database, projectId);
         const verdict = await verifyRepoAccess(
