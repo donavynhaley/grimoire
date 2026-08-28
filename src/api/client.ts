@@ -50,11 +50,28 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
   if (init.body && !headers.has("content-type")) headers.set("content-type", "application/json");
   if (activeProjectId) headers.set("x-grimoire-project", activeProjectId);
   const response = await fetch(path, { ...init, headers, credentials: "same-origin" });
-  const body = (await response.json()) as T & { error?: string };
-  if (!response.ok) {
-    throw new ApiError(body.error ?? `Request failed with status ${response.status}`, response.status, body);
+  // Read as text before parsing: a failure body is not always JSON. A proxy
+  // answering 502 with an HTML page must still become an ApiError the interface
+  // can act on, not a SyntaxError that bypasses every handler built for one.
+  const text = await response.text();
+  let body: unknown = null;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {
+    body = null;
   }
-  return body;
+  if (!response.ok) {
+    throw new ApiError(errorMessage(body, response.status), response.status, body);
+  }
+  return body as T;
+}
+
+function errorMessage(body: unknown, status: number): string {
+  if (body && typeof body === "object" && "error" in body) {
+    const error = (body as { error: unknown }).error;
+    if (typeof error === "string" && error) return error;
+  }
+  return `Request failed with status ${status}`;
 }
 
 export function session(): Promise<SessionState> {
