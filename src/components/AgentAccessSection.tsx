@@ -2,6 +2,7 @@ import { type FormEvent, useEffect, useState } from "react";
 import type { AgentToken, AgentTokenScope } from "../../shared/types";
 import { agentTokenIsLive, agentTokens, issueAgentToken, revokeAgentToken } from "../api/client";
 import { ConfirmInline } from "./ConfirmInline";
+import { Growing } from "./Growing";
 import { dayLabel } from "../lib/chapter-dates";
 import type { SettingsRun } from "../hooks/use-settings-action";
 
@@ -104,7 +105,7 @@ export function AgentAccessSection({ run }: Props) {
   const retired = (tokens ?? []).filter((token) => !agentTokenIsLive(token));
 
   return (
-    <div className="settings-section">
+    <Growing className="settings-section">
       <p className="settings-summary agent-intro">
         A token lets an agent read this project, and write pages and ideas in it. It acts as you, so its work
         carries your name with the agent's beside it. It can never archive, promote an idea, or change the
@@ -200,6 +201,6 @@ export function AgentAccessSection({ run }: Props) {
           {retired.length} revoked or expired · their past work still says which agent wrote it.
         </p>
       )}
-    </div>
+    </Growing>
   );
 }

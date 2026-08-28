@@ -376,6 +376,8 @@ textarea:focus-visible {
 
 .quiet-button:hover { color: var(--text); border-color: var(--border-bright); }
 
+/* The digest travels out through its slot; flex keeps the margin inside what gets measured. */
+.away-digest-slot { display: flex; flex-direction: column; }
 .away-digest {
   margin: 1rem clamp(1rem, 4vw, 2.125rem) 0;
   padding: 0.8125rem 1rem 0.75rem;

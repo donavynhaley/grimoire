@@ -74,7 +74,7 @@ export function DiscussionSection({
       ) : threads === null ? (
         <p className="empty-dependencies">Reading the discussion...</p>
       ) : (
-        <div className="discussion-threads">
+        <Growing className="discussion-threads">
           {shown.map((thread) => (
             <Thread
               currentUserId={currentUserId}
@@ -102,7 +102,7 @@ export function DiscussionSection({
               {showingAnswered ? `hide ${answered.length} answered` : `show ${answered.length} answered`}
             </button>
           )}
-        </div>
+        </Growing>
       )}
 
       <Composer

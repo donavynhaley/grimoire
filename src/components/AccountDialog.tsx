@@ -1,5 +1,6 @@
 import { type ChangeEvent, type FormEvent, useState } from "react";
 import { Drawer } from "./Drawer";
+import { Growing } from "./Growing";
 import type { User } from "../../shared/types";
 import { ApiError } from "../api/client";
 import { Avatar } from "./Avatar";
@@ -201,7 +202,7 @@ export function AccountDialog({
         )}
       </form>
 
-      <div className="avatar-editor">
+      <Growing className="avatar-editor">
         <fieldset className="profile-icon-picker" disabled={avatarBusy}>
           <legend className="field-label">Choose a profile icon</legend>
           <div className="profile-icon-grid">
@@ -247,7 +248,7 @@ export function AccountDialog({
             {avatarError}
           </span>
         )}
-      </div>
+      </Growing>
 
       <form className="password-form" onSubmit={submit}>
         <p className="field-label">Change password</p>

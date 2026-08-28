@@ -15,6 +15,7 @@ import { AccountDialog } from "./AccountDialog";
 import { ActivityDialog } from "./ActivityDialog";
 import { Avatar } from "./Avatar";
 import { AwayDigest } from "./AwayDigest";
+import { Growing } from "./Growing";
 import { BacklogDialog } from "./BacklogDialog";
 import { PageDialog } from "./PageDialog";
 import { type CategoryActions } from "./CategoriesSection";
@@ -782,9 +783,12 @@ export function Board({
         </div>
       </header>
 
-      {away && !awayDismissed && (
-        <AwayDigest away={away} board={board} onDismiss={() => setAwayDismissed(true)} />
-      )}
+      {/* The wrapper stays when the digest goes, so dismissing it travels instead of jumping. */}
+      <Growing className="away-digest-slot">
+        {away && !awayDismissed && (
+          <AwayDigest away={away} board={board} onDismiss={() => setAwayDismissed(true)} />
+        )}
+      </Growing>
 
       {/* While a page is held, the board says so and offers the way out, because the gaps
           that have opened everywhere are otherwise unexplained. */}
@@ -1134,51 +1138,54 @@ export function Board({
                       <strong>{completedPages.length}</strong>
                     </button>
                   )}
-                  {status !== "done" &&
-                    (addingTo === status ? (
-                      <form
-                        className="column-add-form"
-                        onSubmit={(event) => void createColumnPage(event, status)}
-                      >
-                        <label className="sr-only" htmlFor={`new-${status}`}>
-                          New {columnNames[status]} page
-                        </label>
-                        <input
-                          autoFocus
-                          id={`new-${status}`}
-                          name={`new-${status}`}
-                          onChange={(event) => setColumnTitle(event.target.value)}
-                          onKeyDown={(event) => {
-                            if (event.key === "Escape") setAddingTo(null);
+                  {status !== "done" && (
+                    <Growing className="column-add">
+                      {addingTo === status ? (
+                        <form
+                          className="column-add-form"
+                          onSubmit={(event) => void createColumnPage(event, status)}
+                        >
+                          <label className="sr-only" htmlFor={`new-${status}`}>
+                            New {columnNames[status]} page
+                          </label>
+                          <input
+                            autoFocus
+                            id={`new-${status}`}
+                            name={`new-${status}`}
+                            onChange={(event) => setColumnTitle(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Escape") setAddingTo(null);
+                            }}
+                            placeholder="Page title"
+                            value={columnTitle}
+                          />
+                          <div>
+                            <button
+                              className="primary-button compact"
+                              disabled={!columnTitle.trim()}
+                              type="submit"
+                            >
+                              add
+                            </button>
+                            <button className="text-button" onClick={() => setAddingTo(null)} type="button">
+                              cancel
+                            </button>
+                          </div>
+                        </form>
+                      ) : (
+                        <button
+                          className="add-to-column"
+                          onClick={() => {
+                            setAddingTo(status);
+                            setColumnTitle("");
                           }}
-                          placeholder="Page title"
-                          value={columnTitle}
-                        />
-                        <div>
-                          <button
-                            className="primary-button compact"
-                            disabled={!columnTitle.trim()}
-                            type="submit"
-                          >
-                            add
-                          </button>
-                          <button className="text-button" onClick={() => setAddingTo(null)} type="button">
-                            cancel
-                          </button>
-                        </div>
-                      </form>
-                    ) : (
-                      <button
-                        className="add-to-column"
-                        onClick={() => {
-                          setAddingTo(status);
-                          setColumnTitle("");
-                        }}
-                        type="button"
-                      >
-                        + add page
-                      </button>
-                    ))}
+                          type="button"
+                        >
+                          + add page
+                        </button>
+                      )}
+                    </Growing>
+                  )}
                 </section>
               );
             })}

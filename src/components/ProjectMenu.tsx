@@ -1,5 +1,6 @@
 import { type FormEvent, useState } from "react";
 import type { ProjectSummary } from "../../shared/types";
+import { Growing } from "./Growing";
 
 export type ProjectActions = {
   select: (id: string) => Promise<void>;
@@ -122,7 +123,7 @@ export function ProjectMenu({
               </button>
             ))}
           </div>
-          <div className="project-menu-owner">
+          <Growing className="project-menu-owner">
             {/* Collapsed behind a reveal, the way every column's "+ add page" already works. */}
             {isOwner &&
               (creating ? (
@@ -207,7 +208,7 @@ export function ProjectMenu({
               </span>
               Project settings
             </button>
-          </div>
+          </Growing>
           {error && (
             <p className="project-menu-error" role="alert">
               {error}
