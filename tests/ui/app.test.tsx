@@ -3,8 +3,8 @@
 import { act, createEvent, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { App } from "../../src/App";
 import type { AuditEvent, Page } from "../../shared/types";
+import { App } from "../../src/App";
 import { boardFixture, ideaFixture } from "../fixtures/board";
 import { installUiHarness, response, routeFetch } from "../fixtures/ui";
 
@@ -114,12 +114,14 @@ describe("Grimoire board", () => {
     expect(await screen.findByText(livePage.title)).toBeInTheDocument();
   });
 
-  it("prefills the default owner email during first-run setup", async () => {
+  it("leaves the first-run email empty so an installation names its own owner", async () => {
     routeFetch({ routes: { "GET /api/session": { status: "setup_required" } } });
 
     render(<App />);
 
-    expect(await screen.findByLabelText("Email")).toHaveValue("owner@example.com");
+    const email = await screen.findByLabelText("Email");
+    expect(email).toHaveValue("");
+    expect(email).toHaveAttribute("placeholder", "you@example.com");
   });
 
   it("lands on a compact active deck while keeping backlog work out of sight", async () => {

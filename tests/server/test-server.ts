@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AddressInfo } from "node:net";
 import { afterEach } from "vitest";
 import { createGrimoireServer } from "../../server/app";
 

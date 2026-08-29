@@ -1,5 +1,4 @@
-import { FormEvent, useState } from "react";
-import { DEFAULT_OWNER_EMAIL } from "../../shared/config";
+import { type FormEvent, useState } from "react";
 import type { SignInProviders, User } from "../../shared/types";
 import { ApiError, mutate } from "../api/client";
 
@@ -47,7 +46,7 @@ function GoogleMark() {
 export function AuthScreen({ mode: initialMode, inviteCode, onAuthenticated, oidc, providerError }: Props) {
   const [mode, setMode] = useState(initialMode);
   const [name, setName] = useState("");
-  const [email, setEmail] = useState(initialMode === "setup" ? DEFAULT_OWNER_EMAIL : "");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(providerError ?? "");
@@ -126,6 +125,7 @@ export function AuthScreen({ mode: initialMode, inviteCode, onAuthenticated, oid
             <input
               autoComplete="email"
               name="email"
+              placeholder="you@example.com"
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}

@@ -79,7 +79,11 @@ async function api(path, init = {}) {
 
 await api("/api/auth/bootstrap", {
   method: "POST",
-  body: JSON.stringify({ name: "Donavyn", email: "owner@example.com", password: "correct horse wizard tower" }),
+  body: JSON.stringify({
+    name: "Donavyn",
+    email: "owner@example.com",
+    password: "correct horse wizard tower",
+  }),
 });
 
 const issued = await api("/api/agent-tokens", {
@@ -101,8 +105,7 @@ let buffer = "";
 const pending = new Map();
 mcp.stdout.on("data", (chunk) => {
   buffer += chunk.toString();
-  let index;
-  while ((index = buffer.indexOf("\n")) >= 0) {
+  for (let index = buffer.indexOf("\n"); index >= 0; index = buffer.indexOf("\n")) {
     const line = buffer.slice(0, index).trim();
     buffer = buffer.slice(index + 1);
     if (!line) continue;
@@ -145,8 +148,7 @@ async function listToolsAs(tokenSecret) {
     const waiting = new Map();
     child.stdout.on("data", (chunk) => {
       chunkBuffer += chunk.toString();
-      let index;
-      while ((index = chunkBuffer.indexOf("\n")) >= 0) {
+      for (let index = chunkBuffer.indexOf("\n"); index >= 0; index = chunkBuffer.indexOf("\n")) {
         const line = chunkBuffer.slice(0, index).trim();
         chunkBuffer = chunkBuffer.slice(index + 1);
         if (!line) continue;
@@ -161,8 +163,14 @@ async function listToolsAs(tokenSecret) {
         child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`);
         setTimeout(() => reject(new Error(`timed out: ${method}`)), 15000);
       });
-    await ask("initialize", { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "e2e", version: "1.0.0" } });
-    child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized", params: {} })}\n`);
+    await ask("initialize", {
+      protocolVersion: "2024-11-05",
+      capabilities: {},
+      clientInfo: { name: "e2e", version: "1.0.0" },
+    });
+    child.stdin.write(
+      `${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized", params: {} })}\n`,
+    );
     const listed = await ask("tools/list", {});
     return listed.result.tools.map((tool) => tool.name).sort();
   } finally {
@@ -178,7 +186,11 @@ try {
     capabilities: {},
     clientInfo: { name: "e2e", version: "1.0.0" },
   });
-  check("server identifies itself", init.result?.serverInfo?.name === "grimoire", JSON.stringify(init.result?.serverInfo));
+  check(
+    "server identifies itself",
+    init.result?.serverInfo?.name === "grimoire",
+    JSON.stringify(init.result?.serverInfo),
+  );
   check("server ships usage instructions", String(init.result?.instructions ?? "").includes("page"));
   notify("notifications/initialized", {});
 
@@ -200,7 +212,11 @@ try {
     "grimoire_search",
     "grimoire_update_page",
   ];
-  check("exposes exactly the intended tools", JSON.stringify(names) === JSON.stringify(expected), names.join(","));
+  check(
+    "exposes exactly the intended tools",
+    JSON.stringify(names) === JSON.stringify(expected),
+    names.join(","),
+  );
   check("no archive tool exists", !names.some((name) => name.includes("archive")));
   check("no promote tool exists", !names.some((name) => name.includes("promote")));
   check("no chapter-management tool exists", !names.some((name) => name.includes("chapter")));
@@ -211,7 +227,10 @@ try {
   check("board names the project", board.text.includes("Wizard Simulator"));
   check("board says who the agent acts as", board.text.includes("Donavyn"));
   check("board lists the real categories", board.text.includes("Design") && board.text.includes("Code"));
-  check("board shows every column", ["Backlog", "Up Next", "In progress", "Review", "Done"].every((c) => board.text.includes(c)));
+  check(
+    "board shows every column",
+    ["Backlog", "Up Next", "In progress", "Review", "Done"].every((c) => board.text.includes(c)),
+  );
 
   // ------------------------------------------------------------ create
   console.log("\nCreating pages by name, not by identifier");
@@ -229,16 +248,23 @@ try {
   const page = inGrimoire.body.pages.find((candidate) => candidate.title === "Ward the tower door");
   check("the page really exists in Grimoire", Boolean(page));
   check("the human category name resolved to its slug", page?.category === "code", String(page?.category));
-  check("\"me\" resolved to the issuing person", page?.assigneeName === "Donavyn", String(page?.assigneeName));
-  check("the write is credited to the person", page?.createdByName === "Donavyn", String(page?.createdByName));
+  check('"me" resolved to the issuing person', page?.assigneeName === "Donavyn", String(page?.assigneeName));
+  check(
+    "the write is credited to the person",
+    page?.createdByName === "Donavyn",
+    String(page?.createdByName),
+  );
 
   // ------------------------------------------------------------ attribution
   console.log("\nAttribution in the activity log");
   const activity = await api("/api/activity");
   const event = activity.body.events.find((candidate) => candidate.entityTitle === "Ward the tower door");
   check("the log names the person", event?.actorName === "Donavyn", String(event?.actorName));
-  check("the log names the agent beside them", event?.agentName === "Planning agent", String(event?.agentName));
-
+  check(
+    "the log names the agent beside them",
+    event?.agentName === "Planning agent",
+    String(event?.agentName),
+  );
 
   // ------------------------------------------------------- discussion
   console.log("\nDiscussion");
@@ -272,27 +298,60 @@ try {
   check("the agent can report by opening its own thread", !reported.isError, reported.text);
 
   const threads = await api(`/api/pages/${pageId}/discussion`);
-  check("Grimoire holds both threads", threads.body.threads.length === 2, String(threads.body.threads.length));
+  check(
+    "Grimoire holds both threads",
+    threads.body.threads.length === 2,
+    String(threads.body.threads.length),
+  );
   const asking = threads.body.threads.find((thread) => thread.body.includes("migration"));
-  check("the reply landed on the right thread", asking?.replies.length === 1, JSON.stringify(asking?.replies));
+  check(
+    "the reply landed on the right thread",
+    asking?.replies.length === 1,
+    JSON.stringify(asking?.replies),
+  );
   // A token is a delegation: the person stays the author and the agent is named beside them.
-  check("the reply is credited to the person", asking?.replies[0]?.authorName === "Donavyn", String(asking?.replies[0]?.authorName));
-  check("and names the agent beside them", asking?.replies[0]?.agentName === "Planning agent", String(asking?.replies[0]?.agentName));
-  check("both threads are still open", threads.body.threads.every((thread) => thread.answeredAt === null));
+  check(
+    "the reply is credited to the person",
+    asking?.replies[0]?.authorName === "Donavyn",
+    String(asking?.replies[0]?.authorName),
+  );
+  check(
+    "and names the agent beside them",
+    asking?.replies[0]?.agentName === "Planning agent",
+    String(asking?.replies[0]?.agentName),
+  );
+  check(
+    "both threads are still open",
+    threads.body.threads.every((thread) => thread.answeredAt === null),
+  );
 
   // The judgement that a question is settled is a person's, and no tool offers it.
-  check("no tool can close a thread", !names.some((name) => name.includes("answer") && name !== "grimoire_reply_in_discussion"));
+  check(
+    "no tool can close a thread",
+    !names.some((name) => name.includes("answer") && name !== "grimoire_reply_in_discussion"),
+  );
   const closeAttempt = await fetch(`${baseUrl}/api/pages/${pageId}/discussion/${threadId}/answered`, {
     method: "POST",
     headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" },
     body: JSON.stringify({ answered: true }),
   });
-  check("and the route itself refuses the credential", closeAttempt.status === 403, String(closeAttempt.status));
+  check(
+    "and the route itself refuses the credential",
+    closeAttempt.status === 403,
+    String(closeAttempt.status),
+  );
 
   // The notes are the brief; reporting never rewrites them.
   const afterTalking = await api(`/api/pages/${pageId}`);
-  check("the page's notes are untouched by all of it", afterTalking.body.page.description === page.description);
-  check("and the page reports its open threads", afterTalking.body.page.openThreads === 2, String(afterTalking.body.page.openThreads));
+  check(
+    "the page's notes are untouched by all of it",
+    afterTalking.body.page.description === page.description,
+  );
+  check(
+    "and the page reports its open threads",
+    afterTalking.body.page.openThreads === 2,
+    String(afterTalking.body.page.openThreads),
+  );
 
   // ------------------------------------------------------------ resolution errors
   console.log("\nRefusing to guess");
@@ -300,7 +359,10 @@ try {
   check("an unknown category is refused", badCategory.isError, badCategory.text);
   check("and the real options are listed", badCategory.text.includes("Design"), badCategory.text);
 
-  const badColumn = await callTool("grimoire_move_page", { page: "Ward the tower door", column: "Somewhere" });
+  const badColumn = await callTool("grimoire_move_page", {
+    page: "Ward the tower door",
+    column: "Somewhere",
+  });
   check("an unknown column is refused", badColumn.isError, badColumn.text);
 
   // ------------------------------------------------------------ search + update + move
@@ -318,7 +380,11 @@ try {
   check("the refusal points at grimoire_read_page", blind.text.includes("grimoire_read_page"), blind.text);
 
   const readBack = await callTool("grimoire_read_page", { page: "Ward the tower door" });
-  check("read_page returns the stored notes verbatim", readBack.text.includes("The door remembers who knocked."), readBack.text);
+  check(
+    "read_page returns the stored notes verbatim",
+    readBack.text.includes("The door remembers who knocked."),
+    readBack.text,
+  );
 
   const updated = await callTool("grimoire_update_page", {
     page: "Ward the tower door",
@@ -338,12 +404,20 @@ try {
 
   const moved = await callTool("grimoire_move_page", { page: "Ward the tower door", column: "In progress" });
   check("move_page succeeds", !moved.isError, moved.text);
-  check("move_page names both columns", moved.text.includes("Up Next") && moved.text.includes("In progress"), moved.text);
+  check(
+    "move_page names both columns",
+    moved.text.includes("Up Next") && moved.text.includes("In progress"),
+    moved.text,
+  );
 
   const afterMove = await api("/api/board");
   const movedPage = afterMove.body.pages.find((candidate) => candidate.id === page.id);
   check("the page really moved", movedPage?.status === "in_progress", String(movedPage?.status));
-  check("the notes really changed", movedPage?.description.includes("forgets after a week"), String(movedPage?.description));
+  check(
+    "the notes really changed",
+    movedPage?.description.includes("forgets after a week"),
+    String(movedPage?.description),
+  );
 
   // ------------------------------------------------------------ conflict
   console.log("\nA concurrent edit is surfaced, not overwritten");
@@ -362,7 +436,11 @@ try {
   });
   check("the stale write is refused, not applied", conflicting.isError, conflicting.text);
   check("the refusal explains what to do next", conflicting.text.includes("re-read"), conflicting.text);
-  check("the refusal carries the stored version", conflicting.text.includes("Rewritten by a person"), conflicting.text);
+  check(
+    "the refusal carries the stored version",
+    conflicting.text.includes("Rewritten by a person"),
+    conflicting.text,
+  );
 
   const afterConflict = await api("/api/board");
   const conflictPage = afterConflict.body.pages.find((candidate) => candidate.id === page.id);
@@ -384,12 +462,21 @@ try {
   console.log("\nA project's own fields");
   await api("/api/fields", {
     method: "POST",
-    body: JSON.stringify({ label: "Priority", type: "select", options: ["p0", "p1", "p2"], showOnTile: true }),
+    body: JSON.stringify({
+      label: "Priority",
+      type: "select",
+      options: ["p0", "p1", "p2"],
+      showOnTile: true,
+    }),
   });
   await api("/api/fields", { method: "POST", body: JSON.stringify({ label: "Estimate", type: "number" }) });
 
   const withFields = await callTool("grimoire_board");
-  check("the board names the fields and their options", withFields.text.includes("Priority (p0 | p1 | p2)"), withFields.text);
+  check(
+    "the board names the fields and their options",
+    withFields.text.includes("Priority (p0 | p1 | p2)"),
+    withFields.text,
+  );
 
   const fieldPage = await callTool("grimoire_create_page", {
     title: "Reconcile the stale backlog",
@@ -401,7 +488,11 @@ try {
 
   const fieldsReadBack = await callTool("grimoire_read_page", { page: "Reconcile the stale backlog" });
   check("the values read back by label", fieldsReadBack.text.includes("Priority: p0"), fieldsReadBack.text);
-  check("and the number survived being written", fieldsReadBack.text.includes("Estimate: 3"), fieldsReadBack.text);
+  check(
+    "and the number survived being written",
+    fieldsReadBack.text.includes("Estimate: 3"),
+    fieldsReadBack.text,
+  );
 
   const patched = await callTool("grimoire_update_page", {
     page: "Reconcile the stale backlog",
@@ -453,8 +544,16 @@ try {
   // The point of the real field over a line in the notes: the board follows the code.
   const afterLink = await api("/api/board");
   const linkedPage = afterLink.body.pages.find((candidate) => candidate.id === toLinkId);
-  check("Grimoire stored a real link, not text", linkedPage?.github?.number === 12, JSON.stringify(linkedPage?.github));
-  check("an open pull request moved the page to Review", linkedPage?.status === "review", String(linkedPage?.status));
+  check(
+    "Grimoire stored a real link, not text",
+    linkedPage?.github?.number === 12,
+    JSON.stringify(linkedPage?.github),
+  );
+  check(
+    "an open pull request moved the page to Review",
+    linkedPage?.status === "review",
+    String(linkedPage?.status),
+  );
 
   // An agent that cannot see an existing link would either link it twice or paste a URL
   // into the notes, so reading it back is as much the feature as writing it.
@@ -496,7 +595,11 @@ try {
   await api(`/api/agent-tokens/${tokens.body.tokens[0].id}`, { method: "DELETE" });
   const afterRevoke = await callTool("grimoire_create_page", { title: "Should never be created" });
   check("the agent is refused after revocation", afterRevoke.isError, afterRevoke.text);
-  check("and is told why in words it can act on", afterRevoke.text.includes("revoked") || afterRevoke.text.includes("refused"), afterRevoke.text);
+  check(
+    "and is told why in words it can act on",
+    afterRevoke.text.includes("revoked") || afterRevoke.text.includes("refused"),
+    afterRevoke.text,
+  );
 
   const finalBoard = await api("/api/board");
   check(
@@ -527,7 +630,10 @@ try {
 
   // ------------------------------------------------------------ archiving a project stops its agents
   console.log("\nArchiving a project suspends its credentials");
-  const second = await api("/api/projects", { method: "POST", body: JSON.stringify({ name: "Second project" }) });
+  const second = await api("/api/projects", {
+    method: "POST",
+    body: JSON.stringify({ name: "Second project" }),
+  });
   const secondToken = await api(`/api/agent-tokens?project=${second.body.project.id}`, {
     method: "POST",
     body: JSON.stringify({ name: "Doomed agent", scope: "write" }),
@@ -535,13 +641,21 @@ try {
   const beforeArchive = await fetch(`${baseUrl}/api/board`, {
     headers: { authorization: `Bearer ${secondToken.body.secret}` },
   });
-  check("the second project's token works before archiving", beforeArchive.status === 200, String(beforeArchive.status));
+  check(
+    "the second project's token works before archiving",
+    beforeArchive.status === 200,
+    String(beforeArchive.status),
+  );
 
   await api(`/api/projects/${second.body.project.id}`, { method: "DELETE", body: "{}" });
   const afterArchive = await fetch(`${baseUrl}/api/board`, {
     headers: { authorization: `Bearer ${secondToken.body.secret}` },
   });
-  check("and is refused once the project is archived", afterArchive.status === 401, String(afterArchive.status));
+  check(
+    "and is refused once the project is archived",
+    afterArchive.status === 401,
+    String(afterArchive.status),
+  );
 } catch (error) {
   failures.push(`threw: ${error.message}`);
   console.log(`\n  ERROR ${error.stack}`);

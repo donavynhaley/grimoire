@@ -73,7 +73,7 @@ The box takes both, mixed freely. An entry with an `@` names one person; an entr
 domain and covers its subdomains too:
 
 ```
-team.example.test  owner@example.com
+team.example.test  someone@gmail.com
 ```
 
 Which unit you want depends on whose provider it is. A domain is right when the domain is yours.
