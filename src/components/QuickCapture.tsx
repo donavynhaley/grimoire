@@ -1,19 +1,19 @@
 import { type ChangeEvent, type FormEvent, useRef, useState } from "react";
 import {
+  type Chapter,
   type FieldValue,
+  type Member,
+  PAGE_STATUS_LABELS,
   type PageCategory,
   type PageStatus,
-  type Chapter,
-  type Member,
   type ProjectCategory,
   type ProjectField,
-  PAGE_STATUS_LABELS,
 } from "../../shared/types";
-import { categoryColorStyle } from "../lib/category-style";
-import { useTypingFocus } from "../hooks/use-typing-focus";
 import { useCapturePicker } from "../hooks/use-capture-picker";
-import { CapturePicker } from "./CapturePicker";
+import { useTypingFocus } from "../hooks/use-typing-focus";
 import { type CaptureSettings, commandAtEnd, hasCustomSettings } from "../lib/capture-pickers";
+import { categoryColorStyle } from "../lib/category-style";
+import { CapturePicker } from "./CapturePicker";
 
 export type CapturePageInput = {
   title: string;

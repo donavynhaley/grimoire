@@ -1,10 +1,10 @@
 import {
+  PAGE_STATUS_LABELS,
   PAGE_STATUSES,
   type Page,
   type PageStatus,
   type ProjectCategory,
   type ProjectField,
-  PAGE_STATUS_LABELS,
 } from "../../shared/types";
 import { fieldValueText } from "./field-text";
 

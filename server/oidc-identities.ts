@@ -94,6 +94,7 @@ export function touchOidcLink(database: DatabaseSync, issuer: string, subject: s
  */
 export function countOidcLinks(database: DatabaseSync): number {
   const row = database.prepare("SELECT COUNT(*) AS total FROM oidc_identities").get() as
-    { total: number } | undefined;
+    | { total: number }
+    | undefined;
   return Number(row?.total ?? 0);
 }

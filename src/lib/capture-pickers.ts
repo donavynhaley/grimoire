@@ -1,7 +1,7 @@
 import {
-  fieldHasOptions,
-  type FieldValue,
   type Chapter,
+  type FieldValue,
+  fieldHasOptions,
   type Member,
   type ProjectCategory,
   type ProjectField,

@@ -176,7 +176,8 @@ export function openPullRequests(): Promise<{ pulls: OpenPullRequest[] }> {
 
 /** Asks the server whether its GitHub repository and token actually answer. */
 export type GithubVerification =
-  { ok: true; repo: string; private: boolean } | { ok: false; reason: string; message: string };
+  | { ok: true; repo: string; private: boolean }
+  | { ok: false; reason: string; message: string };
 
 export function verifyGithub(): Promise<GithubVerification> {
   return request<GithubVerification>("/api/github/verify", { method: "POST", body: "{}" });

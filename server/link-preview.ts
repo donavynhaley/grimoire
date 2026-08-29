@@ -1,8 +1,8 @@
 import type { ProjectCategory } from "../shared/types";
 import { PAGE_STATUS_LABELS } from "../shared/types";
 import { IDEA_LIST_LABELS } from "./audit";
-import type { StoredPage } from "./markdown-pages";
 import type { StoredIdea } from "./markdown-ideas";
+import type { StoredPage } from "./markdown-pages";
 
 /**
  * A shared link is unfurled by the chat client, not by the person who received it,

@@ -25,6 +25,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Fails fast and by name, so a contributor's first red build says "formatting" rather
+      # than burying it in the type-check half of `npm run build`.
+      - name: Check formatting and lint
+        run: npx biome ci
+
       - name: Run tests
         run: npm test
 

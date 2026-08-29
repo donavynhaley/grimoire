@@ -1,9 +1,9 @@
 import type { DatabaseSync } from "node:sqlite";
-import { IDEA_STATE_LABELS, PAGE_STATUS_LABELS } from "../shared/types";
 import type { SearchGroup, SearchHit, SearchResults } from "../shared/types";
-import type { MarkdownPageStore, StoredPage } from "./markdown-pages";
+import { IDEA_STATE_LABELS, PAGE_STATUS_LABELS } from "../shared/types";
 import type { MarkdownChapterStore } from "./markdown-chapters";
 import type { MarkdownIdeaStore } from "./markdown-ideas";
+import type { MarkdownPageStore, StoredPage } from "./markdown-pages";
 import { categoriesForProject, chaptersEnabled, membersForProject, projectById } from "./repository";
 
 export const SEARCH_RESULT_LIMIT = 40;

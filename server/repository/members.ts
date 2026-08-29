@@ -52,10 +52,12 @@ export function membersForProject(database: DatabaseSync, projectId: string): Me
      FROM project_members JOIN users ON users.id = project_members.user_id
      WHERE project_members.project_id = ? ORDER BY project_members.created_at`,
     projectId,
-  ).map((value): Member => ({
-    ...publicUser(value),
-    projectRole: value.project_role as Member["projectRole"],
-  }));
+  ).map(
+    (value): Member => ({
+      ...publicUser(value),
+      projectRole: value.project_role as Member["projectRole"],
+    }),
+  );
 }
 
 export type SetMemberRoleResult = "updated" | "not_found" | "unchanged" | "admin";

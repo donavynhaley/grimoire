@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import {
-  PAGE_STATUSES,
   type BoardWorkspace,
   type ChapterVelocity,
   type FieldValue,
   type Member,
+  PAGE_STATUSES,
   type Page,
   type PageCategory,
   type PageGithubLink,

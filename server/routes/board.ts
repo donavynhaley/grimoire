@@ -1,8 +1,8 @@
-import { searchProject } from "../search";
-import { getBoard } from "../repository";
 import { HttpError, json } from "../http";
+import { getBoard } from "../repository";
 import { searchSchema } from "../schemas";
-import { requireUser, type AppContext } from "./context";
+import { searchProject } from "../search";
+import { type AppContext, requireUser } from "./context";
 import type { Route } from "./route";
 
 export function boardRoutes(app: AppContext): Route[] {

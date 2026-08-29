@@ -1,0 +1,83 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.11/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    // .gitignore already lists the build output, the local instance data and the
+    // demo stack, so it is the one list of "not ours" rather than a second one here.
+    "useIgnoreFile": true
+  },
+  "files": {
+    "includes": [
+      "**",
+      // Not gitignored, and holds worktrees measured in gigabytes.
+      "!.claude",
+      "!.lavish",
+      "!package-lock.json",
+      // A standalone hand-written page kept exactly as it was reviewed.
+      "!docs/mobile-pass.html"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    // Carried over from the Prettier config this replaces, so adopting Biome did not
+    // silently reflow every file to a different width.
+    "lineWidth": 110
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "semicolons": "always",
+      "trailingCommas": "all",
+      "arrowParentheses": "always",
+      "bracketSpacing": true
+    }
+  },
+  "linter": {
+    "enabled": true,
+    // TOOL-2: off means "we do not intend to satisfy this, here is why"; warn means
+    // "real work somebody has to schedule", counted in every CI run; only what the
+    // codebase actually holds to is left blocking.
+    "rules": {
+      "preset": "recommended",
+      "style": {
+        // 557 uses across 74 files, concentrated in the server routes and the tests.
+        // That is the house idiom for "the schema already proved this is there", not
+        // a finding, and turning it on would be a rewrite wearing a lint config.
+        "noNonNullAssertion": "off",
+        // 23 selectors in styles.css, all in one file. Real, and worth a pass of its own.
+        "noDescendingSpecificity": "warn"
+      },
+      "correctness": {
+        // 34 across 17 components. These are genuine signals, but Biome's fix edits
+        // dependency arrays, and a wrong edit here is an infinite render rather than a
+        // failing test - so they are read by a person, not applied in bulk.
+        "useExhaustiveDependencies": "warn"
+      },
+      // ~46 findings the project has already deferred once (docs/ui-standards.md).
+      // Warning keeps the count in front of us; several are UX decisions - a dialog
+      // that autofocuses is deliberate - and none should be changed by a tooling PR.
+      "a11y": {
+        "noAriaHiddenOnFocusable": "warn",
+        "noAutofocus": "warn",
+        "noNoninteractiveElementToInteractiveRole": "warn",
+        "noStaticElementInteractions": "warn",
+        "noSvgWithoutTitle": "warn",
+        "useAriaPropsForRole": "warn",
+        "useAriaPropsSupportedByRole": "warn",
+        "useFocusableInteractive": "warn",
+        "useSemanticElements": "warn"
+      }
+    }
+  },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  }
+}

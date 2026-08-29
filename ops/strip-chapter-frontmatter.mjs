@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+
 // Removes the `chapter:` frontmatter key from every page file in a project directory.
 //
 // This exists for one situation: rolling a deployment back to a Grimoire build that predates
@@ -18,8 +19,8 @@
 //
 // Without --apply it reports what it would change and writes nothing.
 
-import { readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
+import { readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const [, , root, ...flags] = process.argv;

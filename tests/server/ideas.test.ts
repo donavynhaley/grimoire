@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { BoardWorkspace, Page, Idea, IdeaWorkspace } from "../../shared/types";
+import type { BoardWorkspace, Idea, IdeaWorkspace, Page } from "../../shared/types";
 import { bootstrap, startTestServer } from "./test-server";
 
 async function ideas(server: Awaited<ReturnType<typeof startTestServer>>) {

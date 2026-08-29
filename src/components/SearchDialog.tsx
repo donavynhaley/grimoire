@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Drawer } from "./Drawer";
 import { SEARCH_GROUPS, type SearchGroup, type SearchHit, type SearchResults } from "../../shared/types";
 import { ApiError, search as searchProject } from "../api/client";
-import { categoryColorStyle } from "../lib/category-style";
 import { useTypingFocus } from "../hooks/use-typing-focus";
+import { categoryColorStyle } from "../lib/category-style";
+import { Drawer } from "./Drawer";
 
 const GROUP_LABELS: Record<SearchGroup, string> = {
   active: "Active board",
@@ -195,6 +195,7 @@ export function SearchDialog({ initialQuery, onClose, onOpenPage, onOpenIdea, on
               const openableHit = index >= 0;
               const className = `search-hit ${openableHit && index === active ? "active" : ""} ${openableHit ? "" : "closed"}`;
               const body = (
+                // biome-ignore lint/correctness/useJsxKeyInIterable: body is a local rendered inside the keyed button or div returned below, both of which carry key={hit.id}; it is never itself a direct child of the iterable.
                 <span className="search-hit-body">
                   <span className="search-hit-line">
                     {hit.category && (

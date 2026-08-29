@@ -1,26 +1,26 @@
-import { Drawer } from "./Drawer";
 import type {
-  Page,
   Chapter,
   ChapterVelocity,
   Member,
+  Page,
   ProjectCategory,
   ProjectField,
-  User,
   ProjectRole,
+  User,
 } from "../../shared/types";
-import { Growing } from "./Growing";
+import { useSettingsAction } from "../hooks/use-settings-action";
+import { AgentAccessSection } from "./AgentAccessSection";
 import { CategoriesSection, type CategoryActions } from "./CategoriesSection";
-import { ChaptersSection, type ChapterActions } from "./ChaptersSection";
+import { type ChapterActions, ChaptersSection } from "./ChaptersSection";
 import { DangerSection } from "./DangerSection";
 import { DiscordSection } from "./DiscordSection";
-import { GithubSection } from "./GithubSection";
-import { FieldsSection, type FieldActions } from "./FieldsSection";
+import { Drawer } from "./Drawer";
+import { type FieldActions, FieldsSection } from "./FieldsSection";
 import { GeneralSection } from "./GeneralSection";
-import { AgentAccessSection } from "./AgentAccessSection";
+import { GithubSection } from "./GithubSection";
+import { Growing } from "./Growing";
 import { SignInSection } from "./SignInSection";
 import { TeamSection } from "./TeamSection";
-import { useSettingsAction } from "../hooks/use-settings-action";
 
 export const SETTINGS_SECTIONS = [
   "general",

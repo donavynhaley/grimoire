@@ -1,8 +1,8 @@
 import { useRef, useState } from "react";
 import type { FieldValue, PageFields as PageFieldValues, ProjectField } from "../../shared/types";
-import { Growing } from "./Growing";
 import { useDismissOnOutside } from "../hooks/use-dismiss-on-outside";
 import { fieldValueText } from "../lib/field-text";
+import { Growing } from "./Growing";
 
 type Props = {
   fields: ProjectField[];

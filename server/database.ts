@@ -393,7 +393,8 @@ function widenAuditEntityTypes(database: DatabaseSync): void {
   const highWater = Number(
     (
       database.prepare("SELECT seq FROM sqlite_sequence WHERE name = 'audit_events'").get() as
-        { seq?: number } | undefined
+        | { seq?: number }
+        | undefined
     )?.seq ?? 0,
   );
 

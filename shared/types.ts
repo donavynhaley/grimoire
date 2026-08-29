@@ -349,7 +349,8 @@ export type ChapterVelocity = {
  * configured one; a link pasted as a full URL may name another and carries it here.
  */
 export type PageGithubLink =
-  { kind: "pr"; number: number; repo?: string } | { kind: "branch"; name: string; repo?: string };
+  | { kind: "pr"; number: number; repo?: string }
+  | { kind: "branch"; name: string; repo?: string };
 
 /** What GitHub last said about a linked page, cached server-side between polls. */
 export type PageGithubStatus = {

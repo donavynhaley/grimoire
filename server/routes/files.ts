@@ -1,7 +1,7 @@
 import { HttpError, json, readRaw, sendFile } from "../http";
 import { IMAGE_SIZE_LIMIT, sniffImageType } from "../project-images";
 import { projectSlug } from "../repository";
-import { requireUser, type AppContext } from "./context";
+import { type AppContext, requireUser } from "./context";
 import type { Route } from "./route";
 
 /** The binary surfaces: profile pictures served by user id, note images by project. */

@@ -1,17 +1,17 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { DatabaseSync } from "node:sqlite";
-import type { AgentRateLimiter } from "../agent-tokens";
-import type { LoginRateLimiter } from "../login-rate-limit";
-import type { OidcConfig, OidcIdentity, PendingSignIns } from "../oidc";
-import type { OidcProviders, OidcSource } from "../oidc-settings";
 import type { User } from "../../shared/types";
+import type { AgentRateLimiter } from "../agent-tokens";
 import type { Options, RequestContext, WorkspaceScope } from "../app-types";
 import type { PageLabels, RecordAuditInput } from "../audit";
 import type { AvatarStore } from "../avatars";
 import { HttpError } from "../http";
+import type { LoginRateLimiter } from "../login-rate-limit";
 import type { MarkdownChapterStore } from "../markdown-chapters";
 import type { MarkdownIdeaStore } from "../markdown-ideas";
 import type { MarkdownPageStore } from "../markdown-pages";
+import type { OidcConfig, OidcIdentity, PendingSignIns } from "../oidc";
+import type { OidcProviders, OidcSource } from "../oidc-settings";
 import type { ProjectImageStore } from "../project-images";
 
 /**

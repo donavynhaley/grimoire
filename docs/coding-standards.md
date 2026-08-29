@@ -234,12 +234,29 @@ needs.
 
 ## 9. Tooling
 
-**TOOL-1.** Formatting is mechanical: Prettier, as a devDependency, checked by
-`npm run check` — so outside contributors can match the house style without
-absorbing it first. No ESLint for now; that stays a deliberate choice (DEP-1), and
-the stale `eslint-disable` comments that reference a linter the repo doesn't have
-are removed rather than honoured. Revisit the linter question when outside
-contributions start arriving.
+**TOOL-1.** Formatting and linting are mechanical and are one tool with one
+config: Biome, as a single devDependency, configured in `biome.jsonc` and checked by
+`npm run check` and by its own named CI step — so outside contributors can match the
+house style without absorbing it first, and a pull request says *formatting* rather
+than failing somewhere inside the build. This replaces Prettier and settles the
+linter question TOOL-1 previously deferred: outside contributions are the reason to
+have a linter at all, and Biome buys one without spending a second dependency on it
+(DEP-1 — it went in as Prettier came out).
+
+**TOOL-2.** A rule Grimoire does not intend to satisfy is turned off in
+`biome.jsonc` with the reason written next to it, not left to fail. A rule it intends
+to satisfy *eventually* is a warning, so the debt is counted in every CI run instead
+of being hidden. Only a rule the codebase actually holds to may block a build.
+`noNonNullAssertion` is off — 557 uses across 74 files is the house idiom, not a
+finding. Accessibility, React hook dependencies and CSS specificity ordering are
+warnings, and each is real work somebody has to schedule.
+
+**TOOL-3.** A `biome-ignore` carries the reason the rule does not apply at
+that spot, in prose, the way any other comment here does. Three exist, and each is a
+place the rule is wrong rather than a place the code is: the `100vh`/`100dvh`
+fallback pair in `styles.css`, the positional text parts in `AwayDigest.tsx`, and the
+element `SearchDialog.tsx` assembles into a local before rendering it inside a keyed
+parent. Suppressing a rule because it is inconvenient is not this.
 
 ---
 

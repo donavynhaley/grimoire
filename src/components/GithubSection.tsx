@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { verifyGithub, type GithubVerification } from "../api/client";
-import { Growing } from "./Growing";
+import { type GithubVerification, verifyGithub } from "../api/client";
 import type { SettingsRun } from "../hooks/use-settings-action";
+import { Growing } from "./Growing";
 
 /**
  * Where a project says which repository its pull requests live in.

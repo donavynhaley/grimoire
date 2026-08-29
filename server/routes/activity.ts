@@ -1,9 +1,9 @@
 import { AUDIT_PAGE_SIZE, latestAuditSequence, listAuditEvents, listUnseenEvents } from "../audit";
 import { HttpError, json, readJson } from "../http";
-import { advanceSeenCursor, initializeSeenCursor, seenCursor } from "../repository/users";
 import { userOwnsProject } from "../repository/projects";
+import { advanceSeenCursor, initializeSeenCursor, seenCursor } from "../repository/users";
 import { activityQuerySchema, seenSchema } from "../schemas";
-import { requireUser, type AppContext } from "./context";
+import { type AppContext, requireUser } from "./context";
 import type { Route } from "./route";
 
 /** The activity log and the reader's private boundary into it. */

@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import type { ArchivedProject } from "../../shared/types";
 import { archivedProjects } from "../api/client";
+import type { SettingsRun } from "../hooks/use-settings-action";
 import { ConfirmInline } from "./ConfirmInline";
 import { Growing } from "./Growing";
-import type { SettingsRun } from "../hooks/use-settings-action";
 
 type DangerProps = {
   busy: boolean;

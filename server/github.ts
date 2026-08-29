@@ -3,9 +3,9 @@ import type { Page, PageGithubLink, PageGithubStatus } from "../shared/types";
 import type { MarkdownChapterStore } from "./markdown-chapters";
 import type { MarkdownPageStore } from "./markdown-pages";
 import {
+  githubStatusesForProject,
   projectById,
   projectGithubConfig,
-  githubStatusesForProject,
   saveGithubStatus,
   updatePage,
 } from "./repository";

@@ -1,6 +1,6 @@
 import { cleanup } from "@testing-library/react";
-import { afterEach, vi } from "vitest";
 import type { Mock } from "vitest";
+import { afterEach, vi } from "vitest";
 import type { BoardWorkspace } from "../../shared/types";
 import { boardFixture } from "./board";
 

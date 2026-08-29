@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type RefObject } from "react";
+import { type RefObject, useLayoutEffect, useRef } from "react";
 
 const DURATION = 190;
 const EASING = "cubic-bezier(0.2, 0.7, 0.2, 1)";

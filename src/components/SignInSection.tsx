@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import type { OidcProviderDescription, OidcSettings } from "../../shared/types";
 import { oidcSettings, probeOidcProvider, saveOidcSettings } from "../api/client";
-import { Growing } from "./Growing";
 import type { SettingsRun } from "../hooks/use-settings-action";
+import { Growing } from "./Growing";
 
 /**
  * Turning single sign-on on, in the place somebody would look for it.

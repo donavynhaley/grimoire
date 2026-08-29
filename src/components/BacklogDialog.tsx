@@ -1,16 +1,10 @@
 import { useMemo, useState } from "react";
-import { Drawer } from "./Drawer";
-import {
-  type Page,
-  type PageCategory,
-  type Chapter,
-  type Member,
-  type ProjectCategory,
-} from "../../shared/types";
+import type { Chapter, Member, Page, PageCategory, ProjectCategory } from "../../shared/types";
+import { useTypingFocus } from "../hooks/use-typing-focus";
 import { categoryDisplay, categoryStyle } from "../lib/category-style";
 import { plainTextFromMarkdown } from "../lib/markdown-text";
 import { pageText } from "../lib/page-search";
-import { useTypingFocus } from "../hooks/use-typing-focus";
+import { Drawer } from "./Drawer";
 import { Growing } from "./Growing";
 
 type Props = {

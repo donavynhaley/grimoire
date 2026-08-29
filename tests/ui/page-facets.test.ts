@@ -5,10 +5,10 @@ import {
   countSelected,
   decodeFacets,
   encodeFacets,
+  type FacetContext,
   facetPredicate,
   toggleFacet,
   UNSET,
-  type FacetContext,
 } from "../../src/lib/page-facets";
 
 const NOW = new Date("2026-08-22T12:00:00.000Z");

@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
-import { useState } from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { uploadImage } from "../../src/api/client";
 import { NotesField } from "../../src/components/NotesField";

@@ -3,8 +3,8 @@ import type { User } from "../../shared/types";
 import { AVATAR_SIZE_LIMIT, sniffAvatarType } from "../avatars";
 import { createWizardSimulatorProject, withTransaction } from "../database";
 import {
-  HttpError,
   appendCookie,
+  HttpError,
   json,
   oidcMessage,
   readCookie,
@@ -16,8 +16,9 @@ import {
 import { clientAddress } from "../login-rate-limit";
 import {
   DEFAULT_SCOPES as DEFAULT_OIDC_SCOPES,
-  OidcError,
   newSignInSecrets,
+  OidcError,
+  type OidcIdentity,
   parseIssuerInput,
   providerBrand,
   safeReturnPath,
@@ -40,7 +41,7 @@ import {
   registerSchema,
 } from "../schemas";
 import { hashPassword, hashToken, verifyPassword } from "../security";
-import { requireAdmin, requireUser, type AppContext } from "./context";
+import { type AppContext, requireAdmin, requireUser } from "./context";
 import type { Route } from "./route";
 
 /**
@@ -236,7 +237,7 @@ export function authRoutes(app: AppContext): Route[] {
           return;
         }
 
-        let identity;
+        let identity: OidcIdentity;
         try {
           identity = await oidc.identify({
             code,

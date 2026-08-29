@@ -3,10 +3,10 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { App } from "../../src/App";
 import type { BoardWorkspace, Page } from "../../shared/types";
+import { App } from "../../src/App";
 import { boardFixture } from "../fixtures/board";
-import { installUiHarness, response, routeFetch, type RouteReply } from "../fixtures/ui";
+import { installUiHarness, type RouteReply, response, routeFetch } from "../fixtures/ui";
 
 installUiHarness();
 

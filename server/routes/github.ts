@@ -1,7 +1,7 @@
 import { githubApiFetcher, listOpenPullRequests, verifyRepoAccess } from "../github";
 import { HttpError, json, readJson, requestClientId } from "../http";
 import { projectGithubConfig } from "../repository/github";
-import { requireUser, type AppContext } from "./context";
+import { type AppContext, requireUser } from "./context";
 import type { Route } from "./route";
 
 const recapPattern = /^\/api\/chapters\/([^/]+)\/recap$/;

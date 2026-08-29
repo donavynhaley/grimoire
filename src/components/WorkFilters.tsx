@@ -1,10 +1,10 @@
-import { type RefObject } from "react";
-import { type BoardWorkspace, type Page, type PageStatus } from "../../shared/types";
+import type { RefObject } from "react";
+import type { BoardWorkspace, Page, PageStatus } from "../../shared/types";
+import type { BoardFilters } from "../hooks/use-board-filters";
+import type { CardHint } from "../hooks/use-card-board";
 import { Avatar } from "./Avatar";
 import { ChapterPicker } from "./ChapterPicker";
 import { PageFilters } from "./PageFilters";
-import { type BoardFilters } from "../hooks/use-board-filters";
-import { type CardHint } from "../hooks/use-card-board";
 
 type Props = {
   /** The backlog pill doubles as a drop target, so the board's own geometry needs its node. */

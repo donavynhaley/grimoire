@@ -1,9 +1,9 @@
-import { type PointerEvent as ReactPointerEvent } from "react";
-import { type Member, type Page, type ProjectCategory, type ProjectField } from "../../shared/types";
-import { Avatar } from "./Avatar";
-import { PageFieldChips } from "./PageFields";
+import type { PointerEvent as ReactPointerEvent } from "react";
+import type { Member, Page, ProjectCategory, ProjectField } from "../../shared/types";
 import { categoryColorStyle } from "../lib/category-style";
 import { plainTextFromMarkdown } from "../lib/markdown-text";
+import { Avatar } from "./Avatar";
+import { PageFieldChips } from "./PageFields";
 
 type Props = {
   page: Page;

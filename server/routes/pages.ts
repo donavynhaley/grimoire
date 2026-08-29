@@ -5,7 +5,7 @@ import { HttpError, json, readJson, requestClientId } from "../http";
 import { clearGithubStatus, projectGithubConfig } from "../repository/github";
 import { archivePage, createPage, findPage, restorePage, updatePage } from "../repository/pages";
 import { pageSchema, pageUpdateSchema } from "../schemas";
-import { requireUser, type AppContext } from "./context";
+import { type AppContext, requireUser } from "./context";
 import type { Route } from "./route";
 
 /*

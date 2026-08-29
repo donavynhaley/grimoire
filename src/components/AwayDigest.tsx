@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import type { AuditChange, AuditEvent, AwayState, BoardWorkspace } from "../../shared/types";
+import { dayLabel } from "../lib/activity-copy";
 import { Avatar } from "./Avatar";
 import { Growing } from "./Growing";
-import { dayLabel } from "../lib/activity-copy";
 
 const VISIBLE_LINES = 5;
 
@@ -323,6 +323,7 @@ export function AwayDigest({ away, board, onDismiss }: Props) {
               <strong>{line.actorName}</strong>
               {line.agentName && <span className="via-agent"> via {line.agentName}</span>}{" "}
               {line.parts.map((part, index) =>
+                // biome-ignore lint/suspicious/noArrayIndexKey: parts are a positional split of this one line's text, replaced wholesale whenever the line changes and never reordered, so the index is the stable identity.
                 part.strong ? <strong key={index}>{part.text}</strong> : <span key={index}>{part.text}</span>,
               )}
             </span>

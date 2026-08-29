@@ -1,19 +1,19 @@
-import {
-  type AuditPage,
-  type AwayState,
-  type BoardWorkspace,
-  type DiscussionThread,
-  type Page,
-  type ProjectRole,
+import type {
+  AuditPage,
+  AwayState,
+  BoardWorkspace,
+  DiscussionThread,
+  Page,
+  ProjectRole,
 } from "../../shared/types";
 import { AccountDialog } from "./AccountDialog";
 import { ActivityDialog } from "./ActivityDialog";
 import { BacklogDialog } from "./BacklogDialog";
-import { type CategoryActions } from "./CategoriesSection";
-import { type ChapterActions } from "./ChaptersSection";
+import type { CategoryActions } from "./CategoriesSection";
 import { type ChapterFilter, NO_CHAPTER } from "./ChapterPicker";
+import type { ChapterActions } from "./ChaptersSection";
 import { DoneHistoryDialog } from "./DoneHistoryDialog";
-import { type FieldActions } from "./FieldsSection";
+import type { FieldActions } from "./FieldsSection";
 import { PageDialog } from "./PageDialog";
 import {
   type ProjectSettingsActions,

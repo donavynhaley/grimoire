@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { bootstrap, ownerAccount, startTestServer } from "./test-server";
 import { fakeProvider, ISSUER } from "./oidc-provider";
+import { bootstrap, ownerAccount, startTestServer } from "./test-server";
 
 type Server = Awaited<ReturnType<typeof startTestServer>>;
 

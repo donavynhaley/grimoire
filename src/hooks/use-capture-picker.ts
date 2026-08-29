@@ -17,10 +17,10 @@ import type {
 } from "../../shared/types";
 import {
   type CaptureSettings,
+  filterOptions,
   type PickerKind,
   type PickerOption,
   type PickerState,
-  filterOptions,
   parseWritten,
   pickerOptions,
   picksFromList,

@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
-import { useState } from "react";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Page, ProjectCategory, ProjectField } from "../../shared/types";
 import { PageFilters } from "../../src/components/PageFilters";

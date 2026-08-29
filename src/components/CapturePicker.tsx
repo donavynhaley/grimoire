@@ -1,8 +1,8 @@
 import type { RefObject } from "react";
 import type { ProjectField } from "../../shared/types";
-import { categoryColorStyle } from "../lib/category-style";
-import { type CaptureSettings, pickerHeading, pickerTrigger, selectedValue } from "../lib/capture-pickers";
 import type { CapturePickerControl } from "../hooks/use-capture-picker";
+import { type CaptureSettings, pickerHeading, pickerTrigger, selectedValue } from "../lib/capture-pickers";
+import { categoryColorStyle } from "../lib/category-style";
 
 type Props = {
   control: CapturePickerControl;

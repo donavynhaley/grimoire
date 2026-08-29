@@ -1,9 +1,9 @@
 import type { DatabaseSync } from "node:sqlite";
 import {
-  fieldHasOptions,
-  fieldTypeSwapAllowed,
   type FieldType,
   type FieldValue,
+  fieldHasOptions,
+  fieldTypeSwapAllowed,
   type PageFields,
   type ProjectField,
 } from "../../shared/types";
@@ -84,7 +84,10 @@ export function createField(database: DatabaseSync, projectId: string, input: Fi
 }
 
 export type UpdateFieldResult =
-  { field: ProjectField; cleared: number } | "not_found" | "needs_options" | "type_locked";
+  | { field: ProjectField; cleared: number }
+  | "not_found"
+  | "needs_options"
+  | "type_locked";
 
 /**
  * Edits a definition, including the one type change that costs nothing.

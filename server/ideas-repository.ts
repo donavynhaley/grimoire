@@ -1,21 +1,21 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import { placeInOrder, renumber } from "./ordering";
 import {
   IDEA_STATES,
-  type Page,
   type Idea,
   type IdeaState,
   type IdeaWorkspace,
+  type Page,
   type User,
 } from "../shared/types";
-import { MarkdownPageStore } from "./markdown-pages";
-import { MarkdownChapterStore } from "./markdown-chapters";
-import { MarkdownIdeaStore, type StoredIdea } from "./markdown-ideas";
+import type { MarkdownChapterStore } from "./markdown-chapters";
+import type { MarkdownIdeaStore, StoredIdea } from "./markdown-ideas";
+import type { MarkdownPageStore } from "./markdown-pages";
+import { placeInOrder, renumber } from "./ordering";
 import {
-  PageDependencyError,
   createPage,
   membersForProject,
+  PageDependencyError,
   projectById,
   requireUnchangedContent,
 } from "./repository";

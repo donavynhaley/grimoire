@@ -1,18 +1,18 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import { IDEA_STATE_LABELS, PAGE_STATUS_LABELS } from "../shared/types";
 import type {
   AuditAction,
   AuditChange,
   AuditEntityType,
   AuditEvent,
   AuditPage,
+  Chapter,
   FieldValue,
+  Idea,
   Page,
   PageFields,
-  Chapter,
-  Idea,
 } from "../shared/types";
+import { IDEA_STATE_LABELS, PAGE_STATUS_LABELS } from "../shared/types";
 
 export const AUDIT_PAGE_SIZE = 40;
 export const AUDIT_MAX_PAGE_SIZE = 200;

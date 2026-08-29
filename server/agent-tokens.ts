@@ -64,7 +64,8 @@ export function issueAgentToken(
   },
 ): IssuedAgentToken | null {
   const owner = database.prepare("SELECT name FROM users WHERE id = ?").get(input.userId) as
-    { name: string } | undefined;
+    | { name: string }
+    | undefined;
   if (!owner) return null;
 
   const secret = `${AGENT_TOKEN_PREFIX}${createOpaqueToken()}`;

@@ -1,9 +1,9 @@
 import { useState } from "react";
-import type { Member, User, ProjectRole } from "../../shared/types";
+import type { Member, ProjectRole, User } from "../../shared/types";
+import type { SettingsRun } from "../hooks/use-settings-action";
 import { Avatar } from "./Avatar";
 import { ConfirmInline } from "./ConfirmInline";
 import { Growing } from "./Growing";
-import type { SettingsRun } from "../hooks/use-settings-action";
 
 type Props = {
   currentUser: User;
