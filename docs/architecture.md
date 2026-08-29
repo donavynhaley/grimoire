@@ -285,6 +285,31 @@ If positions are duplicated after an interrupted external edit, Grimoire uses cr
 Idea promotion writes the new Backlog page before archiving the source idea.
 The archived idea retains the created page UUID as a durable backlink.
 
+## Opening a project
+
+Switching projects does not take the board off the screen.
+
+It used to: the whole interface was replaced by a centred "opening project..." card until the next board answered.
+That is honest about what is happening and wrong about how it feels, because most switches answer in well under the time it takes to read the card.
+On a fast connection, or between two small boards, the card is a flash — it paints and is gone before the eye resolves it, and the interface reads as restarting rather than as working.
+
+So the board that is already there stays, and the client goes on rendering it while the next one is read.
+Two things make that safe rather than merely quicker.
+
+The first is that the board is `inert` for the duration.
+`src/api/client.ts` scopes every request by a module-level active project id, and that id is moved to the project being opened before the read starts — so a click landing on the old board inside that window would write to the new project.
+`inert` closes the whole surface at once, including the switcher that started it, which is stronger than the `busy` flag it replaces and does not need a `disabled` on every control to stay true.
+`busy` is left alone to mean what it says, a write in flight, because it is what puts "saving" on the screen and a read claiming to save is both a lie and the same flicker in a smaller box.
+
+The second is that the board and the idea garden are read together and committed together.
+Committing the board on its own would put one project's work beside the other's ideas for a frame.
+
+The loading face still exists, for the switch that really is slow.
+`useSlowWait` (`src/hooks/use-slow-wait.ts`) holds it back 200ms, so a wait that ends inside that window is never mentioned at all, and it is read against the wait rather than latched, so a late answer takes the indicator away in the same render it arrives in.
+When it does appear it is `.loading-screen.over-board`: the same face, laid translucent over the board with the 190ms fade the rest of the interface uses, so the boundary case — a wait that crosses the threshold and then lands — is a hint of a veil rather than a slammed door.
+
+The first load is still the full-screen card, and should be: there is no board to keep.
+
 ## Bulk import
 
 Seeding a project with hundreds of pages through the API would spend the write rate limit and, worse, could half-land: the strict schema means one rejected file fails the whole board, so a partial import is the outcome that must never happen.

@@ -2925,6 +2925,35 @@ textarea:hover { border-color: var(--border-bright); }
 .pulse { animation: pulse 1.4s infinite ease-in-out; }
 @keyframes pulse { 50% { opacity: 0.45; transform: scale(0.94); } }
 
+/*
+ * Opening a project is the same face laid over the board rather than instead of it.
+ *
+ * There is a board on screen already and it is still the right one until the next
+ * answer arrives, so covering it beats replacing it: the switch reads as this board
+ * being worked on, not as the application restarting. It is see-through and it
+ * fades, so the boundary case - a wait that crosses the threshold and then lands -
+ * is a hint of a veil rather than a slammed door.
+ */
+.board-swap { display: contents; }
+
+.loading-screen.over-board {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  min-height: 0;
+  background: color-mix(in srgb, var(--background) 78%, transparent);
+  backdrop-filter: blur(0.25rem);
+  animation: over-board-in 190ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@keyframes over-board-in {
+  from { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-screen.over-board { animation: none; }
+}
+
 .auth-brand {
   position: fixed;
   top: 1.5rem;

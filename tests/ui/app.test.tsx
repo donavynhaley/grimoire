@@ -160,7 +160,11 @@ describe("Grimoire board", () => {
     expect(screen.getByText("v0.6.1")).toBeInTheDocument();
   });
 
-  it("shows the opening animation while switching projects", async () => {
+  /**
+   * Stages a second project whose board answer the test holds open, so a switch can be
+   * examined in flight rather than only after it has landed.
+   */
+  function stageProjectSwitch() {
     const initial = boardFixture();
     const nextProject = {
       id: "00000000-0000-4000-8000-000000000002",
@@ -168,11 +172,7 @@ describe("Grimoire board", () => {
       description: "",
     };
     initial.projects = [...initial.projects, nextProject];
-    const next = {
-      ...initial,
-      project: { ...initial.project, ...nextProject },
-      pages: [],
-    };
+    const next = { ...initial, project: { ...initial.project, ...nextProject }, pages: [] };
     let finishOpening!: (value: Response) => void;
     const opening = new Promise<Response>((resolve) => {
       finishOpening = resolve;
@@ -181,17 +181,56 @@ describe("Grimoire board", () => {
     let boardAnswer: () => unknown = () => initial;
     routeFetch({ board: initial, routes: { "GET /api/board": () => boardAnswer() } });
 
-    render(<App />);
-    await userEvent.click(await screen.findByRole("button", { name: "Wizard Simulator" }));
-    boardAnswer = () => opening;
-    await userEvent.click(screen.getByRole("menuitem", { name: "Potion Shop" }));
+    return {
+      open: async () => {
+        await userEvent.click(await screen.findByRole("button", { name: "Wizard Simulator" }));
+        boardAnswer = () => opening;
+        await userEvent.click(screen.getByRole("menuitem", { name: "Potion Shop" }));
+      },
+      land: async () => finishOpening(await response(next)),
+    };
+  }
 
+  it("leaves the board it is opening away from on screen, with nothing thrown over it", async () => {
+    const staged = stageProjectSwitch();
+
+    render(<App />);
+    await staged.open();
+
+    // The whole point: an open that lands quickly shows no loading state at all, so the
+    // board being left is still the one on screen while the next one is being read.
+    const leaving = screen.getByRole("heading", { name: "Wizard Simulator" });
+    expect(leaving).toBeInTheDocument();
+    expect(screen.queryByText("opening project...")).not.toBeInTheDocument();
+    // Inert, because the client is already scoped to the project being opened: a click
+    // landing on this board would write to the other one.
+    expect(leaving.closest("[inert]")).toHaveClass("board-swap");
+
+    await staged.land();
+    expect(await screen.findByRole("heading", { name: "Potion Shop" })).toBeInTheDocument();
+    expect(screen.queryByText("opening project...")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Wizard Simulator" })).not.toBeInTheDocument();
+    // The board that arrived is a working one. An `inert` left behind, or written as the
+    // string "false" the way React used to, would be a board nobody can click.
+    expect(document.querySelector("[inert]")).toBeNull();
+  });
+
+  it("raises the opening face only once the wait is slow enough to be worth saying", async () => {
+    const staged = stageProjectSwitch();
+
+    render(<App />);
+    await staged.open();
+
+    // Held open past the threshold, this is the wait that has earned an answer.
     const loading = await screen.findByText("opening project...");
     expect(loading.previousElementSibling).toHaveClass("brand-mark", "pulse");
-    expect(screen.queryByRole("heading", { name: "Wizard Simulator" })).not.toBeInTheDocument();
+    // Over the board rather than instead of it - what it covers is still underneath.
+    expect(loading.closest(".loading-screen")).toHaveClass("over-board");
+    expect(screen.getByRole("heading", { name: "Wizard Simulator" })).toBeInTheDocument();
 
-    finishOpening(await response(next));
+    await staged.land();
     expect(await screen.findByRole("heading", { name: "Potion Shop" })).toBeInTheDocument();
+    expect(screen.queryByText("opening project...")).not.toBeInTheDocument();
   });
 
   it("switches between Work and Ideas with 1 and 2 from an empty capture field", async () => {

@@ -30,6 +30,7 @@ import type { CapturePageInput } from "./components/QuickCapture";
 import { type UndoNotice, UndoToast } from "./components/UndoToast";
 import { useAwayState } from "./hooks/use-away-state";
 import { useLiveEvents } from "./hooks/use-live-events";
+import { useSlowWait } from "./hooks/use-slow-wait";
 import { applyOptimisticPageUpdate } from "./lib/optimistic-page";
 
 type PendingUndo = UndoNotice & {
@@ -44,6 +45,7 @@ export function App() {
     new URLSearchParams(location.search).get("view") === "ideas" ? "ideas" : "work",
   );
   const [projectOpening, setProjectOpening] = useState(false);
+  const projectOpeningSlow = useSlowWait(projectOpening);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [undoNotice, setUndoNotice] = useState<PendingUndo | null>(null);
@@ -54,13 +56,17 @@ export function App() {
   // Bumped on every canonical reload so open history views know to refetch.
   const [revision, setRevision] = useState(0);
 
-  const refreshBoard = useCallback(async () => {
-    const value = await loadBoard();
+  /** Everything committing a freshly read workspace means, so a caller can read first. */
+  const applyBoard = useCallback((value: BoardWorkspace) => {
     setActiveProjectId(value.project.id);
     setBoard(value);
     setRevision((current) => current + 1);
     setSessionState({ status: "authenticated", user: value.currentUser });
   }, []);
+
+  const refreshBoard = useCallback(async () => {
+    applyBoard(await loadBoard());
+  }, [applyBoard]);
 
   const refreshIdeas = useCallback(async () => {
     setIdeas(await loadIdeas());
@@ -339,18 +345,36 @@ export function App() {
     history.replaceState({}, "", `${location.pathname}${params.size ? `?${params}` : ""}`);
   };
 
+  /**
+   * Opens another project without taking the current one off the screen.
+   *
+   * The board already there stays and goes inert while the next one is read, so a
+   * switch that lands quickly - a fast connection, a board small enough to answer
+   * in a frame - shows no loading state at all. Inert is what makes leaving it up
+   * safe: the client is scoped to the project being opened from the line below, so
+   * a click landing on the old board in that window would write to the new one.
+   *
+   * `busy` is not set here. It means a write is in flight, and it is what puts
+   * "saving" on the screen; a read that says it is saving would be both a lie and
+   * the same flicker in a smaller box.
+   */
   const openProject = async (id: string | null) => {
     const previousProjectId = board?.project.id ?? null;
     setUndoNotice(null);
     setActiveProjectId(id);
     syncProjectUrl(id);
-    setIdeas(null);
     setProjectOpening(true);
-    setBusy(true);
     setError("");
     try {
-      await refreshBoard();
-      if (view === "ideas") await refreshIdeas();
+      // Both halves are read before either is committed. Committing the board on its
+      // own would put one project's work beside the other's ideas for a frame, which
+      // is the flicker this avoids and a lie about whose garden you are looking at.
+      const [nextBoard, nextIdeas] = await Promise.all([
+        loadBoard(),
+        view === "ideas" ? loadIdeas() : Promise.resolve(null),
+      ]);
+      applyBoard(nextBoard);
+      setIdeas(nextIdeas);
     } catch (value) {
       // The old board is still a valid place to land if the next one cannot be read.
       // Put the request scope and URL back with it rather than leaving subsequent calls
@@ -361,7 +385,6 @@ export function App() {
       throw value;
     } finally {
       setProjectOpening(false);
-      setBusy(false);
     }
   };
 
@@ -473,14 +496,6 @@ export function App() {
     );
   }
   if (!board) return null;
-  if (projectOpening) {
-    return (
-      <div className="loading-screen">
-        <span className="brand-mark pulse">g</span>
-        <p>opening project...</p>
-      </div>
-    );
-  }
 
   return (
     <>
@@ -495,80 +510,95 @@ export function App() {
       {undoNotice && (
         <UndoToast notice={undoNotice} onDismiss={dismissUndo} onUndo={() => void undoLastChange()} />
       )}
-      <Board
-        away={awayState}
-        board={board}
-        busy={busy}
-        categoryActions={{ create: createCategory, update: updateCategory, remove: deleteCategory }}
-        fieldActions={{ create: createField, update: updateField, remove: deleteField }}
-        chapterActions={{
-          create: createChapter,
-          update: updateChapter,
-          close: closeChapter,
-          remove: deleteChapter,
-        }}
-        ideas={ideas}
-        key={board.project.id}
-        onChangeAvatar={changeAvatar}
-        onChangeName={changeName}
-        onChangePassword={changePassword}
-        onRemoveAvatar={removeAvatar}
-        onArchive={archivePage}
-        onCreate={createPage}
-        onAddMember={addMember}
-        onCreateInvite={createInvite}
-        onCreateIdea={createIdea}
-        online={online}
-        onLoadActivity={loadActivity}
-        onLoadDiscussion={loadDiscussion}
-        onAsk={askOnPage}
-        onReply={replyOnPage}
-        onSetAnswered={answerOnPage}
-        onSeeDiscussion={seeDiscussion}
-        onLogout={logout}
-        onMoveBacklogToNext={moveBacklogToNext}
-        revision={revision}
-        onPromoteIdea={promoteIdea}
-        onChangeMemberRole={changeMemberRole}
-        onRemoveMember={removeMember}
-        onRestorePage={restorePage}
-        onSurfaceError={setError}
-        onUpdate={updatePage}
-        onUpdateIdea={updateIdea}
-        onViewChange={changeView}
-        projectActions={{
-          select: selectProject,
-          create: createProject,
-          rename: renameProject,
-          archive: archiveProject,
-        }}
-        projectSettingsActions={{
-          rename: (name) => renameProject(board.project.id, name),
-          setDescription: (description) => describeProject(board.project.id, description),
-          setChaptersEnabled,
-          setEstimatesEnabled: (enabled) =>
-            performSettings(() =>
-              mutate(`/api/projects/${board.project.id}`, "PATCH", { estimatesEnabled: enabled }),
-            ),
-          setDiscordWebhook: (webhook) =>
-            performSettings(() =>
-              mutate(`/api/projects/${board.project.id}`, "PATCH", { discordWebhook: webhook }),
-            ),
-          setRecapOnClose: (enabled) =>
-            performSettings(() =>
-              mutate(`/api/projects/${board.project.id}`, "PATCH", { recapOnClose: enabled }),
-            ),
-          setGithubRepo: (repo) =>
-            performSettings(() => mutate(`/api/projects/${board.project.id}`, "PATCH", { githubRepo: repo })),
-          setGithubToken: (token) =>
-            performSettings(() =>
-              mutate(`/api/projects/${board.project.id}`, "PATCH", { githubToken: token }),
-            ),
-          archive: () => archiveProject(board.project.id),
-          restore: restoreProject,
-        }}
-        view={view}
-      />
+      {/*
+       * Inert rather than unmounted while the next project loads - see openProject.
+       * `display: contents` keeps this wrapper out of the layout, so the board shell
+       * is still the child of the body it was written to be.
+       */}
+      <div className="board-swap" inert={projectOpening}>
+        <Board
+          away={awayState}
+          board={board}
+          busy={busy}
+          categoryActions={{ create: createCategory, update: updateCategory, remove: deleteCategory }}
+          fieldActions={{ create: createField, update: updateField, remove: deleteField }}
+          chapterActions={{
+            create: createChapter,
+            update: updateChapter,
+            close: closeChapter,
+            remove: deleteChapter,
+          }}
+          ideas={ideas}
+          key={board.project.id}
+          onChangeAvatar={changeAvatar}
+          onChangeName={changeName}
+          onChangePassword={changePassword}
+          onRemoveAvatar={removeAvatar}
+          onArchive={archivePage}
+          onCreate={createPage}
+          onAddMember={addMember}
+          onCreateInvite={createInvite}
+          onCreateIdea={createIdea}
+          online={online}
+          onLoadActivity={loadActivity}
+          onLoadDiscussion={loadDiscussion}
+          onAsk={askOnPage}
+          onReply={replyOnPage}
+          onSetAnswered={answerOnPage}
+          onSeeDiscussion={seeDiscussion}
+          onLogout={logout}
+          onMoveBacklogToNext={moveBacklogToNext}
+          revision={revision}
+          onPromoteIdea={promoteIdea}
+          onChangeMemberRole={changeMemberRole}
+          onRemoveMember={removeMember}
+          onRestorePage={restorePage}
+          onSurfaceError={setError}
+          onUpdate={updatePage}
+          onUpdateIdea={updateIdea}
+          onViewChange={changeView}
+          projectActions={{
+            select: selectProject,
+            create: createProject,
+            rename: renameProject,
+            archive: archiveProject,
+          }}
+          projectSettingsActions={{
+            rename: (name) => renameProject(board.project.id, name),
+            setDescription: (description) => describeProject(board.project.id, description),
+            setChaptersEnabled,
+            setEstimatesEnabled: (enabled) =>
+              performSettings(() =>
+                mutate(`/api/projects/${board.project.id}`, "PATCH", { estimatesEnabled: enabled }),
+              ),
+            setDiscordWebhook: (webhook) =>
+              performSettings(() =>
+                mutate(`/api/projects/${board.project.id}`, "PATCH", { discordWebhook: webhook }),
+              ),
+            setRecapOnClose: (enabled) =>
+              performSettings(() =>
+                mutate(`/api/projects/${board.project.id}`, "PATCH", { recapOnClose: enabled }),
+              ),
+            setGithubRepo: (repo) =>
+              performSettings(() =>
+                mutate(`/api/projects/${board.project.id}`, "PATCH", { githubRepo: repo }),
+              ),
+            setGithubToken: (token) =>
+              performSettings(() =>
+                mutate(`/api/projects/${board.project.id}`, "PATCH", { githubToken: token }),
+              ),
+            archive: () => archiveProject(board.project.id),
+            restore: restoreProject,
+          }}
+          view={view}
+        />
+      </div>
+      {projectOpeningSlow && (
+        <div className="loading-screen over-board" role="status">
+          <span className="brand-mark pulse">g</span>
+          <p>opening project...</p>
+        </div>
+      )}
     </>
   );
 }

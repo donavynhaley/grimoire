@@ -46,6 +46,16 @@ should stay that way:
 - **Lists whose length tracks a query**, such as search results. The changing length
   is the answer to what was typed, not a section opening.
 
+A loading indicator is an entrance too, and it has its own rule: hold it back until
+the wait is slow enough to be worth mentioning. `useSlowWait`
+(`src/hooks/use-slow-wait.ts`) is that delay, and it is read against the wait rather
+than latched, so a late answer takes the indicator away in the same render it arrives
+in. An indicator raised the instant work starts is a flash on every fast connection —
+it paints and is gone before the eye resolves it, which reads as a glitch rather than
+as work. Where there is already something correct on screen, cover it rather than
+replace it: the project switch is `.loading-screen.over-board` over an `inert` board,
+and `docs/architecture.md` holds the reasoning.
+
 Reordering inside a list is `useFlip` on the list container, with elements opting in
 through `data-flip-id`. Layout motion is always the Web Animations API from a
 `useLayoutEffect`, never a CSS transition — a transition animates from wherever the
