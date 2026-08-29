@@ -373,3 +373,19 @@ Set `GRIMOIRE_TRUST_PROXY=1` when you do, so a failed sign-in is counted against
 
 Back up the `data` directory to preserve accounts, work, and ideas.
 Do not run multiple Grimoire containers against the same SQLite file or project directory.
+
+## License
+
+Copyright © 2026 Donavyn Haley.
+
+Grimoire is free software under the [GNU Affero General Public License v3.0](LICENSE).
+You can run it, read it, change it, and host it for whoever you like; if you run a modified version as a network service, the AGPL asks you to offer those users its source.
+
+The one exception is `packages/grimoire-mcp`, the MCP server an agent talks to Grimoire through.
+That is [MIT](packages/grimoire-mcp/LICENSE), because it is a client: it should be free to vendor into anything, including software that is not itself open source.
+
+## Contributing
+
+Pull requests are welcome, and a first one is asked to sign the [contributor license agreement](docs/contributor-license-agreement.md).
+It is a licence rather than an assignment — you keep the copyright in what you write — and it is what lets the project keep making licensing decisions later without having to find and ask every past contributor.
+Signing is a single comment on the pull request; the CLA assistant asks for it and remembers the answer.

@@ -137,3 +137,10 @@ CI runs it on every push, after the main suite.
 Writes are limited per token, with a burst allowance.
 Going past it returns a message asking the agent to wait, and writes nothing.
 This exists so a looping agent stays interruptible, not to ration ordinary use.
+
+## License
+
+MIT. Copyright © 2026 Donavyn Haley.
+
+This package is licensed separately from Grimoire itself, which is AGPL-3.0-only.
+The server this talks to carries the copyleft; the client you talk to it with should be free to go anywhere, so it does not.
