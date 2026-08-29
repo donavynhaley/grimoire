@@ -40,7 +40,7 @@ jobs:
           #   git push -u origin cla-signatures
           branch: cla-signatures
           path-to-signatures: signatures/version1/cla.json
-          path-to-document: https://github.com/donavynhaley/grimore/blob/main/docs/contributor-license-agreement.md
+          path-to-document: https://github.com/donavynhaley/grimoire/blob/main/docs/contributor-license-agreement.md
           custom-pr-sign-comment: I have read the CLA Document and I hereby sign the CLA
           # The copyright holder is not asked to license work to himself, and a
           # bot has no copyright to grant.
