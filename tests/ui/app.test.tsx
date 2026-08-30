@@ -446,6 +446,109 @@ describe("Grimoire board", () => {
     expect(input).toHaveFocus();
   });
 
+  it("assigns the only member of a one-person project without being asked", async () => {
+    const initial = boardFixture();
+    const donavyn = initial.members[0]!;
+    const alone = { ...initial, members: [donavyn] };
+    const created = {
+      ...initial.pages[0]!,
+      id: "00000000-0000-4000-8000-000000000032",
+      title: "Hang the tower door",
+      assigneeId: donavyn.id,
+      assigneeName: donavyn.name,
+      position: 1,
+    };
+    let workspace = alone;
+    const { fetchMock } = routeFetch({
+      board: () => workspace,
+      routes: {
+        "POST /api/pages": () => {
+          workspace = { ...alone, pages: [...alone.pages, created] };
+          return response({ page: created }, 201);
+        },
+      },
+    });
+
+    render(<App />);
+    const input = await screen.findByLabelText("Capture work page");
+    await userEvent.type(input, created.title);
+
+    // The default is on screen before it is sent, so it can be changed like any other choice.
+    expect(screen.getByRole("button", { name: `Assignee: ${donavyn.name}` })).toBeInTheDocument();
+    // And starting fresh is not offered, because it would put things back exactly as they are.
+    expect(
+      screen.queryByRole("button", { name: "Start fresh with default settings" }),
+    ).not.toBeInTheDocument();
+
+    await userEvent.keyboard("{Enter}");
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/pages",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            title: created.title,
+            category: null,
+            chapter: null,
+            assigneeId: donavyn.id,
+            status: "backlog",
+          }),
+        }),
+      ),
+    );
+  });
+
+  it("carries that default into the column's own add form", async () => {
+    const initial = boardFixture();
+    const donavyn = initial.members[0]!;
+    const alone = { ...initial, members: [donavyn] };
+    const created = {
+      ...initial.pages[0]!,
+      id: "00000000-0000-4000-8000-000000000033",
+      title: "Sketch the stair",
+      assigneeId: donavyn.id,
+      assigneeName: donavyn.name,
+      position: 1,
+    };
+    let workspace = alone;
+    const { fetchMock } = routeFetch({
+      board: () => workspace,
+      routes: {
+        "POST /api/pages": () => {
+          workspace = { ...alone, pages: [...alone.pages, created] };
+          return response({ page: created }, 201);
+        },
+      },
+    });
+
+    render(<App />);
+    await screen.findByLabelText("Capture work page");
+    await userEvent.click(screen.getAllByRole("button", { name: "+ add page" })[0]!);
+    await userEvent.type(screen.getByPlaceholderText("Page title"), created.title);
+    await userEvent.keyboard("{Enter}");
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/pages",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining(`"assigneeId":"${donavyn.id}"`),
+        }),
+      ),
+    );
+  });
+
+  it("leaves the assignee open as soon as there is somebody else it could be", async () => {
+    routeFetch({ board: boardFixture() });
+
+    render(<App />);
+    const input = await screen.findByLabelText("Capture work page");
+    await userEvent.type(input, "Decide who hangs the door");
+
+    expect(screen.getByRole("button", { name: "Choose assignee" })).toBeInTheDocument();
+  });
+
   it("uses inline commands to configure capture without adding them to the page title", async () => {
     const initial = boardFixture();
     const created = {

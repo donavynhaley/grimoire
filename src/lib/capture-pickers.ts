@@ -33,6 +33,33 @@ export type PickerOption = {
   hint?: string;
 };
 
+/**
+ * The one person a page can safely be assumed to be for, when there is only one.
+ *
+ * A project with a single member has no ambiguity to preserve: every page on it is that
+ * person's, and leaving each one unassigned is asking them to say so again about work
+ * nobody else could be doing. Two members is where the question becomes real, so that is
+ * where the answer goes back to being unassigned.
+ */
+export function soleMemberId(members: Member[]): string | null {
+  return members.length === 1 ? (members[0]?.id ?? null) : null;
+}
+
+/**
+ * What a fresh capture starts as: the current chapter, and the one person there is.
+ *
+ * New work belongs to the chapter the project has declared current, when it has one.
+ */
+export function defaultCaptureSettings(chapters: Chapter[], members: Member[]): CaptureSettings {
+  return {
+    category: null,
+    chapter: chapters.find((chapter) => chapter.state === "open")?.slug ?? null,
+    assigneeId: soleMemberId(members),
+    status: "backlog",
+    fields: {},
+  };
+}
+
 /** Whether a field answers with a choice among options, or has to be written in. */
 export function picksFromList(field: ProjectField): boolean {
   return fieldHasOptions(field.type) || field.type === "checkbox";
@@ -185,12 +212,19 @@ export function selectedValue(settings: CaptureSettings, picker: PickerState): s
   return settings.status;
 }
 
-export function hasCustomSettings(settings: CaptureSettings): boolean {
+/**
+ * Whether anything has been chosen that starting fresh would actually undo.
+ *
+ * Measured against the defaults rather than against nothing, because the defaults are not
+ * nothing: an open chapter and a project's only member are both already answered, and
+ * offering to reset to the state somebody is in is offering a button that does nothing.
+ */
+export function hasCustomSettings(settings: CaptureSettings, defaults: CaptureSettings): boolean {
   return (
-    settings.category !== null ||
-    settings.chapter !== null ||
-    settings.assigneeId !== null ||
-    settings.status !== "backlog" ||
+    settings.category !== defaults.category ||
+    settings.chapter !== defaults.chapter ||
+    settings.assigneeId !== defaults.assigneeId ||
+    settings.status !== defaults.status ||
     Object.keys(settings.fields).length > 0
   );
 }
