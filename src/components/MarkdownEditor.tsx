@@ -1,11 +1,11 @@
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown, markdownKeymap, markdownLanguage, pasteURLAsLink } from "@codemirror/lang-markdown";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
-import { EditorSelection, EditorState, type Extension } from "@codemirror/state";
+import { Compartment, EditorSelection, EditorState, type Extension } from "@codemirror/state";
 import { EditorView, keymap, placeholder as placeholderExtension } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import { GFM } from "@lezer/markdown";
-import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { livePreview } from "../lib/live-preview";
 
 export type MarkdownEditorHandle = {
@@ -24,6 +24,13 @@ type Props = {
   placeholder: string;
   /** Fills the height it is handed and scrolls inside it, rather than growing. */
   fill?: boolean;
+  /**
+   * Shows the Markdown as it is written, with the live preview's drawing switched off.
+   *
+   * The document is the same either way - only what is drawn over it changes - so the caret,
+   * the selection and the undo history all survive the swap.
+   */
+  source?: boolean;
   /**
    * Put on the box that actually scrolls, which is CodeMirror's own scroller rather than
    * anything React renders here. The notes are the one thing on the page editor allowed
@@ -50,6 +57,15 @@ const CODE_HIGHLIGHT = HighlightStyle.define([
   { tag: [tags.typeName, tags.className], class: "cm-lp-token-type" },
 ]);
 
+/**
+ * The drawing that makes this surface Live Preview, declared once.
+ *
+ * CodeMirror extensions are declarations rather than instances, so every editor can share
+ * these - and sharing them is what lets a reconfiguration back to the same drawing cost
+ * nothing, which is what the mount-time one below is.
+ */
+const LIVE_PREVIEW = livePreview();
+
 /** Wrapping a selection is how emphasis gets applied when the syntax is not on screen. */
 function wrapSelection(view: EditorView, mark: string): boolean {
   view.dispatch(
@@ -72,6 +88,9 @@ function wrapSelection(view: EditorView, mark: string): boolean {
 function editorExtensions(props: {
   ariaLabel: string;
   placeholder: string;
+  /** Holds the live preview, so the mode can be swapped without rebuilding the editor. */
+  preview: Compartment;
+  source: boolean;
   onChange: (value: string) => void;
   onPasteFiles?: (files: File[]) => void;
   onFocusChange?: (focused: boolean) => void;
@@ -91,7 +110,7 @@ function editorExtensions(props: {
     // A URL pasted over chosen words is a link around those words, as it is in Obsidian.
     pasteURLAsLink,
     syntaxHighlighting(CODE_HIGHLIGHT),
-    livePreview(),
+    props.preview.of(props.source ? [] : LIVE_PREVIEW),
     EditorView.lineWrapping,
     placeholderExtension(props.placeholder),
     EditorView.contentAttributes.of({ "aria-label": props.ariaLabel }),
@@ -130,13 +149,26 @@ function editorExtensions(props: {
  * where the caret is, since that edit is not this reader's.
  */
 export const MarkdownEditor = forwardRef<MarkdownEditorHandle, Props>(function MarkdownEditor(
-  { ariaLabel, value, onChange, placeholder, fill = false, scrollerClass, onPasteFiles, onFocusChange },
+  {
+    ariaLabel,
+    value,
+    onChange,
+    placeholder,
+    fill = false,
+    source = false,
+    scrollerClass,
+    onPasteFiles,
+    onFocusChange,
+  },
   ref,
 ) {
   const host = useRef<HTMLDivElement | null>(null);
   const view = useRef<EditorView | null>(null);
-  const latest = useRef({ onChange, onPasteFiles, onFocusChange });
-  latest.current = { onChange, onPasteFiles, onFocusChange };
+  // Held in state rather than a memo: the compartment is the handle the mode is swapped
+  // by, and React is free to throw a memo away, which would quietly strand the swap.
+  const [preview] = useState(() => new Compartment());
+  const latest = useRef({ onChange, onPasteFiles, onFocusChange, source });
+  latest.current = { onChange, onPasteFiles, onFocusChange, source };
   /**
    * The text this editor has announced, most recent last.
    *
@@ -159,6 +191,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, Props>(function M
         extensions: editorExtensions({
           ariaLabel,
           placeholder,
+          preview,
+          source: latest.current.source,
           onChange: (next) => {
             emitted.current.push(next);
             // Only enough history to outlast React's lag, never enough to be a copy of the notes.
@@ -178,7 +212,14 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, Props>(function M
     };
     // The editor is created once; everything that changes reaches it through a ref or a
     // transaction, because rebuilding it would throw away the caret and the undo history.
-  }, [ariaLabel, fill, placeholder, scrollerClass]);
+  }, [ariaLabel, fill, placeholder, preview, scrollerClass]);
+
+  useEffect(() => {
+    // The mode is the one thing about this surface a reader changes while using it, so it
+    // is swapped inside the compartment rather than by building a second editor: the words
+    // are the same words, and the caret they were reading from is the same caret.
+    view.current?.dispatch({ effects: preview.reconfigure(source ? [] : LIVE_PREVIEW) });
+  }, [preview, source]);
 
   useEffect(() => {
     const editor = view.current;

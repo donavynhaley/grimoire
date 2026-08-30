@@ -110,6 +110,11 @@ A controlled value arrives a render late, by which time the document has usually
 
 Board and library tiles reduce notes to plain text; the separate read-only renderer the live preview replaced has been removed.
 
+The `edit` control beside the notes asks for the Markdown itself - Obsidian's source mode - and says `view` while it is showing it.
+Live Preview is right for almost everything and wrong for the few things whose syntax is the point: a table being restructured, a link whose target matters, a page pasted in from elsewhere.
+The drawing is swapped inside a CodeMirror compartment rather than by building a second editor, because the document, the caret and the undo history are the same in both modes and only what is drawn over them changes.
+The word on the control names what a click will do rather than which mode is showing, the way a play button does, so it carries no `aria-pressed`: a pressed state under the word "view" would contradict the word a reader can see.
+
 ## Capturing work
 
 A page captured on a project with exactly one member arrives assigned to that member, in the capture bar and in a column's own add form alike.

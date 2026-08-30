@@ -29,6 +29,7 @@ function notesElement(value: string, onChange: (value: string) => void = () => u
       placeholder="Add only the context someone needs to act..."
       rows={6}
       value={value}
+      viewLabel="View notes"
     />
   );
 }
@@ -238,7 +239,7 @@ describe("NotesField task checkboxes", () => {
     const { container } = renderNotes("- [ ] hang the door");
     expect(container.querySelector("input.cm-lp-task")).not.toBeNull();
 
-    await userEvent.click(screen.getByRole("button", { name: "Edit notes" }));
+    surface().focus();
 
     // A box that stayed a box would have no characters for the caret to walk into.
     await waitFor(() => expect(container.querySelector("input.cm-lp-task")).toBeNull());
@@ -358,6 +359,49 @@ describe("NotesField image paste", () => {
 
     fireEvent.dragLeave(field, { dataTransfer: { files: [], types: ["Files"] } });
     expect(field.className).not.toContain("drop-active");
+  });
+});
+
+describe("NotesField source mode", () => {
+  it("hands over the Markdown itself, and offers the drawn document back", async () => {
+    const { container } = renderNotes("# Goal\n\nUse **bold** words and ![[shot.png]] beside them.");
+    expect(container.querySelector(".cm-lp-h1")).not.toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit notes" }));
+
+    await waitFor(() => expect(container.querySelector(".cm-lp-h1")).toBeNull());
+    expect(container.querySelector(".cm-lp-strong")).toBeNull();
+    expect(container.querySelector("img.cm-lp-image")).toBeNull();
+    expect(shown()).toContain("# Goal");
+    expect(shown()).toContain("**bold**");
+    expect(shown()).toContain("![[shot.png]]");
+    // The word on the control is what a click will do next, so it is now the way back.
+    expect(screen.getByRole("button", { name: "View notes" })).toHaveTextContent("view");
+
+    await userEvent.click(screen.getByRole("button", { name: "View notes" }));
+
+    await waitFor(() => expect(container.querySelector(".cm-lp-h1")).not.toBeNull());
+    expect(shown()).not.toContain("**");
+    expect(screen.getByRole("button", { name: "Edit notes" })).toHaveTextContent("edit");
+  });
+
+  it("changes what is drawn and never what is written", async () => {
+    const changes: string[] = [];
+    renderNotes("# Goal\n\n- [ ] hang the door", (value) => changes.push(value));
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit notes" }));
+    await waitFor(() => expect(shown()).toContain("# Goal"));
+    await userEvent.click(screen.getByRole("button", { name: "View notes" }));
+
+    expect(changes).toHaveLength(0);
+  });
+
+  it("brings the caret with it, because asking for the Markdown is asking to write in it", async () => {
+    renderNotes("notes");
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit notes" }));
+
+    await waitFor(() => expect(surface()).toHaveFocus());
   });
 });
 
