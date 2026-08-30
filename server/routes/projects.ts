@@ -19,9 +19,9 @@ import {
   setProjectRecap,
   userOwnsProject,
 } from "../repository/projects";
-import { createOpaqueToken, hashToken } from "../security";
 import { projectSchema, projectUpdateSchema } from "../schemas";
-import { requireUser, type AppContext } from "./context";
+import { createOpaqueToken, hashToken } from "../security";
+import { type AppContext, requireUser } from "./context";
 import type { Route } from "./route";
 
 const projectPattern = /^\/api\/projects\/([^/]+)$/;

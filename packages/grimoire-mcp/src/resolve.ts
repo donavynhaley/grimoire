@@ -1,4 +1,4 @@
-import { PAGE_COLUMNS, type Board, type FieldValue, type Page, type ProjectField } from "./client.js";
+import { type Board, type FieldValue, PAGE_COLUMNS, type Page, type ProjectField } from "./client.js";
 
 export { PAGE_COLUMNS };
 

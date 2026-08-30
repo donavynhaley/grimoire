@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
+import { resolveServerPort } from "../shared/config";
 import { createGrimoireServer } from "./app";
 import { oidcConfigFromEnvironment } from "./oidc";
-import { resolveServerPort } from "../shared/config";
 
 const port = resolveServerPort(process.env);
 const host = process.env.HOST ?? "127.0.0.1";

@@ -2,7 +2,7 @@ import { changeAction, ideaChanges } from "../audit";
 import { HttpError, json, readJson, requestClientId } from "../http";
 import { createIdea, findIdea, getIdeas, promoteIdea, undoPromotion, updateIdea } from "../ideas-repository";
 import { ideaSchema, ideaUpdateSchema } from "../schemas";
-import { requireUser, type AppContext } from "./context";
+import { type AppContext, requireUser } from "./context";
 import type { Route } from "./route";
 
 /** The idea garden: the shortlist beside the board, and the promotion path onto it. */

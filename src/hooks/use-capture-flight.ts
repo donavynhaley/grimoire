@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
-import { type PageStatus } from "../../shared/types";
+import { type RefObject, useEffect, useRef, useState } from "react";
+import type { PageStatus } from "../../shared/types";
 
 export type CaptureFlight = {
   id: number;

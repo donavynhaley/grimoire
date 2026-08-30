@@ -12,8 +12,9 @@
  * Usage: node scripts/shots.mjs            (writes .shots/*.png)
  *        SHOT_BASE=http://127.0.0.1:5199 node scripts/shots.mjs
  */
-import { chromium } from "@playwright/test";
+
 import { mkdirSync } from "node:fs";
+import { chromium } from "@playwright/test";
 
 const BASE = process.env.SHOT_BASE ?? "http://127.0.0.1:8099";
 const OUT = process.env.SHOT_OUT ?? ".shots";
@@ -36,19 +37,26 @@ async function shot(name, { width, height = 900, run }) {
   await context.close();
 }
 
-const openPage = (title, { discussion = false } = {}) => async (page) => {
-  await page.getByText(title, { exact: false }).first().click();
-  await page.waitForSelector(".page-editor", { timeout: 10000 });
-  await page.waitForTimeout(500);
-  // The column shows the properties first, so a plate of the conversation has to turn to it.
-  if (discussion) {
-    await page.locator(".aside-switch .pane-tab", { hasText: "Discussion" }).click();
+const openPage =
+  (title, { discussion = false } = {}) =>
+  async (page) => {
+    await page.getByText(title, { exact: false }).first().click();
+    await page.waitForSelector(".page-editor", { timeout: 10000 });
     await page.waitForTimeout(500);
-  }
-};
+    // The column shows the properties first, so a plate of the conversation has to turn to it.
+    if (discussion) {
+      await page.locator(".aside-switch .pane-tab", { hasText: "Discussion" }).click();
+      await page.waitForTimeout(500);
+    }
+  };
 
 console.log("capturing:");
-await shot("01-board", { width: 1600, run: async (page) => { await page.waitForTimeout(600); } });
+await shot("01-board", {
+  width: 1600,
+  run: async (page) => {
+    await page.waitForTimeout(600);
+  },
+});
 // The unread count, on a page whose conversation this person has not opened.
 await shot("08-unseen-1600", { width: 1600, run: openPage("swap a logged meal") });
 // A message addressed to the person reading it, and the picker that writes one.

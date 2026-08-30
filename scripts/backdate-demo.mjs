@@ -21,7 +21,19 @@ const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
 /** How far back each message sits, oldest first, so a thread still reads in order. */
-const AGES = [4 * DAY, 3 * DAY, 2 * DAY + 6 * HOUR, 2 * DAY, DAY + 3 * HOUR, DAY, 5 * HOUR, 2 * HOUR, 40 * MINUTE, 20 * MINUTE, 6 * MINUTE];
+const AGES = [
+  4 * DAY,
+  3 * DAY,
+  2 * DAY + 6 * HOUR,
+  2 * DAY,
+  DAY + 3 * HOUR,
+  DAY,
+  5 * HOUR,
+  2 * HOUR,
+  40 * MINUTE,
+  20 * MINUTE,
+  6 * MINUTE,
+];
 
 const now = Date.now();
 const stamp = (age) => new Date(now - age).toISOString();
@@ -33,7 +45,9 @@ const roots = database
 
 let index = 0;
 const setCreated = database.prepare("UPDATE page_discussion SET created_at = ? WHERE id = ?");
-const setAnswered = database.prepare("UPDATE page_discussion SET answered_at = ? WHERE id = ? AND answered_at IS NOT NULL");
+const setAnswered = database.prepare(
+  "UPDATE page_discussion SET answered_at = ? WHERE id = ? AND answered_at IS NOT NULL",
+);
 const repliesOf = database.prepare(
   "SELECT id FROM page_discussion WHERE parent_id = ? ORDER BY created_at ASC, rowid ASC",
 );

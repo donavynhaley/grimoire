@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { ArchivedProject, ProjectSummary, User } from "../../shared/types";
-import { row, rows, type Row } from "./rows";
+import { type Row, row, rows } from "./rows";
 
 // The projects table itself: identity, access, archival, and per-project settings.
 

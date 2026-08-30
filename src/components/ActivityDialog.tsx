@@ -1,5 +1,4 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { Drawer } from "./Drawer";
 import {
   AUDIT_ENTITY_TYPES,
   type AuditEntityType,
@@ -7,7 +6,7 @@ import {
   type AuditPage,
   type Member,
 } from "../../shared/types";
-import { Avatar } from "./Avatar";
+import { useTypingFocus } from "../hooks/use-typing-focus";
 import {
   dayLabel,
   describeChange,
@@ -16,7 +15,8 @@ import {
   eventText,
   timeLabel,
 } from "../lib/activity-copy";
-import { useTypingFocus } from "../hooks/use-typing-focus";
+import { Avatar } from "./Avatar";
+import { Drawer } from "./Drawer";
 
 const PAGE_SIZE = 60;
 

@@ -23,7 +23,9 @@ const host = new URL(BASE).hostname;
 const local = host === "127.0.0.1" || host === "localhost" || host === "::1" || host === "[::1]";
 if (!local && process.env.GRIMOIRE_SEED_REMOTE !== "yes") {
   console.error(`Refusing to seed ${BASE}: it is not this machine.`);
-  console.error("This bootstraps an owner and reshapes a project. Set GRIMOIRE_SEED_REMOTE=yes if you meant it.");
+  console.error(
+    "This bootstraps an owner and reshapes a project. Set GRIMOIRE_SEED_REMOTE=yes if you meant it.",
+  );
   process.exit(2);
 }
 
@@ -114,12 +116,19 @@ const PAGES = [
       {
         by: "donavyn",
         body: "Does this need to handle a swap that changes the day's macro target, or only same-target swaps? The reducer branches hard on that.",
-        replies: [{ by: "alan", body: "Same-target only for launch. Target changes are their own story - I'll split it out this week." }],
+        replies: [
+          {
+            by: "alan",
+            body: "Same-target only for launch. Target changes are their own story - I'll split it out this week.",
+          },
+        ],
       },
       {
         by: "donavyn",
         body: "Whose clock are we writing? Device time is what the subscriber sees, but the ledger writes UTC.",
-        replies: [{ by: "alan", body: "Device time for display, UTC for the ledger. Same rule as set logging." }],
+        replies: [
+          { by: "alan", body: "Device time for display, UTC for the ledger. Same rule as set logging." },
+        ],
         answeredBy: "donavyn",
       },
     ],
@@ -130,7 +139,8 @@ const PAGES = [
     category: "code",
     estimate: 3,
     assignee: "alan",
-    description: "Refunding a week pass credits the wallet, but the balance read is served from cache for up to 60s.",
+    description:
+      "Refunding a week pass credits the wallet, but the balance read is served from cache for up to 60s.",
     discussion: [
       {
         by: "donavyn",
@@ -148,7 +158,8 @@ const PAGES = [
     category: "production",
     estimate: 5,
     assignee: "alan",
-    description: "The upload route answers with `Access-Control-Allow-Origin: *`. Everything else on the service is scoped.",
+    description:
+      "The upload route answers with `Access-Control-Allow-Origin: *`. Everything else on the service is scoped.",
     discussion: [
       {
         agent: true,
@@ -180,7 +191,8 @@ const PAGES = [
     category: "design",
     estimate: 5,
     assignee: null,
-    description: "We keep guessing at what the home feed costs on a cold load. Measure before touching anything.",
+    description:
+      "We keep guessing at what the home feed costs on a cold load. Measure before touching anything.",
     discussion: [
       {
         by: "alan",
@@ -202,14 +214,48 @@ const PAGES = [
       "- Rollback is a DNS revert, not a redeploy\n",
     discussion: [
       { by: "alan", body: "Are we cutting over on the Friday or the Saturday? I can only cover Saturday." },
-      { by: "donavyn", body: "Do we need the read replica up before the cut-over, or can it lag?", replies: [{ by: "alan", body: "It can lag. Nothing reads from it on day one." }] },
-      { agent: true, body: "The five CDK blockers are down to two: the OpenSearch domain policy and the ACM cert in us-east-1. Both are mine unless you want them." },
-      { by: "alan", body: "Who owns the status page during the window? I'd rather it wasn't whoever is doing the cut-over." },
-      { by: "donavyn", body: "Should the old account stay warm for a week, or do we tear it down once DNS has settled?", answeredBy: "alan", replies: [{ by: "alan", body: "Warm for a week. It costs almost nothing and it is the only real rollback we have." }] },
-      { by: "alan", body: "Rate limits on the new account are lower by default - do we need a quota increase before the window?" },
-      { agent: true, body: "Ran the runbook against dev end to end. Step 7 assumes the migration has already run; it has not, at that point. Worth reordering." },
-      { by: "donavyn", body: "Do we announce the maintenance window, or is the downtime short enough not to?", answeredBy: "donavyn", replies: [{ by: "alan", body: "Announce it. Two minutes unannounced is worse than ten announced." }] },
-      { by: "alan", body: "@Donavyn last one: who has the domain registrar credentials? I don't, and DNS is the last step." },
+      {
+        by: "donavyn",
+        body: "Do we need the read replica up before the cut-over, or can it lag?",
+        replies: [{ by: "alan", body: "It can lag. Nothing reads from it on day one." }],
+      },
+      {
+        agent: true,
+        body: "The five CDK blockers are down to two: the OpenSearch domain policy and the ACM cert in us-east-1. Both are mine unless you want them.",
+      },
+      {
+        by: "alan",
+        body: "Who owns the status page during the window? I'd rather it wasn't whoever is doing the cut-over.",
+      },
+      {
+        by: "donavyn",
+        body: "Should the old account stay warm for a week, or do we tear it down once DNS has settled?",
+        answeredBy: "alan",
+        replies: [
+          {
+            by: "alan",
+            body: "Warm for a week. It costs almost nothing and it is the only real rollback we have.",
+          },
+        ],
+      },
+      {
+        by: "alan",
+        body: "Rate limits on the new account are lower by default - do we need a quota increase before the window?",
+      },
+      {
+        agent: true,
+        body: "Ran the runbook against dev end to end. Step 7 assumes the migration has already run; it has not, at that point. Worth reordering.",
+      },
+      {
+        by: "donavyn",
+        body: "Do we announce the maintenance window, or is the downtime short enough not to?",
+        answeredBy: "donavyn",
+        replies: [{ by: "alan", body: "Announce it. Two minutes unannounced is worse than ten announced." }],
+      },
+      {
+        by: "alan",
+        body: "@Donavyn last one: who has the domain registrar credentials? I don't, and DNS is the last step.",
+      },
     ],
   },
   {
@@ -218,7 +264,8 @@ const PAGES = [
     category: "code",
     estimate: 3,
     assignee: null,
-    description: "There is no way to ask for the verification mail again short of registering a second account.",
+    description:
+      "There is no way to ask for the verification mail again short of registering a second account.",
     discussion: [],
   },
   {
@@ -249,7 +296,11 @@ async function main() {
   donavyn.id = created.user.id;
 
   console.log("Creating the sample project ...");
-  const project = await call(donavyn, "/api/projects", { method: "POST", body: { name: "sample" }, project: false });
+  const project = await call(donavyn, "/api/projects", {
+    method: "POST",
+    body: { name: "sample" },
+    project: false,
+  });
   projectId = project.project.id;
 
   // Estimates on, so a tile carries an estimate pill beside the new open-threads pill and
@@ -295,14 +346,14 @@ async function main() {
       // really is attributed "Donavyn, via Planning agent" rather than faked to look that way.
       const opened = thread.agent
         ? await call(donavyn, `/api/pages/${page.id}/discussion`, {
-          method: "POST",
-          body: { body: thread.body },
-          token: agentToken,
-        })
+            method: "POST",
+            body: { body: thread.body },
+            token: agentToken,
+          })
         : await call(speaker[thread.by], `/api/pages/${page.id}/discussion`, {
-          method: "POST",
-          body: { body: thread.body },
-        });
+            method: "POST",
+            body: { body: thread.body },
+          });
       threadCount += 1;
 
       for (const reply of thread.replies ?? []) {
@@ -313,10 +364,14 @@ async function main() {
       }
 
       if (thread.answeredBy) {
-        await call(speaker[thread.answeredBy], `/api/pages/${page.id}/discussion/${opened.thread.id}/answered`, {
-          method: "POST",
-          body: { answered: true },
-        });
+        await call(
+          speaker[thread.answeredBy],
+          `/api/pages/${page.id}/discussion/${opened.thread.id}/answered`,
+          {
+            method: "POST",
+            body: { answered: true },
+          },
+        );
       }
     }
   }
@@ -326,7 +381,8 @@ async function main() {
   try {
     const projects = await call(donavyn, "/api/projects", { project: false });
     const starter = projects.projects.find((candidate) => candidate.name === "Wizard Simulator");
-    if (starter) await call(donavyn, `/api/projects/${starter.id}`, { method: "DELETE", body: {}, project: false });
+    if (starter)
+      await call(donavyn, `/api/projects/${starter.id}`, { method: "DELETE", body: {}, project: false });
   } catch {
     // Not worth failing a demo over; it just means the picker shows two projects.
   }

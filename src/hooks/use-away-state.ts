@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { away as loadAway, markSeen } from "../api/client";
 import type { AwayState } from "../../shared/types";
+import { away as loadAway, markSeen } from "../api/client";
 
 /**
  * The while-you-were-away boundary, captured once per project session.

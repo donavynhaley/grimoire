@@ -1,8 +1,8 @@
 import { useState } from "react";
 import type { Chapter } from "../../shared/types";
 import { mutate } from "../api/client";
-import { Growing } from "./Growing";
 import type { SettingsRun } from "../hooks/use-settings-action";
+import { Growing } from "./Growing";
 
 /**
  * Where a chapter's recap goes when it closes.

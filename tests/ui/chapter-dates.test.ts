@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { chapterWhen, dayLabel } from "../../src/lib/chapter-dates";
 import type { Chapter } from "../../shared/types";
+import { chapterWhen, dayLabel } from "../../src/lib/chapter-dates";
 
 function chapter(overrides: Partial<Chapter> = {}): Chapter {
   return {

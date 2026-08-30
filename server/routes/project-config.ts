@@ -14,7 +14,7 @@ import {
   fieldCreateSchema,
   fieldUpdateSchema,
 } from "../schemas";
-import { requireUser, type AppContext } from "./context";
+import { type AppContext, requireUser } from "./context";
 import type { Route } from "./route";
 
 const agentTokenPattern = /^\/api\/agent-tokens\/([^/]+)$/;

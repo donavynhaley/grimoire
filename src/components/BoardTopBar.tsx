@@ -1,8 +1,8 @@
-import { type BoardWorkspace } from "../../shared/types";
+import packageJson from "../../package.json";
+import type { BoardWorkspace } from "../../shared/types";
 import { Avatar } from "./Avatar";
 import { type ProjectActions, ProjectMenu } from "./ProjectMenu";
-import { type SettingsSection } from "./ProjectSettingsDialog";
-import packageJson from "../../package.json";
+import type { SettingsSection } from "./ProjectSettingsDialog";
 
 type Props = {
   board: BoardWorkspace;

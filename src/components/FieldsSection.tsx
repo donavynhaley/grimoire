@@ -1,8 +1,8 @@
 import { type FormEvent, useState } from "react";
-import { FIELD_TYPES, fieldHasOptions, type FieldType, type ProjectField } from "../../shared/types";
+import { FIELD_TYPES, type FieldType, fieldHasOptions, type ProjectField } from "../../shared/types";
+import type { SettingsRun } from "../hooks/use-settings-action";
 import { ConfirmInline } from "./ConfirmInline";
 import { Growing } from "./Growing";
-import type { SettingsRun } from "../hooks/use-settings-action";
 
 export type FieldActions = {
   create: (input: {

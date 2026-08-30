@@ -1,18 +1,18 @@
 import { type FormEvent, Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { Idea, IdeaState, IdeaWorkspace } from "../../shared/types";
-import { ConfirmInline } from "./ConfirmInline";
-import { LiftedGhost } from "./LiftedGhost";
-import { MoveSlot } from "./MoveSlot";
-import { MovingBar } from "./MovingBar";
-import { SaveState } from "./SaveState";
-import { NotesField } from "./NotesField";
-import { plainTextFromMarkdown } from "../lib/markdown-text";
-import { Drawer } from "./Drawer";
 import { type CardHint, useCardBoard } from "../hooks/use-card-board";
 import { useContentEditor } from "../hooks/use-content-editor";
 import { useFlip } from "../hooks/use-flip";
 import { type DragPoint, gapIndexIn, pointWithin } from "../hooks/use-pointer-drag";
 import { useTypingFocus } from "../hooks/use-typing-focus";
+import { plainTextFromMarkdown } from "../lib/markdown-text";
+import { ConfirmInline } from "./ConfirmInline";
+import { Drawer } from "./Drawer";
+import { LiftedGhost } from "./LiftedGhost";
+import { MoveSlot } from "./MoveSlot";
+import { MovingBar } from "./MovingBar";
+import { NotesField } from "./NotesField";
+import { SaveState } from "./SaveState";
 
 /** Shortlist first, so a point inside it is read as a rank rather than as the layout behind it. */
 const IDEA_STATES = ["shortlist", "inbox", "parked"] as const satisfies readonly IdeaState[];

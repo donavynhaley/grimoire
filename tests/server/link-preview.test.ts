@@ -2,7 +2,7 @@ import { copyFileSync, mkdirSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { Page, Idea } from "../../shared/types";
+import type { Idea, Page } from "../../shared/types";
 import { bootstrap, startTestServer } from "./test-server";
 
 /** The shipped shell, so a preview that loses its markers fails here first. */

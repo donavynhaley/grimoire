@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { Page, Idea } from "../../shared/types";
+import type { Idea, Page } from "../../shared/types";
 import { bootstrap, startTestServer } from "./test-server";
 
 type Server = Awaited<ReturnType<typeof startTestServer>>;

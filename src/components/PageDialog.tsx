@@ -1,24 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   AuditPage,
-  Page,
   Chapter,
   DiscussionThread,
   Member,
+  Page,
   ProjectCategory,
   ProjectField,
 } from "../../shared/types";
+import { useContentEditor } from "../hooks/use-content-editor";
+import { usePageDiscussion } from "../hooks/use-page-discussion";
+import { usePageHistory } from "../hooks/use-page-history";
 import { ConfirmInline } from "./ConfirmInline";
-import { otherEditorName, SaveState } from "./SaveState";
-import { NotesField } from "./NotesField";
 import { DiscussionSection } from "./DiscussionSection";
 import { Drawer } from "./Drawer";
 import { GithubLink } from "./GithubLink";
-import { useContentEditor } from "../hooks/use-content-editor";
+import { NotesField } from "./NotesField";
 import { PageHistory } from "./PageHistory";
 import { PageRail } from "./PageRail";
-import { usePageHistory } from "../hooks/use-page-history";
-import { usePageDiscussion } from "../hooks/use-page-discussion";
+import { otherEditorName, SaveState } from "./SaveState";
 
 type Props = {
   page: Page;

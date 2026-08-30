@@ -3,8 +3,8 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import { App } from "../../src/App";
 import type { BoardWorkspace } from "../../shared/types";
+import { App } from "../../src/App";
 import { boardFixture } from "../fixtures/board";
 import { installUiHarness, routeFetch } from "../fixtures/ui";
 

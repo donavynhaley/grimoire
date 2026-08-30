@@ -1,12 +1,12 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
-import type { BoardWorkspace, Page, Chapter } from "../../shared/types";
 import { parseMarkdown } from "../../server/markdown-files";
+import type { BoardWorkspace, Chapter, Page } from "../../shared/types";
 import { bootstrap, startTestServer } from "./test-server";
 
 const directories: string[] = [];

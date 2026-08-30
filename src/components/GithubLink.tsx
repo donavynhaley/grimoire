@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { Page } from "../../shared/types";
-import { openPullRequests, type OpenPullRequest } from "../api/client";
-import { Growing } from "./Growing";
+import { type OpenPullRequest, openPullRequests } from "../api/client";
 import { useDismissOnOutside } from "../hooks/use-dismiss-on-outside";
+import { Growing } from "./Growing";
 
 type Props = {
   github: Page["github"];

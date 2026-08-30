@@ -1,9 +1,9 @@
 import { type FormEvent, useState } from "react";
 import { CATEGORY_COLOR_PALETTE, type ProjectCategory } from "../../shared/types";
+import type { SettingsRun } from "../hooks/use-settings-action";
 import { categoryColorStyle } from "../lib/category-style";
 import { ConfirmInline } from "./ConfirmInline";
 import { Growing } from "./Growing";
-import type { SettingsRun } from "../hooks/use-settings-action";
 
 export type CategoryActions = {
   create: (input: { name: string; color: string }) => Promise<void>;

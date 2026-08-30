@@ -11,14 +11,14 @@
     "agent"
   ],
   "license": "MIT",
-  "homepage": "https://github.com/donavynhaley/grimore/tree/main/packages/grimoire-mcp#readme",
+  "homepage": "https://github.com/donavynhaley/grimoire/tree/main/packages/grimoire-mcp#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/donavynhaley/grimore.git",
+    "url": "git+https://github.com/donavynhaley/grimoire.git",
     "directory": "packages/grimoire-mcp"
   },
   "bugs": {
-    "url": "https://github.com/donavynhaley/grimore/issues"
+    "url": "https://github.com/donavynhaley/grimoire/issues"
   },
   "engines": {
     "node": ">=20"

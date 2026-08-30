@@ -1,17 +1,17 @@
 import { useState } from "react";
 import {
-  PAGE_STATUSES,
-  type Page,
   type Chapter,
   type Member,
+  PAGE_STATUS_LABELS,
+  PAGE_STATUSES,
+  type Page,
   type ProjectCategory,
   type ProjectField,
-  PAGE_STATUS_LABELS,
 } from "../../shared/types";
+import { categoryColorStyle, categoryStyle } from "../lib/category-style";
 import { Avatar } from "./Avatar";
 import { Growing } from "./Growing";
 import { EstimateRow, PageFieldsEditor } from "./PageFields";
-import { categoryColorStyle, categoryStyle } from "../lib/category-style";
 
 const labels = PAGE_STATUS_LABELS;
 

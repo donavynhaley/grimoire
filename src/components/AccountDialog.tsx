@@ -1,9 +1,9 @@
 import { type ChangeEvent, type FormEvent, useState } from "react";
-import { Drawer } from "./Drawer";
-import { Growing } from "./Growing";
 import type { User } from "../../shared/types";
 import { ApiError } from "../api/client";
 import { Avatar } from "./Avatar";
+import { Drawer } from "./Drawer";
+import { Growing } from "./Growing";
 
 const AVATAR_TYPES = ["image/png", "image/jpeg", "image/webp"];
 const AVATAR_SIZE_LIMIT = 2_000_000;

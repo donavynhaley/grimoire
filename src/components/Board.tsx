@@ -4,34 +4,12 @@ import {
   type AwayState,
   type BoardWorkspace,
   type DiscussionThread,
+  type IdeaWorkspace,
+  PAGE_STATUS_LABELS,
   type Page,
   type PageStatus,
-  type IdeaWorkspace,
   type ProjectRole,
-  PAGE_STATUS_LABELS,
 } from "../../shared/types";
-import { AwayDigest } from "./AwayDigest";
-import { BoardDialogs } from "./BoardDialogs";
-import { BoardTopBar } from "./BoardTopBar";
-import { Growing } from "./Growing";
-import { type CategoryActions } from "./CategoriesSection";
-import { type FieldActions } from "./FieldsSection";
-import { PageTile } from "./PageTile";
-import { type ChapterActions } from "./ChaptersSection";
-import { NO_CHAPTER } from "./ChapterPicker";
-import { chapterWhen } from "../lib/chapter-dates";
-import { type ProjectActions } from "./ProjectMenu";
-import {
-  type ProjectSettingsActions,
-  type SettingsSection,
-  settingsSectionsFor,
-} from "./ProjectSettingsDialog";
-import { type CapturePageInput, QuickCapture } from "./QuickCapture";
-import { plainTextFromMarkdown } from "../lib/markdown-text";
-import { IdeasBoard } from "./IdeasBoard";
-import { LiftedGhost } from "./LiftedGhost";
-import { MoveSlot } from "./MoveSlot";
-import { MovingBar } from "./MovingBar";
 import {
   BOARD_STATUSES,
   comparePosition,
@@ -39,10 +17,32 @@ import {
   useBoardFilters,
 } from "../hooks/use-board-filters";
 import { useBoardShortcuts } from "../hooks/use-board-shortcuts";
-import { type CardHint, useCardBoard } from "../hooks/use-card-board";
 import { useCaptureFlight } from "../hooks/use-capture-flight";
+import { type CardHint, useCardBoard } from "../hooks/use-card-board";
 import { useFlip } from "../hooks/use-flip";
 import { type DragPoint, gapIndexIn, pointWithin } from "../hooks/use-pointer-drag";
+import { chapterWhen } from "../lib/chapter-dates";
+import { plainTextFromMarkdown } from "../lib/markdown-text";
+import { AwayDigest } from "./AwayDigest";
+import { BoardDialogs } from "./BoardDialogs";
+import { BoardTopBar } from "./BoardTopBar";
+import type { CategoryActions } from "./CategoriesSection";
+import { NO_CHAPTER } from "./ChapterPicker";
+import type { ChapterActions } from "./ChaptersSection";
+import type { FieldActions } from "./FieldsSection";
+import { Growing } from "./Growing";
+import { IdeasBoard } from "./IdeasBoard";
+import { LiftedGhost } from "./LiftedGhost";
+import { MoveSlot } from "./MoveSlot";
+import { MovingBar } from "./MovingBar";
+import { PageTile } from "./PageTile";
+import type { ProjectActions } from "./ProjectMenu";
+import {
+  type ProjectSettingsActions,
+  type SettingsSection,
+  settingsSectionsFor,
+} from "./ProjectSettingsDialog";
+import { type CapturePageInput, QuickCapture } from "./QuickCapture";
 import { WorkFilters } from "./WorkFilters";
 
 const columnNames = PAGE_STATUS_LABELS;

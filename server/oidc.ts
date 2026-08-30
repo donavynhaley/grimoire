@@ -1,4 +1,6 @@
+import type { KeyObject } from "node:crypto";
 import {
+  constants,
   createHash,
   createHmac,
   createPublicKey,
@@ -6,7 +8,6 @@ import {
   timingSafeEqual,
   verify as verifySignature,
 } from "node:crypto";
-import { constants } from "node:crypto";
 import { z } from "zod";
 
 /**
@@ -660,7 +661,7 @@ function verifyAsymmetric(
   signature: Buffer,
   jwk: Record<string, unknown>,
 ): boolean {
-  let key;
+  let key: KeyObject;
   try {
     key = createPublicKey({ key: jwk as JsonWebKey, format: "jwk" });
   } catch {

@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 import type { AuditEvent, Member } from "../../shared/types";
+import { describeChange, describeEvent, relativeLabel } from "../lib/activity-copy";
 import { Avatar } from "./Avatar";
 import { Growing } from "./Growing";
-import { describeChange, describeEvent, relativeLabel } from "../lib/activity-copy";
 
 /**
  * The header is always present so the section never appears or resizes on its own;

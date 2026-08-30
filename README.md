@@ -147,7 +147,7 @@ Ideas do not have assignees or work statuses because they are not work yet.
 ## Collaboration
 
 The first person to open a new Grimoire installation creates the admin account — the installation's one admin, and the owner of the project it starts with.
-The first-run form prefills `owner@example.com` as the admin email, while still allowing it to be edited before setup.
+The first-run form starts empty and asks for that person's own email; nothing is prefilled, so an installation never inherits somebody else's address.
 The project menu is a switcher: the projects, each with its one-line description, a collapsed "New project" field, and "Project settings".
 Project settings is one dialog with a section rail — General, Categories, Page fields, Chapters, Team, Agent access, and a Danger zone — and the open section travels in the URL as `?settings=<section>`, so a reload or a shared link lands exactly where the reader was.
 The header's `team` button is a shortcut into the same dialog, landed on its Team section.

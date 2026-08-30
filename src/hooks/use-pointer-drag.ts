@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from "react";
 
 /** A finger has to rest this long before a card lifts, so a pan down the board still scrolls. */
 const HOLD_MS = 250;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { BoardWorkspace, Page, IdeaWorkspace, User } from "../../shared/types";
+import type { BoardWorkspace, IdeaWorkspace, Page, User } from "../../shared/types";
 import { bootstrap, startTestServer } from "./test-server";
 
 describe("display name", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { BoardWorkspace, Page } from "../../shared/types";
 import { parseGithubReference } from "../../server/github";
+import type { BoardWorkspace, Page } from "../../shared/types";
 import { bootstrap, startTestServer } from "./test-server";
 
 type TestServer = Awaited<ReturnType<typeof startTestServer>>;

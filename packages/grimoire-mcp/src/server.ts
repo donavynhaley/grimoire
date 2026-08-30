@@ -2,23 +2,22 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import {
   BODY_MAX_LENGTH,
+  type Board,
   ConflictError,
   DISCUSSION_BODY_MAX_LENGTH,
-  GrimoireClient,
+  type DiscussionThread,
+  type GrimoireClient,
   GrimoireError,
   MCP_VERSION,
-  type Board,
-  type DiscussionThread,
   type Page,
 } from "./client.js";
 import {
-  PAGE_COLUMNS,
-  ResolutionError,
-  UUID_SHAPE,
   categoryName,
   chapterName,
   columnLabel,
   fieldSummary,
+  PAGE_COLUMNS,
+  ResolutionError,
   resolveAssignee,
   resolveBlockers,
   resolveCategory,
@@ -26,6 +25,7 @@ import {
   resolveFields,
   resolvePage,
   resolveStatus,
+  UUID_SHAPE,
 } from "./resolve.js";
 
 /** What a field patch looks like coming from an agent. `null` clears one. */

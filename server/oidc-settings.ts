@@ -1,15 +1,15 @@
 import type { DatabaseSync } from "node:sqlite";
-import { countOidcLinks } from "./oidc-identities";
 import type { OidcSettings, OidcSource } from "../shared/types";
 import {
   emailAllowed,
+  type OidcConfig,
+  type OidcFetcher,
   OidcProvider,
   parseEmailDomains,
   parseIssuerInput,
   parseScopes,
-  type OidcConfig,
-  type OidcFetcher,
 } from "./oidc";
+import { countOidcLinks } from "./oidc-identities";
 
 /**
  * Where the provider's settings come from, and who is allowed to change them.

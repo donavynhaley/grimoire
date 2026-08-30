@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Page } from "../../shared/types";
-import { Growing } from "./Growing";
+import { useDismissOnOutside } from "../hooks/use-dismiss-on-outside";
 import {
   buildFacets,
   countSelected,
-  toggleFacet,
   type FacetContext,
   type FacetSelection,
+  toggleFacet,
 } from "../lib/page-facets";
-import { useDismissOnOutside } from "../hooks/use-dismiss-on-outside";
+import { Growing } from "./Growing";
 
 type Props = {
   /** Already narrowed by the controls outside this panel, so the counts agree with the board. */

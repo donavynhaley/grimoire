@@ -1,10 +1,10 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { DiscussionMessage, DiscussionThread, Member } from "../../shared/types";
 import { DISCUSSION_BODY_MAX_LENGTH } from "../../shared/types";
-import { Avatar } from "./Avatar";
-import { Growing } from "./Growing";
 import { relativeLabel } from "../lib/activity-copy";
 import { withMentions } from "../lib/mention-text";
+import { Avatar } from "./Avatar";
+import { Growing } from "./Growing";
 
 /**
  * The conversation on a page, in a column of its own beside the writing. A thread is a name,

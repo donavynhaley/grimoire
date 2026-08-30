@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { AuditPage, BoardWorkspace, Page, Idea, ProjectSummary } from "../../shared/types";
+import type { AuditPage, BoardWorkspace, Idea, Page, ProjectSummary } from "../../shared/types";
 import { bootstrap, startTestServer } from "./test-server";
 
 type Server = Awaited<ReturnType<typeof startTestServer>>;

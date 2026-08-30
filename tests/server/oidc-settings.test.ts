@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { OidcSettings, OidcProviderDescription } from "../../shared/types";
 import { emailAllowed, oidcConfigFromEnvironment, providerBrand } from "../../server/oidc";
-import { bootstrap, ownerAccount, startTestServer } from "./test-server";
+import type { OidcProviderDescription, OidcSettings } from "../../shared/types";
 import { fakeProvider, ISSUER } from "./oidc-provider";
+import { bootstrap, ownerAccount, startTestServer } from "./test-server";
 
 type Server = Awaited<ReturnType<typeof startTestServer>>;
 
@@ -301,16 +301,16 @@ describe("who the allow list lets through", () => {
   it("takes one person, which is the only useful list for a personal provider account", () => {
     // Pointed at Google, the domain of a personal account is gmail.com - allowing that allows
     // everybody alive, so naming the two or three addresses is the list that means anything.
-    const allowed = ["owner@example.com", "alan@team.example.test"];
-    expect(emailAllowed("owner@example.com", allowed)).toBe(true);
-    expect(emailAllowed("owner@example.com", allowed)).toBe(true);
+    const allowed = ["someone@gmail.com", "alan@team.example.test"];
+    expect(emailAllowed("someone@gmail.com", allowed)).toBe(true);
+    expect(emailAllowed("SomeOne@Gmail.com", allowed)).toBe(true);
     expect(emailAllowed("somebody.else@gmail.com", allowed)).toBe(false);
   });
 
   it("mixes the two, because an organisation with a couple of guests is the normal case", () => {
-    const allowed = ["team.example.test", "owner@example.com"];
+    const allowed = ["team.example.test", "someone@gmail.com"];
     expect(emailAllowed("anyone@team.example.test", allowed)).toBe(true);
-    expect(emailAllowed("owner@example.com", allowed)).toBe(true);
+    expect(emailAllowed("someone@gmail.com", allowed)).toBe(true);
     expect(emailAllowed("stranger@gmail.com", allowed)).toBe(false);
   });
 

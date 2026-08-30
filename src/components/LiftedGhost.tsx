@@ -1,4 +1,4 @@
-import { type Lift } from "../hooks/use-pointer-drag";
+import type { Lift } from "../hooks/use-pointer-drag";
 
 /**
  * What the pointer actually holds while a card is carried, drawn over the board it is

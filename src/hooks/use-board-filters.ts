@@ -1,18 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  type BoardWorkspace,
-  type Chapter,
-  type Page,
-  type PageStatus,
-  type ProjectCategory,
-} from "../../shared/types";
+import type { BoardWorkspace, Chapter, Page, PageStatus, ProjectCategory } from "../../shared/types";
 import { type ChapterFilter, NO_CHAPTER } from "../components/ChapterPicker";
 import {
   decodeFacets,
   encodeFacets,
-  facetPredicate,
   type FacetContext,
   type FacetSelection,
+  facetPredicate,
 } from "../lib/page-facets";
 import { compareCompletion } from "../lib/page-order";
 

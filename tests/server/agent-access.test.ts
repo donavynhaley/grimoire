@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
-import type { AgentToken, AuditPage, AwayState, BoardWorkspace, Page } from "../../shared/types";
 import { AgentRateLimiter } from "../../server/agent-tokens";
 import { requireUnchangedContent } from "../../server/repository";
+import type { AgentToken, AuditPage, AwayState, BoardWorkspace, Page } from "../../shared/types";
 import { bootstrap, ownerAccount, startTestServer } from "./test-server";
 
 type TestServer = Awaited<ReturnType<typeof startTestServer>>;

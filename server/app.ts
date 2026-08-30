@@ -4,30 +4,25 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { dirname, extname, join } from "node:path";
 import { ZodError } from "zod";
 import { PAGE_STATUS_LABELS, type PageStatus, type User } from "../shared/types";
-import { buildRecap, discordPoster, postRecap, recapMessages } from "./recap";
-import { githubApiFetcher, syncProjectGithub } from "./github";
+import { agentMayReach } from "./agent-policy";
+import { type AgentIdentity, AgentRateLimiter, agentForToken, touchAgentToken } from "./agent-tokens";
+import type { EventClient, Options, RequestContext, WorkspaceScope } from "./app-types";
+import { type PageLabels, type RecordAuditInput, recordAuditEvent } from "./audit";
+import { AvatarStore } from "./avatars";
 import { openDatabase, withTransaction } from "./database";
+import { githubApiFetcher, syncProjectGithub } from "./github";
 import {
-  PageDependencyError,
-  categoriesForProject,
-  chaptersEnabled,
-  chaptersForProject,
-  defaultProjectIdForUser,
-  fieldsForProject,
-  EditConflictError,
-  findUserByEmail,
-  findUserById,
-  listPages,
-  membersForProject,
-  projectById,
-  publicUser,
-  userCanAccessProject,
-  userOwnsProject,
-  projectRecapConfig,
-  publicChapter,
-  estimatesEnabled,
-} from "./repository";
-import { createOpaqueToken, hashPassword, hashToken } from "./security";
+  appendCookie,
+  applySecurityHeaders,
+  HttpError,
+  json,
+  previewEntityId,
+  readCookie,
+  resolveStaticPath,
+  serveDocument,
+  serveFile,
+} from "./http";
+import { ideaPreview, type LinkPreview, pagePreview } from "./link-preview";
 import {
   LOGIN_ACCOUNT_BURST,
   LOGIN_ACCOUNT_PER_MINUTE,
@@ -35,21 +30,39 @@ import {
   LOGIN_ADDRESS_PER_MINUTE,
   LoginRateLimiter,
 } from "./login-rate-limit";
-import { oidcHttpFetcher, PendingSignIns, type OidcConfig, type OidcIdentity } from "./oidc";
-import { emailAllowed, OidcProviders, resolveOidc } from "./oidc-settings";
-import { findOidcLink, linkOidcIdentity, oidcLinkForUser, touchOidcLink } from "./oidc-identities";
-import { AgentRateLimiter, agentForToken, touchAgentToken, type AgentIdentity } from "./agent-tokens";
-import { AvatarStore } from "./avatars";
-import { ProjectImageStore } from "./project-images";
-import { MarkdownPageStore } from "./markdown-pages";
 import { MarkdownChapterStore } from "./markdown-chapters";
 import { MarkdownIdeaStore } from "./markdown-ideas";
-import type { EventClient, Options, RequestContext, WorkspaceScope } from "./app-types";
-import { agentMayReach } from "./agent-policy";
+import { MarkdownPageStore } from "./markdown-pages";
+import { type OidcConfig, type OidcIdentity, oidcHttpFetcher, PendingSignIns } from "./oidc";
+import { findOidcLink, linkOidcIdentity, oidcLinkForUser, touchOidcLink } from "./oidc-identities";
+import { emailAllowed, OidcProviders, resolveOidc } from "./oidc-settings";
+import { ProjectImageStore } from "./project-images";
+import { buildRecap, discordPoster, postRecap, recapMessages } from "./recap";
+import {
+  categoriesForProject,
+  chaptersEnabled,
+  chaptersForProject,
+  defaultProjectIdForUser,
+  EditConflictError,
+  estimatesEnabled,
+  fieldsForProject,
+  findUserByEmail,
+  findUserById,
+  listPages,
+  membersForProject,
+  PageDependencyError,
+  projectById,
+  projectRecapConfig,
+  publicChapter,
+  publicUser,
+  userCanAccessProject,
+  userOwnsProject,
+} from "./repository";
 import { activityRoutes } from "./routes/activity";
 import { authRoutes } from "./routes/auth";
 import { boardRoutes } from "./routes/board";
 import { chapterRoutes } from "./routes/chapters";
+import { type AppContext, requireUser } from "./routes/context";
 import { discussionRoutes } from "./routes/discussion";
 import { eventRoutes } from "./routes/events";
 import { fileRoutes } from "./routes/files";
@@ -59,21 +72,8 @@ import { memberRoutes } from "./routes/members";
 import { pageCreateRoutes, pageRecordRoutes } from "./routes/pages";
 import { projectConfigRoutes } from "./routes/project-config";
 import { projectRoutes } from "./routes/projects";
-import { requireUser, type AppContext } from "./routes/context";
 import { matchRoute, type Route } from "./routes/route";
-import {
-  HttpError,
-  appendCookie,
-  applySecurityHeaders,
-  json,
-  previewEntityId,
-  readCookie,
-  resolveStaticPath,
-  serveDocument,
-  serveFile,
-} from "./http";
-import { pagePreview, ideaPreview, type LinkPreview } from "./link-preview";
-import { recordAuditEvent, type PageLabels, type RecordAuditInput } from "./audit";
+import { createOpaqueToken, hashPassword, hashToken } from "./security";
 
 const SESSION_COOKIE = "grimoire_session";
 const SESSION_AGE_SECONDS = 60 * 60 * 24 * 30;
@@ -829,7 +829,8 @@ export function createGrimoireServer(options: Options) {
   /** An invitation that is still worth something: unused, unexpired, and on a live project. */
   function findUsableInvite(code: string): Record<string, string | null> | null {
     const invite = database.prepare("SELECT * FROM invites WHERE code_hash = ?").get(hashToken(code)) as
-      Record<string, string | null> | undefined;
+      | Record<string, string | null>
+      | undefined;
     if (!invite || invite.used_by || String(invite.expires_at) <= new Date().toISOString()) return null;
     if (!invite.project_id) return null;
     const project = database

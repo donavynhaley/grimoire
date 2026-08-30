@@ -1,4 +1,4 @@
-import { generateKeyPairSync, sign as signWith, type KeyObject } from "node:crypto";
+import { generateKeyPairSync, type KeyObject, sign as signWith } from "node:crypto";
 import type { OidcConfig, OidcFetcher } from "../../server/oidc";
 
 export const ISSUER = "https://id.example.com";

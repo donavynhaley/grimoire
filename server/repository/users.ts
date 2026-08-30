@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { User } from "../../shared/types";
-import { row, type Row } from "./rows";
+import { type Row, row } from "./rows";
 
 // Accounts and each reader's private seen-cursor into a project's activity log.
 

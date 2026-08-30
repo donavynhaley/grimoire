@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { mkdtempSync } from "node:fs";
-import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
-import type { Member, ProjectSummary } from "../../shared/types";
 import { hashPassword } from "../../server/security";
+import type { Member, ProjectSummary } from "../../shared/types";
 import { bootstrap, ownerAccount, startTestServer } from "./test-server";
 
 type TestServer = Awaited<ReturnType<typeof startTestServer>>;

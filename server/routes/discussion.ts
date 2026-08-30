@@ -12,7 +12,7 @@ import { HttpError, json, readJson, requestClientId } from "../http";
 import { membersForProject } from "../repository/members";
 import { findPage } from "../repository/pages";
 import { discussionAnswerSchema, discussionBodySchema } from "../schemas";
-import { requireUser, type AppContext } from "./context";
+import { type AppContext, requireUser } from "./context";
 import type { Route } from "./route";
 
 /*

@@ -1,4 +1,4 @@
-import { useCallback, useRef, type RefCallback } from "react";
+import { type RefCallback, useCallback, useRef } from "react";
 
 /**
  * Focuses a field on arrival, unless doing so would put a keyboard over the thing being read.
