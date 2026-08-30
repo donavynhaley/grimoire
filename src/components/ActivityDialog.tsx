@@ -120,7 +120,7 @@ export function ActivityDialog({ awaySince, members, revision, onClose, onLoad, 
             value={query}
           />
         </label>
-        <div aria-label="Activity people" className="library-filters">
+        <div aria-label="Activity people" className="library-filters" role="group">
           {members.map((member) => (
             <button
               aria-pressed={person === member.id}
@@ -134,7 +134,7 @@ export function ActivityDialog({ awaySince, members, revision, onClose, onLoad, 
           ))}
         </div>
         {usedTypes.length > 1 && (
-          <div aria-label="Activity kinds" className="library-filters">
+          <div aria-label="Activity kinds" className="library-filters" role="group">
             {usedTypes.map((type) => (
               <button
                 aria-pressed={entityType === type}
@@ -166,6 +166,8 @@ export function ActivityDialog({ awaySince, members, revision, onClose, onLoad, 
               {dayEvents.map((event) => (
                 <Fragment key={event.id}>
                   {event.id === dividerBeforeId && (
+                    // biome-ignore lint/a11y/useFocusableInteractive: a structural separator is not a splitter; nothing here is operable.
+                    // biome-ignore lint/a11y/useAriaPropsForRole: those value attributes belong to a focusable separator, and this one marks a place in a list.
                     <div className="unread-divider" role="separator">
                       new since your last visit
                     </div>

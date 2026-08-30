@@ -86,19 +86,27 @@
         // gate rather than a sentence.
         "noExplicitAny": "error"
       },
-      // ~46 findings the project has already deferred once (docs/ui-standards.md).
-      // Warning keeps the count in front of us; several are UX decisions - a dialog
-      // that autofocuses is deliberate - and none should be changed by a tooling PR.
+      // All 46 findings were read against docs/ui-standards.md. 20 were real and are
+      // fixed - chiefly 17 aria-labels that were doing nothing at all, because ARIA
+      // ignores a name on a generic element. The rest carry a biome-ignore saying why
+      // the rule does not apply. Everything blocks now except the one below.
       "a11y": {
-        "noAriaHiddenOnFocusable": "warn",
-        "noAutofocus": "warn",
-        "noNoninteractiveElementToInteractiveRole": "warn",
-        "noStaticElementInteractions": "warn",
-        "noSvgWithoutTitle": "warn",
-        "useAriaPropsForRole": "warn",
-        "useAriaPropsSupportedByRole": "warn",
-        "useFocusableInteractive": "warn",
-        "useSemanticElements": "warn"
+        "noAriaHiddenOnFocusable": "error",
+        "noAutofocus": "error",
+        "noNoninteractiveElementToInteractiveRole": "error",
+        "noStaticElementInteractions": "error",
+        "noSvgWithoutTitle": "error",
+        "useAriaPropsForRole": "error",
+        "useAriaPropsSupportedByRole": "error",
+        "useFocusableInteractive": "error",
+        // Off. Its one suggestion here is <fieldset> in place of a div carrying
+        // role="group", and that trade is wrong twice over: a fieldset groups form
+        // controls and takes its name from a <legend>, where these are clusters of
+        // filter buttons and a properties rail named by aria-label; and it arrives
+        // with browser chrome the stylesheet would then have to undo. div + role
+        // is what CapturePicker, FieldsSection and PageDialog already used before
+        // any of this, so the rule is arguing with the house pattern, not a lapse.
+        "useSemanticElements": "off"
       }
     }
   },

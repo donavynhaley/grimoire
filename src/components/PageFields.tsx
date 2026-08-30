@@ -108,6 +108,7 @@ export function PageFieldsEditor({ fields, values, onUpdate }: Props) {
           ) : editingKey === field.key ? (
             <input
               aria-label={field.label}
+              // biome-ignore lint/a11y/noAutofocus: this input is mounted by the user's own action - it exists because they clicked add, edit or open - so focus follows the request rather than stealing it on arrival, which is the case the rule is for
               autoFocus
               name={`field-${field.key}`}
               onBlur={() => commitDraft(field)}
@@ -178,6 +179,7 @@ export function EstimateRow({
     return (
       <input
         aria-label="Estimate"
+        // biome-ignore lint/a11y/noAutofocus: this input is mounted by the user's own action - it exists because they clicked add, edit or open - so focus follows the request rather than stealing it on arrival, which is the case the rule is for
         autoFocus
         inputMode="decimal"
         name="estimate"
@@ -307,6 +309,7 @@ function SearchableChoice({
             <span className="sr-only">{`Find a ${field.label} option`}</span>
             <input
               aria-label={`Find a ${field.label} option`}
+              // biome-ignore lint/a11y/noAutofocus: this input is mounted by the user's own action - it exists because they clicked add, edit or open - so focus follows the request rather than stealing it on arrival, which is the case the rule is for
               autoFocus
               onChange={(event) => setQuery(event.target.value)}
               onKeyDown={(event) => {

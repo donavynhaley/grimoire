@@ -107,7 +107,7 @@ export function BacklogDialog({
             value={query}
           />
         </label>
-        <div aria-label="Backlog filters" className="library-filters">
+        <div aria-label="Backlog filters" className="library-filters" role="group">
           <button
             aria-pressed={blockedOnly}
             className={blockedOnly ? "active" : ""}
@@ -137,7 +137,7 @@ export function BacklogDialog({
           ))}
         </div>
         {chapters.length > 0 && (
-          <div aria-label="Backlog chapters" className="library-filters chapter-filters">
+          <div aria-label="Backlog chapters" className="library-filters chapter-filters" role="group">
             <span className="library-filter-label">chapter</span>
             <button
               aria-pressed={chapterFilter === null}
@@ -194,7 +194,7 @@ export function BacklogDialog({
           </div>
         )}
         {usedCategories.length > 0 && (
-          <div aria-label="Backlog categories" className="library-filters category-filters">
+          <div aria-label="Backlog categories" className="library-filters category-filters" role="group">
             {usedCategories.map((value) => (
               <button
                 aria-pressed={category === value}

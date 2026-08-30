@@ -275,6 +275,7 @@ export function PageDialog({
                       : `${unseenCount} unread`
                   }
                   className={namedCount > 0 ? "discussion-unseen named" : "discussion-unseen"}
+                  role="img"
                 >
                   {unseenCount}
                 </span>
