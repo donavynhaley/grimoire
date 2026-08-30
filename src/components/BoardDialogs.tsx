@@ -239,7 +239,6 @@ export function BoardDialogs({
           online={online}
           onRemoveMember={onRemoveMember}
           onSectionChange={onSectionChange}
-          onSetPageChapter={(id, value) => onUpdate(id, { chapter: value })}
           pages={board.pages}
           project={board.project}
           section={settingsSection}

@@ -603,7 +603,7 @@ function challengeFor(verifier: string): string {
  * colleague, so anything that could name another origin is answered with the board root.
  */
 export function safeReturnPath(value: string | null): string {
-  if (!value || !value.startsWith("/") || value.startsWith("//") || value.startsWith("/\\")) return "/";
+  if (!value?.startsWith("/") || value.startsWith("//") || value.startsWith("/\\")) return "/";
   return value.slice(0, 500);
 }
 

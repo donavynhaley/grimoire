@@ -54,7 +54,21 @@
         // 34 across 17 components. These are genuine signals, but Biome's fix edits
         // dependency arrays, and a wrong edit here is an infinite render rather than a
         // failing test - so they are read by a person, not applied in bulk.
-        "useExhaustiveDependencies": "warn"
+        "useExhaustiveDependencies": "warn",
+        // Clear, and blocking so they stay clear. The unused ones are worth catching for
+        // more than tidiness: what they found here was a whole dead close-a-chapter path
+        // left behind when rollover moved server-side.
+        "noUnusedVariables": "error",
+        "noUnusedImports": "error",
+        "noUnusedFunctionParameters": "error"
+      },
+      "complexity": {
+        "useOptionalChain": "error"
+      },
+      "suspicious": {
+        // TS-2 already forbids `any` outright, so this is the standard finally having a
+        // gate rather than a sentence.
+        "noExplicitAny": "error"
       },
       // ~46 findings the project has already deferred once (docs/ui-standards.md).
       // Warning keeps the count in front of us; several are UX decisions - a dialog

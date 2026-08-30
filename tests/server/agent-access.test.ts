@@ -68,18 +68,18 @@ async function issue(server: TestServer, body: Record<string, unknown> = {}) {
  * The shared helper always attaches the session cookie, which would hide the very thing
  * these tests are about.
  */
-async function asAgent(
+async function asAgent<T = unknown>(
   server: TestServer,
   secret: string,
   path: string,
   init: RequestInit = {},
-): Promise<{ response: Response; body: any }> {
+): Promise<{ response: Response; body: T }> {
   const headers = new Headers(init.headers);
   headers.set("authorization", `Bearer ${secret}`);
   if (init.body && !headers.has("content-type")) headers.set("content-type", "application/json");
   const response = await fetch(`${server.baseUrl}${path}`, { ...init, headers });
   const body = response.status === 204 ? null : await response.json().catch(() => null);
-  return { response, body };
+  return { response, body: body as T };
 }
 
 function agentPage(title: string) {
@@ -254,7 +254,7 @@ describe("agent access", () => {
       const created = (await server.request<{ page: Page }>("/api/pages", agentPage("A page worth reading")))
         .body.page;
 
-      const read = await asAgent(server, body.secret, `/api/pages/${created.id}`);
+      const read = await asAgent<{ page: Page }>(server, body.secret, `/api/pages/${created.id}`);
       expect(read.response.status).toBe(200);
       // Identical to the board's own record, so an agent never has to reconcile two shapes.
       const board = await server.request<BoardWorkspace>("/api/board");
@@ -354,10 +354,15 @@ describe("agent access", () => {
       // agents until someone opens it deliberately. If this refusal ever becomes a 404,
       // routes have started answering agents before the policy sees them.
       for (const method of ["GET", "POST", "PATCH", "DELETE"] as const) {
-        const attempt = await asAgent(server, body.secret, "/api/some-route-from-the-future", {
-          method,
-          ...(method === "GET" ? {} : { body: "{}" }),
-        });
+        const attempt = await asAgent<{ error: string }>(
+          server,
+          body.secret,
+          "/api/some-route-from-the-future",
+          {
+            method,
+            ...(method === "GET" ? {} : { body: "{}" }),
+          },
+        );
         expect(attempt.response.status, method).toBe(403);
         expect(attempt.body.error, method).toContain("agent token");
       }
@@ -414,13 +419,13 @@ describe("agent access", () => {
       expect(crossed.response.status).toBe(403);
 
       // Naming its own project is fine, and omitting the header lands there too.
-      const named = await asAgent(server, body.secret, "/api/board", {
+      const named = await asAgent<BoardWorkspace>(server, body.secret, "/api/board", {
         headers: { "x-grimoire-project": issuedFor },
       });
       expect(named.response.status).toBe(200);
       expect(named.body.project.id).toBe(issuedFor);
 
-      const bare = await asAgent(server, body.secret, "/api/board");
+      const bare = await asAgent<BoardWorkspace>(server, body.secret, "/api/board");
       expect(bare.body.project.id).toBe(issuedFor);
 
       // And a write with the other project named writes nothing anywhere.
@@ -650,7 +655,11 @@ describe("agent access", () => {
       await bootstrap(server);
       const { body } = await issue(server, { name: "Reader", scope: "read" });
 
-      const session = await asAgent(server, body.secret, "/api/session");
+      const session = await asAgent<{ agent: { name: string; scope: string } }>(
+        server,
+        body.secret,
+        "/api/session",
+      );
       expect(session.body.agent).toEqual({ name: "Reader", scope: "read" });
     });
 
@@ -663,10 +672,10 @@ describe("agent access", () => {
       });
       const { body } = await issue(server);
 
-      const board = await asAgent(server, body.secret, "/api/board");
+      const board = await asAgent<BoardWorkspace>(server, body.secret, "/api/board");
       // The list exists for the project switcher, and a token cannot switch.
       expect(board.body.projects).toHaveLength(1);
-      expect(board.body.projects[0].id).toBe(board.body.project.id);
+      expect(board.body.projects[0]!.id).toBe(board.body.project.id);
 
       // A person on the same server still sees both.
       const own = await server.request<BoardWorkspace>("/api/board");
