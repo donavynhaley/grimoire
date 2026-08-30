@@ -47,8 +47,18 @@
         // That is the house idiom for "the schema already proved this is there", not
         // a finding, and turning it on would be a rewrite wearing a lint config.
         "noNonNullAssertion": "off",
-        // 23 selectors in styles.css, all in one file. Real, and worth a pass of its own.
-        "noDescendingSpecificity": "warn"
+        // Off, and this one is a judgement worth arguing with. All 23 findings were read.
+        // The rule compares any two selectors ending in the same simple selector, so most
+        // of them pair genuinely unrelated elements - `.board-page p` against
+        // `.capture-picker > div > p`, which can never match the same node - and it
+        // compares across @media boundaries as well. The rest are a base rule sitting
+        // after a variant that already contextualised it, which is inherent to a
+        // stylesheet organised by feature section: `.member-faces` styles its avatars
+        // before the avatar section defines one. Specificity, not source order, already
+        // decides every one of these, so nothing renders differently either way, and the
+        // reordering that would satisfy the rule scatters related rules apart in a 7k-line
+        // file that no test watches. Revisit if the sheet is ever reorganised base-first.
+        "noDescendingSpecificity": "off"
       },
       "correctness": {
         // All 34 findings were read one at a time and every one was deliberate: a
@@ -65,7 +75,11 @@
         "noUnusedFunctionParameters": "error"
       },
       "complexity": {
-        "useOptionalChain": "error"
+        "useOptionalChain": "error",
+        // Both remaining uses are load-bearing and carry their reason: the drag cursor,
+        // and the 1rem that stops iOS Safari zooming a focused input. A third one should
+        // have to argue for itself.
+        "noImportantStyles": "error"
       },
       "suspicious": {
         // TS-2 already forbids `any` outright, so this is the standard finally having a
