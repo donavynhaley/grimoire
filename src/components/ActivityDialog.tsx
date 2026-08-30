@@ -39,6 +39,7 @@ export function ActivityDialog({ awaySince, members, revision, onClose, onLoad, 
   const [query, setQuery] = useState("");
   const [person, setPerson] = useState<string | null>(null);
   const [entityType, setEntityType] = useState<AuditEntityType | null>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: events is the trigger, not an input - a fresh page of events re-baselines the clock the relative times in this list are read against
   const now = useMemo(() => new Date(), [events]);
 
   const load = useCallback(
@@ -58,6 +59,7 @@ export function ActivityDialog({ awaySince, members, revision, onClose, onLoad, 
     [onLoad],
   );
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: revision is the refetch trigger; it is bumped when the record changes and is deliberately not read inside
   useEffect(() => {
     void load();
   }, [load, revision]);

@@ -119,6 +119,7 @@ function Thread({
 }) {
   const answered = thread.answeredAt !== null;
   // One clock per render of this thread, so every time in it agrees with the others.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: thread is the trigger for taking one clock per render of this thread, so every time shown in it agrees with the others
   const now = useMemo(() => new Date(), [thread]);
 
   return (
@@ -327,6 +328,7 @@ function Composer({
     });
   };
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the effect measures the field through a ref; value is what should make it measure again, not something it reads
   useEffect(() => {
     if (field.current) fitToContent(field.current);
   }, [value]);

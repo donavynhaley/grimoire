@@ -109,6 +109,7 @@ export function PageDialog({
   // Opening a different page starts every fold where it would have started on first sight,
   // so reaching into the earlier chapters for one page is not a choice the next page inherits.
   // The rail's own folds get the same start by remounting under the page's key.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: page.id is the trigger: opening a different page is what should put every fold back to where it starts on first sight
   useEffect(() => {
     setShowingHistory(false);
     setPane("notes");

@@ -149,6 +149,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, Props>(function M
    */
   const emitted = useRef<string[]>([value]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the editor is built once and value is only its seed document; adding value would rebuild CodeMirror on every keystroke and throw away the caret and the undo history
   useEffect(() => {
     const parent = host.current;
     if (!parent) return;

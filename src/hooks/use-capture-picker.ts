@@ -86,6 +86,7 @@ export function useCapturePicker({
   );
   const visibleOptions = useMemo(() => filterOptions(options, picker?.query ?? ""), [options, picker?.query]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the picker's kind and query are the triggers for putting the highlight back to the top, not values the effect reads
   useEffect(() => {
     setHighlighted(0);
   }, [picker?.kind, picker?.query]);

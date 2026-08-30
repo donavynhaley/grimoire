@@ -136,6 +136,7 @@ export function SearchDialog({ initialQuery, onClose, onOpenPage, onOpenIdea, on
     }
   };
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the effect reaches the highlighted row through a ref; active and grouped are what should make it scroll again, not values it reads
   useEffect(() => {
     const highlighted = listRef.current?.querySelector<HTMLElement>(".search-hit.active");
     highlighted?.scrollIntoView?.({ block: "nearest" });

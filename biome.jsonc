@@ -51,10 +51,12 @@
         "noDescendingSpecificity": "warn"
       },
       "correctness": {
-        // 34 across 17 components. These are genuine signals, but Biome's fix edits
-        // dependency arrays, and a wrong edit here is an infinite render rather than a
-        // failing test - so they are read by a person, not applied in bulk.
-        "useExhaustiveDependencies": "warn",
+        // All 34 findings were read one at a time and every one was deliberate: a
+        // trigger dependency the effect does not read, a mount-only effect taking its
+        // state as a seed, or a narrow property named instead of an identity that
+        // changes every render. Each carries a biome-ignore saying which. Blocking now,
+        // so the next one is the accident this rule is actually good at catching.
+        "useExhaustiveDependencies": "error",
         // Clear, and blocking so they stay clear. The unused ones are worth catching for
         // more than tidiness: what they found here was a whole dead close-a-chapter path
         // left behind when rollover moved server-side.

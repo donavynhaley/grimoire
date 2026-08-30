@@ -37,6 +37,7 @@ export function SignInSection({ run }: { run: SettingsRun }) {
     setShowingSetup((showing) => showing || !next.issuer);
   };
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: loads the provider settings once on mount; adopt is redefined every render, so depending on it would refetch forever
   useEffect(() => {
     let live = true;
     void oidcSettings()
