@@ -564,6 +564,25 @@ Writes are metered per credential with a token bucket, held in memory.
 The bucket guards the running process against a loop rather than a determined attacker, and persisting it would mean a write on every request in order to limit writes.
 Reads are not metered, because they cost one query and cannot run the disk away.
 
+## Agent review
+
+The review is a composition, not a new record.
+Its events are the audit log filtered to rows carrying an `agent_token_id`, its waiting list is the open discussion threads those credentials started, and its revoke is the route settings already had - the only new storage is `agent_review_cursors`, one private boundary per person per project.
+
+That cursor is deliberately not `seen_cursors`.
+The away cursor advances by merely having the board on screen, which is right for a digest and wrong for a review: delegated work consumed by standing near it would never actually be read.
+The review's boundary moves only when a person closes the review, and when the response was capped it moves only to the last event actually shown, so nothing is ever marked reviewed unseen.
+The alternative - one cursor with two meanings - was rejected because the two surfaces would fight over it in both directions.
+
+A first look starts from sequence zero rather than the present, the opposite of the away digest's choice.
+Joining a project should not dump its history as unread, but issuing a credential is different: delegated work is owed a whole record, and a review that opened empty would teach people there was nothing to review.
+
+The reader's own agents are included, which the away digest's own-actions exclusion would have hidden.
+This follows the reasoning the discussion unread count already wrote down: an agent's work is attributed to its issuer, but the issuer has not read it.
+
+Everything the review lists is visible to every member, as the away digest already made it; the credential rail rides on the response only for the owner, because revoking is the owner's act.
+Neither route is on the agent allow list, and the closed-by-default policy keeps it that way: an agent that could read the review or advance its cursor could mark its own work looked-at, and the one sentence this feature exists to make tangible is that no agent approves its own work.
+
 ## Legacy migration
 
 The SQLite `pages` table remains only as an input for one-way migration from earlier Grimoire versions.

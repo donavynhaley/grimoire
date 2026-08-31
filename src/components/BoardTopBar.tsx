@@ -8,11 +8,14 @@ type Props = {
   board: BoardWorkspace;
   busy: boolean;
   projectActions: ProjectActions;
+  /** Agent changes and open questions awaiting review; zero keeps the trigger off screen. */
+  reviewCount: number;
   /** Changes since the reader's last visit, shown until the activity history is opened. */
   unseenCount: number;
   view: "work" | "ideas";
   onOpenAccount: () => void;
   onOpenActivity: () => void;
+  onOpenAgentReview: () => void;
   onOpenSearch: () => void;
   onOpenSettings: (section: SettingsSection) => void;
   onViewChange: (view: "work" | "ideas") => Promise<void>;
@@ -23,10 +26,12 @@ export function BoardTopBar({
   board,
   busy,
   projectActions,
+  reviewCount,
   unseenCount,
   view,
   onOpenAccount,
   onOpenActivity,
+  onOpenAgentReview,
   onOpenSearch,
   onOpenSettings,
   onViewChange,
@@ -79,6 +84,16 @@ export function BoardTopBar({
             <Avatar avatarUrl={member.avatarUrl} key={member.id} name={member.name} title={member.name} />
           ))}
         </div>
+        {/* Every member reviews, not only the owner: agent work is attributed to whoever
+            issued the credential, and the person it lands in front of is whoever is here. */}
+        {reviewCount > 0 && (
+          <button className="quiet-button agents-trigger" onClick={onOpenAgentReview} type="button">
+            agents
+            <span aria-label={`${reviewCount} agent changes to review`} className="away-badge">
+              {reviewCount > 99 ? "99+" : reviewCount}
+            </span>
+          </button>
+        )}
         {isOwner && (
           <button className="quiet-button activity-trigger" onClick={onOpenActivity} type="button">
             activity

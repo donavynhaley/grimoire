@@ -37,6 +37,7 @@ function awayEvent(overrides: Partial<AuditEvent>): AuditEvent {
     actorId: "00000000-0000-4000-8000-000000000011",
     actorName: "Maren",
     agentName: null,
+    agentTokenId: null,
     entityType: "page",
     entityId: "00000000-0000-4000-8000-000000000020",
     entityTitle: "Make the tower door remember Maren",

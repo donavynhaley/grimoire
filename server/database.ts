@@ -246,6 +246,14 @@ function migrate(database: DatabaseSync): void {
   }
 
   widenAuditEntityTypes(database);
+
+  // Created here rather than beside the other audit indexes, for two ordering reasons: on a
+  // database old enough to predate agent access the schema runs before the column this index
+  // filters on exists, and the CHECK-widening rebuild above would drop it mid-upgrade.
+  database.exec(
+    `CREATE INDEX IF NOT EXISTS idx_audit_agent ON audit_events(project_id, sequence)
+     WHERE agent_token_id IS NOT NULL`,
+  );
   widenFieldTypes(database);
   adoptAdminRole(database);
 
@@ -535,6 +543,22 @@ CREATE TABLE IF NOT EXISTS cards (
 ${auditEventsTable("audit_events")}
 
 CREATE TABLE IF NOT EXISTS seen_cursors (
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  last_seen_sequence INTEGER NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (project_id, user_id)
+);
+
+/*
+ * How far each person has reviewed what agents did, separately from seen_cursors.
+ *
+ * Separate because the two boundaries move for different reasons: the away cursor advances
+ * by merely having the board open, and a review that advanced with it would be consumed by
+ * standing nearby. This one moves only when the person closes the review itself. Private
+ * for the same reason as the others - nobody can see how caught up anybody else is.
+ */
+CREATE TABLE IF NOT EXISTS agent_review_cursors (
   project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   last_seen_sequence INTEGER NOT NULL,

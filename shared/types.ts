@@ -630,6 +630,11 @@ export type AuditEvent = {
    * read, so a label folded into it would be discarded before anyone saw it.
    */
   agentName: string | null;
+  /**
+   * The credential behind `agentName`, so a surface showing agent work can offer to revoke
+   * it without a second lookup. Null exactly when `agentName` is null.
+   */
+  agentTokenId: string | null;
   entityType: AuditEntityType;
   entityId: string | null;
   entityTitle: string;
@@ -676,4 +681,42 @@ export type AwayState = {
   latest: number;
   total: number;
   events: AuditEvent[];
+};
+
+/**
+ * An agent-opened thread still waiting on a person.
+ *
+ * Listed regardless of the review boundary, because a question does not stop being asked
+ * by scrolling past a cursor: it is open until a person answers it.
+ */
+export type AgentReviewThread = {
+  id: string;
+  pageId: string;
+  pageTitle: string;
+  agentName: string | null;
+  agentTokenId: string | null;
+  /** The person the agent wrote as. */
+  authorId: string | null;
+  authorName: string;
+  /** The question the way the log would quote it, not the full body. */
+  body: string;
+  createdAt: string;
+};
+
+/**
+ * Everything agents did since this reader last reviewed them.
+ *
+ * The same boundary shape as `AwayState`, kept as a separate cursor: the away cursor
+ * advances by merely watching the board, and a review consumed by standing near it would
+ * never be read. A first look starts from zero rather than the present, because a
+ * review's promise is the whole record, not the recent part of it.
+ */
+export type AgentReview = {
+  since: number;
+  latest: number;
+  total: number;
+  events: AuditEvent[];
+  waiting: AgentReviewThread[];
+  /** The project's credentials, sent only to its owner - revoking is the owner's act. */
+  credentials?: AgentToken[];
 };

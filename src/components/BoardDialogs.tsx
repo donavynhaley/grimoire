@@ -1,4 +1,5 @@
 import type {
+  AgentReview,
   AuditPage,
   AwayState,
   BoardWorkspace,
@@ -6,8 +7,10 @@ import type {
   Page,
   ProjectRole,
 } from "../../shared/types";
+import { revokeAgentToken } from "../api/client";
 import { AccountDialog } from "./AccountDialog";
 import { ActivityDialog } from "./ActivityDialog";
+import { AgentReviewDialog } from "./AgentReviewDialog";
 import { BacklogDialog } from "./BacklogDialog";
 import type { CategoryActions } from "./CategoriesSection";
 import { type ChapterFilter, NO_CHAPTER } from "./ChapterPicker";
@@ -25,6 +28,8 @@ import { SearchDialog } from "./SearchDialog";
 type Props = {
   accountOpen: boolean;
   activityOpen: boolean;
+  agentReview: AgentReview | null;
+  agentReviewOpen: boolean;
   away: AwayState | null;
   backlogOpen: boolean;
   backlogPages: Page[];
@@ -53,6 +58,7 @@ type Props = {
   onChangePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   onCloseAccount: () => void;
   onCloseActivity: () => void;
+  onCloseAgentReview: () => void;
   onCloseBacklog: () => void;
   onCloseHistory: () => void;
   onCloseSearch: () => void;
@@ -63,6 +69,7 @@ type Props = {
   onMoveBacklogToNext: (id: string) => Promise<void>;
   onOpenIdeaFromSearch: (id: string) => void;
   onOpenPageFromSearch: (id: string) => void;
+  onReloadAgentReview: () => void;
   onRemoveAvatar: () => Promise<void>;
   onRemoveMember: (id: string) => Promise<void>;
   onReply: (pageId: string, threadId: string, body: string) => Promise<void>;
@@ -78,6 +85,8 @@ type Props = {
 export function BoardDialogs({
   accountOpen,
   activityOpen,
+  agentReview,
+  agentReviewOpen,
   away,
   backlogOpen,
   backlogPages,
@@ -105,6 +114,7 @@ export function BoardDialogs({
   onChangePassword,
   onCloseAccount,
   onCloseActivity,
+  onCloseAgentReview,
   onCloseBacklog,
   onCloseHistory,
   onCloseSearch,
@@ -115,6 +125,7 @@ export function BoardDialogs({
   onMoveBacklogToNext,
   onOpenIdeaFromSearch,
   onOpenPageFromSearch,
+  onReloadAgentReview,
   onRemoveAvatar,
   onRemoveMember,
   onReply,
@@ -162,6 +173,24 @@ export function BoardDialogs({
           onSetAnswered={onSetAnswered}
           onSeeDiscussion={onSeeDiscussion}
           onUpdate={(input) => onUpdate(selectedPage.id, input)}
+        />
+      )}
+      {agentReviewOpen && agentReview && (
+        <AgentReviewDialog
+          board={board}
+          review={agentReview}
+          onClose={onCloseAgentReview}
+          onOpenPage={(id) => {
+            if (!board.pages.some((page) => page.id === id)) return;
+            onCloseAgentReview();
+            onSelectPage(id);
+          }}
+          onRevoke={async (id) => {
+            // Straight to the client, the way the settings section does it: a credential
+            // is not board state, so the perform family's board reload buys nothing.
+            await revokeAgentToken(id);
+            onReloadAgentReview();
+          }}
         />
       )}
       {activityOpen && (
