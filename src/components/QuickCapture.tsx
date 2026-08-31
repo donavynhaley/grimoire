@@ -11,7 +11,12 @@ import {
 } from "../../shared/types";
 import { useCapturePicker } from "../hooks/use-capture-picker";
 import { useTypingFocus } from "../hooks/use-typing-focus";
-import { type CaptureSettings, commandAtEnd, hasCustomSettings } from "../lib/capture-pickers";
+import {
+  type CaptureSettings,
+  commandAtEnd,
+  defaultCaptureSettings,
+  hasCustomSettings,
+} from "../lib/capture-pickers";
 import { categoryColorStyle } from "../lib/category-style";
 import { CapturePicker } from "./CapturePicker";
 
@@ -36,28 +41,12 @@ type Props = {
   onCreate: (input: CapturePageInput) => Promise<void>;
 };
 
-const DEFAULT_SETTINGS: CaptureSettings = {
-  category: null,
-  chapter: null,
-  assigneeId: null,
-  status: "backlog",
-  fields: {},
-};
-
-/** New work belongs to the chapter the project has declared current, when it has one. */
-function defaultSettings(chapters: Chapter[]): CaptureSettings {
-  return {
-    ...DEFAULT_SETTINGS,
-    chapter: chapters.find((chapter) => chapter.state === "open")?.slug ?? null,
-    fields: {},
-  };
-}
-
 const statusLabels = PAGE_STATUS_LABELS;
 
 export function QuickCapture({ busy, categories, chapters, fields = [], members, onCreate }: Props) {
   const [title, setTitle] = useState("");
-  const [settings, setSettings] = useState<CaptureSettings>(() => defaultSettings(chapters));
+  const defaults = defaultCaptureSettings(chapters, members);
+  const [settings, setSettings] = useState<CaptureSettings>(() => defaultCaptureSettings(chapters, members));
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -115,12 +104,12 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
   };
 
   const resetSettings = () => {
-    setSettings(defaultSettings(chapters));
+    setSettings(defaultCaptureSettings(chapters, members));
     setPicker(null);
     inputRef.current?.focus();
   };
 
-  const showTools = Boolean(title.trim()) || hasCustomSettings(settings);
+  const showTools = Boolean(title.trim()) || hasCustomSettings(settings, defaults);
 
   return (
     <form
@@ -230,7 +219,7 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
               );
             })}
           </div>
-          {hasCustomSettings(settings) && (
+          {hasCustomSettings(settings, defaults) && (
             <button
               aria-label="Start fresh with default settings"
               className="reset-settings"

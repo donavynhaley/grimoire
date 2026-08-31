@@ -110,6 +110,13 @@ A controlled value arrives a render late, by which time the document has usually
 
 Board and library tiles reduce notes to plain text; the separate read-only renderer the live preview replaced has been removed.
 
+## Capturing work
+
+A page captured on a project with exactly one member arrives assigned to that member, in the capture bar and in a column's own add form alike.
+A project with one person has no ambiguity worth preserving, and asking who each page is for is asking about work nobody else could be doing; two members is where the question becomes real, and the default goes back to unassigned there.
+The default is applied in the client rather than in `createPage`, so it is on screen as a chosen value before anything is sent and can be cleared like any other choice - and so the server keeps meaning exactly what it is told, which matters because an agent asking for an unassigned page must get one.
+`hasCustomSettings` is therefore measured against the defaults rather than against nothing, since offering to "start fresh" into the state somebody is already in is offering a button that does nothing.
+
 ## Page format
 
 Every page contains strict YAML frontmatter followed by its Markdown notes.

@@ -21,6 +21,7 @@ import { useCaptureFlight } from "../hooks/use-capture-flight";
 import { type CardHint, useCardBoard } from "../hooks/use-card-board";
 import { useFlip } from "../hooks/use-flip";
 import { type DragPoint, gapIndexIn, pointWithin } from "../hooks/use-pointer-drag";
+import { soleMemberId } from "../lib/capture-pickers";
 import { chapterWhen } from "../lib/chapter-dates";
 import { plainTextFromMarkdown } from "../lib/markdown-text";
 import { AwayDigest } from "./AwayDigest";
@@ -288,7 +289,15 @@ export function Board({
     // Adding straight into a column while looking at a chapter lands the page in that
     // chapter, because that is plainly where the reader meant to put it.
     const intoChapter = chaptersOn && chapter !== null && chapter !== NO_CHAPTER ? chapter : null;
-    await onCreate({ title, category: null, chapter: intoChapter, assigneeId: null, status });
+    // The capture bar's defaults apply here too: a page added straight into a column on a
+    // one-person project is that person's, and it says so rather than arriving unclaimed.
+    await onCreate({
+      title,
+      category: null,
+      chapter: intoChapter,
+      assigneeId: soleMemberId(board.members),
+      status,
+    });
   };
 
   /**
