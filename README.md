@@ -386,6 +386,8 @@ That is [MIT](packages/grimoire-mcp/LICENSE), because it is a client: it should 
 
 ## Contributing
 
-Pull requests are welcome, and a first one is asked to sign the [contributor license agreement](docs/contributor-license-agreement.md).
+Pull requests are welcome; [CONTRIBUTING.md](CONTRIBUTING.md) covers getting set up, the three test suites, and what kinds of change are likely to land.
+A first pull request is asked to sign the [contributor license agreement](docs/contributor-license-agreement.md).
 It is a licence rather than an assignment — you keep the copyright in what you write — and it is what lets the project keep making licensing decisions later without having to find and ask every past contributor.
 Signing is a single comment on the pull request; the CLA assistant asks for it and remembers the answer.
+Security problems are reported privately instead, as [SECURITY.md](SECURITY.md) describes.
