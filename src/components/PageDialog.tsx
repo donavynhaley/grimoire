@@ -232,6 +232,7 @@ export function PageDialog({
             placeholder="Add only the context someone needs to act..."
             rows={10}
             value={editor.description}
+            viewLabel="View notes"
           />
 
           <GithubLink github={page.github} onUpdate={onUpdate} repo={githubRepo} status={page.githubStatus} />

@@ -567,6 +567,7 @@ function IdeaDialog({
           placeholder="What makes this interesting?"
           rows={7}
           value={editor.description}
+          viewLabel="View idea notes"
         />
         <SaveState editor={editor} who={null} />
       </div>

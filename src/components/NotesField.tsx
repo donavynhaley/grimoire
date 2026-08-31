@@ -4,8 +4,10 @@ import { MarkdownEditor, type MarkdownEditorHandle } from "./MarkdownEditor";
 
 type Props = {
   label: string;
-  /** Names the way in for a keyboard, which is now a way to the caret rather than to a mode. */
+  /** Names the control while it offers the Markdown: "Edit notes", and the caret with it. */
   editLabel: string;
+  /** Names the same control while it offers the drawn document back: "View notes". */
+  viewLabel: string;
   /** Names the image picker for whichever notes these are; defaults to a plain one. */
   addImageLabel?: string;
   editorLabel: string;
@@ -26,12 +28,18 @@ type Props = {
 /**
  * Notes as one surface that is always rendered and always writable.
  *
- * There is no longer a rendered view and an editor taking turns. Headings are headings,
- * emphasis is emphasis, embedded screenshots are pictures - and the syntax underneath any
- * of it appears only on the line the caret is on, which is Obsidian's Live Preview and the
- * reason none of this needs a mode. Clicking lands the caret where it was clicked because
- * the caret was always there to land; nothing is measured, swapped, or grown, so the box
- * this lives in never changes size and the rule about things travelling has nothing to do.
+ * Headings are headings, emphasis is emphasis, embedded screenshots are pictures - and the
+ * syntax underneath any of it appears only on the line the caret is on, which is Obsidian's
+ * Live Preview and the reason reading and writing are not two modes. Clicking lands the
+ * caret where it was clicked because the caret was always there to land; nothing is
+ * measured, swapped, or grown, so the box this lives in never changes size and the rule
+ * about things travelling has nothing to do.
+ *
+ * `edit` asks for the Markdown itself - Obsidian's source mode - for the times the drawing
+ * is in the way of the thing being written: a stubborn table, a link whose target matters,
+ * a page being pasted in from somewhere else. It is the same document underneath and the
+ * same caret in it, so the word on the control swaps to `view` and the way back is the
+ * click that got here.
  *
  * Pasting or dropping an image uploads it and embeds `![[name]]`, exactly the reference
  * Obsidian would create. Drops are accepted by the whole field, since a drag usually
@@ -41,6 +49,7 @@ type Props = {
 export function NotesField({
   label,
   editLabel,
+  viewLabel,
   addImageLabel = "Add an image",
   editorLabel,
   placeholder,
@@ -49,6 +58,7 @@ export function NotesField({
   value,
   onChange,
 }: Props) {
+  const [source, setSource] = useState(false);
   const [pendingUploads, setPendingUploads] = useState(0);
   const [uploadFailed, setUploadFailed] = useState(false);
   const [dropActive, setDropActive] = useState(false);
@@ -169,17 +179,26 @@ export function NotesField({
             type="file"
           />
           {/*
-            A pointer puts the caret where it clicks. This is the same destination for
-            everyone else: the end of the notes, named, and one stop along the tab order
-            rather than something to hunt for.
+            The word on this control names what a click will do rather than what is on
+            screen, the way a play button does, so it swaps with the mode instead of
+            carrying `aria-pressed` under a fixed name (UI-5) - a pressed state under the
+            word "view" would contradict the word somebody can read.
+
+            A pointer still puts the caret where it clicks. Asking for the Markdown is
+            asking to write in it, so the caret comes along, at the same destination this
+            control has always offered a keyboard: the end of the notes.
           */}
           <button
-            aria-label={editLabel}
+            aria-label={source ? viewLabel : editLabel}
             className="text-button"
-            onClick={() => editor.current?.focus(valueRef.current.length)}
+            onClick={() => {
+              const showingSource = !source;
+              setSource(showingSource);
+              if (showingSource) editor.current?.focus(valueRef.current.length);
+            }}
             type="button"
           >
-            edit
+            {source ? "view" : "edit"}
           </button>
         </span>
       </div>
@@ -195,6 +214,7 @@ export function NotesField({
           placeholder={placeholder}
           ref={editor}
           scrollerClass="notes-view"
+          source={source}
           value={value}
         />
       </div>
