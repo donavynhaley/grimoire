@@ -19,6 +19,8 @@ const archivedCard = "66a1b2c80000000000000006";
 const archivedListCard = "66a1b2c90000000000000007";
 const weirdListCard = "66a1b2ca0000000000000008";
 const longTitleCard = "66a1b2cb0000000000000009";
+const templateCard = "66a1b2cc000000000000000a";
+const newlineCard = "66a1b2cd000000000000000b";
 const longTitle = "A".repeat(250);
 
 /**
@@ -98,6 +100,23 @@ const trelloExport = {
     },
     { id: archivedCard, name: "Abandoned idea", desc: "", idList: "list-todo", closed: true, pos: 2 },
     { id: archivedListCard, name: "Ancient work", desc: "", idList: "list-old", closed: false, pos: 1 },
+    {
+      id: templateCard,
+      name: "Weekly report template",
+      desc: "",
+      idList: "list-todo",
+      closed: false,
+      pos: 3,
+      isTemplate: true,
+    },
+    {
+      id: newlineCard,
+      name: "Two line\ncard name",
+      desc: "",
+      idList: "list-doing",
+      closed: false,
+      pos: 2,
+    },
   ],
   checklists: [
     {
@@ -136,7 +155,7 @@ describe("ops/import-trello.mjs", () => {
 
     const { stdout } = await runOpsImporter(script, server, exportPath, withWeirdPileMapped);
 
-    expect(stdout).toContain("6 to create");
+    expect(stdout).toContain("7 to create");
     expect(stdout).toContain("Dry run - nothing written");
     expect(importedPages(server)).toEqual([]);
   });
@@ -149,10 +168,10 @@ describe("ops/import-trello.mjs", () => {
     await server.close();
 
     const { stdout } = await runOpsImporter(script, server, exportPath, [...withWeirdPileMapped, "--apply"]);
-    expect(stdout).toContain("Wrote 6 page file(s)");
+    expect(stdout).toContain("Wrote 7 page file(s)");
 
     const pages = importedPages(server);
-    expect(pages).toHaveLength(6);
+    expect(pages).toHaveLength(7);
     const byCard = new Map(
       pages.map((page) => [page.description.match(/^Imported from Trello card ([0-9a-f]{24})\b/m)![1], page]),
     );
@@ -203,10 +222,15 @@ describe("ops/import-trello.mjs", () => {
     expect(ideas.position).toBe(1);
     expect(long.position).toBe(2);
 
-    // Trello's archive stays behind - archived cards and cards on an archived list alike.
+    // Trello's archive stays behind - archived cards and cards on an archived list alike -
+    // and so do card templates, which are stationery, not work.
     expect(byCard.has(archivedCard)).toBe(false);
     expect(byCard.has(archivedListCard)).toBe(false);
-    expect(stdout).toContain("2 skipped");
+    expect(byCard.has(templateCard)).toBe(false);
+    expect(stdout).toContain("3 skipped");
+
+    // A name with a newline in it (real exports carry them) becomes one honest line.
+    expect(byCard.get(newlineCard)!.title).toBe("Two line card name");
 
     // The board itself - the strictest reader - serves what the script wrote.
     const restarted = await startTestServer(directory);
@@ -219,7 +243,7 @@ describe("ops/import-trello.mjs", () => {
         headers: { "x-grimoire-project": projectId },
       })
     ).body;
-    expect(workspace.pages).toHaveLength(7);
+    expect(workspace.pages).toHaveLength(8);
     const served = workspace.pages.find((page: Page) => page.title === "Try the wizard theme")!;
     expect(served.status).toBe("backlog");
     await restarted.close();
@@ -236,7 +260,7 @@ describe("ops/import-trello.mjs", () => {
     const { stdout } = await runOpsImporter(script, server, exportPath, [...withWeirdPileMapped, "--apply"]);
 
     expect(stdout).toContain("0 to create");
-    expect(importedPages(server)).toHaveLength(6);
+    expect(importedPages(server)).toHaveLength(7);
   });
 
   it("refuses the whole import when a list with cards has no column, naming the flag to pass", async () => {
@@ -265,7 +289,7 @@ describe("ops/import-trello.mjs", () => {
 
     const { stdout } = await runOpsImporter(script, server, exportPath);
 
-    expect(stdout).toContain("5 to create");
+    expect(stdout).toContain("6 to create");
     expect(stdout).toContain("0 error(s)");
   });
 });

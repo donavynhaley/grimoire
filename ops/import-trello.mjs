@@ -100,7 +100,8 @@ function main() {
   const lists = [...board.lists].sort((a, b) => a.pos - b.pos);
   const listsById = new Map(lists.map((list) => [list.id, list]));
   const openCards = board.cards.filter(
-    (card) => !card.closed && listsById.get(card.idList) && !listsById.get(card.idList).closed,
+    (card) =>
+      !card.closed && !card.isTemplate && listsById.get(card.idList) && !listsById.get(card.idList).closed,
   );
 
   // Lists resolve before cards so an unrecognised name is reported once, as the list it is,
@@ -146,6 +147,10 @@ function main() {
       );
       continue;
     }
+    if (card.isTemplate) {
+      skipped.push(`${label}: a card template, not work`);
+      continue;
+    }
     if (alreadyImported.has(card.id)) {
       skipped.push(`${label}: already on the board`);
       continue;
@@ -153,7 +158,11 @@ function main() {
     const status = statusByList.get(list.id);
     if (!status) continue; // the list itself is already an error above
 
-    let title = String(card.name ?? "").trim();
+    // Real exports carry card names with embedded newlines (found in the wild on a public
+    // board); one line is the only honest board title, so whitespace collapses to spaces.
+    let title = String(card.name ?? "")
+      .replace(/\s+/g, " ")
+      .trim();
     if (title.length < 1) {
       errors.push(`${label}: the card has no name`);
       continue;

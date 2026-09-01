@@ -145,7 +145,9 @@ function main() {
 
     // Focalboard renders a blank title as "Untitled" rather than refusing it, so the import
     // does the same - inherited data gets carried, with a warning, not refused.
-    let title = rawTitle;
+    // Whitespace collapses to spaces for the same reason as the Trello importer: an archive
+    // can carry a title with a newline in it, and one line is the only honest board title.
+    let title = rawTitle.replace(/\s+/g, " ");
     if (title.length < 1) {
       title = "Untitled";
       warnings.push(`${label}: the card has no title, imported as "Untitled"`);

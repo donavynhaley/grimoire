@@ -350,6 +350,55 @@ describe("ops/import-focalboard.mjs", () => {
     expect(fromJsonl.stdout).toContain("6 to create");
   });
 
+  /**
+   * tests/fixtures/project-tasks.boardarchive was exported by the real application, not built
+   * by hand: Focalboard 7.8.9 (mattermost/focalboard in Docker), its own "Project Tasks"
+   * template duplicated into a live board, each card moved to a different status through the
+   * API, one card added with text and checkbox content, then downloaded from the same
+   * /archive/export endpoint the UI's "Export board archive" button uses. The hand-built
+   * fixture above proves the mapping logic; this one proves the format assumptions against
+   * bytes Focalboard actually wrote.
+   */
+  it("imports the archive the real application exported, byte for byte", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "grimoire-import-"));
+    const server = await startTestServer(directory);
+    await provisionImportTarget(server);
+    const realArchive = join(__dirname, "..", "fixtures", "project-tasks.boardarchive");
+    await server.close();
+
+    // The template's real statuses include Blocked and Archived, which no synonym table
+    // should guess at - the refusal names both.
+    const failure = await runOpsImporter(script, server, realArchive, ["--apply"]).catch((error) => error);
+    expect(failure.code).toBe(1);
+    expect(failure.stdout).toContain('option "Blocked"');
+    expect(failure.stdout).toContain('option "Archived"');
+    expect(importedPages(server)).toEqual([]);
+
+    const { stdout } = await runOpsImporter(script, server, realArchive, [
+      "--option",
+      "Blocked=Review",
+      "--option",
+      "Archived=Done",
+      "--apply",
+    ]);
+    expect(stdout).toContain("Wrote 6 page file(s)");
+
+    const byTitle = new Map(importedPages(server).map((page) => [page.title, page]));
+    expect(byTitle.get("Identify dependencies")!.status).toBe("backlog"); // Not Started
+    expect(byTitle.get("Define project scope")!.status).toBe("in_progress"); // In Progress
+    expect(byTitle.get("Requirements sign-off")!.status).toBe("review"); // Blocked, via the flag
+    expect(byTitle.get("Project budget approval")!.status).toBe("done"); // Completed 🙌
+    expect(byTitle.get("Conduct market analysis")!.status).toBe("done"); // Archived, via the flag
+
+    // The template's own content blocks travel as Markdown.
+    expect(byTitle.get("Identify dependencies")!.description).toContain("## Description");
+
+    const mine = byTitle.get("Validate the Grimoire importer")!;
+    expect(mine.status).toBe("backlog");
+    expect(mine.description).toContain("Exported from the **real** app");
+    expect(mine.description).toContain("- [ ] run the importer against this archive");
+  });
+
   it("imports one board per run: a multi-board archive demands --board and honours it", async () => {
     const directory = mkdtempSync(join(tmpdir(), "grimoire-import-"));
     const server = await startTestServer(directory);
