@@ -165,6 +165,52 @@ export function openThreadCount(database: DatabaseSync, projectId: string, pageI
   return Number(value?.open ?? 0);
 }
 
+/** An agent-opened thread nobody has answered, as the review lists it. */
+export type OpenAgentThread = {
+  id: string;
+  pageId: string;
+  authorId: string | null;
+  authorName: string;
+  agentName: string | null;
+  agentTokenId: string;
+  body: string;
+  createdAt: string;
+};
+
+/**
+ * Every open thread an agent started, across the whole project, oldest first.
+ *
+ * This is the "waiting on a person" list: an open thread is how an agent asks somebody
+ * something and is seen to be waiting, and it stays on the review until a person answers
+ * it rather than expiring with a cursor.
+ */
+export function openAgentThreads(database: DatabaseSync, projectId: string): OpenAgentThread[] {
+  const values = database
+    .prepare(
+      `SELECT page_discussion.id, page_discussion.page_id, page_discussion.author_id, page_discussion.author_name,
+              page_discussion.agent_token_id, page_discussion.body, page_discussion.created_at,
+              authors.name AS current_author_name,
+              agent_tokens.name AS agent_name
+       FROM page_discussion
+       LEFT JOIN users AS authors ON authors.id = page_discussion.author_id
+       LEFT JOIN agent_tokens ON agent_tokens.id = page_discussion.agent_token_id
+       WHERE page_discussion.project_id = ? AND page_discussion.parent_id IS NULL
+         AND page_discussion.answered_at IS NULL AND page_discussion.agent_token_id IS NOT NULL
+       ORDER BY page_discussion.created_at ASC, page_discussion.rowid ASC`,
+    )
+    .all(projectId) as Row[];
+  return values.map((value) => ({
+    id: String(value.id),
+    pageId: String(value.page_id),
+    authorId: value.author_id === null ? null : String(value.author_id),
+    authorName: String(value.current_author_name ?? value.author_name),
+    agentName: value.agent_name === null || value.agent_name === undefined ? null : String(value.agent_name),
+    agentTokenId: String(value.agent_token_id),
+    body: String(value.body),
+    createdAt: String(value.created_at),
+  }));
+}
+
 /**
  * How much of a page's conversation this person has not read yet.
  *

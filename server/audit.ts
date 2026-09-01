@@ -157,6 +157,39 @@ export function listUnseenEvents(
   return { events: values.map(publicAuditEvent), total: Number(counted.total) };
 }
 
+/**
+ * Everything agents wrote after a reader's review boundary.
+ *
+ * Unlike the away digest, nothing is excluded for being the reader's own: an agent acting
+ * as you is exactly what you have not seen, the same reasoning the discussion's unread
+ * count already follows. Oldest first for the same story-reading reason, with the same
+ * cap and the same exact total.
+ */
+export function listAgentEvents(
+  database: DatabaseSync,
+  projectId: string,
+  options: { after: number },
+): { events: AuditEvent[]; total: number } {
+  const predicate =
+    "audit_events.project_id = ? AND audit_events.sequence > ? AND audit_events.agent_token_id IS NOT NULL";
+  const params = [projectId, options.after];
+  const counted = database
+    .prepare(`SELECT COUNT(*) AS total FROM audit_events WHERE ${predicate}`)
+    .get(...params) as { total: number };
+  const values = database
+    .prepare(
+      `SELECT audit_events.*, users.name AS current_actor_name, agent_tokens.name AS agent_name
+       FROM audit_events
+       LEFT JOIN users ON users.id = audit_events.actor_id
+       LEFT JOIN agent_tokens ON agent_tokens.id = audit_events.agent_token_id
+       WHERE ${predicate}
+       ORDER BY audit_events.sequence ASC
+       LIMIT ?`,
+    )
+    .all(...params, AWAY_EVENT_LIMIT) as Array<Record<string, string | number | null>>;
+  return { events: values.map(publicAuditEvent), total: Number(counted.total) };
+}
+
 function publicAuditEvent(value: Record<string, string | number | null>): AuditEvent {
   return {
     sequence: Number(value.sequence),
@@ -164,6 +197,10 @@ function publicAuditEvent(value: Record<string, string | number | null>): AuditE
     actorId: value.actor_id === null ? null : String(value.actor_id),
     actorName: String(value.current_actor_name ?? value.actor_name),
     agentName: value.agent_name === null || value.agent_name === undefined ? null : String(value.agent_name),
+    agentTokenId:
+      value.agent_token_id === null || value.agent_token_id === undefined
+        ? null
+        : String(value.agent_token_id),
     entityType: value.entity_type as AuditEntityType,
     entityId: value.entity_id === null ? null : String(value.entity_id),
     entityTitle: String(value.entity_title),

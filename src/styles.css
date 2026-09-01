@@ -6206,6 +6206,21 @@ textarea:hover {
   cursor: pointer;
 }
 
+/* Agent review ----------------------------------------------------------- */
+
+/* The badge positions against the trigger, the same anchoring activity uses. */
+.agents-trigger {
+  position: relative;
+}
+
+/* What the cap held back: an honest margin note, not another row of activity. */
+.review-cap-note {
+  margin: 0.375rem 0 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  text-align: center;
+}
+
 /* Project menu, now a switcher ------------------------------------------ */
 
 .project-menu-label {

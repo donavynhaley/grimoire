@@ -1,4 +1,5 @@
 import type {
+  AgentReview,
   AgentToken,
   AgentTokenScope,
   ArchivedProject,
@@ -154,6 +155,19 @@ export function search(query: string, signal?: AbortSignal): Promise<SearchResul
 
 export function away(): Promise<AwayState> {
   return request<AwayState>("/api/away");
+}
+
+/** Everything agents did since this reader last reviewed them, with what is still waiting. */
+export function agentReview(): Promise<AgentReview> {
+  return request<AgentReview>("/api/agent-review");
+}
+
+/**
+ * Advances the private review cursor. Passing a sequence reviews up to exactly there, so a
+ * capped review marks only what was actually shown; omitting it reviews everything.
+ */
+export function markAgentReviewSeen(sequence?: number): Promise<{ ok: boolean }> {
+  return mutate("/api/agent-review/seen", "POST", sequence === undefined ? {} : { sequence });
 }
 
 export function agentTokens(): Promise<{ tokens: AgentToken[] }> {

@@ -1,0 +1,32 @@
+name: Feature request
+description: Something Grimoire should do, or should do differently.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before writing, skim [CONTRIBUTING.md](../blob/main/CONTRIBUTING.md) —
+        Grimoire says no to some things on purpose (notifications, forecasting,
+        agent powers that destroy or self-approve), and a request inside those
+        lines will be closed with a pointer to the reasoning rather than argued
+        from scratch.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that Grimoire makes hard? Describe the situation rather than the missing button.
+      placeholder: |
+        Our team closes a chapter every two weeks, and every time we have to work
+        out by hand which pages were carried from the previous one.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would want
+      description: How you imagine it working, if you have a shape in mind. It is fine not to.
+  - type: textarea
+    id: fit
+    attributes:
+      label: How it fits
+      description: Which existing pieces this composes with — chapters, discussions, the activity log, agent access — and what it deliberately does not do.

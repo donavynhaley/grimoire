@@ -335,6 +335,7 @@ describe("agent access", () => {
         ["/api/account/name", "POST"],
         ["/api/account/avatar", "DELETE"],
         ["/api/seen", "POST"],
+        ["/api/agent-review/seen", "POST"],
         ["/api/images", "POST"],
       ] as const;
 

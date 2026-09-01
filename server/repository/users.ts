@@ -99,3 +99,36 @@ export function advanceSeenCursor(
     )
     .run(projectId, userId, sequence, new Date().toISOString());
 }
+
+/**
+ * The reader's private boundary into what agents did, or null before their first review.
+ *
+ * There is no initializer to pair with it: a first review starts from the beginning
+ * rather than the present, because delegated work is owed a whole record, not a recent one.
+ */
+export function agentReviewCursor(database: DatabaseSync, projectId: string, userId: string): number | null {
+  const value = row(
+    database,
+    "SELECT last_seen_sequence FROM agent_review_cursors WHERE project_id = ? AND user_id = ?",
+    projectId,
+    userId,
+  );
+  return value ? Number(value.last_seen_sequence) : null;
+}
+
+/** The same MAX-advancing upsert as the away cursor, for the same stale-tab reason. */
+export function advanceAgentReviewCursor(
+  database: DatabaseSync,
+  projectId: string,
+  userId: string,
+  sequence: number,
+): void {
+  database
+    .prepare(
+      `INSERT INTO agent_review_cursors (project_id, user_id, last_seen_sequence, updated_at) VALUES (?, ?, ?, ?)
+       ON CONFLICT (project_id, user_id) DO UPDATE SET
+         last_seen_sequence = MAX(last_seen_sequence, excluded.last_seen_sequence),
+         updated_at = excluded.updated_at`,
+    )
+    .run(projectId, userId, sequence, new Date().toISOString());
+}

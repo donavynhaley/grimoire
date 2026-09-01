@@ -10,6 +10,7 @@ import {
   type PageStatus,
   type ProjectRole,
 } from "../../shared/types";
+import { useAgentReview } from "../hooks/use-agent-review";
 import {
   BOARD_STATUSES,
   comparePosition,
@@ -151,6 +152,10 @@ export function Board({
   const [openIdea, setOpenIdea] = useState<{ id: string; token: number } | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
+  const [agentReviewOpen, setAgentReviewOpen] = useState(false);
+  const { review, markReviewed, reload: reloadReview } = useAgentReview(board.project.id, revision);
+  // Open questions keep the trigger up after a review: waiting on a person does not expire.
+  const reviewCount = review ? review.total + review.waiting.length : 0;
   // Once the history has been opened, its badge has done its job for this visit.
   const [activityVisited, setActivityVisited] = useState(false);
   const [awayDismissed, setAwayDismissed] = useState(false);
@@ -383,6 +388,7 @@ export function Board({
         board={board}
         busy={busy}
         projectActions={projectActions}
+        reviewCount={reviewCount}
         unseenCount={unseenCount}
         view={view}
         onOpenAccount={() => setAccountOpen(true)}
@@ -390,6 +396,7 @@ export function Board({
           setActivityOpen(true);
           setActivityVisited(true);
         }}
+        onOpenAgentReview={() => setAgentReviewOpen(true)}
         onOpenSearch={() => setSearchOpen(true)}
         onOpenSettings={changeSettingsSection}
         onViewChange={onViewChange}
@@ -657,6 +664,8 @@ export function Board({
       <BoardDialogs
         accountOpen={accountOpen}
         activityOpen={activityOpen}
+        agentReview={review}
+        agentReviewOpen={agentReviewOpen}
         away={away}
         backlogOpen={backlogOpen}
         backlogPages={backlogPages}
@@ -684,6 +693,12 @@ export function Board({
         onChangePassword={onChangePassword}
         onCloseAccount={() => setAccountOpen(false)}
         onCloseActivity={() => setActivityOpen(false)}
+        onCloseAgentReview={() => {
+          setAgentReviewOpen(false);
+          // Closing is the review: the boundary advances only through this act.
+          markReviewed();
+        }}
+        onReloadAgentReview={reloadReview}
         onCloseBacklog={() => setBacklogOpen(false)}
         onCloseHistory={() => setHistoryOpen(false)}
         onCloseSearch={() => setSearchOpen(false)}
