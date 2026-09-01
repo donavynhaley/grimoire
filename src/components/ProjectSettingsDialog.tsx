@@ -19,6 +19,7 @@ import { type FieldActions, FieldsSection } from "./FieldsSection";
 import { GeneralSection } from "./GeneralSection";
 import { GithubSection } from "./GithubSection";
 import { Growing } from "./Growing";
+import { ImportSection } from "./ImportSection";
 import { SignInSection } from "./SignInSection";
 import { TeamSection } from "./TeamSection";
 
@@ -27,6 +28,7 @@ export const SETTINGS_SECTIONS = [
   "categories",
   "fields",
   "chapters",
+  "import",
   "github",
   "discord",
   "team",
@@ -57,6 +59,7 @@ const SECTION_LABELS: Record<SettingsSection, string> = {
   categories: "Categories",
   fields: "Page fields",
   chapters: "Chapters",
+  import: "Import",
   github: "GitHub",
   discord: "Discord",
   team: "Team",
@@ -260,6 +263,7 @@ export function ProjectSettingsDialog({
               run={run}
             />
           )}
+          {active === "import" && isOwner && <ImportSection />}
           {active === "agents" && isOwner && <AgentAccessSection run={run} />}
           {active === "signin" && currentUser.role === "admin" && <SignInSection run={run} />}
           {active === "danger" && isOwner && (

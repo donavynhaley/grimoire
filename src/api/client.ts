@@ -9,6 +9,8 @@ import type {
   DiscussionThread,
   EditConflict,
   IdeaWorkspace,
+  ImportResponse,
+  ImportSource,
   OidcProviderDescription,
   OidcSettings,
   SearchResults,
@@ -297,6 +299,40 @@ export function uploadImage(file: Blob): Promise<{ name: string }> {
 export function imageUrl(name: string): string {
   const project = activeProjectId ? `?project=${encodeURIComponent(activeProjectId)}` : "";
   return `/api/images/${encodeURIComponent(name)}${project}`;
+}
+
+/**
+ * Plans or applies a board import from another tool's export, uploaded whole.
+ *
+ * Deliberately not `mutate`: no client id travels, so the server's own broadcast reaches
+ * this browser too and the board reloads through the same live event everyone else gets -
+ * the import section has no board of its own to reload.
+ */
+export function importBoard(
+  file: Blob,
+  source: ImportSource,
+  options: {
+    lists?: Record<string, string>;
+    options?: Record<string, string>;
+    status?: string | null;
+    board?: string | null;
+    apply?: boolean;
+  } = {},
+): Promise<ImportResponse> {
+  const params = new URLSearchParams({ source });
+  if (options.apply) params.set("apply", "1");
+  for (const [name, column] of Object.entries(options.lists ?? {}))
+    params.append("list", `${name}=${column}`);
+  for (const [value, column] of Object.entries(options.options ?? {})) {
+    params.append("option", `${value}=${column}`);
+  }
+  if (options.status) params.set("status", options.status);
+  if (options.board) params.set("board", options.board);
+  return request<ImportResponse>(`/api/import?${params}`, {
+    method: "POST",
+    body: file,
+    headers: { "content-type": "application/octet-stream" },
+  });
 }
 
 export function uploadAvatar(file: Blob): Promise<{ avatarUrl: string }> {

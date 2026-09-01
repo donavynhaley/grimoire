@@ -69,6 +69,7 @@ import { eventRoutes } from "./routes/events";
 import { fileRoutes } from "./routes/files";
 import { githubRoutes } from "./routes/github";
 import { ideaRoutes } from "./routes/ideas";
+import { importRoutes } from "./routes/import";
 import { memberRoutes } from "./routes/members";
 import { pageCreateRoutes, pageRecordRoutes } from "./routes/pages";
 import { projectConfigRoutes } from "./routes/project-config";
@@ -185,6 +186,7 @@ export function createGrimoireServer(options: Options) {
     ...eventRoutes(appContext),
     ...activityRoutes(appContext),
     ...agentReviewRoutes(appContext),
+    ...importRoutes(appContext),
     ...pageCreateRoutes(appContext),
     ...ideaRoutes(appContext),
     // Discussion's longer /api/pages/:id/... patterns must register ahead of the bare

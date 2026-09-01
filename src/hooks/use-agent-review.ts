@@ -37,6 +37,7 @@ export function useAgentReview(
 
   // The previous review stays up while a reload is in flight, so the trigger's badge
   // settles rather than blinking out on every board refresh.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: revision is the trigger that re-asks after each board reload; the load itself reads nothing from it
   useEffect(() => load(), [load, revision]);
 
   const markReviewed = useCallback(() => {

@@ -340,6 +340,33 @@ Each imported body opens with `Imported from Notion task <id>`, which is also th
 Ops scripts stay dependency-free, so the serializer and parser there mirror `server/markdown-files.ts` rather than importing it.
 `tests/server/import-team.example.test.ts` is what keeps the copies honest: it loads what the script writes through the real `MarkdownPageStore` and the real board route, so a format drift fails the suite instead of a board.
 
+`ops/import-trello.mjs` and `ops/import-focalboard.mjs` walk the same sanctioned path for other people's boards, and they differ from the sample script in one deliberate way: their input is the source tool's own export, taken whole — Trello's board JSON, Focalboard's `.boardarchive` — because asking a migrating user to write an import map first is asking them not to migrate.
+Every importer therefore splits into two halves: reading a foreign export, different every time, and writing Grimoire's own page files, identical every time.
+The second half lives once in `ops/import-common.mjs` — the mirrored serializer and strict parser, the atomic write, the reads of the project's real definitions — and each importer's own suite holds that one copy in lockstep with the real store and board route, the same way the sample suite does.
+Lockstep only proves the Grimoire-side half, though; the source-side half is an assumption about another tool's format until that tool's own output has been through it.
+So `tests/fixtures/project-tasks.boardarchive` is not hand-built: it was exported by Focalboard 7.8.9 itself, running in Docker, through the same endpoint its export button uses, and the suite runs the importer against those bytes.
+The Trello importer was validated the same way against a real public board's export (which is what surfaced `isTemplate` cards and card names with newlines in them), but a third party's board is not ours to commit, so that half stays a hand-shaped fixture plus the documented live check.
+
+Both tools let a board's columns be whatever somebody typed, and Grimoire's five are fixed, so names resolve through a shared synonym table (Doing → In progress, Icebox → Backlog, Not Started → Backlog) with a hard boundary drawn through the middle of the problem: a name the table recognises maps, a name it does not is an error naming the fix — one `--list "Name=Column"` or `--option "Value=Column"` flag — and never a guess, because a wrong guess deals cards to the wrong pile in bulk.
+The line between error and accommodation is whether the data was assigned or inherited.
+A list name or status option was assigned a meaning by the board's owner, so an unmapped one is an error; a 300-character card title or a blank Focalboard card title was merely inherited, so those are carried — shortened with the full title kept in the body, or imported as "Untitled" — with a warning rather than a refusal.
+Trello's archived cards and archived lists stay behind, reported: Trello put them out of sight, and an import that resurrects them onto a live board is worse than one that leaves them.
+
+What Grimoire has no column for goes into a provenance footer at the end of each body rather than being dropped: Trello labels and members, Focalboard's other properties, counts of comments and attachments that did not travel.
+The one mapping taken opportunistically is a Trello label whose name matches a project category — Bug on a board with a Bug category is not a coincidence — while member names never become assignees, because the exports carry usernames and opaque ids, not the emails Grimoire knows members by.
+Neither tool records a completion time, so cards landing in Done carry their last activity as the stated proxy, exactly the reasoning the sample map's `completed_at` rows made explicit; Trello's card ids open with their creation time in hex, so `created_at` is decoded rather than invented.
+The `.boardarchive` is a zip read on Node's own `zlib` — entries come from the central directory, which always carries sizes and offsets even for streamed writers — so the archive is handed over unopened and the dependency list stays where DEP-1 wants it.
+
+The settings screen offers the same import through the running server: `POST /api/import` (`server/routes/import.ts`, `server/import-board.ts`).
+That needed the offline-only rule restated rather than obeyed, because the rule was two reasons and neither applies here: seeding through the public API would spend the write rate limit and race a second writer over positions, but the server importing an uploaded file is itself the single writer and spends no HTTP budget per page.
+What does carry over is the contract: plan first and write nothing, refuse to apply while any list, option, board or status question is unanswered, skip what an earlier run already imported.
+The route is stateless on purpose - the file travels with both the plan call and the apply call, so there is no upload to store, expire, or leak between projects - and it answers an unresolvable plan with the unmapped names as data, which is what the settings screen renders as column dropdowns where the CLI printed flags.
+It runs the same readers out of `shared/import-sources.mjs` (the source-side half was moved there from the scripts precisely so the two paths cannot drift), but lands pages through the real `MarkdownPageStore` - the mirrored serializer exists only for the scripts, which run where the server's TypeScript cannot.
+Importing is the owner's alone, and the route is deliberately absent from the agent allow list: rewriting a whole board at once is the "restructure" half of the agent rule, applied to people.
+An applied import writes one `project`-level audit event naming the count and the source rather than one `created` row per page - five hundred rows would bury the log's real edits under the day the import happened - and its broadcast deliberately carries no excluded client, so the importing owner's own board reloads through the same live event everyone else gets.
+
+`docs/import-from-trello.md` and `docs/import-from-focalboard.md` are the user-facing halves of these importers, written as migration guides: the settings screen first, the scripts as the operator path.
+
 ## Activity log
 
 Every change made through Grimoire appends one row to `audit_events`.

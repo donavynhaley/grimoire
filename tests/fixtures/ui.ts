@@ -35,6 +35,16 @@ export function installUiHarness(): void {
 /** One request as a test reads it back: where it went, how, and what it carried. */
 export type RecordedCall = { url: string; method: string; body: unknown };
 
+/** JSON bodies parse; a file upload's raw body is recorded as it was sent, not exploded on. */
+function parseBody(body: BodyInit | null | undefined): unknown {
+  if (!body) return null;
+  try {
+    return JSON.parse(String(body));
+  } catch {
+    return body;
+  }
+}
+
 /**
  * What a route answers with: a JSON body, or a function of the request when the answer
  * depends on what was asked or must carry its own status. A function may return a body,
@@ -84,7 +94,7 @@ export function routeFetch({
   const fetchMock = vi.fn<typeof fetch>((input, init = {}) => {
     const url = requestUrl(input);
     const method = init.method ?? "GET";
-    const call: RecordedCall = { url, method, body: init.body ? JSON.parse(String(init.body)) : null };
+    const call: RecordedCall = { url, method, body: parseBody(init.body) };
     // Recording is not answering: a write lands in the log whoever replies to it.
     if (method !== "GET" || record === "all") calls.push(call);
 

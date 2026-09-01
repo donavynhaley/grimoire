@@ -91,7 +91,7 @@ export function BoardTopBar({
         {reviewCount > 0 && (
           <button className="quiet-button agents-trigger" onClick={onOpenAgentReview} type="button">
             agents
-            <span aria-label={`${reviewCount} agent changes to review`} className="away-badge">
+            <span aria-label={`${reviewCount} agent changes to review`} className="away-badge" role="img">
               {reviewCount > 99 ? "99+" : reviewCount}
             </span>
           </button>
