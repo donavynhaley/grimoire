@@ -357,7 +357,15 @@ The one mapping taken opportunistically is a Trello label whose name matches a p
 Neither tool records a completion time, so cards landing in Done carry their last activity as the stated proxy, exactly the reasoning the sample map's `completed_at` rows made explicit; Trello's card ids open with their creation time in hex, so `created_at` is decoded rather than invented.
 The `.boardarchive` is a zip read on Node's own `zlib` — entries come from the central directory, which always carries sizes and offsets even for streamed writers — so the archive is handed over unopened and the dependency list stays where DEP-1 wants it.
 
-`docs/import-from-trello.md` and `docs/import-from-focalboard.md` are the operator-facing halves of these importers, written as migration guides.
+The settings screen offers the same import through the running server: `POST /api/import` (`server/routes/import.ts`, `server/import-board.ts`).
+That needed the offline-only rule restated rather than obeyed, because the rule was two reasons and neither applies here: seeding through the public API would spend the write rate limit and race a second writer over positions, but the server importing an uploaded file is itself the single writer and spends no HTTP budget per page.
+What does carry over is the contract: plan first and write nothing, refuse to apply while any list, option, board or status question is unanswered, skip what an earlier run already imported.
+The route is stateless on purpose - the file travels with both the plan call and the apply call, so there is no upload to store, expire, or leak between projects - and it answers an unresolvable plan with the unmapped names as data, which is what the settings screen renders as column dropdowns where the CLI printed flags.
+It runs the same readers out of `shared/import-sources.mjs` (the source-side half was moved there from the scripts precisely so the two paths cannot drift), but lands pages through the real `MarkdownPageStore` - the mirrored serializer exists only for the scripts, which run where the server's TypeScript cannot.
+Importing is the owner's alone, and the route is deliberately absent from the agent allow list: rewriting a whole board at once is the "restructure" half of the agent rule, applied to people.
+An applied import writes one `project`-level audit event naming the count and the source rather than one `created` row per page - five hundred rows would bury the log's real edits under the day the import happened - and its broadcast deliberately carries no excluded client, so the importing owner's own board reloads through the same live event everyone else gets.
+
+`docs/import-from-trello.md` and `docs/import-from-focalboard.md` are the user-facing halves of these importers, written as migration guides: the settings screen first, the scripts as the operator path.
 
 ## Activity log
 

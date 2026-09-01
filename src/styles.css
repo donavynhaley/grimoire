@@ -6108,6 +6108,59 @@ textarea:hover {
   color: var(--text);
 }
 
+/* Import ------------------------------------------------------------------ */
+
+.import-file {
+  align-items: baseline;
+}
+.import-mappings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+.import-mapping-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+.import-mapping-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.import-mapping-name {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.import-mapping-count {
+  color: var(--muted);
+  font-size: 0.6875rem;
+  white-space: nowrap;
+}
+.import-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+/* What travels and what stays behind, said quietly; the button is the loud part. */
+.import-warnings {
+  margin: 0;
+  padding-left: 1rem;
+  color: var(--muted);
+  font-size: 0.6875rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
 /* A real on/off state, rather than a verb pretending to be one. */
 .settings-toggle {
   display: inline-flex;

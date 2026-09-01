@@ -677,3 +677,37 @@ export type AwayState = {
   total: number;
   events: AuditEvent[];
 };
+
+/** Where an in-app board import reads from: another tool's own export, uploaded whole. */
+export type ImportSource = "trello" | "focalboard";
+
+/**
+ * What an import would do, before it does it.
+ *
+ * The unmapped collections are the mapping screen's data: each names something the synonym
+ * table would not guess at and the cards hanging on the answer. An import applies only when
+ * every one of them is resolved and `errors` is empty - the strict page schema means one bad
+ * page fails the whole board, so a partial import is the outcome that must never happen.
+ */
+export type ImportPlan = {
+  /** Cards in the export, importable or not, so "3 of 40" reads honestly. */
+  total: number;
+  toCreate: Array<{ title: string; status: PageStatus }>;
+  skipped: string[];
+  warnings: string[];
+  errors: string[];
+  /** Trello lists that need a column before this can apply. */
+  unmappedLists: Array<{ name: string; cards: number }>;
+  /** Focalboard status options that need a column before this can apply. */
+  unmappedOptions: Array<{ value: string; cards: number }>;
+  /** Set when a multi-board Focalboard archive needs one board chosen. */
+  boards: Array<{ id: string; title: string }> | null;
+  /** Set when no board view says which select property holds the columns. */
+  statusChoices: string[] | null;
+};
+
+export type ImportResponse = {
+  plan: ImportPlan;
+  /** How many pages were created, or null when this was a plan-only call. */
+  applied: number | null;
+};

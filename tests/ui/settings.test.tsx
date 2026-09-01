@@ -47,6 +47,7 @@ describe("the one settings surface", () => {
       "Categories",
       "Page fields",
       "Chapters",
+      "Import",
       "GitHub",
       "Discord",
       "Team",

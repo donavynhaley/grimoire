@@ -30,19 +30,18 @@ import {
 } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { COLUMN_TO_STATUS, normalizeColumnName } from "../shared/import-sources.mjs";
+
+// The source-side half - the readers, the synonym table, the zip - lives in
+// shared/import-sources.mjs so the server's in-app import consumes the same copy.
+export {
+  COLUMN_TO_STATUS,
+  normalizeColumnName,
+  statusForColumnName,
+  toIsoSeconds,
+} from "../shared/import-sources.mjs";
 
 export const PAGE_STATUSES = ["backlog", "ready", "in_progress", "review", "done"];
-
-// The names a person may write on the right side of a mapping flag, exactly the board's own
-// column labels plus the older "Waiting for Review" the sample map already honoured.
-export const COLUMN_TO_STATUS = {
-  backlog: "backlog",
-  "up next": "ready",
-  "in progress": "in_progress",
-  review: "review",
-  "waiting for review": "review",
-  done: "done",
-};
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -366,56 +365,40 @@ function writeAtomic(path, content) {
 }
 
 /**
- * The column-name synonyms every importer shares, so "Doing" on a Trello board and "In
- * Progress" on a Focalboard one land the same way. Names are normalized (lowercased, emoji
- * and punctuation stripped) before lookup, matched whole - "Done ✅" maps, "Done and archived"
- * does not, because guessing from a fragment is how someone's "Review later" list lands in
- * Review. An unmapped name is the caller's error to raise, never a silent drop.
+ * The board-side planning loop both CLI importers share: skip what an earlier run already
+ * imported, warn on a title the board already carries, resolve a Trello label to a project
+ * category when exactly its name exists, and prove each page by serializing and re-parsing
+ * it. Positions are consumed only by pages that will actually be created.
  */
-const STATUS_SYNONYMS = new Map([
-  ...[
-    "backlog",
-    "icebox",
-    "ideas",
-    "inbox",
-    "someday",
-    "later",
-    "wishlist",
-    "not started",
-    "parking lot",
-  ].map((name) => [name, "backlog"]),
-  ...["to do", "todo", "up next", "next", "next up", "ready", "this week", "planned", "sprint"].map(
-    (name) => [name, "ready"],
-  ),
-  ...["in progress", "doing", "wip", "in work", "in development", "in dev", "current", "started"].map(
-    (name) => [name, "in_progress"],
-  ),
-  ...["review", "in review", "code review", "waiting for review", "testing", "qa", "verify"].map((name) => [
-    name,
-    "review",
-  ]),
-  ...["done", "complete", "completed", "finished", "shipped", "released", "live"].map((name) => [
-    name,
-    "done",
-  ]),
-]);
-
-export function normalizeColumnName(name) {
-  return String(name)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
+export function planBoardRows(reading, { categories, createdBy, boardState }) {
+  const { alreadyImported, existingTitles, positionCursor } = boardState;
+  const planned = [];
+  const errors = [...reading.errors];
+  const warnings = [...reading.warnings];
+  const skipped = [...reading.skipped];
+  for (const row of reading.rows) {
+    if (alreadyImported.has(row.sourceId)) {
+      skipped.push(`${row.label}: already on the board`);
+      continue;
+    }
+    if (existingTitles.has(row.title.toLowerCase())) {
+      warnings.push(`${row.label}: a page with this title already exists (imported anyway)`);
+    }
+    const category =
+      categories.find((candidate) =>
+        row.labels.some((name) => name.toLowerCase() === candidate.name.toLowerCase()),
+      )?.slug ?? null;
+    try {
+      const composed = composePage({ ...row, category }, { createdBy, positionCursor });
+      existingTitles.add(row.title.toLowerCase());
+      planned.push(composed);
+    } catch (error) {
+      errors.push(`${row.label}: serialized page fails the strict parse: ${error.message}`);
+    }
+  }
+  return { planned, errors, warnings, skipped };
 }
 
-export function statusForColumnName(name) {
-  return STATUS_SYNONYMS.get(normalizeColumnName(name));
-}
-
-/**
- * Parses repeatable "Name=Column" mapping flags into a lookup by normalized name. The right
- * side takes the board's own column labels (Backlog, Up Next, In progress, Review, Done), so
- * the flag reads the way the board does, not the way the store spells statuses.
- */
 export function parseMappingFlags(pairs, flag) {
   const mappings = new Map();
   for (const pair of pairs) {
@@ -432,8 +415,4 @@ export function parseMappingFlags(pairs, flag) {
     mappings.set(normalizeColumnName(name), status);
   }
   return mappings;
-}
-
-export function toIsoSeconds(milliseconds) {
-  return new Date(milliseconds).toISOString().replace(/\.\d{3}Z$/, "Z");
 }

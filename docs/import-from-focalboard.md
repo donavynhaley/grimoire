@@ -2,21 +2,30 @@
 
 Focalboard's development has ended, but its boards don't have to. Grimoire imports a
 board straight from the `.boardarchive` file Focalboard exports — handed over unopened,
-no unzipping, no map to write. One command reads the archive, shows you exactly what it
-would create, and writes nothing until you say so.
+no unzipping, no map to write. Nothing is written until a plan shows you exactly what
+would land where and you say go, and running an import twice never duplicates a card.
 
 Like Focalboard, Grimoire is self-hosted, open source, and keeps your work in files you
 own — pages are plain Markdown on your own disk, readable with or without the app.
 
-## What you need
+First, get your board's archive: in Focalboard, open the board menu → **Export board
+archive**, and save the `.boardarchive` file.
 
-- Your board's archive. In Focalboard, open the board menu → **Export board archive**,
-  and save the `.boardarchive` file. An already-unzipped archive directory, or a single
-  `board.jsonl` out of one, works too.
-- A Grimoire project for the board to land in, and your account's email on that instance.
-- Shell access to the machine running Grimoire, and a moment when you can stop the server.
+## In the app
 
-## Run it
+Open your project's settings → **Import**, choose the file, and read the plan. Grimoire
+finds your status property the way your board did (the property its board view groups
+by), and common values place themselves: *Not Started* lands in Backlog, *In Progress*
+in In progress, *Completed* in Done. Any value it does not recognise gets a dropdown —
+so does the board, when an archive holds several — and the import stays disabled until
+every question has an answer. Then press import. Importing is the project owner's button.
+
+## From the command line
+
+The offline path suits an operator: a board too big to upload comfortably, or an
+instance that is not running yet. It needs shell access to the machine running Grimoire
+and a moment when you can stop the server. An already-unzipped archive directory, or a
+single `board.jsonl` out of one, works here too.
 
 Dry-run first. This validates every card and prints the plan without writing anything:
 

@@ -1,17 +1,26 @@
 # Import a Trello board into Grimoire
 
 Grimoire imports a Trello board from the file Trello itself gives you — no map to write,
-no third-party exporter, no API key. One command reads the export, shows you exactly what
-it would create, and writes nothing until you say so.
+no third-party exporter, no API key. Nothing is written until a plan shows you exactly
+what would land where and you say go, and running an import twice never duplicates a card.
 
-## What you need
+First, get your board's JSON export: in Trello, open the board menu → **Print, export,
+and share** → **Export as JSON**, and save the file. (JSON export is available on free
+workspaces.)
 
-- Your board's JSON export. In Trello, open the board menu → **Print, export, and share**
-  → **Export as JSON**, and save the file. (JSON export is available on free workspaces.)
-- A Grimoire project for the board to land in, and your account's email on that instance.
-- Shell access to the machine running Grimoire, and a moment when you can stop the server.
+## In the app
 
-## Run it
+Open your project's settings → **Import**, choose the file, and read the plan. Common
+list names place themselves (*To Do* lands in Up Next, *Doing* in In progress, *Done* in
+Done — emoji ignored); any list Grimoire does not recognise gets a dropdown, and the
+import stays disabled until every one has a column. Then press import — the board behind
+the dialog fills in as it lands. Importing is the project owner's button.
+
+## From the command line
+
+The offline path suits an operator: a board too big to upload comfortably, or an instance
+that is not running yet. It needs shell access to the machine running Grimoire and a
+moment when you can stop the server.
 
 Dry-run first. This validates every card and prints the plan without writing anything:
 
