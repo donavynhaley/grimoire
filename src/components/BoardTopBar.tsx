@@ -8,11 +8,14 @@ type Props = {
   board: BoardWorkspace;
   busy: boolean;
   projectActions: ProjectActions;
+  /** Agent changes and open questions awaiting review; zero keeps the trigger off screen. */
+  reviewCount: number;
   /** Changes since the reader's last visit, shown until the activity history is opened. */
   unseenCount: number;
   view: "work" | "ideas";
   onOpenAccount: () => void;
   onOpenActivity: () => void;
+  onOpenAgentReview: () => void;
   onOpenSearch: () => void;
   onOpenSettings: (section: SettingsSection) => void;
   onViewChange: (view: "work" | "ideas") => Promise<void>;
@@ -23,10 +26,12 @@ export function BoardTopBar({
   board,
   busy,
   projectActions,
+  reviewCount,
   unseenCount,
   view,
   onOpenAccount,
   onOpenActivity,
+  onOpenAgentReview,
   onOpenSearch,
   onOpenSettings,
   onViewChange,
@@ -46,6 +51,7 @@ export function BoardTopBar({
             title="Work (1)"
             type="button"
           >
+            {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: a kbd is not focusable; this is a shortcut glyph beside the label inside a focusable button, and hiding it is what keeps the button announcing its name rather than its name and a stray character */}
             work <kbd aria-hidden="true">1</kbd>
           </button>
           <button
@@ -55,6 +61,7 @@ export function BoardTopBar({
             title="Ideas (2)"
             type="button"
           >
+            {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: a kbd is not focusable; this is a shortcut glyph beside the label inside a focusable button, and hiding it is what keeps the button announcing its name rather than its name and a stray character */}
             ideas <kbd aria-hidden="true">2</kbd>
           </button>
         </nav>
@@ -74,16 +81,30 @@ export function BoardTopBar({
       </div>
       <div className="board-actions">
         {/* Presence lives on the people filters, not here: this row is mostly the signed-in person. */}
-        <div className="member-faces" aria-label={`${board.members.length} project members`}>
+        <div className="member-faces" aria-label={`${board.members.length} project members`} role="group">
           {board.members.slice(0, 4).map((member) => (
             <Avatar avatarUrl={member.avatarUrl} key={member.id} name={member.name} title={member.name} />
           ))}
         </div>
+        {/* Every member reviews, not only the owner: agent work is attributed to whoever
+            issued the credential, and the person it lands in front of is whoever is here. */}
+        {reviewCount > 0 && (
+          <button className="quiet-button agents-trigger" onClick={onOpenAgentReview} type="button">
+            agents
+            <span aria-label={`${reviewCount} agent changes to review`} className="away-badge" role="img">
+              {reviewCount > 99 ? "99+" : reviewCount}
+            </span>
+          </button>
+        )}
         {isOwner && (
           <button className="quiet-button activity-trigger" onClick={onOpenActivity} type="button">
             activity
             {unseenCount > 0 && (
-              <span aria-label={`${unseenCount} changes since your last visit`} className="away-badge">
+              <span
+                aria-label={`${unseenCount} changes since your last visit`}
+                className="away-badge"
+                role="img"
+              >
                 {unseenCount > 99 ? "99+" : unseenCount}
               </span>
             )}

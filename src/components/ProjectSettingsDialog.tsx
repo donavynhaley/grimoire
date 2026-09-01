@@ -115,7 +115,6 @@ type Props = {
   onCreateInvite: () => Promise<string>;
   onChangeMemberRole: (id: string, role: ProjectRole) => Promise<void>;
   onRemoveMember: (id: string) => Promise<void>;
-  onSetPageChapter: (id: string, chapter: string | null) => Promise<void>;
   onSectionChange: (section: SettingsSection) => void;
   onClose: () => void;
 };
@@ -152,7 +151,6 @@ export function ProjectSettingsDialog({
   onCreateInvite,
   onChangeMemberRole,
   onRemoveMember,
-  onSetPageChapter,
   onSectionChange,
   onClose,
 }: Props) {
@@ -246,7 +244,6 @@ export function ProjectSettingsDialog({
               chapters={chapters}
               chaptersEnabled={chaptersEnabled}
               onSetChaptersEnabled={actions.setChaptersEnabled}
-              onSetPageChapter={onSetPageChapter}
               pages={pages}
               velocity={velocity}
               run={run}

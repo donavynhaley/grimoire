@@ -65,6 +65,7 @@ export function useBoardFilters(board: BoardWorkspace): BoardFilters {
    * render, so a page cannot cross from "today" into "this week" between two paints of the same
    * list. A refetch is a new board and a fresh reading, which is often enough.
    */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: board.pages is the trigger, not an input: a refetch is a new board and should be a fresh reading of the clock, as the comment above says
   const facetContext = useMemo<FacetContext>(
     () => ({
       categories: board.categories,
@@ -117,6 +118,7 @@ export function useBoardFilters(board: BoardWorkspace): BoardFilters {
    * "how many pages would I have if I ticked this" - it has to see the pages its own section is
    * currently hiding, while still respecting the chapter, the people, and the search.
    */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: categoryName and chapterName are redefined every render, so the list names the stable Maps they close over instead; depending on the functions would defeat the memo entirely
   const pagesBeforeFacets = useMemo(
     () =>
       board.pages.filter((page) => {

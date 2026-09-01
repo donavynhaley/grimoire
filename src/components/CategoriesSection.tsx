@@ -152,7 +152,7 @@ export function CategoriesSection({ categories, busy, actions, canManage, run }:
               triggerClass="icon-button"
             />
             {recoloring === category.slug && (
-              <div aria-label={`Colors for ${category.name}`} className="category-palette">
+              <div aria-label={`Colors for ${category.name}`} className="category-palette" role="group">
                 {CATEGORY_COLOR_PALETTE.map((color) => (
                   <button
                     aria-label={`Use color ${color}`}
@@ -180,7 +180,7 @@ export function CategoriesSection({ categories, busy, actions, canManage, run }:
 
       <form className="category-add" onSubmit={submitCreate}>
         <span className="field-label">Add a category</span>
-        <div aria-label="New category color" className="category-palette">
+        <div aria-label="New category color" className="category-palette" role="group">
           {CATEGORY_COLOR_PALETTE.map((color) => (
             <button
               aria-label={`Pick color ${color}`}

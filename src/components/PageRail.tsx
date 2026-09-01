@@ -98,7 +98,7 @@ export function PageRail({
     });
 
   return (
-    <div aria-label="Page properties" className="page-rail">
+    <div aria-label="Page properties" className="page-rail" role="group">
       <div className="rail-row">
         <span className="field-label">Column</span>
         <div className="choice-grid status-choices">
@@ -283,6 +283,7 @@ export function PageRail({
               <span className="sr-only">Find a blocking page</span>
               <input
                 aria-label="Find a blocking page"
+                // biome-ignore lint/a11y/noAutofocus: this input is mounted by the user's own action - it exists because they clicked add, edit or open - so focus follows the request rather than stealing it on arrival, which is the case the rule is for
                 autoFocus
                 onChange={(event) => setBlockerQuery(event.target.value)}
                 onKeyDown={(event) => {

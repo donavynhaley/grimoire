@@ -110,6 +110,7 @@ export function NotesField({
   const draggingFiles = (transfer: DataTransfer | null) => Boolean(transfer?.types.includes("Files"));
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: the handler is not an affordance a keyboard user needs to reach - it is dismissal, focus bookkeeping or a drop target - and every one of these surfaces has a real focusable control that does the same job
     <div
       className={["notes-field", fill && "fill", dropActive && "drop-active"].filter(Boolean).join(" ")}
       onDragEnter={(event) => {

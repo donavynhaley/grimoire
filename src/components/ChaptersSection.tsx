@@ -33,7 +33,6 @@ type Props = {
   /** Members read the chapters; only an owner runs them. */
   canManage: boolean;
   onSetChaptersEnabled: (enabled: boolean) => Promise<void>;
-  onSetPageChapter: (id: string, chapter: string | null) => Promise<void>;
   run: SettingsRun;
 };
 
@@ -51,7 +50,6 @@ export function ChaptersSection({
   chaptersEnabled,
   canManage,
   onSetChaptersEnabled,
-  onSetPageChapter,
   run,
 }: Props) {
   const [newName, setNewName] = useState("");
@@ -70,21 +68,6 @@ export function ChaptersSection({
   const unfinishedIn = (slug: string) =>
     pages.filter((page) => page.chapter === slug && page.status !== "done").length;
   const plannedChapters = chapters.filter((chapter) => chapter.state === "planned");
-
-  const close = async (slug: string) => {
-    await actions.update(slug, { state: "closed" });
-    setClosing(null);
-  };
-
-  /**
-   * Moves only the pages that did not land, leaving the finished ones as the record of what
-   * the chapter delivered.
-   */
-  const moveUnfinished = async (from: string, to: string | null) => {
-    for (const page of pages.filter((value) => value.chapter === from && value.status !== "done")) {
-      await onSetPageChapter(page.id, to);
-    }
-  };
 
   const submitCreate = (event: FormEvent) => {
     event.preventDefault();

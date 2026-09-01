@@ -80,6 +80,7 @@ export function ProjectMenu({
   };
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: the handler is not an affordance a keyboard user needs to reach - it is dismissal, focus bookkeeping or a drop target - and every one of these surfaces has a real focusable control that does the same job
     <div
       className="project-menu"
       onBlur={(event) => {
@@ -132,6 +133,7 @@ export function ProjectMenu({
                     New project name
                   </label>
                   <input
+                    // biome-ignore lint/a11y/noAutofocus: this input is mounted by the user's own action - it exists because they clicked add, edit or open - so focus follows the request rather than stealing it on arrival, which is the case the rule is for
                     autoFocus
                     id="new-project-name"
                     name="newProjectName"
@@ -174,7 +176,11 @@ export function ProjectMenu({
                 </span>
                 Activity
                 {activityBadge > 0 && (
-                  <span aria-label={`${activityBadge} changes since your last visit`} className="away-badge">
+                  <span
+                    aria-label={`${activityBadge} changes since your last visit`}
+                    className="away-badge"
+                    role="img"
+                  >
                     {activityBadge > 99 ? "99+" : activityBadge}
                   </span>
                 )}

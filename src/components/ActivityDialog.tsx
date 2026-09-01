@@ -7,15 +7,8 @@ import {
   type Member,
 } from "../../shared/types";
 import { useTypingFocus } from "../hooks/use-typing-focus";
-import {
-  dayLabel,
-  describeChange,
-  describeEvent,
-  ENTITY_LABELS,
-  eventText,
-  timeLabel,
-} from "../lib/activity-copy";
-import { Avatar } from "./Avatar";
+import { dayLabel, ENTITY_LABELS, eventText } from "../lib/activity-copy";
+import { ActivityRow } from "./ActivityRow";
 import { Drawer } from "./Drawer";
 
 const PAGE_SIZE = 60;
@@ -39,6 +32,7 @@ export function ActivityDialog({ awaySince, members, revision, onClose, onLoad, 
   const [query, setQuery] = useState("");
   const [person, setPerson] = useState<string | null>(null);
   const [entityType, setEntityType] = useState<AuditEntityType | null>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: events is the trigger, not an input - a fresh page of events re-baselines the clock the relative times in this list are read against
   const now = useMemo(() => new Date(), [events]);
 
   const load = useCallback(
@@ -58,6 +52,7 @@ export function ActivityDialog({ awaySince, members, revision, onClose, onLoad, 
     [onLoad],
   );
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: revision is the refetch trigger; it is bumped when the record changes and is deliberately not read inside
   useEffect(() => {
     void load();
   }, [load, revision]);
@@ -118,7 +113,7 @@ export function ActivityDialog({ awaySince, members, revision, onClose, onLoad, 
             value={query}
           />
         </label>
-        <div aria-label="Activity people" className="library-filters">
+        <div aria-label="Activity people" className="library-filters" role="group">
           {members.map((member) => (
             <button
               aria-pressed={person === member.id}
@@ -132,7 +127,7 @@ export function ActivityDialog({ awaySince, members, revision, onClose, onLoad, 
           ))}
         </div>
         {usedTypes.length > 1 && (
-          <div aria-label="Activity kinds" className="library-filters">
+          <div aria-label="Activity kinds" className="library-filters" role="group">
             {usedTypes.map((type) => (
               <button
                 aria-pressed={entityType === type}
@@ -164,6 +159,8 @@ export function ActivityDialog({ awaySince, members, revision, onClose, onLoad, 
               {dayEvents.map((event) => (
                 <Fragment key={event.id}>
                   {event.id === dividerBeforeId && (
+                    // biome-ignore lint/a11y/useFocusableInteractive: a structural separator is not a splitter; nothing here is operable.
+                    // biome-ignore lint/a11y/useAriaPropsForRole: those value attributes belong to a focusable separator, and this one marks a place in a list.
                     <div className="unread-divider" role="separator">
                       new since your last visit
                     </div>
@@ -200,66 +197,6 @@ export function ActivityDialog({ awaySince, members, revision, onClose, onLoad, 
         )}
       </div>
     </Drawer>
-  );
-}
-
-function ActivityRow({
-  event,
-  members,
-  onOpenPage,
-}: {
-  event: AuditEvent;
-  members: Member[];
-  onOpenPage?: (id: string) => void;
-}) {
-  const { lead, title } = describeEvent(event);
-  const actor = members.find((member) => member.id === event.actorId);
-  const body = (
-    <>
-      <Avatar avatarUrl={actor?.avatarUrl} className="avatar tiny" name={event.actorName} />
-      <span className="activity-copy">
-        <span className="activity-line">
-          <strong>{event.actorName}</strong>
-          {/* Machine writes must be tellable from the person's own, or delegating an
-              agent would quietly launder its work into theirs. */}
-          {event.agentName && <span className="via-agent"> via {event.agentName}</span>} {lead}
-          {title && (
-            <>
-              {" "}
-              <em>{title}</em>
-            </>
-          )}
-        </span>
-        {event.changes.length > 0 && (
-          <span className="activity-changes">
-            {event.changes.map((change) => (
-              <span key={change.field}>{describeChange(change)}</span>
-            ))}
-          </span>
-        )}
-      </span>
-      <time dateTime={event.createdAt}>{timeLabel(event.createdAt)}</time>
-    </>
-  );
-
-  if (!onOpenPage || !event.entityId) {
-    return (
-      <article className="activity-row">
-        <div className="activity-row-main">{body}</div>
-      </article>
-    );
-  }
-  return (
-    <article className="activity-row">
-      <button
-        aria-label={`Open ${event.entityTitle}`}
-        className="activity-row-main"
-        onClick={() => onOpenPage(event.entityId!)}
-        type="button"
-      >
-        {body}
-      </button>
-    </article>
   );
 }
 

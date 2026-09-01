@@ -119,6 +119,7 @@ function Thread({
 }) {
   const answered = thread.answeredAt !== null;
   // One clock per render of this thread, so every time in it agrees with the others.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: thread is the trigger for taking one clock per render of this thread, so every time shown in it agrees with the others
   const now = useMemo(() => new Date(), [thread]);
 
   return (
@@ -327,6 +328,7 @@ function Composer({
     });
   };
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the effect measures the field through a ref; value is what should make it measure again, not something it reads
   useEffect(() => {
     if (field.current) fitToContent(field.current);
   }, [value]);
@@ -436,6 +438,7 @@ function Composer({
         value={value}
       />
       {matches.length > 0 && (
+        // biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: a ul carrying role=listbox is the standard markup for this pattern, and docs/ui-standards.md asks for a listbox that contains options and nothing else, which is exactly what this is
         <ul className="mention-picker" id={pickerId} role="listbox">
           {matches.map((member, index) => (
             /*
@@ -443,6 +446,7 @@ function Composer({
              * really owns its options; a list item in between would break that ownership and
              * leave a reader with a listbox that appears to hold nothing.
              */
+            // biome-ignore lint/a11y/useFocusableInteractive: the options are deliberately not focusable: focus stays in the input and aria-activedescendant names the active row, which is the combobox pattern docs/ui-standards.md specifies
             <li
               aria-selected={index === highlighted}
               className={index === highlighted ? "mention-option on" : "mention-option"}
@@ -453,6 +457,7 @@ function Composer({
                 event.preventDefault();
                 choose(member);
               }}
+              // biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: a ul carrying role=listbox is the standard markup for this pattern, and docs/ui-standards.md asks for a listbox that contains options and nothing else, which is exactly what this is
               role="option"
             >
               <Avatar avatarUrl={member.avatarUrl} className="avatar tiny" name={member.name} />

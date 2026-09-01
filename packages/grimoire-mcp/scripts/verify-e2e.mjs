@@ -13,7 +13,6 @@ import { join } from "node:path";
 const ROOT = new URL("../../..", import.meta.url).pathname.replace(/\/$/, "");
 
 const directory = mkdtempSync(join(tmpdir(), "grimoire-e2e-"));
-let grimoire;
 let mcp;
 const failures = [];
 const passes = [];

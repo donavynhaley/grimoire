@@ -73,6 +73,7 @@ export function App() {
     setRevision((current) => current + 1);
   }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the boot effect reads view once, to decide whether ideas load on first paint; depending on it would re-run the whole session bootstrap every time somebody switches tab
   useEffect(() => {
     let alive = true;
     session()

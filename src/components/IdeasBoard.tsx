@@ -70,6 +70,7 @@ export function IdeasBoard({
   // A shared link is reconciled once on arrival: an idea this garden no longer has simply
   // falls away. Every later write goes through changeSelected, and this must run before
   // the search-arrival effect below so it cannot undo that effect's write.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs once for the URL the garden arrived with, as the comment above says; selected is the mount seed and every later write goes through changeSelected
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (selected) params.set("idea", selected.id);
@@ -79,6 +80,7 @@ export function IdeasBoard({
   }, []);
 
   // Arriving from search opens the idea, even if the garden was already on screen.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the token is a nonce, so asking to open the same idea twice still fires; depending on openIdea or changeSelected instead would fire on identities that change every render
   useEffect(() => {
     if (openIdea) changeSelected(openIdea.id);
   }, [openIdea?.token]);

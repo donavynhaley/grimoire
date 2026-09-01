@@ -33,6 +33,7 @@ export function PageHistory({
 }
 
 function HistoryEvents({ events, members }: { events: AuditEvent[] | null; members: Member[] }) {
+  // biome-ignore lint/correctness/useExhaustiveDependencies: events is the trigger, not an input - new events re-baseline the clock the relative times are read against
   const now = useMemo(() => new Date(), [events]);
   if (events === null) return <p className="empty-dependencies">Reading the record...</p>;
   if (events.length === 0) return <p className="empty-dependencies">No recorded changes yet.</p>;

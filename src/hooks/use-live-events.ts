@@ -28,6 +28,7 @@ export function useLiveEvents({
 }): ReadonlySet<string> {
   const [online, setOnline] = useState<ReadonlySet<string>>(() => new Set());
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: projectId is the trigger that reconnects the stream when the project changes; without it a switch would keep streaming the previous project's events
   useEffect(() => {
     if (!active || typeof EventSource === "undefined") return;
     const source = new EventSource(liveEventsUrl());

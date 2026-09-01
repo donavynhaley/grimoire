@@ -20,6 +20,7 @@ export function usePageDiscussion(
   const [failed, setFailed] = useState<string | null>(null);
   const [reloads, setReloads] = useState(0);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: revision and reloads are triggers, not inputs: one refetches after an autosave, the other after a post lands, and neither is read inside
   useEffect(() => {
     let alive = true;
     load(pageId)

@@ -123,6 +123,7 @@ export function QuickCapture({ busy, categories, chapters, fields = [], members,
         Capture work page
       </label>
       <input
+        role="combobox"
         aria-activedescendant={
           picker && visibleOptions.length
             ? `capture-option-${visibleOptions[Math.min(highlighted, visibleOptions.length - 1)]!.id}`
