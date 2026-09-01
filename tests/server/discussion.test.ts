@@ -45,13 +45,18 @@ function read(server: TestServer, pageId: string) {
 }
 
 /** A request as an agent really makes it: a bearer header and no browser session. */
-async function asAgent(server: TestServer, secret: string, path: string, init: RequestInit = {}) {
+async function asAgent<T = unknown>(
+  server: TestServer,
+  secret: string,
+  path: string,
+  init: RequestInit = {},
+) {
   const headers = new Headers(init.headers);
   headers.set("authorization", `Bearer ${secret}`);
   if (init.body && !headers.has("content-type")) headers.set("content-type", "application/json");
   const response = await fetch(`${server.baseUrl}${path}`, { ...init, headers });
   const body = response.status === 204 ? null : await response.json().catch(() => null);
-  return { response, body: body as any };
+  return { response, body: body as T };
 }
 
 async function issueAgent(server: TestServer, scope: "read" | "write" = "write") {
@@ -367,10 +372,15 @@ describe("page discussion", () => {
       const page = await makePage(server);
       const secret = await issueAgent(server);
 
-      const posted = await asAgent(server, secret, `/api/pages/${page.id}/discussion`, {
-        method: "POST",
-        body: JSON.stringify({ body: "Deployed to dev; smoke tests green. Nothing needed from you." }),
-      });
+      const posted = await asAgent<{ thread: DiscussionThread }>(
+        server,
+        secret,
+        `/api/pages/${page.id}/discussion`,
+        {
+          method: "POST",
+          body: JSON.stringify({ body: "Deployed to dev; smoke tests green. Nothing needed from you." }),
+        },
+      );
       expect(posted.response.status).toBe(201);
       // The person stays the author; the agent is named beside them, never instead of them.
       expect(posted.body.thread.authorName).toBe("Donavyn");
@@ -384,12 +394,17 @@ describe("page discussion", () => {
       const thread = (await ask(server, page.id, "Did the migration run?")).body.thread;
       const secret = await issueAgent(server);
 
-      const replied = await asAgent(server, secret, `/api/pages/${page.id}/discussion/${thread.id}/replies`, {
-        method: "POST",
-        body: JSON.stringify({ body: "It ran at 09:14 and moved 412 rows." }),
-      });
+      const replied = await asAgent<{ thread: DiscussionThread }>(
+        server,
+        secret,
+        `/api/pages/${page.id}/discussion/${thread.id}/replies`,
+        {
+          method: "POST",
+          body: JSON.stringify({ body: "It ran at 09:14 and moved 412 rows." }),
+        },
+      );
       expect(replied.response.status).toBe(201);
-      expect(replied.body.thread.replies[0].agentName).toBe("Planning agent");
+      expect(replied.body.thread.replies[0]!.agentName).toBe("Planning agent");
     });
 
     it("lets an agent read the discussion it was asked about", async () => {
@@ -399,9 +414,13 @@ describe("page discussion", () => {
       await ask(server, page.id, "Can you check whether the reducer is shared?");
       const secret = await issueAgent(server, "read");
 
-      const seen = await asAgent(server, secret, `/api/pages/${page.id}/discussion`);
+      const seen = await asAgent<{ threads: DiscussionThread[] }>(
+        server,
+        secret,
+        `/api/pages/${page.id}/discussion`,
+      );
       expect(seen.response.status).toBe(200);
-      expect(seen.body.threads[0].body).toBe("Can you check whether the reducer is shared?");
+      expect(seen.body.threads[0]!.body).toBe("Can you check whether the reducer is shared?");
     });
 
     it("never lets an agent close a thread, whatever its scope", async () => {
@@ -546,10 +565,15 @@ describe("page discussion", () => {
       const page = await makePage(server);
       const secret = await issueAgent(server);
 
-      const posted = await asAgent(server, secret, `/api/pages/${page.id}/discussion`, {
-        method: "POST",
-        body: JSON.stringify({ body: "@Maren the migration ran; nothing needed from you." }),
-      });
+      const posted = await asAgent<{ thread: DiscussionThread }>(
+        server,
+        secret,
+        `/api/pages/${page.id}/discussion`,
+        {
+          method: "POST",
+          body: JSON.stringify({ body: "@Maren the migration ran; nothing needed from you." }),
+        },
+      );
       expect(posted.response.status).toBe(201);
       expect(posted.body.thread.mentions).toHaveLength(1);
     });

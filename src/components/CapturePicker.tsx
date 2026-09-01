@@ -50,6 +50,7 @@ export function CapturePicker({ control, fields, inputRef, settings }: Props) {
             {writingField.label}
           </label>
           <input
+            // biome-ignore lint/a11y/noAutofocus: this input is mounted by the user's own action - it exists because they clicked add, edit or open - so focus follows the request rather than stealing it on arrival, which is the case the rule is for
             autoFocus
             id="capture-field-value"
             inputMode={writingField.type === "number" ? "decimal" : undefined}
@@ -90,6 +91,7 @@ export function CapturePicker({ control, fields, inputRef, settings }: Props) {
             htmlFor="capture-field-filter"
           >{`Search ${openField.label} options`}</label>
           <input
+            // biome-ignore lint/a11y/noAutofocus: this input is mounted by the user's own action - it exists because they clicked add, edit or open - so focus follows the request rather than stealing it on arrival, which is the case the rule is for
             autoFocus
             id="capture-field-filter"
             onChange={(event) =>

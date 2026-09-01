@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, createEvent, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { AuditEvent, Page } from "../../shared/types";
@@ -145,7 +145,9 @@ describe("Grimoire board", () => {
     expect(capture).toHaveFocus();
     expect(capture.closest("form")).toHaveClass("workspace-capture");
     expect(screen.queryByText("one board, one source of truth", { exact: false })).not.toBeInTheDocument();
-    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    // A dropdown here means a native <select>. The quick capture carries role="combobox"
+    // deliberately - it opens the capture picker's listbox - so match the element, not the role.
+    expect(document.querySelector("select")).toBeNull();
     expect(screen.queryByText(/design pillar/i)).not.toBeInTheDocument();
   });
 
@@ -917,7 +919,9 @@ describe("Grimoire board", () => {
     render(<App />);
     await openWorkPage(page);
 
-    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    // A dropdown here means a native <select>. The quick capture carries role="combobox"
+    // deliberately - it opens the capture picker's listbox - so match the element, not the role.
+    expect(document.querySelector("select")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: /assign maren/i }));
 
     await waitFor(() =>
@@ -955,13 +959,17 @@ describe("Grimoire board", () => {
     render(<App />);
     await openWorkPage(page);
 
-    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    // A dropdown here means a native <select>. The quick capture carries role="combobox"
+    // deliberately - it opens the capture picker's listbox - so match the element, not the role.
+    expect(document.querySelector("select")).toBeNull();
     // Category is the one attribute folded to its current value, so it is read before it is
     // changed - and opening it still reveals plain buttons rather than a menu.
     const rail = screen.getByRole("dialog", { name: "Edit page" }).querySelector(".page-rail")!;
     expect(within(rail as HTMLElement).getByText("Narrative")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Change category" }));
-    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    // A dropdown here means a native <select>. The quick capture carries role="combobox"
+    // deliberately - it opens the capture picker's listbox - so match the element, not the role.
+    expect(document.querySelector("select")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Categorize as Code" }));
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
@@ -1444,7 +1452,9 @@ describe("Grimoire board", () => {
     expect(screen.queryByRole("button", { name: "all work" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "active" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "mine" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    // A dropdown here means a native <select>. The quick capture carries role="combobox"
+    // deliberately - it opens the capture picker's listbox - so match the element, not the role.
+    expect(document.querySelector("select")).toBeNull();
 
     await userEvent.type(screen.getByRole("searchbox", { name: "Search pages" }), "tower door");
     expect(screen.getByText("Make the tower door remember Maren")).toBeInTheDocument();

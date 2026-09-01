@@ -46,6 +46,7 @@ export function BoardTopBar({
             title="Work (1)"
             type="button"
           >
+            {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: a kbd is not focusable; this is a shortcut glyph beside the label inside a focusable button, and hiding it is what keeps the button announcing its name rather than its name and a stray character */}
             work <kbd aria-hidden="true">1</kbd>
           </button>
           <button
@@ -55,6 +56,7 @@ export function BoardTopBar({
             title="Ideas (2)"
             type="button"
           >
+            {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: a kbd is not focusable; this is a shortcut glyph beside the label inside a focusable button, and hiding it is what keeps the button announcing its name rather than its name and a stray character */}
             ideas <kbd aria-hidden="true">2</kbd>
           </button>
         </nav>
@@ -74,7 +76,7 @@ export function BoardTopBar({
       </div>
       <div className="board-actions">
         {/* Presence lives on the people filters, not here: this row is mostly the signed-in person. */}
-        <div className="member-faces" aria-label={`${board.members.length} project members`}>
+        <div className="member-faces" aria-label={`${board.members.length} project members`} role="group">
           {board.members.slice(0, 4).map((member) => (
             <Avatar avatarUrl={member.avatarUrl} key={member.id} name={member.name} title={member.name} />
           ))}
@@ -83,7 +85,11 @@ export function BoardTopBar({
           <button className="quiet-button activity-trigger" onClick={onOpenActivity} type="button">
             activity
             {unseenCount > 0 && (
-              <span aria-label={`${unseenCount} changes since your last visit`} className="away-badge">
+              <span
+                aria-label={`${unseenCount} changes since your last visit`}
+                className="away-badge"
+                role="img"
+              >
                 {unseenCount > 99 ? "99+" : unseenCount}
               </span>
             )}

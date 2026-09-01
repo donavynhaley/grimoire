@@ -2293,6 +2293,9 @@ textarea:hover {
   touch-action: none;
 }
 .dragging-card * {
+  /* biome-ignore lint/complexity/noImportantStyles: a universal selector has the lowest
+     specificity there is, so this is the only way the drag cursor beats the cursor every
+     component sets for itself. Without it the whole board stops showing a grab mid-drag. */
   cursor: grabbing !important;
 }
 
@@ -5021,6 +5024,9 @@ textarea:hover {
   input,
   textarea,
   select {
+    /* biome-ignore lint/complexity/noImportantStyles: this has to beat every component's
+       own input font-size, because it is not a preference - see the comment above: below
+       1rem, iOS Safari zooms the page on focus and leaves it zoomed. */
     font-size: 1rem !important;
   }
   .search-input input,

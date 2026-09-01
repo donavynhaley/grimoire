@@ -244,19 +244,34 @@ have a linter at all, and Biome buys one without spending a second dependency on
 (DEP-1 — it went in as Prettier came out).
 
 **TOOL-2.** A rule Grimoire does not intend to satisfy is turned off in
-`biome.jsonc` with the reason written next to it, not left to fail. A rule it intends
-to satisfy *eventually* is a warning, so the debt is counted in every CI run instead
-of being hidden. Only a rule the codebase actually holds to may block a build.
-`noNonNullAssertion` is off — 557 uses across 74 files is the house idiom, not a
-finding. Accessibility, React hook dependencies and CSS specificity ordering are
-warnings, and each is real work somebody has to schedule.
+`biome.jsonc` with the reason written next to it, not left to fail. Only a rule the
+codebase actually holds to may block a build. **The warning tier is temporary by
+construction**: a warning is a rule on its way to blocking, carried only while
+somebody is clearing it, and a run with warnings in it is a job someone has not
+finished. `npx biome ci` prints nothing today, and that is the resting state.
+
+Three rules are off, each for a reason written beside it. `noNonNullAssertion`: 557
+uses across 74 files is the house idiom, and enabling it is a rewrite wearing a lint
+config. `noDescendingSpecificity`: it pairs any two selectors sharing a trailing
+simple selector, so most of its findings are unrelated elements, and satisfying the
+rest means reordering a stylesheet organised by feature section. `useSemanticElements`:
+it asks for `<fieldset>` where a div carries `role="group"`, which is wrong for
+clusters of buttons and drags in chrome the stylesheet would have to undo.
 
 **TOOL-3.** A `biome-ignore` carries the reason the rule does not apply at
-that spot, in prose, the way any other comment here does. Three exist, and each is a
-place the rule is wrong rather than a place the code is: the `100vh`/`100dvh`
-fallback pair in `styles.css`, the positional text parts in `AwayDigest.tsx`, and the
-element `SearchDialog.tsx` assembles into a local before rendering it inside a keyed
-parent. Suppressing a rule because it is inconvenient is not this.
+that spot, in prose, the way any other comment here does — it marks a place the rule
+is wrong, never a place the code is inconvenient. Around thirty exist. The large
+groups are the React hook dependency lists, where a dependency is often a trigger the
+effect never reads (`revision`, `reloads`, `notice.id`) or a narrow property named in
+place of an identity that changes every render; and the accessibility set, where the
+`<kbd>` shortcut glyphs are not focusable, the `autoFocus` inputs are mounted by the
+user's own click, and the mention picker's options are deliberately unfocusable
+because `aria-activedescendant` names the active row.
+
+Placement is not free: inside a JSX opening tag or a parenthesised expression a
+suppression is a `//` comment, and among JSX children it must be `{/* … */}` or it
+becomes visible text. Biome reports a suppression that no longer suppresses anything,
+so a rule turned off leaves its `biome-ignore` behind as a warning — delete it.
 
 ---
 

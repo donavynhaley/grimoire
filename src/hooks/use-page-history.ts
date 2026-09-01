@@ -23,6 +23,7 @@ export function usePageHistory(
 ): AuditEvent[] | null {
   const [loaded, setLoaded] = useState<{ pageId: string; events: AuditEvent[] } | null>(null);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: revision is the refetch trigger an autosave bumps; it is deliberately not read inside
   useEffect(() => {
     let alive = true;
     load({ entityId: pageId, limit: PAGE_HISTORY_LIMIT })

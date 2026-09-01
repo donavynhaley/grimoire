@@ -13,6 +13,7 @@ type Props = {
 };
 
 export function UndoToast({ notice, onDismiss, onUndo }: Props) {
+  // biome-ignore lint/correctness/useExhaustiveDependencies: notice.id is the trigger that restarts the countdown for a new notice; without it a second undo would inherit the first one's remaining time and vanish early
   useEffect(() => {
     const timer = window.setTimeout(onDismiss, 8_000);
     return () => window.clearTimeout(timer);

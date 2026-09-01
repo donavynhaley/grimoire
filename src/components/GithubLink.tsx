@@ -154,6 +154,7 @@ export function GithubLink({ github, status, repo, onUpdate }: Props) {
             <label className="github-search">
               <span className="sr-only">Search pull requests, or type a branch</span>
               <input
+                // biome-ignore lint/a11y/noAutofocus: this input is mounted by the user's own action - it exists because they clicked add, edit or open - so focus follows the request rather than stealing it on arrival, which is the case the rule is for
                 autoFocus
                 onChange={(event) => setQuery(event.target.value)}
                 onKeyDown={(event) => {

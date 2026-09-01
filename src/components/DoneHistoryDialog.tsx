@@ -83,7 +83,7 @@ export function DoneHistoryDialog({
             value={query}
           />
         </label>
-        <div aria-label="Completed work filters" className="library-filters">
+        <div aria-label="Completed work filters" className="library-filters" role="group">
           <button
             aria-pressed={person === "unassigned"}
             className={person === "unassigned" ? "active" : ""}
@@ -105,7 +105,11 @@ export function DoneHistoryDialog({
           ))}
         </div>
         {usedCategories.length > 0 && (
-          <div aria-label="Completed work categories" className="library-filters category-filters">
+          <div
+            aria-label="Completed work categories"
+            className="library-filters category-filters"
+            role="group"
+          >
             {usedCategories.map((value) => (
               <button
                 aria-pressed={category === value}

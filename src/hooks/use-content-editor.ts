@@ -135,6 +135,7 @@ export function useContentEditor({ remote, resetKey, save }: Options): ContentEd
   }, [remote, resetKey]);
 
   // A teammate's change lands in any field the reader is not currently rewriting.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the two fields it actually reads are named individually on purpose; depending on the whole remote object would re-run on an identity that changes every render
   useEffect(() => {
     if (recordRef.current !== resetKey || conflictRef.current) return;
     const current = trimmed(draftRef.current);

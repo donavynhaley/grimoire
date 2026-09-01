@@ -83,6 +83,7 @@ export function Drawer({ className, backdropClassName = "", labelledBy, label, o
 
   if (!coarse) {
     return (
+      // biome-ignore lint/a11y/noStaticElementInteractions: the handler is not an affordance a keyboard user needs to reach - it is dismissal, focus bookkeeping or a drop target - and every one of these surfaces has a real focusable control that does the same job
       <div
         className={`modal-backdrop ${backdropClassName}`.trim()}
         onMouseDown={(event) => {

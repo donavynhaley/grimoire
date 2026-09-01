@@ -44,7 +44,7 @@ export function WorkFilters({
 }: Props) {
   const chaptersOn = board.project.chaptersEnabled;
   return (
-    <div className="work-filters" aria-label="Work filters">
+    <div className="work-filters" aria-label="Work filters" role="group">
       <button
         aria-label={
           moving
@@ -62,6 +62,7 @@ export function WorkFilters({
       >
         <span>Backlog</span>
         <strong>{backlogPages.length}</strong>
+        {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: a kbd is not focusable; this is a shortcut glyph beside the label inside a focusable button, and hiding it is what keeps the button announcing its name rather than its name and a stray character */}
         <kbd aria-hidden="true">B</kbd>
       </button>
       {chaptersOn && (

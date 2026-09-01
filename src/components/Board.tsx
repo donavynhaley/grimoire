@@ -211,6 +211,7 @@ export function Board({
   // A shared link is reconciled once on arrival: the pre-rename `card` spelling becomes
   // `page`, and a link to a page this board no longer has simply falls away. Every later
   // write goes through changeSelectedPage.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs once for the URL the board arrived with, as the comment above says; selectedPage is read as the mount seed and every later write goes through changeSelectedPage
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     params.delete("card");
@@ -477,12 +478,13 @@ export function Board({
                 onClick={() => setSearchOpen(true)}
                 type="button"
               >
+                {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: a kbd is not focusable; this is a shortcut glyph beside the label inside a focusable button, and hiding it is what keeps the button announcing its name rather than its name and a stray character */}
                 search everything <kbd aria-hidden="true">/</kbd>
               </button>
             </div>
           )}
 
-          <div className="kanban" aria-label={`${board.project.name} board`} ref={kanbanRef}>
+          <div className="kanban" aria-label={`${board.project.name} board`} ref={kanbanRef} role="group">
             {BOARD_STATUSES.map((status) => {
               const pages = pagesByStatus[status];
               // Whichever way a page was picked up, it leaves the flow of its column so the
@@ -593,6 +595,7 @@ export function Board({
                             New {columnNames[status]} page
                           </label>
                           <input
+                            // biome-ignore lint/a11y/noAutofocus: this input is mounted by the user's own action - it exists because they clicked add, edit or open - so focus follows the request rather than stealing it on arrival, which is the case the rule is for
                             autoFocus
                             id={`new-${status}`}
                             name={`new-${status}`}
