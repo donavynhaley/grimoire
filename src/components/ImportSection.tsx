@@ -26,8 +26,6 @@ export function ImportSection() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [applied, setApplied] = useState<number | null>(null);
-  // Which how-to-export guide is unfolded; one at a time, because they answer one question.
-  const [guide, setGuide] = useState<ImportSource | null>(null);
 
   const replan = async (input: {
     file: File;
@@ -142,61 +140,30 @@ export function ImportSection() {
           .filter((entry) => entry.count > 0);
 
   return (
-    <Growing className="settings-section">
+    <div className="settings-section">
       <p className="settings-summary">
         Bring a board over whole, from the file its own tool exports. Nothing is written until the plan below
         says what will land where and you say go; running it twice never duplicates a card.
       </p>
 
       <ul className="import-guides">
-        <li>
-          <Growing className="import-guide">
-            <button
-              aria-expanded={guide === "trello"}
-              className="import-guide-toggle"
-              onClick={() => setGuide(guide === "trello" ? null : "trello")}
-              type="button"
-            >
-              Coming from Trello
-            </button>
-            {guide === "trello" && (
-              <ol className="import-guide-steps">
-                <li>Open your board in Trello.</li>
-                <li>
-                  Open the board menu - the ... at the board's top right - and choose Print, export, and
-                  share.
-                </li>
-                <li>Choose Export as JSON and save the file. Free workspaces have it too.</li>
-                <li>Choose that .json file below. Lists Grimoire cannot place get a column dropdown here.</li>
-              </ol>
-            )}
-          </Growing>
-        </li>
-        <li>
-          <Growing className="import-guide">
-            <button
-              aria-expanded={guide === "focalboard"}
-              className="import-guide-toggle"
-              onClick={() => setGuide(guide === "focalboard" ? null : "focalboard")}
-              type="button"
-            >
-              Coming from Focalboard
-            </button>
-            {guide === "focalboard" && (
-              <ol className="import-guide-steps">
-                <li>Open your board in Focalboard.</li>
-                <li>
-                  Open the board's options menu - the ... beside its name - and choose Export board archive.
-                </li>
-                <li>Save the .boardarchive file, and leave it zipped: Grimoire reads it as it is.</li>
-                <li>
-                  Choose that file below. Statuses Grimoire cannot place get a column dropdown here, and an
-                  archive holding several boards gets a board picker.
-                </li>
-              </ol>
-            )}
-          </Growing>
-        </li>
+        <ImportGuide title="Coming from Trello">
+          <li>Open your board in Trello.</li>
+          <li>
+            Open the board menu - the ... at the board's top right - and choose Print, export, and share.
+          </li>
+          <li>Choose Export as JSON and save the file. Free workspaces have it too.</li>
+          <li>Choose that .json file below. Lists Grimoire cannot place get a column dropdown here.</li>
+        </ImportGuide>
+        <ImportGuide title="Coming from Focalboard">
+          <li>Open your board in Focalboard.</li>
+          <li>Open the board's options menu - the ... beside its name - and choose Export board archive.</li>
+          <li>Save the .boardarchive file, and leave it zipped: Grimoire reads it as it is.</li>
+          <li>
+            Choose that file below. Statuses Grimoire cannot place get a column dropdown here, and an archive
+            holding several boards gets a board picker.
+          </li>
+        </ImportGuide>
       </ul>
 
       <div className="settings-input import-file">
@@ -206,118 +173,153 @@ export function ImportSection() {
         <input accept=".json,.boardarchive,.jsonl" id="import-file" onChange={choose} type="file" />
       </div>
 
-      {error && (
-        <div className="error-banner" role="alert">
-          {error}
-        </div>
-      )}
+      <Growing className="import-work">
+        {error && (
+          <div className="error-banner" role="alert">
+            {error}
+          </div>
+        )}
 
-      {plan?.boards && file && (
-        <div className="settings-input">
-          <label className="field-label" htmlFor="import-board">
-            The archive holds several boards - which one?
-          </label>
-          <select id="import-board" onChange={(event) => chooseBoard(event.target.value)} value={board ?? ""}>
-            <option disabled value="">
-              choose a board
-            </option>
-            {plan.boards.map((candidate) => (
-              <option key={candidate.id} value={candidate.id}>
-                {candidate.title}
+        {plan?.boards && file && (
+          <div className="settings-input">
+            <label className="field-label" htmlFor="import-board">
+              The archive holds several boards - which one?
+            </label>
+            <select
+              id="import-board"
+              onChange={(event) => chooseBoard(event.target.value)}
+              value={board ?? ""}
+            >
+              <option disabled value="">
+                choose a board
               </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {plan?.statusChoices && file && (
-        <div className="settings-input">
-          <label className="field-label" htmlFor="import-status">
-            Which property holds the board's columns?
-          </label>
-          <select
-            id="import-status"
-            onChange={(event) => chooseStatus(event.target.value)}
-            value={status ?? ""}
-          >
-            <option disabled value="">
-              choose a property
-            </option>
-            {plan.statusChoices.map((choice) => (
-              <option key={choice} value={choice}>
-                {choice}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {rows.length > 0 && (
-        <div className="import-mappings">
-          <p className="field-label">These need a column before anything imports</p>
-          <ul className="import-mapping-list">
-            {rows.map((row) => (
-              <li className="import-mapping-row" key={`${row.kind}:${row.name}`}>
-                <span className="import-mapping-name">
-                  {row.name}
-                  <span className="import-mapping-count">
-                    {row.cards} card{row.cards === 1 ? "" : "s"}
-                  </span>
-                </span>
-                <select
-                  aria-label={`Column for ${row.name}`}
-                  onChange={(event) => setColumn(row, event.target.value)}
-                  value={row.column ?? ""}
-                >
-                  <option disabled value="">
-                    choose a column
-                  </option>
-                  {COLUMN_CHOICES.map((column) => (
-                    <option key={column} value={column}>
-                      {column}
-                    </option>
-                  ))}
-                </select>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {plan && (
-        <div className="import-plan">
-          <p className="settings-summary">
-            {plan.toCreate.length} of {plan.total} card{plan.total === 1 ? "" : "s"} import
-            {columnCounts.length > 0 &&
-              `: ${columnCounts.map((entry) => `${entry.count} to ${entry.label}`).join(", ")}`}
-            {plan.skipped.length > 0 && ` · ${plan.skipped.length} stay behind`}
-          </p>
-          {plan.warnings.length > 0 && (
-            <ul className="import-warnings">
-              {plan.warnings.slice(0, 6).map((warning) => (
-                <li key={warning}>{warning}</li>
+              {plan.boards.map((candidate) => (
+                <option key={candidate.id} value={candidate.id}>
+                  {candidate.title}
+                </option>
               ))}
-              {plan.warnings.length > 6 && <li>and {plan.warnings.length - 6} more</li>}
-            </ul>
-          )}
-          <button
-            className="primary-button compact"
-            disabled={!ready}
-            onClick={() => file && void replan({ file, source, rows, board, status, apply: true })}
-            type="button"
-          >
-            {busy
-              ? "working…"
-              : `Import ${plan.toCreate.length} page${plan.toCreate.length === 1 ? "" : "s"}`}
-          </button>
-        </div>
-      )}
+            </select>
+          </div>
+        )}
 
-      {applied !== null && (
-        <p className="saved-note" role="status">
-          Imported {applied} page{applied === 1 ? "" : "s"}.
-        </p>
-      )}
-    </Growing>
+        {plan?.statusChoices && file && (
+          <div className="settings-input">
+            <label className="field-label" htmlFor="import-status">
+              Which property holds the board's columns?
+            </label>
+            <select
+              id="import-status"
+              onChange={(event) => chooseStatus(event.target.value)}
+              value={status ?? ""}
+            >
+              <option disabled value="">
+                choose a property
+              </option>
+              {plan.statusChoices.map((choice) => (
+                <option key={choice} value={choice}>
+                  {choice}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {rows.length > 0 && (
+          <div className="import-mappings">
+            <p className="field-label">These need a column before anything imports</p>
+            <ul className="import-mapping-list">
+              {rows.map((row) => (
+                <li className="import-mapping-row" key={`${row.kind}:${row.name}`}>
+                  <span className="import-mapping-name">
+                    {row.name}
+                    <span className="import-mapping-count">
+                      {row.cards} card{row.cards === 1 ? "" : "s"}
+                    </span>
+                  </span>
+                  <select
+                    aria-label={`Column for ${row.name}`}
+                    onChange={(event) => setColumn(row, event.target.value)}
+                    value={row.column ?? ""}
+                  >
+                    <option disabled value="">
+                      choose a column
+                    </option>
+                    {COLUMN_CHOICES.map((column) => (
+                      <option key={column} value={column}>
+                        {column}
+                      </option>
+                    ))}
+                  </select>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {plan && (
+          <div className="import-plan">
+            <p className="settings-summary">
+              {plan.toCreate.length} of {plan.total} card{plan.total === 1 ? "" : "s"} import
+              {columnCounts.length > 0 &&
+                `: ${columnCounts.map((entry) => `${entry.count} to ${entry.label}`).join(", ")}`}
+              {plan.skipped.length > 0 && ` · ${plan.skipped.length} stay behind`}
+            </p>
+            {plan.warnings.length > 0 && (
+              <ul className="import-warnings">
+                {plan.warnings.slice(0, 6).map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+                {plan.warnings.length > 6 && <li>and {plan.warnings.length - 6} more</li>}
+              </ul>
+            )}
+            <button
+              className="primary-button compact"
+              disabled={!ready}
+              onClick={() => file && void replan({ file, source, rows, board, status, apply: true })}
+              type="button"
+            >
+              {busy
+                ? "working…"
+                : `Import ${plan.toCreate.length} page${plan.toCreate.length === 1 ? "" : "s"}`}
+            </button>
+          </div>
+        )}
+
+        {applied !== null && (
+          <p className="saved-note" role="status">
+            Imported {applied} page{applied === 1 ? "" : "s"}.
+          </p>
+        )}
+      </Growing>
+    </div>
+  );
+}
+
+/**
+ * One unfolding how-to bullet, its open state kept here beside the one fold it drives.
+ *
+ * The whole point of the placement: a toggle re-renders nothing but this bullet, so the
+ * fold is the only box that animates and every other Growing on the screen keeps an honest
+ * measurement of itself. When the section root carried this state, its own Growing measured
+ * the fold mid-flight, recorded the stale height, and replayed the difference as a phantom
+ * slide on the next interaction. The button stays outside the fold and the guides open
+ * independently - two folds animating against each other is a see-saw, one is a door.
+ */
+function ImportGuide({ title, children }: { title: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <li>
+      <button
+        aria-expanded={open}
+        className="import-guide-toggle"
+        onClick={() => setOpen((current) => !current)}
+        type="button"
+      >
+        {title}
+      </button>
+      <Growing className="import-guide-fold">
+        {open && <ol className="import-guide-steps">{children}</ol>}
+      </Growing>
+    </li>
   );
 }

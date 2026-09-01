@@ -108,11 +108,15 @@ describe("import section", () => {
     expect(trello).toHaveAttribute("aria-expanded", "true");
     expect(within(dialog).getByText(/Export as JSON/)).toBeInTheDocument();
 
-    // One question at a time: unfolding the other guide folds this one.
+    // Each bullet folds on its own: opening one never animates the other.
     await user.click(within(dialog).getByRole("button", { name: "Coming from Focalboard" }));
     expect(within(dialog).getByText(/Export board archive/)).toBeInTheDocument();
     expect(within(dialog).getByText(/leave it zipped/)).toBeInTheDocument();
+    expect(trello).toHaveAttribute("aria-expanded", "true");
+
+    await user.click(trello);
     expect(trello).toHaveAttribute("aria-expanded", "false");
+    expect(within(dialog).queryByText(/Export as JSON/)).not.toBeInTheDocument();
   });
 
   it("is not offered to a member at all", () => {

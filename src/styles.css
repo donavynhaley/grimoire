@@ -6120,9 +6120,8 @@ textarea:hover {
   flex-direction: column;
   gap: 0.125rem;
 }
-.import-guide {
-  display: flex;
-  flex-direction: column;
+.import-guide-fold {
+  display: block;
 }
 .import-guide-toggle {
   display: flex;
@@ -6164,6 +6163,16 @@ textarea:hover {
 
 .import-file {
   align-items: baseline;
+}
+/* Everything below the file input that comes and goes - pickers, mappings, the plan -
+   grows through this one box, kept apart from the guide folds so no two animations ever
+   measure each other mid-flight. */
+.import-work {
+  display: grid;
+  gap: 0.625rem;
+}
+.import-work:empty {
+  display: none;
 }
 .import-mappings {
   display: flex;
