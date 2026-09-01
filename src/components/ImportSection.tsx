@@ -26,6 +26,8 @@ export function ImportSection() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [applied, setApplied] = useState<number | null>(null);
+  // Which how-to-export guide is unfolded; one at a time, because they answer one question.
+  const [guide, setGuide] = useState<ImportSource | null>(null);
 
   const replan = async (input: {
     file: File;
@@ -142,10 +144,60 @@ export function ImportSection() {
   return (
     <Growing className="settings-section">
       <p className="settings-summary">
-        Bring a board over from Trello (Export as JSON) or Focalboard (Export board archive), whole. Nothing
-        is written until the plan below says what will land where and you say go; running it twice never
-        duplicates a card.
+        Bring a board over whole, from the file its own tool exports. Nothing is written until the plan below
+        says what will land where and you say go; running it twice never duplicates a card.
       </p>
+
+      <ul className="import-guides">
+        <li>
+          <Growing className="import-guide">
+            <button
+              aria-expanded={guide === "trello"}
+              className="import-guide-toggle"
+              onClick={() => setGuide(guide === "trello" ? null : "trello")}
+              type="button"
+            >
+              Coming from Trello
+            </button>
+            {guide === "trello" && (
+              <ol className="import-guide-steps">
+                <li>Open your board in Trello.</li>
+                <li>
+                  Open the board menu - the ... at the board's top right - and choose Print, export, and
+                  share.
+                </li>
+                <li>Choose Export as JSON and save the file. Free workspaces have it too.</li>
+                <li>Choose that .json file below. Lists Grimoire cannot place get a column dropdown here.</li>
+              </ol>
+            )}
+          </Growing>
+        </li>
+        <li>
+          <Growing className="import-guide">
+            <button
+              aria-expanded={guide === "focalboard"}
+              className="import-guide-toggle"
+              onClick={() => setGuide(guide === "focalboard" ? null : "focalboard")}
+              type="button"
+            >
+              Coming from Focalboard
+            </button>
+            {guide === "focalboard" && (
+              <ol className="import-guide-steps">
+                <li>Open your board in Focalboard.</li>
+                <li>
+                  Open the board's options menu - the ... beside its name - and choose Export board archive.
+                </li>
+                <li>Save the .boardarchive file, and leave it zipped: Grimoire reads it as it is.</li>
+                <li>
+                  Choose that file below. Statuses Grimoire cannot place get a column dropdown here, and an
+                  archive holding several boards gets a board picker.
+                </li>
+              </ol>
+            )}
+          </Growing>
+        </li>
+      </ul>
 
       <div className="settings-input import-file">
         <label className="field-label" htmlFor="import-file">

@@ -95,6 +95,26 @@ describe("import section", () => {
     expect(applied[0]!.url).toContain(`list=${encodeURIComponent("Weird Pile=Review").replace(/%20/g, "+")}`);
   });
 
+  it("carries the click-path out of each source tool, one unfolding guide per bullet", async () => {
+    const user = userEvent.setup();
+    mountWith();
+
+    const dialog = await openImport(user);
+    const trello = within(dialog).getByRole("button", { name: "Coming from Trello" });
+    expect(trello).toHaveAttribute("aria-expanded", "false");
+    expect(within(dialog).queryByText(/Export as JSON/)).not.toBeInTheDocument();
+
+    await user.click(trello);
+    expect(trello).toHaveAttribute("aria-expanded", "true");
+    expect(within(dialog).getByText(/Export as JSON/)).toBeInTheDocument();
+
+    // One question at a time: unfolding the other guide folds this one.
+    await user.click(within(dialog).getByRole("button", { name: "Coming from Focalboard" }));
+    expect(within(dialog).getByText(/Export board archive/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/leave it zipped/)).toBeInTheDocument();
+    expect(trello).toHaveAttribute("aria-expanded", "false");
+  });
+
   it("is not offered to a member at all", () => {
     expect(settingsSectionsFor(false)).not.toContain("import");
     expect(settingsSectionsFor(true)).toContain("import");
