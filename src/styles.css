@@ -845,7 +845,9 @@ textarea:focus-visible {
   cursor: pointer;
 }
 
-/* Assignees and project fields draw no leading swatch, so their label takes its column. */
+/* Chapters, assignees, and project fields draw no leading swatch, so their label takes
+   its column. Without this, the name lands in the swatch track and wraps letter by letter. */
+.capture-picker-chapter [role="option"],
 .capture-picker-assignee [role="option"],
 .capture-picker-field [role="option"],
 .capture-picker-field-cmd [role="option"] {
@@ -4428,6 +4430,21 @@ textarea:hover {
 .undo-toast button:hover {
   color: #d4efbc;
 }
+
+/* The key that runs the action, drawn the way the pickers draw theirs. */
+.undo-toast button kbd {
+  display: inline-grid;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin-left: 0.375rem;
+  place-items: center;
+  color: var(--muted);
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  font-size: 0.5625rem;
+  vertical-align: middle;
+}
 .undo-toast .undo-dismiss {
   padding-right: 0;
   color: var(--faint);
@@ -4845,7 +4862,8 @@ textarea:hover {
   /* Keyboard hints mean nothing on a touch screen, and the room is needed. */
   .workspace-tabs kbd,
   .library-trigger kbd,
-  .search-everything kbd {
+  .search-everything kbd,
+  .undo-toast button kbd {
     display: none;
   }
   /* The name gives way to the controls beside it rather than wrapping over them. */

@@ -58,6 +58,8 @@ type Props = {
   chapterActions: ChapterActions;
   ideas: IdeaWorkspace | null;
   online: ReadonlySet<string>;
+  /** A request from above to put one page on screen; each new token opens it again. */
+  openPage: { id: string; token: number } | null;
   projectActions: ProjectActions;
   projectSettingsActions: ProjectSettingsActions;
   revision: number;
@@ -99,6 +101,7 @@ export function Board({
   fieldActions,
   ideas,
   online,
+  openPage,
   projectActions,
   projectSettingsActions,
   revision,
@@ -255,6 +258,13 @@ export function Board({
     if (view === "ideas") void onViewChange("work");
     changeSelectedPage(id);
   };
+
+  // The toast's "open" arrives here as a request, and takes the same road a search result
+  // takes: whatever else is showing steps aside, and the page is on screen.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the token is a nonce, so asking to open the same page twice still fires; depending on openPage or openPageFromSearch instead would fire on identities that change every render
+  useEffect(() => {
+    if (openPage) openPageFromSearch(openPage.id);
+  }, [openPage?.token]);
 
   const openIdeaFromSearch = (id: string) => {
     setSearchOpen(false);
