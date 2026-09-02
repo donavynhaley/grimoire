@@ -23,7 +23,7 @@ describe("project images", () => {
     expect(uploaded.response.status).toBe(201);
     expect(uploaded.body.name).toMatch(/^pasted-image-\d{8}-\d{6}-[0-9a-f]{4}\.png$/);
 
-    const imagesDirectory = join(server.pagesDirectory, "wizard-simulator", "images");
+    const imagesDirectory = join(server.pagesDirectory, "getting-started", "images");
     expect(readdirSync(imagesDirectory)).toEqual([uploaded.body.name]);
 
     const served = await server.fetchRaw(`/api/images/${encodeURIComponent(uploaded.body.name)}`);
@@ -59,7 +59,7 @@ describe("project images", () => {
       headers: { "content-type": "image/png" },
     });
     const { renameSync } = await import("node:fs");
-    const imagesDirectory = join(server.pagesDirectory, "wizard-simulator", "images");
+    const imagesDirectory = join(server.pagesDirectory, "getting-started", "images");
     renameSync(
       join(imagesDirectory, uploaded.body.name),
       join(imagesDirectory, "Pasted image 20260807183045.png"),
@@ -84,7 +84,7 @@ describe("project images", () => {
     expect(rejected.response.status).toBe(400);
     expect(rejected.body.error).toContain("PNG, JPEG, WebP, or GIF");
 
-    const imagesDirectory = join(server.pagesDirectory, "wizard-simulator", "images");
+    const imagesDirectory = join(server.pagesDirectory, "getting-started", "images");
     expect(existsSync(imagesDirectory)).toBe(false);
   });
 

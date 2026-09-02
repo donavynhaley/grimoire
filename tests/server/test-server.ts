@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach } from "vitest";
 import { createGrimoireServer } from "../../server/app";
+import { GETTING_STARTED_SLUG } from "../../server/getting-started";
 
 type TestServer = {
   baseUrl: string;
@@ -112,9 +113,16 @@ export const ownerAccount = {
   password: "correct horse wizard tower",
 };
 
-export async function bootstrap(server: TestServer) {
-  return server.request<{ user: { name: string; role: string } }>("/api/auth/bootstrap", {
+export async function bootstrap(server: TestServer, options: { keepStarterBoard?: boolean } = {}) {
+  const created = await server.request<{ user: { name: string; role: string } }>("/api/auth/bootstrap", {
     method: "POST",
     body: JSON.stringify(ownerAccount),
   });
+  // First-run setup seeds the Getting started board so a fresh installation teaches itself.
+  // Nearly every test wants the empty board underneath that, so the starter pages are cleared
+  // here; the seed's own coverage lives in getting-started.test.ts, which keeps them.
+  if (!options.keepStarterBoard) {
+    rmSync(join(server.pagesDirectory, GETTING_STARTED_SLUG, "pages"), { recursive: true, force: true });
+  }
+  return created;
 }

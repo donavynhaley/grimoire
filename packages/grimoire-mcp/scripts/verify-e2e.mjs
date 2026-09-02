@@ -223,7 +223,7 @@ try {
   // ------------------------------------------------------------ read
   console.log("\nReading the board");
   const board = await callTool("grimoire_board");
-  check("board names the project", board.text.includes("Wizard Simulator"));
+  check("board names the project", board.text.includes("Getting started"));
   check("board says who the agent acts as", board.text.includes("Donavyn"));
   check("board lists the real categories", board.text.includes("Design") && board.text.includes("Code"));
   check(

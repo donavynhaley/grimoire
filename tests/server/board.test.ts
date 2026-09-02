@@ -40,8 +40,8 @@ describe("page board", () => {
     expect(workspace.chapters).toEqual([]);
     // Nor does a project start with fields: they exist only once someone defines one.
     expect(workspace.fields).toEqual([]);
-    expect(workspace.project).toEqual(expect.objectContaining({ name: "Wizard Simulator" }));
-    expect(workspace.projects).toEqual([expect.objectContaining({ name: "Wizard Simulator" })]);
+    expect(workspace.project).toEqual(expect.objectContaining({ name: "Getting started" }));
+    expect(workspace.projects).toEqual([expect.objectContaining({ name: "Getting started" })]);
     expect(workspace.categories[0]).toEqual({
       slug: "design",
       name: "Design",
@@ -69,7 +69,7 @@ describe("page board", () => {
       assigneeName: "Donavyn",
       position: 0,
     });
-    const activePath = join(server.pagesDirectory, "wizard-simulator", "pages", `${created.body.page.id}.md`);
+    const activePath = join(server.pagesDirectory, "getting-started", "pages", `${created.body.page.id}.md`);
     const markdown = readFileSync(activePath, "utf8");
     expect(markdown).toMatch(/^---\n/);
     expect(markdown).toContain(`id: ${created.body.page.id}`);
@@ -102,7 +102,7 @@ describe("page board", () => {
     expect((await board(server)).pages.map((page) => page.id)).not.toContain(created.body.page.id);
     expect(existsSync(activePath)).toBe(false);
     expect(
-      existsSync(join(server.pagesDirectory, "wizard-simulator", "archive", `${created.body.page.id}.md`)),
+      existsSync(join(server.pagesDirectory, "getting-started", "archive", `${created.body.page.id}.md`)),
     ).toBe(true);
 
     const restored = await server.request<{ page: Page }>(`/api/pages/${created.body.page.id}/restore`, {
@@ -160,7 +160,7 @@ describe("page board", () => {
     expect(reviewed.response.status).toBe(200);
     expect(reviewed.body.page).toMatchObject({ status: "review", position: 0, completedAt: null });
     const markdown = readFileSync(
-      join(server.pagesDirectory, "wizard-simulator", "pages", `${created.body.page.id}.md`),
+      join(server.pagesDirectory, "getting-started", "pages", `${created.body.page.id}.md`),
       "utf8",
     );
     expect(markdown).toContain("status: review");
@@ -200,7 +200,7 @@ describe("page board", () => {
     });
     expect(reopened.body.page.completedAt).toBeNull();
     const markdown = readFileSync(
-      join(server.pagesDirectory, "wizard-simulator", "pages", `${created.body.page.id}.md`),
+      join(server.pagesDirectory, "getting-started", "pages", `${created.body.page.id}.md`),
       "utf8",
     );
     expect(markdown).toContain("completed_at: null");
@@ -226,7 +226,7 @@ describe("page board", () => {
     expect(linked.response.status).toBe(200);
     expect(linked.body.page).toMatchObject({ category: "texturing", blockedBy: [blocker.body.page.id] });
     const markdown = readFileSync(
-      join(server.pagesDirectory, "wizard-simulator", "pages", `${dependent.body.page.id}.md`),
+      join(server.pagesDirectory, "getting-started", "pages", `${dependent.body.page.id}.md`),
       "utf8",
     );
     expect(markdown).toContain("category: texturing");
@@ -332,7 +332,7 @@ describe("page board", () => {
     ]);
 
     const migrated = readFileSync(
-      join(second.pagesDirectory, "wizard-simulator", "pages", "9c46098a-7e85-48de-8a58-213236a8cf0d.md"),
+      join(second.pagesDirectory, "getting-started", "pages", "9c46098a-7e85-48de-8a58-213236a8cf0d.md"),
       "utf8",
     );
     expect(migrated).toContain("title: Legacy spell page");
@@ -390,7 +390,7 @@ describe("body length", () => {
     // An external editor can write any address into a page file. That is
     // ordinary weather for a directory of Markdown, and it must cost that page
     // its assignee - not the whole project its board.
-    const path = join(server.pagesDirectory, "wizard-simulator", "pages", `${created.body.page.id}.md`);
+    const path = join(server.pagesDirectory, "getting-started", "pages", `${created.body.page.id}.md`);
     const rewritten = readFileSync(path, "utf8")
       .replace("assignee: null", "assignee: stranger@example.com")
       .replace(`created_by: ${ownerAccount.email}`, "created_by: departed@example.com");

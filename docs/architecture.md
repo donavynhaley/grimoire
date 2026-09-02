@@ -70,7 +70,7 @@ Active and archived records are separated without changing their stable filename
 
 ```text
 pages/
-  wizard-simulator/
+  getting-started/
     pages/
       8b09c17f-8a5e-49f7-99a7-6f0dc7028b47.md
     archive/

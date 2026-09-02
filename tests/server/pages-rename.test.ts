@@ -33,7 +33,7 @@ afterEach(() => {
 type Server = Awaited<ReturnType<typeof startTestServer>>;
 
 function projectDirectory(server: Server): string {
-  return join(server.pagesDirectory, "wizard-simulator");
+  return join(server.pagesDirectory, "getting-started");
 }
 
 /** Puts a project back the way a build that predates the rename left it. */
@@ -56,7 +56,7 @@ describe("renaming cards to pages on disk", () => {
     revertToCards(first);
     await first.close();
 
-    expect(existsSync(join(directory, "pages", "wizard-simulator", "cards"))).toBe(true);
+    expect(existsSync(join(directory, "pages", "getting-started", "cards"))).toBe(true);
 
     // Starting again performs the migration before anything reads a page.
     const second = await startTestServer(directory);
@@ -66,12 +66,12 @@ describe("renaming cards to pages on disk", () => {
       })
     ).body;
 
-    expect(existsSync(join(directory, "pages", "wizard-simulator", "pages"))).toBe(true);
-    expect(existsSync(join(directory, "pages", "wizard-simulator", "cards"))).toBe(false);
+    expect(existsSync(join(directory, "pages", "getting-started", "pages"))).toBe(true);
+    expect(existsSync(join(directory, "pages", "getting-started", "cards"))).toBe(false);
     expect(workspace.pages.map((page) => page.id)).toEqual([pageId]);
     // The file itself is untouched by the move.
     expect(
-      readFileSync(join(directory, "pages", "wizard-simulator", "pages", `${pageId}.md`), "utf8"),
+      readFileSync(join(directory, "pages", "getting-started", "pages", `${pageId}.md`), "utf8"),
     ).toContain("title: Older work");
   });
 
@@ -84,12 +84,12 @@ describe("renaming cards to pages on disk", () => {
     await first.request("/api/pages", { method: "POST", body: JSON.stringify({ title: "Work" }) });
     await first.close();
 
-    const before = readdirSync(join(directory, "pages", "wizard-simulator", "pages"));
+    const before = readdirSync(join(directory, "pages", "getting-started", "pages"));
     const second = await startTestServer(directory);
     await second.close();
 
-    expect(readdirSync(join(directory, "pages", "wizard-simulator", "pages"))).toEqual(before);
-    expect(existsSync(join(directory, "pages", "wizard-simulator", "cards"))).toBe(false);
+    expect(readdirSync(join(directory, "pages", "getting-started", "pages"))).toEqual(before);
+    expect(existsSync(join(directory, "pages", "getting-started", "cards"))).toBe(false);
   });
 
   it("keeps serving the old /api/cards paths so a deploy cannot 404 an open tab", async () => {
@@ -141,7 +141,7 @@ describe("the directory rollback script", () => {
       root,
     ]).toString();
     expect(dryRun).toContain("would rename");
-    expect(existsSync(join(root, "wizard-simulator", "pages"))).toBe(true);
+    expect(existsSync(join(root, "getting-started", "pages"))).toBe(true);
 
     execFileSync(process.execPath, [
       join(process.cwd(), "ops", "rename-pages-to-cards.mjs"),
@@ -149,16 +149,16 @@ describe("the directory rollback script", () => {
       "--apply",
     ]);
 
-    expect(existsSync(join(root, "wizard-simulator", "cards"))).toBe(true);
-    expect(existsSync(join(root, "wizard-simulator", "pages"))).toBe(false);
+    expect(existsSync(join(root, "getting-started", "cards"))).toBe(true);
+    expect(existsSync(join(root, "getting-started", "pages"))).toBe(false);
     // The archive was never named after the entity, so it stays put.
-    expect(existsSync(join(root, "wizard-simulator", "pages", "archive"))).toBe(false);
+    expect(existsSync(join(root, "getting-started", "pages", "archive"))).toBe(false);
   });
 
   it("refuses to merge when both directories somehow exist", async () => {
     const directory = mkdtempSync(join(tmpdir(), "grimoire-rollback-clash-"));
     directories.push(directory);
-    const project = join(directory, "pages", "wizard-simulator");
+    const project = join(directory, "pages", "getting-started");
     mkdirSync(join(project, "pages"), { recursive: true });
     mkdirSync(join(project, "cards"), { recursive: true });
 

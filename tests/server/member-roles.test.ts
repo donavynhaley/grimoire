@@ -160,10 +160,10 @@ describe("member roles", () => {
       await promotedMemberAndAProjectSheIsNotOn(server);
 
       const listed = await server.request<{ projects: { name: string }[] }>("/api/projects");
-      expect(listed.body.projects.map((project) => project.name)).toEqual(["Wizard Simulator"]);
+      expect(listed.body.projects.map((project) => project.name)).toEqual(["Getting started"]);
       // The board carries the same list, and it is the one the picker actually renders.
       const workspace = await server.request<{ projects: { name: string }[] }>("/api/board");
-      expect(workspace.body.projects.map((project) => project.name)).toEqual(["Wizard Simulator"]);
+      expect(workspace.body.projects.map((project) => project.name)).toEqual(["Getting started"]);
     });
 
     it("refuses to read, rename or archive it, as though it were not there", async () => {
@@ -193,7 +193,7 @@ describe("member roles", () => {
       });
       expect(created.response.status).toBe(201);
       expect((await server.request<{ project: { name: string } }>("/api/board")).body.project.name).toBe(
-        "Wizard Simulator",
+        "Getting started",
       );
     });
 
@@ -247,7 +247,7 @@ describe("member roles", () => {
  * while owning anything meant reaching everything.
  */
 describe("adding someone who already has an account", () => {
-  /** Maren registered into Wizard Simulator; the admin makes a second project without her. */
+  /** Maren registered into the starter project; the admin makes a second project without her. */
   async function twoProjects(server: TestServer) {
     await bootstrap(server);
     await registerMember(server);
@@ -293,7 +293,7 @@ describe("adding someone who already has an account", () => {
       (await server.request<{ projects: { name: string }[] }>("/api/projects")).body.projects
         .map((project) => project.name)
         .sort(),
-    ).toEqual(["Familiar Tycoon", "Wizard Simulator"]);
+    ).toEqual(["Familiar Tycoon", "Getting started"]);
   });
 
   it("says which of the two went wrong, rather than failing the same way twice", async () => {

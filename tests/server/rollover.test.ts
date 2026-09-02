@@ -329,7 +329,7 @@ describe("estimates", () => {
 
     const { readdirSync, readFileSync } = await import("node:fs");
     const { join } = await import("node:path");
-    const directory = join(server.pagesDirectory, "wizard-simulator", "pages");
+    const directory = join(server.pagesDirectory, "getting-started", "pages");
     const contents = readdirSync(directory)
       .filter((name) => name.endsWith(".md"))
       .map((name) => readFileSync(join(directory, name), "utf8"))

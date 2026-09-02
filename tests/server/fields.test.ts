@@ -34,7 +34,7 @@ async function board(server: TestServer) {
 }
 
 /** The page file as it actually sits on disk, which is where the values really live. */
-function pageFile(server: TestServer, slug = "wizard-simulator"): string {
+function pageFile(server: TestServer, slug = "getting-started"): string {
   const directory = join(server.pagesDirectory, slug, "pages");
   const [file] = readdirSync(directory).filter((name) => name.endsWith(".md"));
   return readFileSync(join(directory, file!), "utf8");
