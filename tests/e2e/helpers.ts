@@ -19,6 +19,16 @@ export async function signIn(page: Page): Promise<void> {
       data: { email: OWNER.email, password: OWNER.password },
     });
     if (!login.ok()) throw new Error(`login failed: ${login.status()} ${await login.text()}`);
+    return;
+  }
+  // First-run setup seeds the Getting started board, and these tests stage their own boards,
+  // so the starter pages are archived through the same API a person would use.
+  const board = await page.request.get("/api/board");
+  if (!board.ok()) throw new Error(`board read failed: ${board.status()}`);
+  const workspace = (await board.json()) as { pages: Array<{ id: string }> };
+  for (const item of workspace.pages) {
+    const archived = await page.request.delete(`/api/pages/${item.id}`);
+    if (!archived.ok()) throw new Error(`starter page archive failed: ${archived.status()}`);
   }
 }
 

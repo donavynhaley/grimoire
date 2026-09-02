@@ -43,7 +43,7 @@ describe("link previews", () => {
     const html = await unfurl(server, `/?page=${page.body.page.id}`);
 
     expect(html).toContain('<meta property="og:title" content="Make the tower door remember Maren" />');
-    expect(html).toContain('<meta property="og:site_name" content="Grimoire · Wizard Simulator" />');
+    expect(html).toContain('<meta property="og:site_name" content="Grimoire · Getting started" />');
     expect(html).toContain('<meta property="og:description" content="In progress · Narrative" />');
     expect(html).toContain('<meta name="theme-color" content="#a99bdc" />');
     expect(html).toContain("<title>Make the tower door remember Maren · Grimoire</title>");

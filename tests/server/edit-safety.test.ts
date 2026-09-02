@@ -7,7 +7,7 @@ import { bootstrap, startTestServer } from "./test-server";
 type Server = Awaited<ReturnType<typeof startTestServer>>;
 
 function pagePath(server: Server, pageId: string): string {
-  return join(server.pagesDirectory, "wizard-simulator", "pages", `${pageId}.md`);
+  return join(server.pagesDirectory, "getting-started", "pages", `${pageId}.md`);
 }
 
 async function createPage(server: Server, title: string, description: string) {

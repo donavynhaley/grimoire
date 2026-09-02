@@ -333,7 +333,7 @@ describe("the board following the code", () => {
 
     const { readdirSync, readFileSync } = await import("node:fs");
     const { join } = await import("node:path");
-    const directory = join(server.pagesDirectory, "wizard-simulator", "pages");
+    const directory = join(server.pagesDirectory, "getting-started", "pages");
     const files = readdirSync(directory).filter((name) => name.endsWith(".md"));
     const contents = files.map((name) => readFileSync(join(directory, name), "utf8")).join("\n");
     expect(contents).toContain('github: {"kind":"branch","name":"feat/rituals"}');

@@ -32,7 +32,7 @@ describe("project activity", () => {
       ["member", "joined"],
       ["project", "created"],
     ]);
-    expect(page.events[1]!.entityTitle).toBe("Wizard Simulator");
+    expect(page.events[1]!.entityTitle).toBe("Getting started");
     expect(page.events[0]!.actorName).toBe("Donavyn");
   });
 
@@ -155,7 +155,7 @@ describe("project activity", () => {
       ["project", "created"],
     ]);
     expect(page.events[0]!.changes).toEqual([
-      { field: "name", from: "Wizard Simulator", to: "Wizard Simulator 2" },
+      { field: "name", from: "Getting started", to: "Wizard Simulator 2" },
     ]);
     expect(page.events[4]!.changes).toEqual([{ field: "list", from: "Idea inbox", to: "Shortlist" }]);
   });

@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { User } from "../../shared/types";
 import { AVATAR_SIZE_LIMIT, sniffAvatarType } from "../avatars";
-import { createWizardSimulatorProject, withTransaction } from "../database";
+import { withTransaction } from "../database";
+import { createGettingStartedProject, GETTING_STARTED_NAME } from "../getting-started";
 import {
   appendCookie,
   HttpError,
@@ -55,7 +56,7 @@ const OIDC_STATE_COOKIE = "grimoire_oidc_state";
 
 /** Every door into a session, and the account routes that manage what a session holds. */
 export function authRoutes(app: AppContext): Route[] {
-  const { database, avatarStore, auth } = app;
+  const { database, avatarStore, auth, pageStore, chapterStore } = app;
   return [
     {
       method: "GET",
@@ -115,7 +116,7 @@ export function authRoutes(app: AppContext): Route[] {
         if (Number(inserted.changes) !== 1) throw new HttpError(409, "Setup is already complete");
         let projectId: string;
         try {
-          projectId = createWizardSimulatorProject(database, userId);
+          projectId = createGettingStartedProject(database, pageStore, chapterStore, userId);
         } catch (error) {
           database.prepare("DELETE FROM users WHERE id = ?").run(userId);
           throw error;
@@ -486,7 +487,7 @@ function auditJoin(
       projectId,
       entityType: "project",
       entityId: projectId,
-      entityTitle: "Wizard Simulator",
+      entityTitle: GETTING_STARTED_NAME,
       action: "created",
     });
   }

@@ -142,10 +142,6 @@ export function openDatabase(databasePath: string): DatabaseSync {
   return database;
 }
 
-export function createWizardSimulatorProject(database: DatabaseSync, ownerId: string): string {
-  return createProject(database, ownerId, "Wizard Simulator", "wizard-simulator");
-}
-
 export function createProject(database: DatabaseSync, ownerId: string, name: string, slug?: string): string {
   const projectId = randomUUID();
   const now = new Date().toISOString();

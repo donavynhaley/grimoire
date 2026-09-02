@@ -41,11 +41,11 @@ async function createPage(server: Server, body: Record<string, unknown>) {
 }
 
 function chapterFile(server: Server, slug: string): string {
-  return join(server.pagesDirectory, "wizard-simulator", "chapters", `${slug}.md`);
+  return join(server.pagesDirectory, "getting-started", "chapters", `${slug}.md`);
 }
 
 function pageFiles(server: Server): string[] {
-  const directory = join(server.pagesDirectory, "wizard-simulator", "pages");
+  const directory = join(server.pagesDirectory, "getting-started", "pages");
   return readdirSync(directory)
     .filter((name) => name.endsWith(".md"))
     .map((name) => readFileSync(join(directory, name), "utf8"));
@@ -157,7 +157,7 @@ describe("chapters", () => {
       await enableChapters(server);
       await createChapter(server, { name: "First Brew" });
 
-      const directory = join(server.pagesDirectory, "wizard-simulator", "chapters");
+      const directory = join(server.pagesDirectory, "getting-started", "chapters");
       writeFileSync(
         join(directory, "second-brew.md"),
         readFileSync(chapterFile(server, "first-brew"), "utf8"),
@@ -366,7 +366,7 @@ describe("chapters", () => {
       const created = await createPage(server, { title: "Older page" });
       const pageId = created.body.page.id;
 
-      const path = join(server.pagesDirectory, "wizard-simulator", "pages", `${pageId}.md`);
+      const path = join(server.pagesDirectory, "getting-started", "pages", `${pageId}.md`);
       const legacy = readFileSync(path, "utf8")
         .split("\n")
         .filter((line) => !line.startsWith("chapter:"))

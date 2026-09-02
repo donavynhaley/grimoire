@@ -23,7 +23,7 @@ describe("multiple projects", () => {
     expect(created.response.status).toBe(201);
 
     const projects = (await server.request<{ projects: ProjectSummary[] }>("/api/projects")).body.projects;
-    expect(projects.map((project) => project.name)).toEqual(["Wizard Simulator", "Familiar Tycoon"]);
+    expect(projects.map((project) => project.name)).toEqual(["Getting started", "Familiar Tycoon"]);
 
     const second = await board(server, created.body.project.id);
     expect(second.project.name).toBe("Familiar Tycoon");

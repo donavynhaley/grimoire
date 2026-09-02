@@ -70,7 +70,7 @@ Active and archived records are separated without changing their stable filename
 
 ```text
 pages/
-  wizard-simulator/
+  getting-started/
     pages/
       8b09c17f-8a5e-49f7-99a7-6f0dc7028b47.md
     archive/
@@ -567,6 +567,14 @@ Two buckets, sized differently on purpose. The source address is the tight one a
 Only failures spend, so a right answer is never refused for having followed wrong ones.
 Unlike an agent credential, the key here is chosen by whoever is knocking, so the map is swept: a bucket that has fully refilled is indistinguishable from one that never existed, and those are the ones that go.
 Whether a forwarded address is believed is a deployment fact rather than a preference, so it is configured rather than guessed — wrong in one direction every visitor shares one allowance, wrong in the other the limit is free to step around.
+
+## First-run board
+
+The first person to open an installation gets a Getting started project rather than an empty one: six ordinary pages spread across the columns, each explaining the part of the board it sits in, so reading the board and learning it are the same act and clearing it out is the first thing it teaches.
+They are seeded through the same `createPage` every other page goes through, so they are Markdown files on disk with the same shape as everything that follows them, and they are the only thing first-run setup seeds — a project created afterwards starts empty.
+The seed is not one transaction: the project row commits on its own and the pages are files written afterwards.
+A write that fails undoes the whole seed — the files already written and the row, whose fixed slug would otherwise refuse every later attempt at setup — so setup can simply be tried again; a process that dies mid-seed leaves both behind, and setup then needs the row removed by hand.
+A pages directory that already holds work is somebody's board being recovered beside a new database, and it is adopted as it stands rather than taught over.
 
 ## Agent access
 

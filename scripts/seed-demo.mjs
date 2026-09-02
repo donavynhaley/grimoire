@@ -380,7 +380,7 @@ async function main() {
   // picker with nothing in it.
   try {
     const projects = await call(donavyn, "/api/projects", { project: false });
-    const starter = projects.projects.find((candidate) => candidate.name === "Wizard Simulator");
+    const starter = projects.projects.find((candidate) => candidate.name === "Getting started");
     if (starter)
       await call(donavyn, `/api/projects/${starter.id}`, { method: "DELETE", body: {}, project: false });
   } catch {

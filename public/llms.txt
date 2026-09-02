@@ -1,8 +1,9 @@
 # Grimoire
 
-> Grimoire is a private, authenticated project workspace for the Wizard Simulator team.
+> Grimoire is a self-hosted, collaborative work board: pages on a kanban board, ideas kept apart in a garden, everything stored as portable Markdown.
 
-Grimoire keeps the Wizard Simulator project in one four-column kanban board where cards are the only game-project data.
+A Grimoire installation is a private, authenticated workspace for the team that runs it.
+Work lives in pages across five columns — Backlog, Up Next, In progress, Review, Done — and possibilities live in an idea garden until the team commits to one.
 Automated crawling, indexing, and model training are not permitted.
 
 ## Access

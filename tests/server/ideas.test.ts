@@ -29,7 +29,7 @@ describe("idea garden", () => {
     const workspace = (await server.request<BoardWorkspace>("/api/board")).body;
     expect(workspace.pages).toEqual([]);
 
-    const path = join(server.pagesDirectory, "wizard-simulator", "ideas", `${created.body.idea.id}.md`);
+    const path = join(server.pagesDirectory, "getting-started", "ideas", `${created.body.idea.id}.md`);
     expect(readFileSync(path, "utf8")).toContain("state: inbox");
     expect(readFileSync(path, "utf8")).toContain("Keep the behavior surprising but readable.");
   });
@@ -89,10 +89,10 @@ describe("idea garden", () => {
     const board = (await server.request<BoardWorkspace>("/api/board")).body;
     expect(board.pages).toEqual([expect.objectContaining({ id: promoted.body.page.id })]);
 
-    const activePath = join(server.pagesDirectory, "wizard-simulator", "ideas", `${created.body.idea.id}.md`);
+    const activePath = join(server.pagesDirectory, "getting-started", "ideas", `${created.body.idea.id}.md`);
     const archivedPath = join(
       server.pagesDirectory,
-      "wizard-simulator",
+      "getting-started",
       "ideas",
       "archive",
       `${created.body.idea.id}.md`,
