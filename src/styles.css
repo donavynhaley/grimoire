@@ -845,7 +845,9 @@ textarea:focus-visible {
   cursor: pointer;
 }
 
-/* Assignees and project fields draw no leading swatch, so their label takes its column. */
+/* Chapters, assignees, and project fields draw no leading swatch, so their label takes
+   its column. Without this, the name lands in the swatch track and wraps letter by letter. */
+.capture-picker-chapter [role="option"],
 .capture-picker-assignee [role="option"],
 .capture-picker-field [role="option"],
 .capture-picker-field-cmd [role="option"] {
