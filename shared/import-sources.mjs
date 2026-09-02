@@ -18,7 +18,7 @@ import { inflateRawSync } from "node:zlib";
 
 /**
  * The names a person may write on the right side of a mapping ("Name=Column"), exactly the
- * board's own column labels plus the older "Waiting for Review" the sample map honoured.
+ * board's own column labels plus the older "Waiting for Review" the Notion import map honours.
  */
 export const COLUMN_TO_STATUS = {
   backlog: "backlog",
