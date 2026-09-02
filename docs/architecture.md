@@ -327,7 +327,7 @@ The first load is still the full-screen card, and should be: there is no board t
 Seeding a project with hundreds of pages through the API would spend the write rate limit and, worse, could half-land: the strict schema means one rejected file fails the whole board, so a partial import is the outcome that must never happen.
 The sanctioned path is therefore offline — write the page files directly with the server stopped, then start it.
 
-`ops/import-sample.mjs` is that path for the sample Notion migration.
+`ops/import-notion.mjs` is that path for a Notion migration, driven by a reconciled import map (`docs/import-from-notion.md` documents the format).
 It reads the project's own categories and field definitions out of SQLite, resolves every row against them, serializes each page, and re-parses the result under the same rules the board loads with.
 Only when every row survives does `--apply` write a single file; without it the script reports and writes nothing.
 
@@ -338,11 +338,12 @@ Existing page files are parsed before anything is planned, so an import into an 
 Each imported body opens with `Imported from Notion task <id>`, which is also the marker a rerun skips on, so the script is safe to run twice.
 
 Ops scripts stay dependency-free, so the serializer and parser there mirror `server/markdown-files.ts` rather than importing it.
-`tests/server/import-team.example.test.ts` is what keeps the copies honest: it loads what the script writes through the real `MarkdownPageStore` and the real board route, so a format drift fails the suite instead of a board.
+`tests/server/import-notion.test.ts` is what keeps the copies honest: it loads what the script writes through the real `MarkdownPageStore` and the real board route, so a format drift fails the suite instead of a board.
 
-`ops/import-trello.mjs` and `ops/import-focalboard.mjs` walk the same sanctioned path for other people's boards, and they differ from the sample script in one deliberate way: their input is the source tool's own export, taken whole — Trello's board JSON, Focalboard's `.boardarchive` — because asking a migrating user to write an import map first is asking them not to migrate.
+`ops/import-trello.mjs` and `ops/import-focalboard.mjs` walk the same sanctioned path, and they differ from the Notion importer in one deliberate way: their input is the source tool's own export, taken whole — Trello's board JSON, Focalboard's `.boardarchive` — because asking a migrating user to write an import map first is asking them not to migrate.
+Notion is the exception because its export is a zip of CSVs whose columns mean whatever a workspace decided they mean; the map is where somebody writes those decisions down.
 Every importer therefore splits into two halves: reading a foreign export, different every time, and writing Grimoire's own page files, identical every time.
-The second half lives once in `ops/import-common.mjs` — the mirrored serializer and strict parser, the atomic write, the reads of the project's real definitions — and each importer's own suite holds that one copy in lockstep with the real store and board route, the same way the sample suite does.
+The second half lives once in `ops/import-common.mjs` — the mirrored serializer and strict parser, the atomic write, the reads of the project's real definitions — and each importer's own suite holds that one copy in lockstep with the real store and board route, the same way the Notion suite does.
 Lockstep only proves the Grimoire-side half, though; the source-side half is an assumption about another tool's format until that tool's own output has been through it.
 So `tests/fixtures/project-tasks.boardarchive` is not hand-built: it was exported by Focalboard 7.8.9 itself, running in Docker, through the same endpoint its export button uses, and the suite runs the importer against those bytes.
 The Trello importer was validated the same way against a real public board's export (which is what surfaced `isTemplate` cards and card names with newlines in them), but a third party's board is not ours to commit, so that half stays a hand-shaped fixture plus the documented live check.
@@ -354,7 +355,7 @@ Trello's archived cards and archived lists stay behind, reported: Trello put the
 
 What Grimoire has no column for goes into a provenance footer at the end of each body rather than being dropped: Trello labels and members, Focalboard's other properties, counts of comments and attachments that did not travel.
 The one mapping taken opportunistically is a Trello label whose name matches a project category — Bug on a board with a Bug category is not a coincidence — while member names never become assignees, because the exports carry usernames and opaque ids, not the emails Grimoire knows members by.
-Neither tool records a completion time, so cards landing in Done carry their last activity as the stated proxy, exactly the reasoning the sample map's `completed_at` rows made explicit; Trello's card ids open with their creation time in hex, so `created_at` is decoded rather than invented.
+Neither tool records a completion time, so cards landing in Done carry their last activity as the stated proxy, exactly the reasoning the Notion map's `completed_at` rows make explicit; Trello's card ids open with their creation time in hex, so `created_at` is decoded rather than invented.
 The `.boardarchive` is a zip read on Node's own `zlib` — entries come from the central directory, which always carries sizes and offsets even for streamed writers — so the archive is handed over unopened and the dependency list stays where DEP-1 wants it.
 
 The settings screen offers the same import through the running server: `POST /api/import` (`server/routes/import.ts`, `server/import-board.ts`).
@@ -365,7 +366,8 @@ It runs the same readers out of `shared/import-sources.mjs` (the source-side hal
 Importing is the owner's alone, and the route is deliberately absent from the agent allow list: rewriting a whole board at once is the "restructure" half of the agent rule, applied to people.
 An applied import writes one `project`-level audit event naming the count and the source rather than one `created` row per page - five hundred rows would bury the log's real edits under the day the import happened - and its broadcast deliberately carries no excluded client, so the importing owner's own board reloads through the same live event everyone else gets.
 
-`docs/import-from-trello.md` and `docs/import-from-focalboard.md` are the user-facing halves of these importers, written as migration guides: the settings screen first, the scripts as the operator path.
+`docs/import-from-trello.md`, `docs/import-from-focalboard.md`, and `docs/import-from-notion.md` are the user-facing halves of these importers, written as migration guides: the settings screen first, the scripts as the operator path.
+Notion's guide is script-only, because its input is a map somebody writes rather than a file a tool exported.
 
 ## Activity log
 
