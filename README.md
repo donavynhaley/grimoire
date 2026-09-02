@@ -2,7 +2,7 @@
 
 Production: [grimoire.example.test](https://grimoire.example.test)
 
-Grimoire is a small collaborative project space for the Wizard Simulator team.
+Grimoire is a small, self-hosted collaborative work board.
 It separates possible ideas from committed work while keeping both fast to capture and easy to understand.
 The website is a visual editing layer over portable Markdown files.
 
@@ -350,7 +350,7 @@ An emulated phone is close, but gestures - the held touch that lifts a page, the
 Configuration options are documented in [.env.example](.env.example).
 The SQLite database is stored in `data/grimoire.sqlite` by default and is ignored by Git.
 Canonical project files are stored beneath `data/pages` by default.
-Set `GRIMOIRE_CARDS_DIRECTORY` to a directory inside the Wizard Simulator repository if the work and ideas should share its Git history.
+Set `GRIMOIRE_PAGES_DIRECTORY` to a directory inside a Git repository if the work and ideas should share its history.
 
 See [docs/architecture.md](docs/architecture.md) for the storage boundary, page format, migration behavior, and editing guarantees.
 See [docs/coding-standards.md](docs/coding-standards.md) for the standards contributions are held to, each with a citable ID.

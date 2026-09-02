@@ -39,7 +39,7 @@ export const GETTING_STARTED_PAGES: readonly StarterPage[] = [
     title: "Capture work, and keep ideas apart from it",
     status: "ready",
     description: [
-      "Type in the capture bar above the board and a page exists. Typing `#`, `@`, or `/` while capturing opens the category, assignee, or column picker without leaving the keyboard.",
+      "Type in the capture bar above the board and a page exists. Once a title is down, typing `#`, `@`, or `/` opens the category, assignee, or column picker without leaving the keyboard.",
       "Not everything belongs on the board. The **Ideas** garden (press `2`) holds possibilities: every new idea lands in the Inbox and can be shortlisted or parked without competing with committed work. Promoting an idea creates one Backlog page and archives the idea with a link to what it became, so the decision stays traceable.",
       "Notes on any page or idea are Markdown on a single always-editable surface, and they are stored as portable Markdown files on disk — readable in any editor, or inside an Obsidian vault.",
     ].join("\n\n"),
@@ -50,7 +50,7 @@ export const GETTING_STARTED_PAGES: readonly StarterPage[] = [
     description: [
       "This page waits in the Backlog because chapters can wait too.",
       "A **chapter** is a named stretch of the project's work, with optional dates and an intent line — the honest replacement for a sprint goal. At most one is open at a time, and closing one asks what should happen to whatever it did not finish; nothing is ever carried forward automatically.",
-      "An **estimate** is one number on a page saying how much work it is. Nothing multiplies it, forecasts from it, or rolls it up on anyone's behalf.",
+      "An **estimate** is one number on a page saying how much work it is. A chapter adds up what it delivered and what is still open, and the recap does the same per person; nothing forecasts from those sums or holds anyone to them.",
       "Both are off until Project settings turns them on, and a project that never does sees no trace of them. Settings is also where a project defines its own page **fields** — a priority, a due day, whatever it tracks.",
     ].join("\n\n"),
   },
@@ -68,8 +68,8 @@ export const GETTING_STARTED_PAGES: readonly StarterPage[] = [
     status: "review",
     description: [
       "A project can let an AI agent work in it. The owner issues a credential in Project settings → Agent access; every write the agent makes is attributed to the person who issued it, with the agent named beside them, and revoking the credential stops it immediately.",
-      "The bundled **grimoire-mcp** package is an MCP server that gives an agent these abilities as tools: it can create and edit pages and ideas, read the board, and report what it did in a page's discussion rather than over the notes a person wrote.",
-      "An agent adds and refines; only a person destroys or restructures. Everything agents do waits in the agent review until somebody has looked — which is why this page sits in **Review**: delegated work is owed a reader.",
+      "The bundled **grimoire-mcp** package is an MCP server that gives an agent these abilities as tools: it can create pages and ideas, edit and move pages, read the board, and report what it did in a page's discussion rather than over the notes a person wrote.",
+      "An agent adds and refines; only a person destroys or restructures. Everything agents do is listed in the agent review until somebody has looked — which is why this page sits in **Review**: delegated work is owed a reader.",
     ].join("\n\n"),
   },
   {
@@ -77,13 +77,22 @@ export const GETTING_STARTED_PAGES: readonly StarterPage[] = [
     status: "done",
     description: [
       "Done, evidently. Grimoire is running, and the account that created it is the installation's one admin — the account that can never be locked out of its own instance.",
-      "A completed page keeps its completion time, is never automatically archived, and can be reopened into Up Next. Clicking the **Done** heading opens the complete history, grouped by month.",
+      "A completed page keeps its completion time, is never automatically archived, and can be reopened into Up Next. The column shows the most recent finishes; once more than ten are done, an **all completed** link beneath them opens the whole history, grouped by month.",
       "When the team arrives, bring them in from Project settings → Team: by email for somebody with an account, or with a single-use invitation link for somebody without one.",
     ].join("\n\n"),
   },
 ];
 
-/** The one project a fresh installation starts with, made for whoever stood it up. */
+/**
+ * The one project a fresh installation starts with, made for whoever stood it up.
+ *
+ * This is not one transaction: the project row commits on its own, and the pages are files
+ * written afterwards. A write that fails undoes the whole seed - the files already written
+ * and the row, whose fixed slug would otherwise refuse every later attempt at setup - so
+ * setup can simply be tried again. A process that dies mid-seed leaves both behind, and
+ * setup then needs the row removed by hand. A directory that already holds pages is
+ * somebody's board being recovered, and it is adopted as it stands rather than taught over.
+ */
 export function createGettingStartedProject(
   database: DatabaseSync,
   pageStore: MarkdownPageStore,
@@ -91,8 +100,21 @@ export function createGettingStartedProject(
   ownerId: string,
 ): string {
   const projectId = createProject(database, ownerId, GETTING_STARTED_NAME, GETTING_STARTED_SLUG);
-  for (const page of GETTING_STARTED_PAGES) {
-    createPage(database, pageStore, chapterStore, projectId, ownerId, page);
+  const written: string[] = [];
+  try {
+    const recovered =
+      pageStore.list(GETTING_STARTED_SLUG).length > 0 ||
+      pageStore.listArchived(GETTING_STARTED_SLUG).length > 0;
+    if (recovered) return projectId;
+    for (const page of GETTING_STARTED_PAGES) {
+      const created = createPage(database, pageStore, chapterStore, projectId, ownerId, page);
+      if (!created) throw new Error(`The starter page "${page.title}" could not be created`);
+      written.push(created.id);
+    }
+  } catch (error) {
+    database.prepare("DELETE FROM projects WHERE id = ?").run(projectId);
+    for (const pageId of written) pageStore.remove(GETTING_STARTED_SLUG, pageId);
+    throw error;
   }
   return projectId;
 }
