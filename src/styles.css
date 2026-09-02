@@ -4862,7 +4862,8 @@ textarea:hover {
   /* Keyboard hints mean nothing on a touch screen, and the room is needed. */
   .workspace-tabs kbd,
   .library-trigger kbd,
-  .search-everything kbd {
+  .search-everything kbd,
+  .undo-toast button kbd {
     display: none;
   }
   /* The name gives way to the controls beside it rather than wrapping over them. */

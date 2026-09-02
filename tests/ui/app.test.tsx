@@ -372,6 +372,84 @@ describe("Grimoire board", () => {
     expect(screen.queryByRole("dialog", { name: "Edit page" })).not.toBeInTheDocument();
   });
 
+  it("starts the countdown over for each new notice", async () => {
+    const initial = boardFixture();
+    routeFetch({
+      routes: {
+        "POST /api/pages": (call) =>
+          response(
+            {
+              page: {
+                ...initial.pages[0]!,
+                id: "00000000-0000-4000-8000-000000000034",
+                title: (call.body as { title: string }).title,
+              },
+            },
+            201,
+          ),
+      },
+    });
+
+    render(<App />);
+    const input = await screen.findByLabelText("Capture work page");
+    await userEvent.type(input, "Enchant the cellar door");
+    await userEvent.keyboard("{Enter}");
+    await screen.findByText("Added Enchant the cellar door");
+    const firstBar = document.querySelector(".undo-timer");
+
+    await userEvent.type(input, "Oil the hinges");
+    await userEvent.keyboard("{Enter}");
+    await screen.findByText("Added Oil the hinges");
+
+    // The bar is a CSS animation, and only a fresh element runs it from the start - so a
+    // second announcement must not inherit the first one's half-spent bar.
+    expect(document.querySelector(".undo-timer")).not.toBe(firstBar);
+  });
+
+  it("leaves no open offer standing after signing out", async () => {
+    const initial = boardFixture();
+    const created = {
+      ...initial.pages[0]!,
+      id: "00000000-0000-4000-8000-000000000034",
+      title: "Enchant the cellar door",
+      status: "ready" as const,
+      position: 0,
+    };
+    const updated = { ...initial, pages: [...initial.pages, created] };
+    let workspace = initial;
+    routeFetch({
+      board: () => workspace,
+      routes: {
+        "POST /api/pages": () => {
+          workspace = updated;
+          return response({ page: created }, 201);
+        },
+        "POST /api/auth/login": () => response({ user: initial.currentUser }),
+      },
+    });
+
+    render(<App />);
+    const input = await screen.findByLabelText("Capture work page");
+    await userEvent.type(input, created.title);
+    await userEvent.keyboard("{Enter}");
+    await screen.findByText(`Added ${created.title}`);
+    (document.activeElement as HTMLElement).blur();
+    await userEvent.keyboard("o");
+    await screen.findByRole("dialog", { name: "Edit page" });
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Edit page" })).not.toBeInTheDocument());
+
+    await userEvent.click(await screen.findByRole("button", { name: /open account settings/i }));
+    await userEvent.click(screen.getByRole("button", { name: "sign out" }));
+    await userEvent.type(await screen.findByLabelText("Email"), initial.currentUser.email);
+    await userEvent.type(screen.getByLabelText("Password"), "correct horse wizard tower");
+    await userEvent.click(screen.getByRole("button", { name: "sign in" }));
+
+    // The board mounts again for the new session; the page it was once asked to open stays shut.
+    await screen.findByLabelText("Capture work page");
+    expect(screen.queryByRole("dialog", { name: "Edit page" })).not.toBeInTheDocument();
+  });
+
   it("keeps the backlog open and preserves its filters while moving several pages to Up Next", async () => {
     const initial = boardFixture();
     const page = initial.pages[0]!;

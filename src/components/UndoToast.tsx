@@ -75,7 +75,8 @@ export function UndoToast({ notice, onDismiss, onUndo }: Props) {
       <button aria-label="Dismiss undo" className="undo-dismiss" onClick={onDismiss} type="button">
         ×
       </button>
-      <span aria-hidden="true" className="undo-timer" />
+      {/* The bar is a CSS animation, and only a new element restarts it for a new notice. */}
+      <span aria-hidden="true" className="undo-timer" key={notice.id} />
     </div>
   );
 }

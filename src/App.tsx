@@ -491,6 +491,10 @@ export function App() {
 
   const logout = async () => {
     await request("/api/auth/logout", { method: "POST", body: JSON.stringify({}) });
+    // An offer made in this session must not stand on the next one's board: a leftover
+    // open-request would replay when the board mounts again after signing back in.
+    setUndoNotice(null);
+    setPageToOpen(null);
     setBoard(null);
     setIdeas(null);
     setSessionState({ status: "anonymous" });
