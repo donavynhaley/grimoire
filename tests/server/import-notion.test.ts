@@ -319,4 +319,27 @@ describe("ops/import-notion.mjs", () => {
     await expect(runImporter(server, mapPath, ["--apply"])).rejects.toMatchObject({ code: 1 });
     expect(importedPages(server)).toEqual([]);
   });
+
+  it("reads a blank estimate as none, and refuses one that is not a whole number", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "grimoire-import-"));
+    const server = await startTestServer(directory);
+    await provisionProject(server);
+    const row = { title: "Sweep the cellar", category: "Story", column: "Backlog" };
+    const blank = writeMap({ backlog_pages: [{ ...row, notion_task_id: 3001, estimate: "" }] });
+    const decimal = writeMap({ backlog_pages: [{ ...row, notion_task_id: 3002, estimate: 2.5 }] });
+    await server.close();
+
+    // A cell nobody filled in is not a zero, which the board would show as a real estimate.
+    const { stdout } = await runImporter(server, blank, ["--apply"]);
+    expect(stdout).toContain("Wrote 1 page file(s)");
+    expect(importedPages(server)[0]!.estimate).toBeNull();
+
+    // Only a whole number survives the strict frontmatter parser the server loads with, so a
+    // 2.5 is refused up front rather than written as a page the board could never read back.
+    await expect(runImporter(server, decimal, ["--apply"])).rejects.toMatchObject({
+      code: 1,
+      stdout: expect.stringContaining("not a whole number"),
+    });
+    expect(importedPages(server)).toHaveLength(1);
+  });
 });

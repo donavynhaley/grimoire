@@ -71,9 +71,10 @@ during reconciliation rather than inherited, so a miss is a mistake.
 
 Column names take the board's own labels (plus the older "Waiting for Review"): Backlog,
 Up Next, In progress, Review, Done. `estimate` is Grimoire's own field rather than a
-custom one — it is the number a chapter sums when it closes. Notion records no completion
-time, so a done row may carry `completed_at` as an explicitly-stated proxy; without one
-the import time is used, which orders every page identically and is worse.
+custom one — a whole number, the one a chapter sums when it closes; a blank cell means no
+estimate rather than zero. Notion records no completion time, so a done row may carry
+`completed_at` as an explicitly-stated proxy; without one the import time is used, which
+orders every page identically and is worse.
 
 ## Before you run it
 
@@ -95,14 +96,22 @@ node ops/import-notion.mjs ./import-map.json ./data/cards ./data/grimoire.sqlite
 `./data/cards` is your `GRIMOIRE_PAGES_DIRECTORY` and `grimoire.sqlite` sits beside it —
 adjust both to wherever your deployment mounts them.
 
-When the plan looks right, stop the server and apply:
+When the plan looks right, stop the server, take a backup, and apply:
 
 ```sh
 docker compose stop   # or however you run Grimoire
+tar -czf ../grimoire-before-import.tar.gz data
 node ops/import-notion.mjs ./import-map.json ./data/cards ./data/grimoire.sqlite \
   --project my-project --as you@example.com --chapter current-sprint --apply
 docker compose start
 ```
+
+The backup is taken while the server is down because a copy of a live SQLite file is not a
+restore point; [docs/deployment.md](deployment.md#backups) covers backups in general. The
+published image carries no `ops/`, so a host without Node of its own runs the script from a
+Node image with the checkout and the data directory mounted — and with
+`--user "$(id -u):$(id -g)"`, so the files it writes are owned like the ones already there,
+which is the difference between a board the server can edit afterwards and one it cannot.
 
 The import is all-or-nothing: if any row fails validation, nothing is written and every
 problem is listed. Fix the map (or provision what it names), then rerun. Rerunning after a

@@ -37,9 +37,9 @@
 // Decisions the map already made, honoured here:
 //   - column names map Not started->Backlog->backlog, Up Next->ready, In progress->in_progress,
 //     Waiting for Review->Review->review, Done->done
-//   - `estimate` is Grimoire's own numeric field, written at the top of the frontmatter rather
-//     than into `fields`. It is the one a chapter sums when it closes, so a custom field of the
-//     same name would look identical on a page and count for nothing
+//   - `estimate` is Grimoire's own numeric field, a whole number written at the top of the
+//     frontmatter rather than into `fields`. It is the one a chapter sums when it closes, so a
+//     custom field of the same name would look identical on a page and count for nothing
 //   - every other key on a row is one of the project's own fields (a severity, an epic - the
 //     map decides). A value the project has no option for is an ERROR, not a drop: it was
 //     assigned during reconciliation rather than inherited, so a miss is a mistake
@@ -209,14 +209,23 @@ function main() {
     // `estimate` is Grimoire's own field, not one of the project's - it lives at the top of the
     // frontmatter rather than inside `fields`, and it is the one a chapter sums when it closes.
     // A custom field of the same name would look identical on a page and count for nothing.
+    // A blank string is a cell nobody filled in, not a zero the board would show as a real
+    // estimate; and only a whole number survives the strict frontmatter parser the server
+    // loads with, so anything else is refused here rather than written as a page it cannot read.
     let estimate = null;
     const flagsForRow = [];
     let rowFailed = false;
-    if (row.estimate !== null && row.estimate !== undefined) {
-      const value = typeof row.estimate === "string" ? Number(row.estimate) : row.estimate;
-      if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 100_000) {
+    const rawEstimate = typeof row.estimate === "string" ? row.estimate.trim() : row.estimate;
+    if (rawEstimate !== null && rawEstimate !== undefined && rawEstimate !== "") {
+      const value =
+        typeof rawEstimate === "string"
+          ? /^\d+$/.test(rawEstimate)
+            ? Number(rawEstimate)
+            : NaN
+          : rawEstimate;
+      if (!Number.isInteger(value) || value < 0 || value > 100_000) {
         errors.push(
-          `${label}: estimate ${JSON.stringify(row.estimate)} is not a number between 0 and 100000`,
+          `${label}: estimate ${JSON.stringify(row.estimate)} is not a whole number between 0 and 100000`,
         );
         rowFailed = true;
       } else {
