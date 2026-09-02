@@ -4430,6 +4430,21 @@ textarea:hover {
 .undo-toast button:hover {
   color: #d4efbc;
 }
+
+/* The key that runs the action, drawn the way the pickers draw theirs. */
+.undo-toast button kbd {
+  display: inline-grid;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin-left: 0.375rem;
+  place-items: center;
+  color: var(--muted);
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  font-size: 0.5625rem;
+  vertical-align: middle;
+}
 .undo-toast .undo-dismiss {
   padding-right: 0;
   color: var(--faint);

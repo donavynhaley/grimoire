@@ -294,6 +294,84 @@ describe("Grimoire board", () => {
     );
   });
 
+  it("offers the fresh page behind one key, guards it while typing, and spends it when taken", async () => {
+    const initial = boardFixture();
+    const created = {
+      ...initial.pages[0]!,
+      id: "00000000-0000-4000-8000-000000000034",
+      title: "Enchant the cellar door",
+      status: "ready" as const,
+      position: 0,
+    };
+    const updated = { ...initial, pages: [...initial.pages, created] };
+    let workspace = initial;
+    routeFetch({
+      board: () => workspace,
+      routes: {
+        "POST /api/pages": () => {
+          workspace = updated;
+          return response({ page: created }, 201);
+        },
+      },
+    });
+
+    render(<App />);
+    const input = await screen.findByLabelText("Capture work page");
+    await userEvent.type(input, created.title);
+    await userEvent.keyboard("{Enter}");
+
+    // The announcement carries the way to the page it announces.
+    expect(await screen.findByText(`Added ${created.title}`)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: `Open ${created.title}` })).toHaveTextContent("open");
+
+    // The capture bar keeps focus for the next thought, so here "o" is a letter, not a command.
+    await userEvent.keyboard("o");
+    expect(input).toHaveValue("o");
+    expect(screen.queryByRole("dialog", { name: "Edit page" })).not.toBeInTheDocument();
+    await userEvent.clear(input);
+
+    // Away from the input the key answers, with the page that was just captured.
+    (document.activeElement as HTMLElement).blur();
+    await userEvent.keyboard("o");
+    const dialog = await screen.findByRole("dialog", { name: "Edit page" });
+    expect(within(dialog).getByDisplayValue(created.title)).toBeInTheDocument();
+    // Taking the offer used it up.
+    expect(screen.queryByText(`Added ${created.title}`)).not.toBeInTheDocument();
+  });
+
+  it("lets the open offer die with its toast", async () => {
+    const initial = boardFixture();
+    const created = {
+      ...initial.pages[0]!,
+      id: "00000000-0000-4000-8000-000000000034",
+      title: "Enchant the cellar door",
+      position: 1,
+    };
+    const updated = { ...initial, pages: [...initial.pages, created] };
+    let workspace = initial;
+    routeFetch({
+      board: () => workspace,
+      routes: {
+        "POST /api/pages": () => {
+          workspace = updated;
+          return response({ page: created }, 201);
+        },
+      },
+    });
+
+    render(<App />);
+    const input = await screen.findByLabelText("Capture work page");
+    await userEvent.type(input, created.title);
+    await userEvent.keyboard("{Enter}");
+
+    await screen.findByText(`Added ${created.title}`);
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss undo" }));
+
+    (document.activeElement as HTMLElement).blur();
+    await userEvent.keyboard("o");
+    expect(screen.queryByRole("dialog", { name: "Edit page" })).not.toBeInTheDocument();
+  });
+
   it("keeps the backlog open and preserves its filters while moving several pages to Up Next", async () => {
     const initial = boardFixture();
     const page = initial.pages[0]!;

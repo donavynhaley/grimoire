@@ -3,6 +3,7 @@ import type {
   BoardWorkspace,
   FieldType,
   IdeaWorkspace,
+  Page,
   ProjectRole,
   SessionState,
   User,
@@ -50,6 +51,14 @@ export function App() {
   const [error, setError] = useState("");
   const [undoNotice, setUndoNotice] = useState<PendingUndo | null>(null);
   const dismissUndo = useCallback(() => setUndoNotice(null), []);
+  /**
+   * The page the toast has been asked to open, as a request the board answers.
+   *
+   * The open page is the board's state, not this component's, so opening one from up here
+   * works the way opening an idea does: a nonce-carrying request travels down as a prop
+   * and the board acts on each new token. See the openIdea idiom in IdeasBoard.
+   */
+  const [pageToOpen, setPageToOpen] = useState<{ id: string; token: number } | null>(null);
   const authenticated = sessionState?.status === "authenticated";
   const { awayState, advanceSeen } = useAwayState(authenticated, board?.project.id);
 
@@ -144,7 +153,33 @@ export function App() {
     }
   };
 
-  const createPage = (input: CapturePageInput) => perform(() => mutate("/api/pages", "POST", input));
+  /**
+   * Creates the page, then offers the way to it.
+   *
+   * A fresh page lands wherever its column and filters put it, which on a full board can be
+   * off screen entirely. The toast that announces it carries "open" and its key, so the
+   * moment after capturing is also the moment the page is one press away - and the offer
+   * expires with the toast, exactly like an undo.
+   */
+  const createPage = async (input: CapturePageInput) => {
+    let created: Page | undefined;
+    await perform(async () => {
+      created = (await mutate<{ page: Page }>("/api/pages", "POST", input)).page;
+    });
+    if (!created) return;
+    const page = created;
+    setUndoNotice({
+      action: "open",
+      actionLabel: `Open ${page.title}`,
+      hotkey: "o",
+      id: Date.now(),
+      message: `Added ${page.title}`,
+      run: () => {
+        setPageToOpen({ id: page.id, token: Date.now() });
+        return Promise.resolve();
+      },
+    });
+  };
 
   /**
    * A refused save is the editor's business, not the banner's.
@@ -362,6 +397,8 @@ export function App() {
   const openProject = async (id: string | null) => {
     const previousProjectId = board?.project.id ?? null;
     setUndoNotice(null);
+    // A leftover open-request must not ride into the next board's mount as a page to open.
+    setPageToOpen(null);
     setActiveProjectId(id);
     syncProjectUrl(id);
     setProjectOpening(true);
@@ -549,6 +586,7 @@ export function App() {
           onSeeDiscussion={seeDiscussion}
           onLogout={logout}
           onMoveBacklogToNext={moveBacklogToNext}
+          openPage={pageToOpen}
           revision={revision}
           onPromoteIdea={promoteIdea}
           onChangeMemberRole={changeMemberRole}
