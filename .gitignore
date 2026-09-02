@@ -20,3 +20,9 @@ demo-data/
 # Local preview instance data, never part of the project.
 .live/
 coverage/
+
+# Claude Code worktrees and local agent state.
+.claude/
+
+# Local design scratch pages.
+.lavish/
