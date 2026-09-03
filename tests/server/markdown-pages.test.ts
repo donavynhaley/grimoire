@@ -42,6 +42,31 @@ function page(overrides: Partial<StoredPage> = {}): StoredPage {
 }
 
 describe("MarkdownPageStore", () => {
+  it("refuses to write a decimal estimate, so one page can never stop the whole project loading", () => {
+    const { directory, store } = createStore();
+    store.save("wizard-simulator", page({ estimate: 3 }));
+
+    expect(() =>
+      store.save("wizard-simulator", page({ id: "1f3a8c2e-5b6d-4e7f-8a9b-0c1d2e3f4a5b", estimate: 2.5 })),
+    ).toThrow(/whole number/);
+
+    expect(readdirSync(join(directory, "wizard-simulator", "pages"))).toEqual([
+      "9c46098a-7e85-48de-8a58-213236a8cf0d.md",
+    ]);
+    expect(store.list("wizard-simulator")[0]!.estimate).toBe(3);
+  });
+
+  it("refuses a page file carrying a decimal estimate by its path rather than reading it back as text", () => {
+    const { directory, store } = createStore();
+    store.save("wizard-simulator", page({ estimate: 3 }));
+    const path = join(directory, "wizard-simulator", "pages", "9c46098a-7e85-48de-8a58-213236a8cf0d.md");
+    writeFileSync(path, readFileSync(path, "utf8").replace("estimate: 3\n", "estimate: 2.5\n"));
+
+    expect(() => store.list("wizard-simulator")).toThrow(
+      /Invalid page file .*9c46098a-7e85-48de-8a58-213236a8cf0d\.md/,
+    );
+  });
+
   it("round-trips strict YAML frontmatter and a Markdown body", () => {
     const { directory, store } = createStore();
     store.save("wizard-simulator", page({ title: "Research: potion reactions" }));

@@ -76,7 +76,7 @@ const metadataSchema = z
       .nullable()
       .optional(),
     archived_at: z.string().refine(isTimestamp, "archived_at must be an ISO timestamp").nullable().optional(),
-    estimate: z.number().finite().min(0).max(100_000).nullable().optional(),
+    estimate: z.number().int().min(0).max(100_000).nullable().optional(),
     github: z
       .union([
         z.object({ kind: z.literal("pr"), number: z.number().int().min(1), repo: z.string().optional() }),
@@ -296,7 +296,17 @@ function serializePage(page: StoredPage): string {
     ["updated_at", page.updatedAt],
     ["completed_at", page.completedAt],
   );
-  if (page.estimate !== null) metadata.push(["estimate", page.estimate]);
+  if (page.estimate !== null) {
+    // The scalar parser reads whole numbers only, so a decimal written here is a page file this
+    // store can no longer load, and one such file fails the whole project. Refusing at the write
+    // keeps that guarantee even if a route schema upstream lets the value through.
+    if (!Number.isInteger(page.estimate)) {
+      throw new Error(
+        `Page ${page.id} has an estimate of ${page.estimate}; only a whole number can be read back`,
+      );
+    }
+    metadata.push(["estimate", page.estimate]);
+  }
   if (page.github !== null) metadata.push(["github", page.github as unknown as FrontmatterValue]);
   if (page.archivedAt !== null) metadata.push(["archived_at", page.archivedAt]);
   return serializeMarkdown(metadata, page.description);

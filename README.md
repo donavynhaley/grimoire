@@ -115,7 +115,7 @@ Whatever the answer, the chapter records how many pages it could not finish and 
 
 Estimates are off until a project turns them on, and a project that never does carries no estimate on any page.
 
-An estimate is one number on a page saying how much work it is, in whatever unit the team means by one.
+An estimate is one whole number on a page saying how much work it is, in whatever unit the team means by one.
 Nothing multiplies it, forecasts from it, or rolls it up on anyone's behalf.
 A page nobody has estimated is not zero, and the two are never confused: the totals below count unestimated pages separately.
 

@@ -406,3 +406,35 @@ describe("body length", () => {
     });
   });
 });
+
+describe("estimates", () => {
+  it("refuses a decimal estimate at the edge and names the field, and the board keeps loading", async () => {
+    const server = await startTestServer();
+    await bootstrap(server);
+
+    const refused = await server.request<{ error: string; details: Array<{ path: Array<string | number> }> }>(
+      "/api/pages",
+      { method: "POST", body: JSON.stringify({ title: "Brew the antidote", estimate: 2.5 }) },
+    );
+    expect(refused.response.status).toBe(400);
+    expect(refused.body.details.map((issue) => issue.path)).toEqual([["estimate"]]);
+
+    const created = await server.request<{ page: Page }>("/api/pages", {
+      method: "POST",
+      body: JSON.stringify({ title: "Brew the antidote", estimate: 3 }),
+    });
+    expect(created.response.status).toBe(201);
+    expect(created.body.page.estimate).toBe(3);
+
+    const patched = await server.request<{ error: string }>(`/api/pages/${created.body.page.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ estimate: 1.5 }),
+    });
+    expect(patched.response.status).toBe(400);
+
+    const workspace = await board(server);
+    expect(workspace.pages.map((page) => page.estimate)).toEqual([3]);
+    const file = join(server.pagesDirectory, "getting-started", "pages", `${created.body.page.id}.md`);
+    expect(readFileSync(file, "utf8")).toContain("estimate: 3\n");
+  });
+});

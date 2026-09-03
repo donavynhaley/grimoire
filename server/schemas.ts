@@ -113,7 +113,8 @@ export const pageSchema = z.object({
   blockedBy: z.array(z.string().uuid()).max(20).optional(),
   status: pageStatus.optional(),
   assigneeId: z.string().uuid().nullable().optional(),
-  estimate: z.number().finite().min(0).max(100_000).nullable().optional(),
+  // A whole number, because the page file's scalar parser reads nothing else back (SRV-1, ARCH-3).
+  estimate: z.number().int().min(0).max(100_000).nullable().optional(),
 });
 /**
  * Compare-and-swap fields, sent only for the content a client is actually rewriting.

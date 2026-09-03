@@ -147,7 +147,7 @@ export function PageFieldsEditor({ fields, values, onUpdate }: Props) {
 }
 
 /**
- * How much work a page is, said as a number and nothing more.
+ * How much work a page is, said as a whole number and nothing more.
  *
  * It rests as its value and edits as a plain input, like the written fields beside it, and an
  * emptied box clears it rather than storing a nought - "nobody has said" and "no work at all"
@@ -171,7 +171,7 @@ export function EstimateRow({
       return;
     }
     const parsed = Number(trimmed);
-    if (!Number.isFinite(parsed) || parsed < 0 || parsed === estimate) return;
+    if (!Number.isInteger(parsed) || parsed < 0 || parsed === estimate) return;
     void onUpdate({ estimate: parsed });
   };
 
@@ -181,7 +181,7 @@ export function EstimateRow({
         aria-label="Estimate"
         // biome-ignore lint/a11y/noAutofocus: this input is mounted by the user's own action - it exists because they clicked add, edit or open - so focus follows the request rather than stealing it on arrival, which is the case the rule is for
         autoFocus
-        inputMode="decimal"
+        inputMode="numeric"
         name="estimate"
         onBlur={commit}
         onChange={(event) => setDraft(event.target.value)}

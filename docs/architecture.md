@@ -167,6 +167,10 @@ The `assignee` value is either a project member email or `null`.
 The `created_by` value is the creator email.
 The `completed_at` value is set when a page enters `done`, remains stable while that completed page is edited, and returns to `null` when the page is reopened.
 Older `done` pages without `completed_at` use their last update time as a backward-compatible completion time.
+
+The `estimate` value is a whole number and is written only when a page has one, following the same additive rule as `chapter`.
+Whole because the frontmatter scalar parser reads integers and nothing else back: a decimal would be serialized into a page file this build cannot load, and one unreadable file fails the whole project.
+So a decimal is refused at the API with the field named, and refused again by the store before any file is written, which keeps "a page file the server wrote must load" true whichever route let the value through.
 Archived files also contain an `archived_at` timestamp.
 When archiving removes dependency links from other pages, the archived file contains their UUIDs in `unblocked_cards` until restoration.
 That key keeps its older name deliberately: it is transient metadata on archived files only, and renaming it would make those files unreadable to any build that predates the change for no benefit a reader would ever see.
