@@ -1,7 +1,5 @@
 # Grimoire
 
-Production: [grimoire.example.test](https://grimoire.example.test)
-
 Grimoire is a small, self-hosted collaborative work board.
 It separates possible ideas from committed work while keeping both fast to capture and easy to understand.
 The website is a visual editing layer over portable Markdown files.
@@ -355,7 +353,7 @@ Set `GRIMOIRE_PAGES_DIRECTORY` to a directory inside a Git repository if the wor
 See [docs/architecture.md](docs/architecture.md) for the storage boundary, page format, migration behavior, and editing guarantees.
 See [docs/coding-standards.md](docs/coding-standards.md) for the standards contributions are held to, each with a citable ID.
 See [docs/ui-standards.md](docs/ui-standards.md) for how interface work is built: motion, dialogs, accessibility, and CSS.
-See [docs/deployment.md](docs/deployment.md) for the isolated Proxmox VM, Cloudflare Tunnel, automatic deployment, and backup procedure.
+See [docs/self-hosting.md](docs/self-hosting.md) for running Grimoire on a host of your own: Compose, a reverse proxy or tunnel, configuration, backups, and keeping it current.
 
 ## Verification
 
@@ -380,12 +378,14 @@ docker compose up -d --build
 ```
 
 The Compose configuration exposes Grimoire on port `8080` and persists both SQLite identity data and Markdown pages in the local `data` directory.
+The first visitor creates the owner account, so open it yourself before the address is shared.
 Place Grimoire behind a TLS-enabled reverse proxy before inviting collaborators over the internet.
 Production session cookies are marked Secure and require HTTPS.
 Set `GRIMOIRE_TRUST_PROXY=1` when you do, so a failed sign-in is counted against the visitor rather than against the proxy every visitor arrives through.
 
 Back up the `data` directory to preserve accounts, work, and ideas.
 Do not run multiple Grimoire containers against the same SQLite file or project directory.
+[docs/self-hosting.md](docs/self-hosting.md) covers the rest: the hardened Compose file, a tunnel instead of an open port, running without Docker, backups, and keeping an instance current.
 
 ## License
 

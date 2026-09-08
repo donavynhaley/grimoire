@@ -107,7 +107,7 @@ docker compose start
 ```
 
 The backup is taken while the server is down because a copy of a live SQLite file is not a
-restore point; [docs/deployment.md](deployment.md#backups) covers backups in general. The
+restore point; [docs/self-hosting.md](self-hosting.md#backups) covers backups in general. The
 published image carries no `ops/`, so a host without Node of its own runs the script from a
 Node image with the checkout and the data directory mounted — and with
 `--user "$(id -u):$(id -g)"`, so the files it writes are owned like the ones already there,

@@ -8,6 +8,18 @@ services:
       PORT: 8080
       GRIMOIRE_DATABASE: /app/data/grimoire.sqlite
       GRIMOIRE_PAGES_DIRECTORY: /app/data/cards
+      # Read from .env beside this file, and blank when it says nothing, so an instance behind
+      # a proxy can be told so without editing the Compose file. See docs/self-hosting.md.
+      GRIMOIRE_TRUST_PROXY: ${GRIMOIRE_TRUST_PROXY:-}
+      GRIMOIRE_OIDC_ISSUER: ${GRIMOIRE_OIDC_ISSUER:-}
+      GRIMOIRE_OIDC_CLIENT_ID: ${GRIMOIRE_OIDC_CLIENT_ID:-}
+      GRIMOIRE_OIDC_CLIENT_SECRET: ${GRIMOIRE_OIDC_CLIENT_SECRET:-}
+      GRIMOIRE_OIDC_LABEL: ${GRIMOIRE_OIDC_LABEL:-}
+      GRIMOIRE_OIDC_REDIRECT_URI: ${GRIMOIRE_OIDC_REDIRECT_URI:-}
+      GRIMOIRE_OIDC_SCOPES: ${GRIMOIRE_OIDC_SCOPES:-}
+      GRIMOIRE_OIDC_AUTO_REGISTER: ${GRIMOIRE_OIDC_AUTO_REGISTER:-}
+      GRIMOIRE_OIDC_ALLOWED_EMAIL_DOMAINS: ${GRIMOIRE_OIDC_ALLOWED_EMAIL_DOMAINS:-}
+      GRIMOIRE_OIDC_SIGNUP_PROJECT: ${GRIMOIRE_OIDC_SIGNUP_PROJECT:-}
     ports:
       - "8080:8080"
     volumes:
