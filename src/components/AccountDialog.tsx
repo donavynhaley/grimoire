@@ -7,16 +7,18 @@ import { Growing } from "./Growing";
 
 const AVATAR_TYPES = ["image/png", "image/jpeg", "image/webp"];
 const AVATAR_SIZE_LIMIT = 2_000_000;
+// Nine original characters drawn for Grimoire. Each one is a 512px WebP so a click costs
+// a few tens of kilobytes rather than the two-megabyte ceiling an upload is allowed.
 const PROFILE_ICONS = [
-  { name: "BMO", path: "/profile-icons/profile_pic_bmo.png" },
-  { name: "Finn", path: "/profile-icons/profile_pic_fin.png" },
-  { name: "Gunter", path: "/profile-icons/profile_pic_gunter.png" },
-  { name: "Ice King", path: "/profile-icons/profile_pic_ice_king.png" },
-  { name: "Jake", path: "/profile-icons/profile_pic_jake.png" },
-  { name: "Marceline", path: "/profile-icons/profile_pic_marceline.png" },
-  { name: "Peppermint Butler", path: "/profile-icons/profile_pic_peppermint_butler.png" },
-  { name: "Princess Bubblegum", path: "/profile-icons/profile_pic_princess_bubblegum.png" },
-  { name: "The Lich", path: "/profile-icons/profile_pic_the_litch.png" },
+  { name: "The Reader", path: "/profile-icons/reader.webp" },
+  { name: "The Alchemist", path: "/profile-icons/alchemist.webp" },
+  { name: "The Herbalist", path: "/profile-icons/herbalist.webp" },
+  { name: "The Forager", path: "/profile-icons/forager.webp" },
+  { name: "The Archivist", path: "/profile-icons/archivist.webp" },
+  { name: "The Scribe", path: "/profile-icons/scribe.webp" },
+  { name: "The Lampkeeper", path: "/profile-icons/lampkeeper.webp" },
+  { name: "The Familiar", path: "/profile-icons/familiar.webp" },
+  { name: "The Elder", path: "/profile-icons/elder.webp" },
 ] as const;
 
 type Props = {
@@ -83,8 +85,8 @@ export function AccountDialog({
       const response = await fetch(path);
       if (!response.ok) throw new Error("Profile icon could not be loaded");
       const image = await response.blob();
-      const fileName = path.split("/").at(-1) ?? "profile-icon.png";
-      await onChangeAvatar(new File([image], fileName, { type: "image/png" }));
+      const fileName = path.split("/").at(-1) ?? "profile-icon.webp";
+      await onChangeAvatar(new File([image], fileName, { type: image.type || "image/webp" }));
       setSelectedIcon(path);
     } catch (value) {
       setAvatarError(value instanceof ApiError ? value.message : `${name} could not be selected`);
