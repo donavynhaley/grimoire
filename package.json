@@ -45,7 +45,7 @@
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^5.0.0",
     "@vitest/coverage-v8": "^4.1.11",
-    "concurrently": "^10.0.4",
+    "concurrently": "^10.0.5",
     "esbuild": "~0.28.0",
     "jsdom": "^30.0.1",
     "tsx": "^4.23.5",
