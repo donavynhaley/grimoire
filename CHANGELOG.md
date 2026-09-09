@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.0](https://github.com/donavynhaley/grimoire/compare/v1.0.0...v1.1.0) (2026-09-09)
+
+
+### Features
+
+* **demo:** add an editable browser-only playground at /demo ([0606816](https://github.com/donavynhaley/grimoire/commit/06068163dcd3dc1d8e50421019ba230f38f92f61))
+* **demo:** let visitors explore an editable browser-only board ([8c373c9](https://github.com/donavynhaley/grimoire/commit/8c373c99c97b6a22b13b6cf1cafe88153f57692a))
+
+
+### Bug Fixes
+
+* **auth:** bound bearer header parsing without backtracking ([a51a87e](https://github.com/donavynhaley/grimoire/commit/a51a87e17df83c6b09246a76efb75bbd8b170ffa))
+* **auth:** bound bearer header parsing without backtracking ([fa08fbd](https://github.com/donavynhaley/grimoire/commit/fa08fbd34b05e8f918206a3fdbd4df4d4832a993))
+
 ## [1.0.0](https://github.com/donavynhaley/grimoire/compare/v0.6.1...v1.0.0) (2026-09-09)
 
 
