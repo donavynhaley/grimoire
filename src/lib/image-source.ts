@@ -1,4 +1,5 @@
 import { imageUrl } from "../api/client";
+import { demoMode, EMPTY_DEMO_IMAGE } from "../demo/mode";
 
 /**
  * Resolves the image references notes actually contain the way Obsidian would.
@@ -12,6 +13,9 @@ import { imageUrl } from "../api/client";
  * the rendered previews on tiles and the live-preview editor's own image widgets.
  */
 export function resolveImageSource(src: string): string {
+  if (demoMode && /^(?:[a-z]+:|\/)/i.test(src)) {
+    return /^data:image\/(?:png|jpeg|webp);base64,/i.test(src) ? src : EMPTY_DEMO_IMAGE;
+  }
   if (/^(?:https?:|data:|blob:)/i.test(src) || src.startsWith("/")) return src;
   let decoded = src;
   try {

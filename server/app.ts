@@ -621,9 +621,10 @@ export function createGrimoireServer(options: Options) {
     const header = request.headers.authorization;
     const value = typeof header === "string" ? header : header?.[0];
     if (!value) return null;
-    const match = /^Bearer\s+(.+)$/i.exec(value.trim());
-    if (!match) return null;
-    return agentForToken(database, match[1]!.trim());
+    const normalized = value.trim();
+    // Match only the fixed prefix; overlapping whitespace/token repetitions can backtrack.
+    if (!/^Bearer\s/i.test(normalized)) return null;
+    return agentForToken(database, normalized.slice(7).trim());
   }
 
   /**
