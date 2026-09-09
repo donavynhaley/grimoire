@@ -641,3 +641,11 @@ The migration is restart-safe when a process stops after writing files but befor
 Grimoire does not automatically commit or push project changes.
 Point `GRIMOIRE_CARDS_DIRECTORY` into a Git repository when normal Git history, review, and backup behavior is desired.
 Repository access should match the sensitivity of the project notes because work and idea Markdown contain plain project content.
+
+## Public demonstration
+
+The disposable demo uses a separate gateway rather than an anonymous-authentication mode in the application.
+It borrows a seeded member session and allows only named browsing routes and attention markers, so public visitors cannot change accounts, work, or project settings.
+The upstream is reachable only on an internal Docker network with its own named data volume, and the gateway never forwards a visitor's credentials or exposes its session cookie.
+This keeps the public demonstration outside the production authentication contract and makes new API routes inaccessible until deliberately added to the gateway.
+Nightly replacement of the demo volume refreshes both the sample board and the gateway session.
