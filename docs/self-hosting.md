@@ -20,7 +20,8 @@ cd grimoire
 docker compose up -d --build
 ```
 
-Open `http://<host>:8080`.
+On the Docker host, open `http://localhost:8080`.
+For a remote host, configure HTTPS as described below before signing in.
 The first screen is **Create your Grimoire**, and the account it creates is the owner.
 Whoever reaches the address first can claim it, so open it yourself before the address is shared, and only then invite the team.
 
@@ -125,69 +126,11 @@ Restart=always
 WantedBy=multi-user.target
 ```
 
-## Backups
+## Backups and upgrades
 
-The `data` directory is the whole instance: the SQLite file and the Markdown folders.
-A copy of a live SQLite file is not a restore point, so stop the server for the few seconds the copy takes:
-
-```sh
-docker compose stop
-tar -C . -czf /somewhere/else/grimoire-$(date +%F-%H%M%S).tar.gz data
-docker compose start
-```
-
-Keep the archive somewhere other than the host it came from.
-Restore by stopping the server, putting the `data` directory back, and starting it again.
-The paths inside the archive are the ones the server reads, so nothing else changes.
-Rehearse that on a spare directory now and then, because a backup that has never been restored is not yet known to be usable.
-
-A board of six hundred pages is under three megabytes of Markdown, and the database is well under one, so the archive stays small and a daily cron line is enough.
-The pages directory can also live inside a Git repository through `GRIMOIRE_PAGES_DIRECTORY`, which gives the work itself a history and a remote without any of the above.
-
-## Keeping it current
-
-Upgrading is pulling a newer commit and rebuilding.
-The database updates its own schema when the server starts, and the Markdown files are read as they are.
-
-```sh
-git pull
-docker compose up -d --build
-```
-
-Compose builds the new image before it replaces the running container, so a build that fails leaves the old one serving.
-The instance answers `GET /api/health` with 200 once it is up; that is what the health check in the Compose files polls, and what a deploy script can wait on.
-
-To follow a branch without a hand on it, a timer that pulls and rebuilds when the branch has moved is all it takes.
-The reference instance takes the other route: a private downstream repository merges this one's `main` when its operator decides to, and its own deploy runs from there, so an update is a deliberate merge rather than a timer.
-Either works; the timer suits an instance that should track the project, the merge suits one that should move only when you say so.
-
-```ini
-# /etc/systemd/system/grimoire-update.service
-[Unit]
-Description=Rebuild Grimoire when the deploy branch has moved
-
-[Service]
-Type=oneshot
-User=grimoire
-WorkingDirectory=/opt/grimoire
-ExecStart=/bin/sh -c 'git fetch -q origin main; [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] && exit 0; git reset -q --hard origin/main; docker compose up -d --build --remove-orphans'
-```
-
-```ini
-# /etc/systemd/system/grimoire-update.timer
-[Unit]
-Description=Check for a new Grimoire every five minutes
-
-[Timer]
-OnBootSec=2min
-OnUnitActiveSec=5min
-
-[Install]
-WantedBy=timers.target
-```
-
-Every rebuild leaves layers in Docker's build cache, and nothing reclaims them on its own.
-A weekly `docker builder prune --force --filter until=168h` keeps the cache to what makes the next build fast.
+Follow [Backup, restore, and upgrade](operations.md) for coordinated SQLite and Markdown backups, a restore rehearsal, versioned upgrades, and rollback.
+The reference instance uses a private downstream repository and merges reviewed upstream changes deliberately.
+Choose a release tag or exact commit for your own deployment so that every backup has a known application version.
 
 ## Two things not to do
 
