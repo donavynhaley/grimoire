@@ -26,7 +26,7 @@ services:
     environment:
       DEMO_UPSTREAM: http://grimoire-demo:8080
     ports:
-      - "127.0.0.1:8098:8080"
+      - "127.0.0.1:${GRIMOIRE_DEMO_PORT:-8098}:8080"
     depends_on:
       grimoire-demo:
         condition: service_healthy
