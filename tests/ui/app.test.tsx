@@ -3,6 +3,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import packageJson from "../../package.json";
 import type { AuditEvent, Page } from "../../shared/types";
 import { App } from "../../src/App";
 import { boardFixture, ideaFixture } from "../fixtures/board";
@@ -161,7 +162,7 @@ describe("Grimoire board", () => {
     expect(
       screen.getByRole("heading", { name: "Wizard Simulator" }).closest(".board-project"),
     ).not.toBeNull();
-    expect(screen.getByText("v0.6.1")).toBeInTheDocument();
+    expect(screen.getByText(`v${packageJson.version}`)).toBeInTheDocument();
   });
 
   /**
