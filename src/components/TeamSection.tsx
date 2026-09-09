@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Member, ProjectRole, User } from "../../shared/types";
+import { demoMode } from "../demo/mode";
 import type { SettingsRun } from "../hooks/use-settings-action";
 import { Avatar } from "./Avatar";
 import { ConfirmInline } from "./ConfirmInline";
@@ -129,7 +130,12 @@ export function TeamSection({
           </Growing>
         ))}
       </div>
-      {isOwner && (
+      {demoMode && isOwner && (
+        <p className="settings-summary">
+          These are fictional teammates. Invite people or add real accounts on your own installation.
+        </p>
+      )}
+      {isOwner && !demoMode && (
         <>
           {/* The reach is named where the button lives, because the reach is the part people
               assume - and what they assume is bigger than what this grants. */}

@@ -178,6 +178,9 @@ export function AuthScreen({ mode: initialMode, inviteCode, onAuthenticated, oid
             Accounts are invitation-only. Ask the project owner for an invite link.
           </p>
         )}
+        <a className="demo-entry quiet-button" href="/demo">
+          Try the demo
+        </a>
         {register && (
           <button className="text-button" onClick={() => setMode("login")} type="button">
             already joined? sign in

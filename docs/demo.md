@@ -1,78 +1,45 @@
 # Public demo
 
-The public demo is a disposable, read-only copy of Grimoire with a fictional board.
-Visitors arrive directly on the board without creating an account.
-A banner explains that changes are disabled and links to the source for running an instance.
+Every Grimoire installation serves an editable playground at `/demo`.
+The sign-in screen offers **Try the demo**, and the route also works directly without an account.
+Visitors use the ordinary board interface as Alex, the fictional owner of The Lantern Workshop.
+They can change pages, ideas, discussions, categories, custom fields, chapters, and local projects.
 
-The gateway signs in as the seeded member, never as the owner.
-It passes only listed browsing routes and attention markers, strips visitor credentials, and never sends its upstream session cookie to the browser.
-All other API requests return 403, including account changes, invitations, settings, uploads, and work mutations.
-The application remains unchanged; this gateway belongs only to the demo deployment.
+The banner explains that changes stay in the current tab.
+**Reset demo** restores the sample data after confirmation.
+**Back to sign in** returns to the ordinary application without signing out an existing real session.
+If the visitor was already signed in, they return to their real board.
 
-## Start it
+## Browser storage and isolation
 
-Use a dedicated checkout with Docker Engine, Compose, and `flock` available.
-Do not use the production checkout or its data.
+Demo changes are recorded in the tab's `sessionStorage` under `grimoire.demo.v1`.
+Refreshing replays validated commands over the seed; closing the tab normally discards its playground.
+Browsers may restore session storage when restoring a closed tab, and duplicating a tab can copy its initial state.
+Those copies do not share subsequent changes.
+The demo never uses `localStorage`, real account cookies, the production API, or the live event stream.
+Unknown operations fail locally rather than falling back to HTTP.
 
-```sh
-scripts/reset-public-demo.sh
-```
+If storage is unavailable or full, changes continue in memory with a visible explanation that further changes will not survive refresh.
+Invalid or incompatible saved data starts a fresh demo and tells the visitor.
+The command journal is limited to 1,000 changes and 4 MB for persistence; images are limited to 2 MB each.
+Uploaded PNG, JPEG and WebP images stay in the local journal.
+Remote and API-backed images embedded in demo notes are not loaded.
 
-This builds the image, recreates only the `grimoire-public-demo` Compose project's named volume, starts the application, seeds it over its real API, and starts the gateway.
-Only the gateway is published, at `127.0.0.1:8098`.
-The application has no host port, and the internal Docker network blocks outbound access to production services and integrations.
-No production secrets, tunnel token, or data mounts belong in this stack.
+Features requiring real services explain their purpose instead of collecting credentials or pretending to connect.
+Invitations, new real members, agent credentials, GitHub, Discord, imports and installation sign-in settings belong on a real installation.
+Existing sample teammates can be assigned work or have their local project roles changed.
 
-Put a TLS reverse proxy in front of the gateway:
+## Deployment
 
-```caddyfile
-demo.example.com {
-    reverse_proxy 127.0.0.1:8098
-}
-```
+Deploy the application normally and visit `/demo` on its existing hostname.
+No extra service, tunnel, database, seed command, or scheduled reset is needed.
+The server's existing single-page-application fallback serves the route; normal API authentication is unchanged.
 
-Point the chosen public hostname at that host and verify HTTPS from another machine before linking the demo in the README or launch posts.
-The ordinary `compose.demo.yaml` is a local development tool with known owner credentials and must not be exposed publicly.
+The earlier standalone read-only gateway has been retired from the source tree.
+An operator with that older stack running can retire its dedicated containers and reset schedule after the new route has been verified.
+Do not remove production data or the production tunnel.
+The separate `compose.demo.yaml` remains a local development fixture with sample owner credentials, not the public playground.
 
-## Reset nightly
-
-Install the following units after replacing the user and checkout paths for the demo host.
-The reset takes the demo offline briefly, and an unsuccessful seed leaves the gateway down.
-The previous instance keeps serving if the image build fails.
-
-```ini
-# /etc/systemd/system/grimoire-demo-reset.service
-[Unit]
-Description=Reset the disposable Grimoire public demo
-After=docker.service
-Requires=docker.service
-
-[Service]
-Type=oneshot
-User=grimoire
-WorkingDirectory=/opt/grimoire-demo
-ExecStart=/opt/grimoire-demo/scripts/reset-public-demo.sh
-TimeoutStartSec=15min
-```
-
-```ini
-# /etc/systemd/system/grimoire-demo-reset.timer
-[Unit]
-Description=Refresh the Grimoire public demo nightly
-
-[Timer]
-OnCalendar=*-*-* 04:00:00 UTC
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-```
-
-```sh
-sudo systemctl daemon-reload
-sudo systemctl enable --now grimoire-demo-reset.timer
-```
-
-Monitor `GET /api/health` through the public gateway and alert on a failed reset unit.
-After deployment and each upgrade, verify the board and a discussion in a new browser, confirm a write returns 403, and check that the gateway never returns a session cookie.
-A working health endpoint alone does not prove that the anonymous board can be read.
+Before promoting an update from public upstream into a private deployment, review its PR and verify `/demo` locally.
+After the private CI and deployment complete, check the sign-in link, editing, refresh, reset, and return to a real session on the hosted route.
+The browser suite checks desktop and mobile flows, separate visitors, and isolation while signed in.

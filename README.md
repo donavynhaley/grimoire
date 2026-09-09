@@ -8,6 +8,10 @@ A self-hosted work board for people and their agents, with Markdown you own.
 
 ![Grimoire's work board, with pages in Up Next, In progress, Review, and Done](docs/images/board.png)
 
+Try an editable playground at `/demo` on any Grimoire installation, or choose **Try the demo** on its sign-in screen.
+Changes stay in your browser tab; no account is required.
+See [the demo guide](docs/demo.md) for storage and feature boundaries.
+
 ## Run it
 
 With Docker Engine and the Compose plugin installed:

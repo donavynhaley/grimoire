@@ -644,8 +644,23 @@ Repository access should match the sensitivity of the project notes because work
 
 ## Public demonstration
 
-The disposable demo uses a separate gateway rather than an anonymous-authentication mode in the application.
-It borrows a seeded member session and allows only named browsing routes and attention markers, so public visitors cannot change accounts, work, or project settings.
-The upstream is reachable only on an internal Docker network with its own named data volume, and the gateway never forwards a visitor's credentials or exposes its session cookie.
-This keeps the public demonstration outside the production authentication contract and makes new API routes inaccessible until deliberately added to the gateway.
-Nightly replacement of the demo volume refreshes both the sample board and the gateway session.
+The public playground lives at `/demo` in the ordinary application and reuses its board components.
+Demo mode is selected once from the document path; leaving it requires a full navigation.
+`src/api/client.ts` routes every demo request to a lazy-loaded local adapter, and never falls back to production HTTP when an operation is unknown or fails.
+The live event hook does not connect in demo mode, and note images resolve only to local demo assets.
+This isolates the playground even when the browser carries a real signed-in owner's cookie.
+
+The adapter owns fictional project data and answers the same shared response shapes the interface normally reloads after writes.
+Request schemas live in `shared/request-schemas.ts`, with the existing server module re-exporting them, so demo mutations use the production input validation without importing server filesystem or database code into the browser.
+The local adapter simulates work management; it does not grant real account capabilities or pretend to contact external services.
+Integration sections explain those boundaries before asking for credentials.
+
+A versioned session-storage journal records successful local mutations and replays them over the sample data on refresh.
+Every replayed operation is validated, writes roll back in memory on failure, and invalid saved data resets to the seed with a visible notice.
+Storing validated commands avoids trusting a serialized server-shaped response supplied by browser storage.
+Unavailable or full storage degrades to an explicitly described in-memory visit.
+Reset removes only the demo key and remounts the board, including open editors and URL selection state.
+
+This replaces the separate read-only gateway and its shared demo account, private volume, tunnel and nightly reset.
+The playground needs no server-side anonymous session or database access.
+The ordinary authenticated application retains its existing storage and authority rules.
