@@ -134,22 +134,24 @@ describe("custom page fields", () => {
       expect((await board(server)).pages[0]!.fields).toEqual({ priority: "p1" });
     });
 
-    it("refuses every other type change, because the stored values would not survive it", async () => {
-      const server = await startTestServer();
-      await bootstrap(server);
-      const field = await priority(server);
-      await createPage(server, { title: "Ship it", fields: { priority: "p1" } });
+    it.each(["text", "number", "date", "checkbox"])(
+      "refuses changing a choice field to %s and preserves its stored value",
+      async (type) => {
+        const server = await startTestServer();
+        await bootstrap(server);
+        const field = await priority(server);
+        await createPage(server, { title: "Ship it", fields: { priority: "p1" } });
 
-      for (const type of ["text", "number", "date", "checkbox"]) {
         const refused = await server.request(`/api/fields/${field.key}`, {
           method: "PATCH",
           body: JSON.stringify({ type }),
         });
         expect(refused.response.status).toBe(400);
-      }
-      expect((await board(server)).fields[0]!.type).toBe("select");
-      expect((await board(server)).pages[0]!.fields).toEqual({ priority: "p1" });
-    });
+        const unchanged = await board(server);
+        expect(unchanged.fields[0]!.type).toBe("select");
+        expect(unchanged.pages[0]!.fields).toEqual({ priority: "p1" });
+      },
+    );
 
     it("records the swap in the audit trail, so a changed control has a reason on it", async () => {
       const server = await startTestServer();
