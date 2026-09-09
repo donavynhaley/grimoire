@@ -29,6 +29,7 @@ import { AuthScreen } from "./components/AuthScreen";
 import { Board } from "./components/Board";
 import type { CapturePageInput } from "./components/QuickCapture";
 import { type UndoNotice, UndoToast } from "./components/UndoToast";
+import { demoMode } from "./demo/mode";
 import { useAwayState } from "./hooks/use-away-state";
 import { useLiveEvents } from "./hooks/use-live-events";
 import { useSlowWait } from "./hooks/use-slow-wait";
@@ -490,6 +491,10 @@ export function App() {
     );
 
   const logout = async () => {
+    if (demoMode) {
+      location.assign("/");
+      return;
+    }
     await request("/api/auth/logout", { method: "POST", body: JSON.stringify({}) });
     // An offer made in this session must not stand on the next one's board: a leftover
     // open-request would replay when the board mounts again after signing back in.
