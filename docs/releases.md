@@ -25,8 +25,8 @@ Release Please reads `release-please-config.json` and `.release-please-manifest.
 Do not edit the changelog by hand.
 The application version, lockfile, manifest, and generated changelog land together in that PR.
 
-For the first public release, `release-as` selects 1.0.0 while the manifest records the current 0.6.1 version.
-Remove `release-as` after that release lands so later releases follow conventional commits.
+The first public release used a one-time `release-as` override to select 1.0.0.
+Later releases follow conventional commits and the version recorded in the manifest.
 Do not transplant the old private repository's staged release PR or tags into the scrubbed repository; regenerate from its clean history.
 
 Before merging the release PR:
