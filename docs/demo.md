@@ -43,3 +43,22 @@ The separate `compose.demo.yaml` remains a local development fixture with sample
 Before promoting an update from public upstream into a private deployment, review its PR and verify `/demo` locally.
 After the private CI and deployment complete, check the sign-in link, editing, refresh, reset, and return to a real session on the hosted route.
 The browser suite checks desktop and mobile flows, separate visitors, and isolation while signed in.
+
+## Optional hosted demo analytics
+
+Analytics are disabled by default.
+An operator can measure visits to their hosted demo with Cloudflare Web Analytics by setting `GRIMOIRE_DEMO_ANALYTICS_TOKEN` to its public 32-character site token.
+Create a Web Analytics site using manual JavaScript installation, disable automatic injection, and set the token in the deployment environment before restarting Grimoire.
+The server adds the beacon only to `/demo` and `/demo/`, including those routes with query parameters.
+The sign-in screen, authenticated board and API keep their original policy and contain no beacon.
+
+The demo document permits Cloudflare's beacon script and collection endpoint through its Content Security Policy.
+SPA tracking is disabled so editing pages or changing the board URL does not generate virtual page views.
+Cloudflare receives visit and browser performance metadata, not the demo's page contents or uploaded images.
+No analytics records are written to the Grimoire data directory.
+Browser blocking and sampling can affect totals; these metrics are page views and visits, not an exact count of distinct people.
+
+In Cloudflare Web Analytics, filter to the demo hostname and path and inspect page views, visits and referrers over the launch period.
+Verify the beacon loads and its request succeeds, then confirm traffic appears in the dashboard before considering collection enabled.
+A configured token alone does not verify dashboard ingestion.
+See [Cloudflare setup](https://developers.cloudflare.com/web-analytics/get-started/) and [SPA tracking](https://developers.cloudflare.com/web-analytics/get-started/web-analytics-spa/).

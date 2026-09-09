@@ -27,6 +27,7 @@ afterEach(async () => {
 type TestServerOptions = {
   /** Serves the built shell, which only production does, for link preview coverage. */
   staticDirectory?: string;
+  demoAnalyticsToken?: string;
   /** Stands in for the GitHub API; the poll interval stays off so tests drive syncs by hand. */
   githubFetcher?: Parameters<typeof createGrimoireServer>[0]["githubFetcher"];
   /** Stands in for Discord, so a test can be the thing a recap is posted to. */
@@ -49,6 +50,7 @@ export async function startTestServer(
     databasePath,
     production: options.staticDirectory !== undefined,
     staticDirectory: options.staticDirectory,
+    demoAnalyticsToken: options.demoAnalyticsToken,
     githubPollMs: 0,
     githubFetcher: options.githubFetcher,
     discordPoster: options.discordPoster,

@@ -20,6 +20,7 @@ const app = createGrimoireServer({
   ),
   databasePath: resolve(process.env.GRIMOIRE_DATABASE ?? "data/grimoire.sqlite"),
   production,
+  demoAnalyticsToken: process.env.GRIMOIRE_DEMO_ANALYTICS_TOKEN,
   staticDirectory: production ? resolve("dist") : undefined,
   oidc,
   // Whether a reverse proxy or tunnel in front of Grimoire is writing the forwarded headers.

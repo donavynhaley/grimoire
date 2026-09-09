@@ -10,6 +10,7 @@ import type { EventClient, Options, RequestContext, WorkspaceScope } from "./app
 import { type PageLabels, type RecordAuditInput, recordAuditEvent } from "./audit";
 import { AvatarStore } from "./avatars";
 import { openDatabase, withTransaction } from "./database";
+import { demoAnalyticsToken } from "./demo-analytics";
 import { githubApiFetcher, syncProjectGithub } from "./github";
 import {
   appendCookie,
@@ -81,6 +82,7 @@ const SESSION_COOKIE = "grimoire_session";
 const SESSION_AGE_SECONDS = 60 * 60 * 24 * 30;
 
 export function createGrimoireServer(options: Options) {
+  const analyticsToken = demoAnalyticsToken(options.demoAnalyticsToken);
   const database = openDatabase(options.databasePath);
   // Verified against for an email no account answers to, so an unknown address costs
   // exactly one derivation - the same as a known one. Hashing the placeholder inside
@@ -355,8 +357,10 @@ export function createGrimoireServer(options: Options) {
         json(response, 404, { error: "Application build not found" });
         return;
       }
-      if (extname(filePath) === ".html") serveDocument(response, filePath, linkPreviewFor(url));
-      else serveFile(response, filePath);
+      if (extname(filePath) === ".html") {
+        const token = url.pathname === "/demo" || url.pathname === "/demo/" ? analyticsToken : undefined;
+        serveDocument(response, filePath, linkPreviewFor(url), token);
+      } else serveFile(response, filePath);
       return;
     }
     json(response, 404, { error: "Not found" });

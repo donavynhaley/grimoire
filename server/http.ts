@@ -1,6 +1,7 @@
 import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { extname, join, normalize, resolve, sep } from "node:path";
+import { demoAnalyticsScript } from "./demo-analytics";
 import { applyLinkPreview, type LinkPreview } from "./link-preview";
 import { OidcError } from "./oidc";
 
@@ -159,11 +160,27 @@ export function resolveStaticPath(pathname: string, directory: string): string |
 }
 
 /** The shell is rewritten per request, so it is never stored by a cache or a proxy. */
-export function serveDocument(response: ServerResponse, filePath: string, preview: LinkPreview | null): void {
+export function serveDocument(
+  response: ServerResponse,
+  filePath: string,
+  preview: LinkPreview | null,
+  analyticsToken?: string,
+): void {
   response.statusCode = 200;
   response.setHeader("Content-Type", "text/html; charset=utf-8");
   response.setHeader("Cache-Control", "no-store");
-  response.end(applyLinkPreview(readFileSync(filePath, "utf8"), preview));
+  let document = applyLinkPreview(readFileSync(filePath, "utf8"), preview);
+  if (analyticsToken) {
+    response.setHeader(
+      "Content-Security-Policy",
+      CONTENT_SECURITY_POLICY.replace(
+        "script-src 'self'",
+        "script-src 'self' https://static.cloudflareinsights.com",
+      ).replace("connect-src 'self'", "connect-src 'self' https://cloudflareinsights.com"),
+    );
+    document = document.replace("</head>", `${demoAnalyticsScript(analyticsToken)}</head>`);
+  }
+  response.end(document);
 }
 
 /**

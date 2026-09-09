@@ -11,6 +11,8 @@ export type Options = {
   databasePath: string;
   production: boolean;
   staticDirectory?: string;
+  /** Optional public Cloudflare site token, used only on the demo document. */
+  demoAnalyticsToken?: string;
   /** How often linked pages ask GitHub what happened; 0 disables the poller. */
   githubPollMs?: number;
   /** Stands in for the GitHub API in tests. */

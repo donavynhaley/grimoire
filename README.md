@@ -35,7 +35,8 @@ Discussions stay beside each page, with open questions and answers that survive 
 Give an agent a project-scoped credential through the [MCP server](packages/grimoire-mcp).
 Its work is attributed to the person who delegated it, and its access can be revoked immediately.
 People retain control over membership, project structure, and destructive actions.
-Grimoire has no telemetry and runs on your infrastructure.
+Grimoire runs on your infrastructure with analytics disabled by default.
+Operators can optionally enable [Cloudflare analytics for their demo route](docs/demo.md#optional-hosted-demo-analytics).
 
 [Self-hosting](docs/self-hosting.md) · [Agent setup](packages/grimoire-mcp) · [Contributing](CONTRIBUTING.md) · [Architecture](docs/architecture.md)
 

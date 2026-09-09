@@ -9,6 +9,7 @@ services:
     restart: unless-stopped
     init: true
     environment:
+      GRIMOIRE_DEMO_ANALYTICS_TOKEN: ${GRIMOIRE_DEMO_ANALYTICS_TOKEN:-}
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 8080

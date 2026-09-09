@@ -666,3 +666,12 @@ Reset removes only the demo key and remounts the board, including open editors a
 This replaces the separate read-only gateway and its shared demo account, private volume, tunnel and nightly reset.
 The playground needs no server-side anonymous session or database access.
 The ordinary authenticated application retains its existing storage and authority rules.
+
+## Optional demo visit measurement
+
+The operator may supply a public Cloudflare Web Analytics site token for the demo only.
+The server validates that token before opening the application and inserts the fixed external beacon into demo HTML responses.
+Only those responses expand script-src and connect-src for the two Cloudflare origins; normal board and API responses retain their original security policy.
+The option is absent by default and adds no analytics storage or API writes.
+The beacon disables SPA navigation tracking because demo edits change the URL and should not inflate visit counts.
+Manual installation avoids automatic zone-wide injection, whose path rules are unavailable on Cloudflare's Free plan.
