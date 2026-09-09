@@ -30,13 +30,19 @@ services:
     depends_on:
       grimoire-demo:
         condition: service_healthy
-    networks: [demo]
+    networks: [demo, ingress]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:8080/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     mem_limit: 128m
     cpus: 0.5
 networks:
+  ingress: {}
   demo:
     internal: true
 volumes:

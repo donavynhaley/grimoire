@@ -9,4 +9,4 @@ compose=(docker compose -p grimoire-public-demo -f compose.public-demo.yaml)
 "${compose[@]}" down --volumes --remove-orphans
 "${compose[@]}" up -d --wait grimoire-demo
 "${compose[@]}" exec -T grimoire-demo node scripts/seed-demo.mjs http://127.0.0.1:8080
-"${compose[@]}" up -d gateway
+"${compose[@]}" up -d --wait gateway
