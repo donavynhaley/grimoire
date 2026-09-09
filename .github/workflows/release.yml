@@ -4,16 +4,24 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
-permissions:
-  contents: write
-  pull-requests: write
+permissions: read-all
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   release:
+    if: github.repository == 'donavynhaley/grimoire'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - name: Create or update release
         uses: googleapis/release-please-action@v4
         with:
-          release-type: node
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
