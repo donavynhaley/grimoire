@@ -7282,3 +7282,57 @@ textarea:hover {
     animation: none;
   }
 }
+
+/* Browser-only demo -------------------------------------------------------- */
+.demo-shell {
+  display: flex;
+  height: 100dvh;
+  flex-direction: column;
+  overflow: hidden;
+}
+.demo-banner {
+  flex-shrink: 0;
+  padding: 0.625rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 0.8125rem;
+}
+.demo-banner-row,
+.demo-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+.demo-banner p {
+  margin: 0;
+}
+.demo-banner strong,
+.demo-actions a {
+  color: var(--accent);
+}
+.demo-storage-notice {
+  padding-top: 0.5rem;
+}
+.demo-workspace {
+  flex: 1;
+  min-height: 0;
+}
+.demo-workspace .board-shell {
+  height: 100%;
+}
+.demo-entry {
+  display: block;
+  margin-top: 1rem;
+  text-align: center;
+  text-decoration: none;
+}
+@media (pointer: coarse) {
+  .demo-actions a,
+  .demo-actions button {
+    min-height: 2.75rem;
+    display: inline-flex;
+    align-items: center;
+  }
+}

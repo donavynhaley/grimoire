@@ -1,6 +1,7 @@
 import { type ChangeEvent, type FormEvent, useState } from "react";
 import type { User } from "../../shared/types";
 import { ApiError } from "../api/client";
+import { demoMode } from "../demo/mode";
 import { Avatar } from "./Avatar";
 import { Drawer } from "./Drawer";
 import { Growing } from "./Growing";
@@ -252,70 +253,80 @@ export function AccountDialog({
         )}
       </Growing>
 
-      <form className="password-form" onSubmit={submit}>
-        <p className="field-label">Change password</p>
-        <input
-          aria-label="Account email"
-          autoComplete="username"
-          className="sr-only"
-          name="email"
-          readOnly
-          type="email"
-          value={user.email}
-        />
-        <label>
-          <span>Current password</span>
+      {demoMode ? (
+        <p className="settings-summary">
+          Alex is a fictional account. Change passwords and manage real accounts on your own installation.
+        </p>
+      ) : (
+        <form className="password-form" onSubmit={submit}>
+          <p className="field-label">Change password</p>
           <input
-            autoComplete="current-password"
-            name="currentPassword"
-            onChange={(event) => setCurrentPassword(event.target.value)}
-            required
-            type="password"
-            value={currentPassword}
+            aria-label="Account email"
+            autoComplete="username"
+            className="sr-only"
+            name="email"
+            readOnly
+            type="email"
+            value={user.email}
           />
-        </label>
-        <label>
-          <span>New password</span>
-          <input
-            autoComplete="new-password"
-            minLength={12}
-            name="newPassword"
-            onChange={(event) => setNewPassword(event.target.value)}
-            required
-            type="password"
-            value={newPassword}
-          />
-          <small>Use at least 12 characters.</small>
-        </label>
-        <label>
-          <span>Confirm new password</span>
-          <input
-            autoComplete="new-password"
-            minLength={12}
-            name="newPasswordConfirmation"
-            onChange={(event) => setConfirmation(event.target.value)}
-            required
-            type="password"
-            value={confirmation}
-          />
-        </label>
-        {error && (
-          <div className="error-banner" role="alert">
-            {error}
-          </div>
-        )}
-        {changed && (
-          <div className="success-banner" role="status">
-            password changed
-          </div>
-        )}
-        <button className="primary-button" disabled={busy} type="submit">
-          {busy ? "changing..." : "change password"}
-        </button>
-      </form>
+          <label>
+            <span>Current password</span>
+            <input
+              autoComplete="current-password"
+              name="currentPassword"
+              onChange={(event) => setCurrentPassword(event.target.value)}
+              required
+              type="password"
+              value={currentPassword}
+            />
+          </label>
+          <label>
+            <span>New password</span>
+            <input
+              autoComplete="new-password"
+              minLength={12}
+              name="newPassword"
+              onChange={(event) => setNewPassword(event.target.value)}
+              required
+              type="password"
+              value={newPassword}
+            />
+            <small>Use at least 12 characters.</small>
+          </label>
+          <label>
+            <span>Confirm new password</span>
+            <input
+              autoComplete="new-password"
+              minLength={12}
+              name="newPasswordConfirmation"
+              onChange={(event) => setConfirmation(event.target.value)}
+              required
+              type="password"
+              value={confirmation}
+            />
+          </label>
+          {error && (
+            <div className="error-banner" role="alert">
+              {error}
+            </div>
+          )}
+          {changed && (
+            <div className="success-banner" role="status">
+              password changed
+            </div>
+          )}
+          <button className="primary-button" disabled={busy} type="submit">
+            {busy ? "changing..." : "change password"}
+          </button>
+        </form>
+      )}
 
       <footer className="account-footer">
-        <span>Other signed-in devices are logged out after a password change.</span>
+        <span>
+          {demoMode
+            ? "Leaving the demo keeps your real sign-in session unchanged."
+            : "Other signed-in devices are logged out after a password change."}
+        </span>
         <button className="text-button danger-text" onClick={onLogout} type="button">
           sign out
         </button>

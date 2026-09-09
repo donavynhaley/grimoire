@@ -16,6 +16,7 @@ import type {
   SearchResults,
   SessionState,
 } from "../../shared/types";
+import { demoAssets, demoMode, EMPTY_DEMO_IMAGE } from "../demo/mode";
 
 const clientId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
@@ -52,7 +53,9 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
   const headers = new Headers(init.headers);
   if (init.body && !headers.has("content-type")) headers.set("content-type", "application/json");
   if (activeProjectId) headers.set("x-grimoire-project", activeProjectId);
-  const response = await fetch(path, { ...init, headers, credentials: "same-origin" });
+  const response = demoMode
+    ? await (await import("../demo/store")).demoResponse(path, init, activeProjectId)
+    : await fetch(path, { ...init, headers, credentials: "same-origin" });
   // Read as text before parsing: a failure body is not always JSON. A proxy
   // answering 502 with an HTML page must still become an ApiError the interface
   // can act on, not a SyntaxError that bypasses every handler built for one.
@@ -297,6 +300,7 @@ export function uploadImage(file: Blob): Promise<{ name: string }> {
 
 /** Resolves an Obsidian-style embed name to the authenticated image route for the active project. */
 export function imageUrl(name: string): string {
+  if (demoMode) return demoAssets.get(name) ?? EMPTY_DEMO_IMAGE;
   const project = activeProjectId ? `?project=${encodeURIComponent(activeProjectId)}` : "";
   return `/api/images/${encodeURIComponent(name)}${project}`;
 }

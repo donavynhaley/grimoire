@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ApiError, liveEventsUrl } from "../api/client";
+import { demoMode } from "../demo/mode";
 
 /**
  * One Server-Sent Events stream per signed-in board, and the presence read off it.
@@ -30,7 +31,7 @@ export function useLiveEvents({
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: projectId is the trigger that reconnects the stream when the project changes; without it a switch would keep streaming the previous project's events
   useEffect(() => {
-    if (!active || typeof EventSource === "undefined") return;
+    if (demoMode || !active || typeof EventSource === "undefined") return;
     const source = new EventSource(liveEventsUrl());
     let pendingWork = false;
     let pendingIdeas = false;

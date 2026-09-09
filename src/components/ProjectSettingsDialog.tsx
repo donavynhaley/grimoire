@@ -8,6 +8,7 @@ import type {
   ProjectRole,
   User,
 } from "../../shared/types";
+import { demoMode } from "../demo/mode";
 import { useSettingsAction } from "../hooks/use-settings-action";
 import { AgentAccessSection } from "./AgentAccessSection";
 import { CategoriesSection, type CategoryActions } from "./CategoriesSection";
@@ -156,6 +157,18 @@ export function ProjectSettingsDialog({
 }: Props) {
   const sections = settingsSectionsFor(isOwner, currentUser.role === "admin");
   const active = sections.includes(section) ? section : "general";
+  const demoExplanations: Record<string, string> = {
+    github:
+      "Connect a repository on your own installation to link pages to pull requests and follow their progress. The demo does not contact GitHub or accept access tokens.",
+    discord:
+      "Your own installation can post chapter recaps to Discord. The demo does not connect webhooks or send messages.",
+    agents:
+      "On your own installation, issue a revocable project credential to let an agent read or update work through MCP. This browser-only demo cannot issue real credentials.",
+    import:
+      "Your own installation can import boards from Trello and Focalboard. This demo starts with sample data; try creating pages and ideas here instead.",
+    signin: "Sign-in providers belong to your own installation. The demo has no real accounts or passwords.",
+  };
+  const demoExplanation = demoMode ? demoExplanations[active] : undefined;
   const { error, saved, run } = useSettingsAction();
 
   return (
@@ -186,6 +199,7 @@ export function ProjectSettingsDialog({
         </nav>
 
         <Growing className="settings-content">
+          {demoExplanation && <p className="settings-summary">{demoExplanation}</p>}
           {active === "general" && (
             <GeneralSection
               busy={busy}
@@ -196,7 +210,7 @@ export function ProjectSettingsDialog({
               run={run}
             />
           )}
-          {active === "github" && (
+          {!demoExplanation && active === "github" && (
             <GithubSection
               busy={busy}
               project={project}
@@ -205,7 +219,7 @@ export function ProjectSettingsDialog({
               run={run}
             />
           )}
-          {active === "discord" && (
+          {!demoExplanation && active === "discord" && (
             <DiscordSection
               busy={busy}
               chapters={chapters}
@@ -263,9 +277,11 @@ export function ProjectSettingsDialog({
               run={run}
             />
           )}
-          {active === "import" && isOwner && <ImportSection />}
-          {active === "agents" && isOwner && <AgentAccessSection run={run} />}
-          {active === "signin" && currentUser.role === "admin" && <SignInSection run={run} />}
+          {!demoExplanation && active === "import" && isOwner && <ImportSection />}
+          {!demoExplanation && active === "agents" && isOwner && <AgentAccessSection run={run} />}
+          {!demoExplanation && active === "signin" && currentUser.role === "admin" && (
+            <SignInSection run={run} />
+          )}
           {active === "danger" && isOwner && (
             <DangerSection
               busy={busy}
