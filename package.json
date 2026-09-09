@@ -26,7 +26,7 @@
     "@codemirror/commands": "^6.11.0",
     "@codemirror/lang-markdown": "^6.5.2",
     "@codemirror/language": "^6.12.4",
-    "@codemirror/state": "^6.7.1",
+    "@codemirror/state": "^6.7.4",
     "@codemirror/view": "^6.43.11",
     "@lezer/highlight": "^1.2.3",
     "@lezer/markdown": "^1.7.2",
@@ -42,15 +42,15 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/node": "^26.1.2",
     "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
+    "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^5.0.0",
     "@vitest/coverage-v8": "^4.1.11",
     "concurrently": "^10.0.5",
-    "esbuild": "~0.28.0",
+    "esbuild": "~0.28.2",
     "jsdom": "^30.0.1",
     "tsx": "^4.23.5",
     "typescript": "~5.9.0",
-    "vite": "^7.0.0",
+    "vite": "^8.2.2",
     "vitest": "^4.1.10"
   }
 }
