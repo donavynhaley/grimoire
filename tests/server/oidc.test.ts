@@ -403,7 +403,9 @@ describe("signing in through an identity provider", () => {
   });
 
   it("refuses an address on a domain the operator did not allow", async () => {
-    const provider = fakeProvider({ config: { autoRegister: true, allowedEmailDomains: ["team.example.test"] } });
+    const provider = fakeProvider({
+      config: { autoRegister: true, allowedEmailDomains: ["team.example.test"] },
+    });
     const server = await startTestServer(undefined, {
       oidc: provider.settings,
       oidcFetcher: provider.fetcher,

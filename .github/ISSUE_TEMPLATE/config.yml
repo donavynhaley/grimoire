@@ -1,5 +1,5 @@
 blank_issues_allowed: true
 contact_links:
   - name: Report a security vulnerability
-    url: https://github.com/donavynhaley/grimore/security/advisories/new
+    url: https://github.com/donavynhaley/grimoire/security/advisories/new
     about: Please report security problems privately, never as public issues.

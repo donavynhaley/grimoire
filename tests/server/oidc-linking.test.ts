@@ -149,7 +149,10 @@ describe("linking a provider identity to an account somebody already had", () =>
     await bootstrap(server);
 
     // A second account, made through the provider.
-    await signInThrough(server, provider, "code-1", { email: "alan@team.example.test", sub: "provider-subject-2" });
+    await signInThrough(server, provider, "code-1", {
+      email: "alan@team.example.test",
+      sub: "provider-subject-2",
+    });
 
     // That person's address at the provider becomes one the owner already answers to. Merging
     // two accounts is a person's decision about whose history survives, not a side effect.
@@ -251,7 +254,10 @@ describe("linking a provider identity to an account somebody already had", () =>
     expect(before.body.settings.linkedAccounts).toBe(0);
 
     await signInThrough(server, provider, "code-1", { email: ownerAccount.email, sub: "provider-subject-1" });
-    await signInThrough(server, provider, "code-2", { email: "alan@team.example.test", sub: "provider-subject-2" });
+    await signInThrough(server, provider, "code-2", {
+      email: "alan@team.example.test",
+      sub: "provider-subject-2",
+    });
 
     const after = await server.request<{ settings: { linkedAccounts: number } }>("/api/auth/oidc/settings");
     expect(after.body.settings.linkedAccounts).toBe(2);

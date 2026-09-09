@@ -344,7 +344,7 @@ describe("page board", () => {
 
 describe("body length", () => {
   /**
-   * The limit catches a paste going wrong; it does not say what a body is for. The sample
+   * The limit catches a paste going wrong; it does not say what a body is for. The sample project
    * history import arrived carrying thirteen specifications past the old 20,000, so this pins
    * the ceiling against a quiet revert: a body longer than the number used to be must still be
    * stored and served whole.
