@@ -6,11 +6,12 @@ A self-hosted work board for people and their agents, with Markdown you own.
 [![License: AGPL-3.0](https://img.shields.io/github/license/donavynhaley/grimoire)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/donavynhaley/grimoire)](https://github.com/donavynhaley/grimoire/releases)
 
-![Grimoire's work board, with pages in Up Next, In progress, Review, and Done](docs/images/board.png)
-
-Try an editable playground at `/demo` on any Grimoire installation, or choose **Try the demo** on its sign-in screen.
-Changes stay in your browser tab; no account is required.
+**[Try the live demo](https://grimoire.dryft.gg/demo)** - no account required.
+Edit pages, add ideas, and explore the board as its owner; changes stay in your browser tab.
+Reset the demo whenever you want to start fresh.
 See [the demo guide](docs/demo.md) for storage and feature boundaries.
+
+![Grimoire's work board, with pages in Up Next, In progress, Review, and Done](docs/images/board.png)
 
 ## Run it
 
