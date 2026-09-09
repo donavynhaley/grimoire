@@ -48,6 +48,6 @@ $COMPOSE start >/dev/null
 
 echo ""
 echo "  Grimoire is at $URL"
-echo "  Sign in as donavyn@team.example.test / 'a long enough password'"
+echo "  Sign in as alex@example.test / 'a long enough password'"
 echo ""
 echo "  Stop it with: scripts/demo.sh down"

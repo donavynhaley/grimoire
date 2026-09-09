@@ -26,7 +26,7 @@ async function shot(name, { width, height = 900, run }) {
   const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2 });
   const page = await context.newPage();
   await page.request.post(`${BASE}/api/auth/login`, {
-    data: { email: "donavyn@team.example.test", password: "a long enough password" },
+    data: { email: "alex@example.test", password: "a long enough password" },
   });
   await page.goto(BASE);
   await page.waitForSelector(".board-shell", { timeout: 15000 });
@@ -51,51 +51,53 @@ const openPage =
   };
 
 console.log("capturing:");
-await shot("01-board", {
+await shot("board", {
   width: 1600,
   run: async (page) => {
     await page.waitForTimeout(600);
   },
 });
 // The unread count, on a page whose conversation this person has not opened.
-await shot("08-unseen-1600", { width: 1600, run: openPage("swap a logged meal") });
-// A message addressed to the person reading it, and the picker that writes one.
-await shot("09-mention-1600", { width: 1600, run: openPage("measure LCP", { discussion: true }) });
-await shot("10-picker-1600", {
-  width: 1600,
-  run: async (page) => {
-    await openPage("measure LCP", { discussion: true })(page);
-    await page.locator(".discussion-composer textarea").first().click();
-    await page.keyboard.type("thanks @Al");
-    await page.waitForTimeout(400);
-  },
-});
-await shot("02-heavy-1600", { width: 1600, run: openPage("cut-over runbook", { discussion: true }) });
-await shot("03-heavy-1280", { width: 1280, run: openPage("cut-over runbook", { discussion: true }) });
-await shot("04-quiet-1600", { width: 1600, run: openPage("preserve set order", { discussion: true }) });
-await shot("05-closed-1600", {
-  width: 1600,
-  run: async (page) => {
-    await openPage("cut-over runbook")(page);
-    await page.waitForTimeout(500);
-  },
-});
-await shot("06-narrow-880", {
-  width: 880,
-  run: async (page) => {
-    await openPage("cut-over runbook")(page);
-    await page.locator(".page-editor-panes .pane-tab", { hasText: "Discussion" }).click();
-    await page.waitForTimeout(500);
-  },
-});
-await shot("07-answered-open", {
-  width: 1600,
-  run: async (page) => {
-    await openPage("cut-over runbook", { discussion: true })(page);
-    await page.locator(".discussion-fold").click();
-    await page.waitForTimeout(500);
-  },
-});
+if (!process.argv.includes("--board-only")) {
+  await shot("08-unseen-1600", { width: 1600, run: openPage("swap a logged meal") });
+  // A message addressed to the person reading it, and the picker that writes one.
+  await shot("09-mention-1600", { width: 1600, run: openPage("measure LCP", { discussion: true }) });
+  await shot("10-picker-1600", {
+    width: 1600,
+    run: async (page) => {
+      await openPage("measure LCP", { discussion: true })(page);
+      await page.locator(".discussion-composer textarea").first().click();
+      await page.keyboard.type("thanks @Al");
+      await page.waitForTimeout(400);
+    },
+  });
+  await shot("02-heavy-1600", { width: 1600, run: openPage("cut-over runbook", { discussion: true }) });
+  await shot("03-heavy-1280", { width: 1280, run: openPage("cut-over runbook", { discussion: true }) });
+  await shot("04-quiet-1600", { width: 1600, run: openPage("preserve set order", { discussion: true }) });
+  await shot("05-closed-1600", {
+    width: 1600,
+    run: async (page) => {
+      await openPage("cut-over runbook")(page);
+      await page.waitForTimeout(500);
+    },
+  });
+  await shot("06-narrow-880", {
+    width: 880,
+    run: async (page) => {
+      await openPage("cut-over runbook")(page);
+      await page.locator(".page-editor-panes .pane-tab", { hasText: "Discussion" }).click();
+      await page.waitForTimeout(500);
+    },
+  });
+  await shot("07-answered-open", {
+    width: 1600,
+    run: async (page) => {
+      await openPage("cut-over runbook", { discussion: true })(page);
+      await page.locator(".discussion-fold").click();
+      await page.waitForTimeout(500);
+    },
+  });
+}
 
 await browser.close();
 console.log("done");
