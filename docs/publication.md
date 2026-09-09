@@ -8,18 +8,19 @@ Never change the private repository's visibility or push its old branches or tag
 
 Work on a fresh isolated clone after the launch preparation has landed.
 Publish only the cleaned main branch.
-Remove these paths from every historical commit with `git filter-repo --sensitive-data-removal --invert-paths`:
+Remove these paths from every historical commit with `git filter-repo --sensitive-data-removal --no-fetch --invert-paths` in the isolated, main-only clone:
 
 - `public/profile-icons/`
 - `.live/`
 - `docs/mobile-pass.html`
 - `.lavish/`
 - `docs/deployment.md`
-- `ops/migrate-sample.sh`
 - `.github/workflows/deploy.yml`
 - `ops/ensure-actions-runner.sh`
 - `ops/prune-docker-cache.sh`
 
+Also exclude deployment-specific import scripts and their fixtures; retain the exact private path list in the operator audit record.
+Restore only the current original avatar assets after removing the historical avatar directory.
 Scan for additional historical databases, credentials, private configuration, and private work records before choosing the final exclusion list.
 Run Gitleaks across every retained commit, then manually inspect residual private domains, addresses, and identifiers in file contents and commit messages.
 Keep scanner reports and commit maps outside the published repository.
