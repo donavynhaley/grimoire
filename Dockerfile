@@ -17,6 +17,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/server-dist ./server-dist
+COPY --from=build /app/scripts ./scripts
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0

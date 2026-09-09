@@ -26,3 +26,4 @@ coverage/
 
 # Local design scratch pages.
 .lavish/
+.public-demo-reset.lock
