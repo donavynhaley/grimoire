@@ -145,6 +145,32 @@ describe("agent access", () => {
       }
     });
 
+    it("parses bearer headers with long whitespace without admitting malformed credentials", async () => {
+      const server = await startTestServer();
+      await bootstrap(server);
+      const { body } = await issue(server);
+
+      for (const length of [1, 128, 8192]) {
+        const whitespace = " ".repeat(length);
+        for (const [authorization, status] of [
+          [`bEaReR${whitespace}${body.secret}`, 200],
+          [`Bearer\t${body.secret}\t`, 200],
+          [`Bearer${whitespace}`, 401],
+          [`Bearer${whitespace}invalid`, 401],
+          [`Bearer${whitespace}${body.secret} extra`, 401],
+          [`Bearer${body.secret}`, 401],
+          [`Basic${whitespace}${body.secret}`, 401],
+        ] as const) {
+          // No session cookie: authentication must come from the header under test.
+          const response = await fetch(`${server.baseUrl}/api/board`, {
+            headers: { authorization },
+          });
+          expect(response.status).toBe(status);
+          await response.arrayBuffer();
+        }
+      }
+    });
+
     it("refuses a revoked token but keeps what it already wrote", async () => {
       const server = await startTestServer();
       await bootstrap(server);

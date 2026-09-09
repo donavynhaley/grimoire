@@ -586,6 +586,8 @@ A pages directory that already holds work is somebody's board being recovered be
 
 Grimoire already had the API an agent needs, and lacked only a way for something without a browser to say who it is.
 `agent_tokens` is that credential, and it mirrors `sessions`: an opaque secret, stored only as a sha256 hash, with the same primitives generating and comparing it.
+Bearer headers are parsed with a fixed-length scheme check and whitespace trimming rather than overlapping regular-expression repetitions, so long untrusted headers cannot cause regex backtracking.
+Scheme matching stays case-insensitive, and surrounding credential whitespace remains accepted.
 
 A credential is a delegation rather than a second kind of account.
 It names a project and a person, and requests made with it act as that person, which is why nothing about members, assignment, presence, or authorship needed a second code path.
