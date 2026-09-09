@@ -292,7 +292,7 @@ describe("who the allow list lets through", () => {
 
   it("takes a domain, and its subdomains with it", () => {
     expect(emailAllowed("alan@team.example.test", ["team.example.test"])).toBe(true);
-    expect(emailAllowed("alan@team.example.test", ["team.example.test"])).toBe(true);
+    expect(emailAllowed("alan@mail.team.example.test", ["team.example.test"])).toBe(true);
     expect(emailAllowed("alan@example.com", ["team.example.test"])).toBe(false);
     // Not a suffix match on the raw string: "notteam.example.test" is somebody else's domain.
     expect(emailAllowed("alan@notteam.example.test", ["team.example.test"])).toBe(false);

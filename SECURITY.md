@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 Report vulnerabilities privately through GitHub's security advisories:
-[github.com/donavynhaley/grimore/security/advisories/new](https://github.com/donavynhaley/grimore/security/advisories/new).
+[github.com/donavynhaley/grimoire/security/advisories/new](https://github.com/donavynhaley/grimoire/security/advisories/new).
 Please do not open a public issue or pull request for a security problem — a
 public report is a disclosure, and a fix should exist before one of those does.
 
