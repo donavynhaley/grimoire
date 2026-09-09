@@ -1,15 +1,45 @@
 # Grimoire
 
-Grimoire is a small, self-hosted collaborative work board.
-It separates possible ideas from committed work while keeping both fast to capture and easy to understand.
-The website is a visual editing layer over portable Markdown files.
+A self-hosted work board for people and their agents, with Markdown you own.
 
-The game project is represented entirely by work pages and ideas.
-There are no built-in design pillars, milestones, outcomes, asset pipelines, or story-point systems.
-A project can opt into Chapters, which group pages into named stretches of work.
-Closing a chapter asks what should happen to whatever it did not finish: roll it into the next chapter, send it somewhere named, set it loose, or leave it where it is.
-A project can also opt into Estimates, a number on each page saying how much work it is.
-With both on, a chapter says what it delivered and what it carried onward - added up from what happened, never forecast.
+[![CI](https://github.com/donavynhaley/grimoire/actions/workflows/ci.yml/badge.svg)](https://github.com/donavynhaley/grimoire/actions/workflows/ci.yml)
+[![License: AGPL-3.0](https://img.shields.io/github/license/donavynhaley/grimoire)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/donavynhaley/grimoire)](https://github.com/donavynhaley/grimoire/releases)
+
+![Grimoire's work board, with pages in Up Next, In progress, Review, and Done](docs/images/board.png)
+
+## Run it
+
+With Docker Engine and the Compose plugin installed:
+
+```sh
+git clone https://github.com/donavynhaley/grimoire.git
+cd grimoire
+docker compose up -d --build
+```
+
+Open **http://localhost:8080** and create the owner account.
+Your accounts, discussions, pages, and attachments persist in `./data`.
+For a remote host, put HTTPS in front of Grimoire before signing in or sharing the address; the [self-hosting guide](docs/self-hosting.md) covers proxies, tunnels, and configuration.
+
+## Why Grimoire
+
+Keep possible ideas in the garden and committed work on the board.
+Pages and ideas are ordinary Markdown files, so the work stays readable outside Grimoire and can live in an Obsidian vault or a Git repository.
+Discussions stay beside each page, with open questions and answers that survive the handoff.
+
+Give an agent a project-scoped credential through the [MCP server](packages/grimoire-mcp).
+Its work is attributed to the person who delegated it, and its access can be revoked immediately.
+People retain control over membership, project structure, and destructive actions.
+Grimoire has no telemetry and runs on your infrastructure.
+
+[Self-hosting](docs/self-hosting.md) · [Agent setup](packages/grimoire-mcp) · [Contributing](CONTRIBUTING.md) · [Architecture](docs/architecture.md)
+
+## How the board works
+
+Chapters optionally group pages into named stretches of work, and estimates are there for projects that want them.
+Closing a chapter lets you decide where unfinished work goes.
+The sections below describe the product's behavior and the reasons behind it.
 
 ## Work
 

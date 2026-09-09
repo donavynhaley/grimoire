@@ -29,16 +29,16 @@ if (!local && process.env.GRIMOIRE_SEED_REMOTE !== "yes") {
   process.exit(2);
 }
 
-const OWNER = { name: "Donavyn", email: "donavyn@team.example.test", password: "a long enough password" };
-const TEAMMATE = { name: "Alan", email: "alan@team.example.test", password: "a long enough password" };
+const OWNER = { name: "Alex", email: "alex@example.test", password: "a long enough password" };
+const TEAMMATE = { name: "Morgan", email: "morgan@example.test", password: "a long enough password" };
 
 /** One signed-in browser: its own cookie, so two people can be seeded side by side. */
 function person(label) {
   return { label, cookie: "", id: null };
 }
 
-const donavyn = person("Donavyn");
-const alan = person("Alan");
+const alex = person("Alex");
+const morgan = person("Morgan");
 let projectId = null;
 
 async function call(who, path, { method = "GET", body, token, project = true } = {}) {
@@ -101,7 +101,7 @@ const PAGES = [
     status: "in_progress",
     category: "code",
     estimate: 8,
-    assignee: "donavyn",
+    assignee: "alex",
     description:
       "A subscriber who logged the wrong meal has to delete the entry and re-log, which loses " +
       "the timestamp and the day's running macro total.\n\n" +
@@ -110,26 +110,26 @@ const PAGES = [
       "- Recompute the day total, not the week\n",
     discussion: [
       {
-        by: "alan",
+        by: "morgan",
         body: "The refund path in #612 touches this same reducer. Do you want me to land that first, or are you taking both?",
       },
       {
-        by: "donavyn",
+        by: "alex",
         body: "Does this need to handle a swap that changes the day's macro target, or only same-target swaps? The reducer branches hard on that.",
         replies: [
           {
-            by: "alan",
+            by: "morgan",
             body: "Same-target only for launch. Target changes are their own story - I'll split it out this week.",
           },
         ],
       },
       {
-        by: "donavyn",
+        by: "alex",
         body: "Whose clock are we writing? Device time is what the subscriber sees, but the ledger writes UTC.",
         replies: [
-          { by: "alan", body: "Device time for display, UTC for the ledger. Same rule as set logging." },
+          { by: "morgan", body: "Device time for display, UTC for the ledger. Same rule as set logging." },
         ],
-        answeredBy: "donavyn",
+        answeredBy: "alex",
       },
     ],
   },
@@ -138,12 +138,12 @@ const PAGES = [
     status: "review",
     category: "code",
     estimate: 3,
-    assignee: "alan",
+    assignee: "morgan",
     description:
       "Refunding a week pass credits the wallet, but the balance read is served from cache for up to 60s.",
     discussion: [
       {
-        by: "donavyn",
+        by: "alex",
         body: "Is this the same cache the creator dashboard reads, or a second one? If it's shared, invalidating here fixes two bugs.",
       },
       {
@@ -157,7 +157,7 @@ const PAGES = [
     status: "ready",
     category: "production",
     estimate: 5,
-    assignee: "alan",
+    assignee: "morgan",
     description:
       "The upload route answers with `Access-Control-Allow-Origin: *`. Everything else on the service is scoped.",
     discussion: [
@@ -174,14 +174,14 @@ const PAGES = [
     status: "done",
     category: "ui",
     estimate: 3,
-    assignee: "alan",
+    assignee: "morgan",
     description: "Logged sets came back ordered by id rather than by the order they were performed.",
     discussion: [
       {
-        by: "donavyn",
+        by: "alex",
         body: "Did this need a migration for existing sessions, or does the ordering column already exist?",
-        replies: [{ by: "alan", body: "Column existed, it just wasn't in the select. No migration." }],
-        answeredBy: "donavyn",
+        replies: [{ by: "morgan", body: "Column existed, it just wasn't in the select. No migration." }],
+        answeredBy: "alex",
       },
     ],
   },
@@ -195,8 +195,8 @@ const PAGES = [
       "We keep guessing at what the home feed costs on a cold load. Measure before touching anything.",
     discussion: [
       {
-        by: "alan",
-        body: "@Donavyn nobody owns this yet - I'd like it before we cut the launch build. Can you take it, or should it wait?",
+        by: "morgan",
+        body: "@Alex nobody owns this yet - I'd like it before we cut the launch build. Can you take it, or should it wait?",
       },
     ],
   },
@@ -207,39 +207,39 @@ const PAGES = [
     status: "in_progress",
     category: "production",
     estimate: 13,
-    assignee: "donavyn",
+    assignee: "alex",
     description:
       "Everything that has to happen in order on the day, and who is holding each step.\n\n" +
       "- DNS last, after the health checks pass\n" +
       "- Rollback is a DNS revert, not a redeploy\n",
     discussion: [
-      { by: "alan", body: "Are we cutting over on the Friday or the Saturday? I can only cover Saturday." },
+      { by: "morgan", body: "Are we cutting over on the Friday or the Saturday? I can only cover Saturday." },
       {
-        by: "donavyn",
+        by: "alex",
         body: "Do we need the read replica up before the cut-over, or can it lag?",
-        replies: [{ by: "alan", body: "It can lag. Nothing reads from it on day one." }],
+        replies: [{ by: "morgan", body: "It can lag. Nothing reads from it on day one." }],
       },
       {
         agent: true,
         body: "The five CDK blockers are down to two: the OpenSearch domain policy and the ACM cert in us-east-1. Both are mine unless you want them.",
       },
       {
-        by: "alan",
+        by: "morgan",
         body: "Who owns the status page during the window? I'd rather it wasn't whoever is doing the cut-over.",
       },
       {
-        by: "donavyn",
+        by: "alex",
         body: "Should the old account stay warm for a week, or do we tear it down once DNS has settled?",
-        answeredBy: "alan",
+        answeredBy: "morgan",
         replies: [
           {
-            by: "alan",
+            by: "morgan",
             body: "Warm for a week. It costs almost nothing and it is the only real rollback we have.",
           },
         ],
       },
       {
-        by: "alan",
+        by: "morgan",
         body: "Rate limits on the new account are lower by default - do we need a quota increase before the window?",
       },
       {
@@ -247,14 +247,16 @@ const PAGES = [
         body: "Ran the runbook against dev end to end. Step 7 assumes the migration has already run; it has not, at that point. Worth reordering.",
       },
       {
-        by: "donavyn",
+        by: "alex",
         body: "Do we announce the maintenance window, or is the downtime short enough not to?",
-        answeredBy: "donavyn",
-        replies: [{ by: "alan", body: "Announce it. Two minutes unannounced is worse than ten announced." }],
+        answeredBy: "alex",
+        replies: [
+          { by: "morgan", body: "Announce it. Two minutes unannounced is worse than ten announced." },
+        ],
       },
       {
-        by: "alan",
-        body: "@Donavyn last one: who has the domain registrar credentials? I don't, and DNS is the last step.",
+        by: "morgan",
+        body: "@Alex last one: who has the domain registrar credentials? I don't, and DNS is the last step.",
       },
     ],
   },
@@ -273,7 +275,7 @@ const PAGES = [
     status: "backlog",
     category: "production",
     estimate: 1,
-    assignee: "donavyn",
+    assignee: "alex",
     description: "Two workflows post failures to a webhook that has never been set.",
     discussion: [],
   },
@@ -292,35 +294,35 @@ async function main() {
   }
 
   console.log("Creating the owner account ...");
-  const created = await call(donavyn, "/api/auth/bootstrap", { method: "POST", body: OWNER, project: false });
-  donavyn.id = created.user.id;
+  const created = await call(alex, "/api/auth/bootstrap", { method: "POST", body: OWNER, project: false });
+  alex.id = created.user.id;
 
-  console.log("Creating the sample project ...");
-  const project = await call(donavyn, "/api/projects", {
+  console.log("Creating the Grimoire demo project ...");
+  const project = await call(alex, "/api/projects", {
     method: "POST",
-    body: { name: "sample" },
+    body: { name: "Grimoire demo" },
     project: false,
   });
   projectId = project.project.id;
 
   // Estimates on, so a tile carries an estimate pill beside the new open-threads pill and
   // the two can be seen not to fight.
-  await call(donavyn, `/api/projects/${projectId}`, { method: "PATCH", body: { estimatesEnabled: true } });
+  await call(alex, `/api/projects/${projectId}`, { method: "PATCH", body: { estimatesEnabled: true } });
 
-  console.log("Inviting Alan ...");
-  const invite = await call(donavyn, "/api/invites", { method: "POST", body: {} });
-  const joined = await call(alan, "/api/auth/register", {
+  console.log("Inviting Morgan ...");
+  const invite = await call(alex, "/api/invites", { method: "POST", body: {} });
+  const joined = await call(morgan, "/api/auth/register", {
     method: "POST",
     body: { ...TEAMMATE, inviteCode: invite.code },
     project: false,
   });
-  alan.id = joined.user.id;
+  morgan.id = joined.user.id;
 
-  const who = { donavyn: donavyn.id, alan: alan.id };
-  const speaker = { donavyn, alan };
+  const who = { alex: alex.id, morgan: morgan.id };
+  const speaker = { alex, morgan };
 
   console.log("Issuing a credential for the Planning agent ...");
-  const issued = await call(donavyn, "/api/agent-tokens", {
+  const issued = await call(alex, "/api/agent-tokens", {
     method: "POST",
     body: { name: "Planning agent", scope: "write" },
   });
@@ -329,7 +331,7 @@ async function main() {
   console.log("Writing the board ...");
   let threadCount = 0;
   for (const spec of PAGES) {
-    const { page } = await call(donavyn, "/api/pages", {
+    const { page } = await call(alex, "/api/pages", {
       method: "POST",
       body: {
         title: spec.title,
@@ -343,9 +345,9 @@ async function main() {
 
     for (const thread of spec.discussion) {
       // An agent posts over its bearer token, exactly as the MCP server does, so the message
-      // really is attributed "Donavyn, via Planning agent" rather than faked to look that way.
+      // really is attributed "Alex, via Planning agent" rather than faked to look that way.
       const opened = thread.agent
-        ? await call(donavyn, `/api/pages/${page.id}/discussion`, {
+        ? await call(alex, `/api/pages/${page.id}/discussion`, {
             method: "POST",
             body: { body: thread.body },
             token: agentToken,
@@ -376,13 +378,13 @@ async function main() {
     }
   }
 
-  // The starter project bootstrap always makes would otherwise sit beside sample in the
+  // The starter project bootstrap always makes would otherwise sit beside Grimoire demo in the
   // picker with nothing in it.
   try {
-    const projects = await call(donavyn, "/api/projects", { project: false });
+    const projects = await call(alex, "/api/projects", { project: false });
     const starter = projects.projects.find((candidate) => candidate.name === "Getting started");
     if (starter)
-      await call(donavyn, `/api/projects/${starter.id}`, { method: "DELETE", body: {}, project: false });
+      await call(alex, `/api/projects/${starter.id}`, { method: "DELETE", body: {}, project: false });
   } catch {
     // Not worth failing a demo over; it just means the picker shows two projects.
   }
