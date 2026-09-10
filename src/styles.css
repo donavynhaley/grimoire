@@ -3274,13 +3274,16 @@ textarea:hover {
   font-size: 0.5625rem;
 }
 
+/* Wide Markdown belongs inside the notes, rather than setting the grid track width. */
 .notes-field {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.4375rem;
 }
 /* Its own grid so the textarea still fills the field once it is not a grid item itself. */
 .notes-body {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
 }
 .notes-head {
   display: flex;
@@ -3347,7 +3350,9 @@ textarea:hover {
   cursor: text;
   overscroll-behavior: contain;
 }
+/* Let this flex item shrink so a table scrolls without widening every paragraph. */
 .markdown-editor .cm-content {
+  min-width: 0;
   padding: 0;
   caret-color: var(--text);
 }
@@ -3475,6 +3480,8 @@ textarea:hover {
   padding-bottom: 0.75rem;
 }
 .cm-lp-table table {
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
   font-size: 0.75rem;
 }
