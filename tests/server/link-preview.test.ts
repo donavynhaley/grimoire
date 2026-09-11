@@ -1,155 +1,175 @@
-import { copyFileSync, mkdirSync, mkdtempSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { describe, expect, it } from "vitest";
-import type { Idea, Page } from "../../shared/types";
+import { afterEach, describe, expect, it } from "vitest";
+import type { Idea, Page, ProjectSummary } from "../../shared/types";
 import { bootstrap, startTestServer } from "./test-server";
 
-/** The shipped shell, so a preview that loses its markers fails here first. */
-function shellDirectory(): string {
-  const directory = join(mkdtempSync(join(tmpdir(), "grimoire-shell-")), "dist");
-  mkdirSync(directory, { recursive: true });
-  copyFileSync(resolve("index.html"), join(directory, "index.html"));
-  return directory;
-}
+const shells: string[] = [];
+afterEach(() => {
+  for (const directory of shells.splice(0)) rmSync(directory, { recursive: true, force: true });
+});
 
 async function startShellServer() {
-  return startTestServer(undefined, { staticDirectory: shellDirectory() });
+  const directory = mkdtempSync(join(tmpdir(), "grimoire-shell-"));
+  shells.push(directory);
+  const staticDirectory = join(directory, "dist");
+  mkdirSync(staticDirectory);
+  copyFileSync(resolve("index.html"), join(staticDirectory, "index.html"));
+  const server = await startTestServer(undefined, { staticDirectory });
+  await bootstrap(server);
+  return server;
 }
 
+type TestServer = Awaited<ReturnType<typeof startShellServer>>;
+
 /** A chat client unfurls the link without the sharer's session. */
-async function unfurl(server: Awaited<ReturnType<typeof startTestServer>>, path: string): Promise<string> {
-  const response = await fetch(`${server.baseUrl}${path}`);
+async function unfurl(server: TestServer, path: string): Promise<string> {
+  const response = await fetch(`${server.baseUrl}${path}`, {
+    headers: { "user-agent": "Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)" },
+  });
+  expect(response.status).toBe(200);
   expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
+  expect(response.headers.get("cache-control")).toBe("no-store");
   return response.text();
 }
 
+async function createProject(server: TestServer, name: string, description: string) {
+  const created = await server.request<{ project: ProjectSummary }>("/api/projects", {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+  expect(created.response.status).toBe(201);
+  const project = created.body.project;
+  const updated = await server.request(`/api/projects/${project.id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ description }),
+  });
+  expect(updated.response.status).toBe(200);
+  return project;
+}
+
 describe("link previews", () => {
-  it("describes a shared page without revealing its notes", async () => {
+  it("describes the requested project to an anonymous chat client", async () => {
     const server = await startShellServer();
-    await bootstrap(server);
-    const owner = (await server.request<{ projects: Array<{ id: string }> }>("/api/projects")).body;
-    const page = await server.request<{ page: Page }>("/api/pages", {
-      method: "POST",
-      body: JSON.stringify({
-        title: "Make the tower door remember Maren",
-        description: "The door should greet her by name on the second visit.",
-        category: "narrative",
-        status: "in_progress",
-      }),
-    });
-    expect(owner.projects).toHaveLength(1);
-
-    const html = await unfurl(server, `/?page=${page.body.page.id}`);
-
-    expect(html).toContain('<meta property="og:title" content="Make the tower door remember Maren" />');
-    expect(html).toContain('<meta property="og:site_name" content="Grimoire · Getting started" />');
-    expect(html).toContain('<meta property="og:description" content="In progress · Narrative" />');
-    expect(html).toContain('<meta name="theme-color" content="#a99bdc" />');
-    expect(html).toContain("<title>Make the tower door remember Maren · Grimoire</title>");
-    expect(html).not.toContain("greet her by name");
-    expect(html).not.toContain("focused collaborative kanban board");
-  });
-
-  it("names the chapter a page belongs to", async () => {
-    const server = await startShellServer();
-    await bootstrap(server);
-    const board = (await server.request<{ project: { id: string } }>("/api/board")).body;
-    await server.request(`/api/projects/${board.project.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ chaptersEnabled: true }),
-    });
-    await server.request("/api/chapters", {
-      method: "POST",
-      body: JSON.stringify({ name: "First Brew", state: "open" }),
-    });
-    const page = await server.request<{ page: Page }>("/api/pages", {
-      method: "POST",
-      body: JSON.stringify({
-        title: "Model the potion workbench",
-        category: "modeling",
-        chapter: "first-brew",
-        status: "in_progress",
-      }),
-    });
-
-    const html = await unfurl(server, `/?page=${page.body.page.id}`);
-
-    // Enough to recognise the page, which is the same boundary the rest of the preview holds.
+    const project = await createProject(server, "Familiar Tycoon", "Build a shop for magical companions.");
+    const html = await unfurl(server, `/?project=${project.id}&people=me&chapter=launch`);
+    expect(html).toContain('<meta property="og:title" content="Familiar Tycoon" />');
     expect(html).toContain(
-      '<meta property="og:description" content="In progress · Modeling · First Brew" />',
+      '<meta property="og:description" content="Build a shop for magical companions." />',
     );
+    expect(html).toContain('<meta name="description" content="Build a shop for magical companions." />');
+    expect(html).toContain('<meta property="og:type" content="website" />');
+    expect(html).toContain('<meta name="twitter:card" content="summary" />');
+    expect(html).toContain("<title>Familiar Tycoon · Grimoire</title>");
+    expect(html).toContain('<meta name="robots" content="noindex, nofollow" />');
+    expect(html).toContain('<script type="module" src="/src/main.tsx"></script>');
+    expect(html).not.toContain("Getting started");
+
+    const changed = await server.request(`/api/projects/${project.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ description: "A freshly updated description." }),
+    });
+    expect(changed.response.status).toBe(200);
+    expect(await unfurl(server, `/?project=${project.id}`)).toContain("A freshly updated description.");
   });
 
-  it("names the assignee and flags blocked and archived pages", async () => {
+  it("keeps page, legacy card and idea links generic in every lifecycle state", async () => {
     const server = await startShellServer();
-    await bootstrap(server);
-    const me = (await server.request<{ status: string; user: { id: string } }>("/api/session")).body;
-    const blocker = await server.request<{ page: Page }>("/api/pages", {
-      method: "POST",
-      body: JSON.stringify({ title: "Sculpt the door" }),
-    });
+    const project = await createProject(server, "Secret project name", "Secret project description");
+    const headers = { "x-grimoire-project": project.id };
     const page = await server.request<{ page: Page }>("/api/pages", {
       method: "POST",
+      headers,
       body: JSON.stringify({
-        title: "Rig the door",
-        assigneeId: me.user.id,
-        blockedBy: [blocker.body.page.id],
+        title: "Secret page title",
+        description: "Secret page notes",
+        status: "in_progress",
       }),
     });
-
-    const html = await unfurl(server, `/?page=${page.body.page.id}`);
-    expect(html).toContain('<meta property="og:description" content="Backlog · Blocked · Donavyn" />');
-
-    await server.request(`/api/pages/${page.body.page.id}`, { method: "DELETE" });
-    const archived = await unfurl(server, `/?page=${page.body.page.id}`);
-    expect(archived).toContain('<meta property="og:description" content="Archived · Blocked · Donavyn" />');
-  });
-
-  it("describes a shared idea and follows it once it is promoted", async () => {
-    const server = await startShellServer();
-    await bootstrap(server);
+    expect(page.response.status).toBe(201);
     const idea = await server.request<{ idea: Idea }>("/api/ideas", {
       method: "POST",
-      body: JSON.stringify({ title: "Spells are assembled from drawn runes", state: "shortlist" }),
+      headers,
+      body: JSON.stringify({
+        title: "Secret idea title",
+        description: "Secret idea notes",
+        state: "shortlist",
+      }),
     });
-
-    const html = await unfurl(server, `/?view=ideas&idea=${idea.body.idea.id}`);
-    expect(html).toContain('<meta property="og:title" content="Spells are assembled from drawn runes" />');
-    expect(html).toContain('<meta property="og:description" content="Idea garden · Shortlist · Donavyn" />');
-
-    await server.request(`/api/ideas/${idea.body.idea.id}/promote`, { method: "POST" });
-    const promoted = await unfurl(server, `/?view=ideas&idea=${idea.body.idea.id}`);
-    expect(promoted).toContain(
-      '<meta property="og:description" content="Idea garden · Promoted to a page · Donavyn" />',
-    );
+    expect(idea.response.status).toBe(201);
+    const generic = await unfurl(server, "/");
+    const links = [
+      `page=${page.body.page.id}`,
+      `card=${page.body.page.id}`,
+      `view=ideas&idea=${idea.body.idea.id}`,
+    ];
+    for (const archived of [false, true]) {
+      if (archived) {
+        expect(
+          (await server.request(`/api/pages/${page.body.page.id}`, { method: "DELETE", headers })).response
+            .status,
+        ).toBe(200);
+        expect(
+          (await server.request(`/api/ideas/${idea.body.idea.id}/promote`, { method: "POST", headers }))
+            .response.status,
+        ).toBe(201);
+      }
+      for (const link of links) {
+        for (const query of [link, `project=${project.id}&${link}`]) {
+          const path = `/?${query}`;
+          expect(await unfurl(server, path)).toBe(generic);
+          // A logged-in user's shell must not disclose metadata either.
+          expect(await (await server.fetchRaw(path)).text()).toBe(generic);
+        }
+      }
+    }
   });
 
-  it("escapes titles so a page cannot inject markup into the shell", async () => {
+  it("does not fall back to project details when an entity parameter is empty or invalid", async () => {
     const server = await startShellServer();
-    await bootstrap(server);
-    const page = await server.request<{ page: Page }>("/api/pages", {
-      method: "POST",
-      body: JSON.stringify({ title: '<script>alert("hi")</script> & more' }),
-    });
+    const project = await createProject(server, "Private context", "Must not appear for entity links");
+    const generic = await unfurl(server, "/");
+    for (const key of ["page", "card", "idea"]) {
+      for (const value of ["", "../../etc/passwd", "00000000-0000-4000-8000-000000000099"]) {
+        expect(await unfurl(server, `/?project=${project.id}&${key}=${value}`)).toBe(generic);
+      }
+    }
+  });
 
-    const html = await unfurl(server, `/?page=${page.body.page.id}`);
-
+  it("escapes project names and descriptions as text rather than executable markup", async () => {
+    const server = await startShellServer();
+    const project = await createProject(
+      server,
+      '<script>alert("hi")</script> & more',
+      '"><img src=x onerror=alert(1)> & details',
+    );
+    const html = await unfurl(server, `/?project=${project.id}`);
+    expect(html).toContain('content="&lt;script&gt;alert(&quot;hi&quot;)&lt;/script&gt; &amp; more"');
+    expect(html).toContain('content="&quot;&gt;&lt;img src=x onerror=alert(1)&gt; &amp; details"');
     expect(html).not.toContain("<script>alert");
+    expect(html).not.toContain("<img src=x");
+  });
+
+  it("uses a generic description when a project has no description", async () => {
+    const server = await startShellServer();
+    const project = await createProject(server, "Empty description", "");
+    const html = await unfurl(server, `/?project=${project.id}`);
+    expect(html).toContain('<meta property="og:title" content="Empty description" />');
     expect(html).toContain(
-      '<meta property="og:title" content="&lt;script&gt;alert(&quot;hi&quot;)&lt;/script&gt; &amp; more" />',
+      'content="Grimoire is a focused collaborative kanban board for small product teams."',
     );
   });
 
-  it("keeps the generic preview for the board itself and for links to nothing", async () => {
+  it("keeps missing, malformed and archived projects indistinguishable from the generic shell", async () => {
     const server = await startShellServer();
-    await bootstrap(server);
-
-    for (const path of ["/", "/?page=00000000-0000-4000-8000-000000000099", "/?page=../../etc/passwd"]) {
-      const html = await unfurl(server, path);
-      expect(html).toContain("<title>Grimoire</title>");
-      expect(html).toContain("focused collaborative kanban board");
-      expect(html).not.toContain("og:title");
+    const project = await createProject(server, "Archived project", "No longer shared");
+    expect((await server.request(`/api/projects/${project.id}`, { method: "DELETE" })).response.status).toBe(
+      200,
+    );
+    const generic = await unfurl(server, "/");
+    for (const id of [project.id, "", "../../etc/passwd", "00000000-0000-4000-8000-000000000099"]) {
+      expect(await unfurl(server, `/?project=${id}`)).toBe(generic);
     }
   });
 });

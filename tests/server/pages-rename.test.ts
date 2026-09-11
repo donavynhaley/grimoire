@@ -110,7 +110,7 @@ describe("renaming cards to pages on disk", () => {
     expect(edited.body.page.title).toBe("Edited from an old bundle");
   });
 
-  it("still unfurls links shared as ?card= before the rename", async () => {
+  it("still serves links shared as ?card= without publishing private metadata", async () => {
     const server = await startShellServer();
     await bootstrap(server);
     const created = await server.request<{ page: Page }>("/api/pages", {
@@ -121,7 +121,9 @@ describe("renaming cards to pages on disk", () => {
     // Those links live in other people's chat history forever, so they keep working.
     const legacy = await fetch(`${server.baseUrl}/?card=${created.body.page.id}`);
     const html = await legacy.text();
-    expect(html).toContain('<meta property="og:title" content="Shared long ago" />');
+    expect(legacy.status).toBe(200);
+    expect(html).toContain("<title>Grimoire</title>");
+    expect(html).not.toContain("Shared long ago");
   });
 });
 

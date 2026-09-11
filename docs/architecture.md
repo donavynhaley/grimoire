@@ -477,14 +477,20 @@ Several streams belonging to one person count once.
 
 ## Link previews
 
-A page or idea link pasted into a chat client is fetched by that client, not by the person who received it, and always without a session.
-Grimoire answers those requests by rewriting the title and description of the application shell between the `link-preview` markers in `index.html`, so the served document names the page rather than the product.
-Everything else in the shell, including the client bundle and the `noindex` directive, is untouched.
+Chat clients fetch shared links without a session, so preview metadata is public to anyone holding the link.
+A project-only link (`?project=<id>`) publishes the active project's name and description using Open Graph metadata in the application shell.
+An empty description falls back to the generic Grimoire description.
+Project descriptions must therefore be suitable for sharing outside the project's membership.
+Missing, malformed, and archived project ids receive the generic shell.
 
-The preview carries the title, board name, column, category, assignee, and blocked state, and never the Markdown notes body.
-That set is a deliberate boundary: holding the link is enough to read it, so the preview says only what a teammate needs to recognize the page.
-Ids are unique across projects, so a link carries only the id and the lookup walks the live projects to place it.
-An archived page and a promoted idea still describe themselves, and a link naming nothing that can be read falls back to the generic Grimoire preview rather than failing the page.
+Page, legacy `card`, and idea links always receive the generic Grimoire preview, including when a project id is present or the entity parameter is empty or malformed.
+No entity lookup runs for these previews, so titles, notes, status, categories, chapters, member names, and project context stay behind authentication.
+The same policy applies to authenticated shell requests, archived pages, and promoted ideas.
+
+The server rewrites only the `link-preview` block in `index.html`, escaping project text for HTML attributes and title content.
+Everything else in the shell, including the client bundle and the `noindex` directive, is untouched.
+Shell responses use `Cache-Control: no-store` so project edits and archival take effect on the next fetch.
+Chat services may retain previews they fetched earlier in their own caches.
 
 ## GitHub links
 

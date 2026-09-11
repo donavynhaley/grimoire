@@ -1,11 +1,22 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { ArchivedProject, ProjectSummary, User } from "../../shared/types";
+import type { LinkPreview } from "../link-preview";
 import { type Row, row, rows } from "./rows";
 
 // The projects table itself: identity, access, archival, and per-project settings.
 
 export function projectById(database: DatabaseSync, projectId: string): Row | undefined {
   return row(database, "SELECT id, name, slug, description FROM projects WHERE id = ?", projectId);
+}
+
+/** Sharing a project link publishes only its name and description while it is active. */
+export function projectForLinkPreview(database: DatabaseSync, projectId: string): LinkPreview | null {
+  const project = row(
+    database,
+    "SELECT name, description FROM projects WHERE id = ? AND archived_at IS NULL",
+    projectId,
+  );
+  return project ? { title: String(project.name), description: String(project.description ?? "") } : null;
 }
 
 export function projectSlug(database: DatabaseSync, projectId: string): string | null {
