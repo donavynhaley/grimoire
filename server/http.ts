@@ -10,7 +10,7 @@ import { OidcError } from "./oidc";
  * translates. Nothing here knows what a page or a project is.
  */
 
-/** Ids name a file on disk, so anything that is not a plain uuid names nothing. */
+/** Malformed ids never participate in anonymous preview lookups. */
 export function previewEntityId(value: string | null): string | null {
   if (value === null) return null;
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value) ? value : null;

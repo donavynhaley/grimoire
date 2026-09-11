@@ -22,7 +22,7 @@ import {
   serveDocument,
   serveFile,
 } from "./http";
-import { ideaPreview, type LinkPreview, pagePreview } from "./link-preview";
+import type { LinkPreview } from "./link-preview";
 import {
   LOGIN_ACCOUNT_BURST,
   LOGIN_ACCOUNT_PER_MINUTE,
@@ -58,6 +58,7 @@ import {
   userCanAccessProject,
   userOwnsProject,
 } from "./repository";
+import { projectForLinkPreview } from "./repository/projects";
 import { activityRoutes } from "./routes/activity";
 import { agentReviewRoutes } from "./routes/agent-review";
 import { authRoutes } from "./routes/auth";
@@ -506,56 +507,17 @@ export function createGrimoireServer(options: Options) {
     }
   }
 
-  /**
-   * Chat clients fetch a shared link anonymously to unfurl it, so this runs without a
-   * session and must never fail the page: a page that cannot be read falls back to the
-   * generic Grimoire preview. Page and idea ids are unique across projects, so the link
-   * only carries the id and the lookup walks the live projects to place it.
-   */
+  /** Entity links stay generic even when they also name a project or have malformed ids. */
   function linkPreviewFor(url: URL): LinkPreview | null {
-    // `card` is what every link shared before the rename carries, and those links live in
-    // other people's chat history forever. They keep working.
-    const pageId = previewEntityId(url.searchParams.get("page") ?? url.searchParams.get("card"));
-    const ideaId = previewEntityId(url.searchParams.get("idea"));
-    if (!pageId && !ideaId) return null;
+    if (["page", "card", "idea"].some((key) => url.searchParams.has(key))) return null;
+    const projectId = previewEntityId(url.searchParams.get("project"));
+    if (!projectId) return null;
     try {
-      for (const project of previewProjects()) {
-        const projectName = String(project.name);
-        const slug = String(project.slug);
-        if (pageId) {
-          const page = pageStore.get(slug, pageId) ?? pageStore.getArchived(slug, pageId);
-          if (!page) continue;
-          return pagePreview({
-            assigneeName: memberName(page.assignee),
-            page,
-            categories: categoriesForProject(database, String(project.id)),
-            chapterName:
-              page.chapter && chaptersEnabled(database, String(project.id))
-                ? (chapterStore.get(slug, page.chapter)?.name ?? null)
-                : null,
-            projectName,
-          });
-        }
-        const idea = ideaStore.get(slug, ideaId!) ?? ideaStore.getArchived(slug, ideaId!);
-        if (idea) return ideaPreview({ authorName: memberName(idea.createdBy), idea, projectName });
-      }
+      return projectForLinkPreview(database, projectId);
     } catch (error) {
       console.error(error);
+      return null;
     }
-    return null;
-  }
-
-  function previewProjects(): Array<Record<string, string | number | null>> {
-    return database
-      .prepare("SELECT id, name, slug FROM projects WHERE archived_at IS NULL ORDER BY created_at")
-      .all() as Array<Record<string, string | number | null>>;
-  }
-
-  /** Pages and ideas store the email, and a member who has since left leaves no name behind. */
-  function memberName(email: string | null): string | null {
-    if (!email) return null;
-    const stored = findUserByEmail(database, email);
-    return stored ? String(stored.name) : null;
   }
 
   /**
