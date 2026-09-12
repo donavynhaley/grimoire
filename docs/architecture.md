@@ -672,3 +672,29 @@ Reset removes only the demo key and remounts the board, including open editors a
 This replaces the separate read-only gateway and its shared demo account, private volume, tunnel and nightly reset.
 The playground needs no server-side anonymous session or database access.
 The ordinary authenticated application retains its existing storage and authority rules.
+
+
+## Deferred workspace features
+
+The sign-in shell imports the board on demand, and the board imports page editing, account settings, and project settings when opened.
+The Markdown editor has its own boundary because ideas also use it.
+Settings navigation metadata lives outside the settings feature so the board cannot pull that feature back into its initial dependency graph.
+Successful imports are cached for the session; failed imports leave a local retry control and retain the parent editor's draft.
+Native import failures are cached by Chromium, so feature retries use a fresh query on the same-origin feature URL, while preserving the already-loaded shared modules.
+The bundle check requires every deferred editor/settings dependency to be in the board's static closure so a failed dependency cannot poison this recovery path.
+A failed initial workspace import offers a reload before any editor has mounted.
+Keyboard focus follows an inline retry into the recovered editor, without stealing focus from somebody editing the title while the download runs.
+Loading dialogs use the shared drawer, dismissal, and focus containment, while progress text follows the existing delayed indicator policy (UI-5, UI-6, UI-8).
+Image insertion and source controls stay disabled until the notes editor is ready.
+
+`npm run build` emits a manifest and checks each initial path's entire static import closure, including shared chunks.
+Sign-in is limited to 240,000 raw / 76,000 gzip JavaScript bytes and the board to 400,000 raw / 120,000 gzip bytes.
+The intentionally deferred editor is about 510 kB, so the per-chunk advisory threshold is 550 kB; the initial-path budgets are stricter and fail the build.
+A cold first editor open pays for that download instead of charging every sign-in and board visit.
+No idle preload is used because it would immediately spend the saved bandwidth on code the reader may never open.
+
+Production measurements against main e191318 used three alternating cold runs in Chromium, a 1440x1000 viewport, disabled browser cache, 80 ms network latency, 200,000 B/s download, 100,000 B/s upload, and 4x CPU throttling.
+Medians were: sign-in 5,888 to 2,101 ms, board ready 5,836 to 3,201 ms, first editor open 309 to 3,447 ms, and first settings open 115 to 910 ms.
+Initial decoded JavaScript fell from 929,963 to 217,900 bytes for sign-in and to 335,889 bytes for the board.
+These are local controlled measurements rather than field latency claims; gzip sizes are reported separately by the build budget because this local server did not compress responses.
+Browser tests run against built assets with `npm run test:production` to cover demand loading and failure recovery, alongside the normal development-server E2E suite.

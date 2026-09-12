@@ -1,4 +1,8 @@
 import "@testing-library/jest-dom/vitest";
+import { configure } from "@testing-library/react";
+
+// Cold feature imports include source transformation in Vitest, unlike built browser chunks.
+configure({ asyncUtilTimeout: 5000 });
 
 if (typeof window !== "undefined") {
   Object.defineProperty(window, "scrollTo", { configurable: true, value: () => undefined });

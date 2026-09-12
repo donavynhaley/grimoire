@@ -127,7 +127,7 @@ describe("a page's GitHub row", () => {
     const calls = mountWith(board);
 
     await user.click(await screen.findByText(board.pages[1]!.title));
-    await user.click(screen.getByRole("button", { name: /Not linked/ }));
+    await user.click(await screen.findByRole("button", { name: /Not linked/ }));
     await user.type(screen.getByLabelText("Search pull requests, or type a branch"), "#41{Enter}");
 
     await waitFor(() =>
@@ -164,7 +164,7 @@ describe("a page's GitHub row", () => {
     ]);
 
     await user.click(await screen.findByText(board.pages[1]!.title));
-    await user.click(screen.getByRole("button", { name: /Not linked/ }));
+    await user.click(await screen.findByRole("button", { name: /Not linked/ }));
 
     // Both are offered before anything is typed, drafts marked as such.
     expect(await screen.findByRole("option", { name: /Link pull request 21/ })).toBeInTheDocument();
@@ -201,7 +201,7 @@ describe("a page's GitHub row", () => {
     ]);
 
     await user.click(await screen.findByText(board.pages[1]!.title));
-    await user.click(screen.getByRole("button", { name: /Not linked/ }));
+    await user.click(await screen.findByRole("button", { name: /Not linked/ }));
     await user.type(
       screen.getByLabelText("Search pull requests, or type a branch"),
       "feat/nothing-suggested",
@@ -249,7 +249,7 @@ describe("a page's GitHub row", () => {
     mountWith(board, 400);
 
     await user.click(await screen.findByText(board.pages[1]!.title));
-    await user.click(screen.getByRole("button", { name: /Not linked/ }));
+    await user.click(await screen.findByRole("button", { name: /Not linked/ }));
     await user.type(screen.getByLabelText("Search pull requests, or type a branch"), "??{Enter}");
     const dialog = screen.getByRole("dialog", { name: "Edit page" });
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(/does not read as/);

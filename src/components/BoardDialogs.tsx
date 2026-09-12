@@ -1,3 +1,4 @@
+import type { ComponentProps } from "react";
 import type {
   AgentReview,
   AuditPage,
@@ -8,7 +9,13 @@ import type {
   ProjectRole,
 } from "../../shared/types";
 import { revokeAgentToken } from "../api/client";
-import { AccountDialog } from "./AccountDialog";
+import { deferComponent } from "./Deferred";
+
+const AccountDialog = deferComponent<ComponentProps<typeof import("./AccountDialog")["AccountDialog"]>>(
+  () => import("./AccountDialog").then((module) => ({ default: module.AccountDialog })),
+  { exportName: "AccountDialog", label: "account settings", close: (props) => props.onClose },
+);
+
 import { ActivityDialog } from "./ActivityDialog";
 import { AgentReviewDialog } from "./AgentReviewDialog";
 import { BacklogDialog } from "./BacklogDialog";
@@ -17,13 +24,22 @@ import { type ChapterFilter, NO_CHAPTER } from "./ChapterPicker";
 import type { ChapterActions } from "./ChaptersSection";
 import { DoneHistoryDialog } from "./DoneHistoryDialog";
 import type { FieldActions } from "./FieldsSection";
-import { PageDialog } from "./PageDialog";
-import {
-  type ProjectSettingsActions,
-  ProjectSettingsDialog,
-  type SettingsSection,
-} from "./ProjectSettingsDialog";
+
+const PageDialog = deferComponent<ComponentProps<typeof import("./PageDialog")["PageDialog"]>>(
+  () => import("./PageDialog").then((module) => ({ default: module.PageDialog })),
+  { exportName: "PageDialog", label: "page editor", close: (props) => props.onClose },
+);
+
+import type { ProjectSettingsActions, SettingsSection } from "./ProjectSettingsDialog";
 import { SearchDialog } from "./SearchDialog";
+
+const ProjectSettingsDialog = deferComponent<
+  ComponentProps<typeof import("./ProjectSettingsDialog")["ProjectSettingsDialog"]>
+>(() => import("./ProjectSettingsDialog").then((module) => ({ default: module.ProjectSettingsDialog })), {
+  exportName: "ProjectSettingsDialog",
+  label: "project settings",
+  close: (props) => props.onClose,
+});
 
 type Props = {
   accountOpen: boolean;
