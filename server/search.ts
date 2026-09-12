@@ -1,25 +1,21 @@
 import type { DatabaseSync } from "node:sqlite";
-import type { SearchGroup, SearchHit, SearchResults } from "../shared/types";
+import {
+  matchSearchRank,
+  type RankedSearchHit,
+  SEARCH_RESULT_LIMIT,
+  searchWindow,
+} from "../shared/search-order";
+import type { SearchGroup, SearchResults, SearchScope } from "../shared/types";
 import { IDEA_STATE_LABELS, PAGE_STATUS_LABELS } from "../shared/types";
 import type { MarkdownChapterStore } from "./markdown-chapters";
 import type { MarkdownIdeaStore } from "./markdown-ideas";
 import type { MarkdownPageStore, StoredPage } from "./markdown-pages";
 import { categoriesForProject, chaptersEnabled, membersForProject, projectById } from "./repository";
 
-export const SEARCH_RESULT_LIMIT = 40;
+export { SEARCH_RESULT_LIMIT } from "../shared/search-order";
 
 /** How much note text to keep on either side of a body match. */
 const SNIPPET_RADIUS = 44;
-
-const groupOrder: Record<SearchGroup, number> = {
-  active: 0,
-  backlog: 1,
-  ideas: 2,
-  done: 3,
-  archived: 4,
-};
-
-type Ranked = { hit: SearchHit; rank: number; recency: string };
 
 /**
  * Finds everything in one project that mentions the query.
@@ -39,10 +35,12 @@ export function searchProject(
   projectId: string,
   rawQuery: string,
   limit: number = SEARCH_RESULT_LIMIT,
+  offset = 0,
+  scope: SearchScope = "all",
 ): SearchResults {
   const query = rawQuery.trim();
   const needle = query.toLowerCase();
-  if (!needle) return { query, total: 0, hits: [] };
+  if (!needle && scope !== "archived") return { query, total: 0, hits: [] };
 
   const project = projectById(database, projectId);
   if (!project) return { query, total: 0, hits: [] };
@@ -64,10 +62,10 @@ export function searchProject(
     return chapter ? `${column} · ${chapter}` : column;
   };
 
-  const ranked: Ranked[] = [];
+  const ranked: RankedSearchHit[] = [];
 
   const addPage = (page: StoredPage, group: SearchGroup, where: string) => {
-    const rank = matchRank(page.title, page.description, needle);
+    const rank = matchSearchRank(page.title, page.description, needle);
     if (rank === null) return;
     const category = page.category ? categories.get(page.category) : undefined;
     ranked.push({
@@ -98,7 +96,7 @@ export function searchProject(
   }
 
   for (const idea of ideaStore.list(projectSlug)) {
-    const rank = matchRank(idea.title, idea.description, needle);
+    const rank = matchSearchRank(idea.title, idea.description, needle);
     if (rank === null) continue;
     ranked.push({
       rank,
@@ -117,26 +115,7 @@ export function searchProject(
     });
   }
 
-  ranked.sort(compareRanked);
-  return { query, total: ranked.length, hits: ranked.slice(0, limit).map((value) => value.hit) };
-}
-
-function compareRanked(left: Ranked, right: Ranked): number {
-  const group = groupOrder[left.hit.group] - groupOrder[right.hit.group];
-  if (group !== 0) return group;
-  if (left.rank !== right.rank) return left.rank - right.rank;
-  return right.recency.localeCompare(left.recency);
-}
-
-/**
- * Scores how directly a record answers the query: a title that starts with it beats a
- * title that contains it, which beats a mention buried in the notes. `null` means no match.
- */
-function matchRank(title: string, description: string, needle: string): number | null {
-  const lowerTitle = title.toLowerCase();
-  if (lowerTitle.startsWith(needle)) return 0;
-  if (lowerTitle.includes(needle)) return 1;
-  return description.toLowerCase().includes(needle) ? 2 : null;
+  return searchWindow(ranked, query, limit, offset, scope);
 }
 
 function snippetFor(description: string, needle: string): string {

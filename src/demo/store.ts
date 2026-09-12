@@ -1,5 +1,7 @@
 import { z } from "zod";
-import { IDEA_STATE_LABELS, PAGE_STATUS_LABELS, type SearchHit } from "../../shared/types";
+import { searchSchema } from "../../shared/request-schemas";
+import { matchSearchRank, type RankedSearchHit, searchWindow } from "../../shared/search-order";
+import { IDEA_STATE_LABELS, PAGE_STATUS_LABELS } from "../../shared/types";
 import { DEMO_STORAGE_KEY, demoAssets, setDemoStorageNotice } from "./mode";
 import { type DemoState, seedDemo } from "./seed";
 import { settingsRequest } from "./settings";
@@ -168,44 +170,55 @@ export class DemoStore {
               .map((item) => ({ ...item.board.project, archivedAt: item.archivedAt })),
           };
         case "/api/search": {
-          const query = (url.searchParams.get("q") ?? "").trim();
+          const { q: query, limit, offset, scope } = searchSchema.parse(Object.fromEntries(url.searchParams));
           const term = query.toLowerCase();
-          const hits: SearchHit[] = [];
+          const hits: RankedSearchHit[] = [];
           for (const page of [...board.pages, ...project.archivedPages]) {
-            if (!term || !`${page.title} ${page.description}`.toLowerCase().includes(term)) continue;
+            const rank = matchSearchRank(page.title, page.description, term);
+            if (rank === null) continue;
             const archived = project.archivedPages.includes(page);
             hits.push({
-              kind: "page",
-              group: archived
-                ? "archived"
-                : page.status === "done"
-                  ? "done"
-                  : page.status === "backlog"
-                    ? "backlog"
-                    : "active",
-              id: page.id,
-              title: page.title,
-              snippet: page.description.slice(0, 160),
-              where: archived ? "Archived" : PAGE_STATUS_LABELS[page.status],
-              category: page.category,
-              categoryColor: board.categories.find((item) => item.slug === page.category)?.color ?? null,
-              assigneeName: page.assigneeName,
+              rank,
+              recency: page.updatedAt,
+              hit: {
+                kind: "page",
+                group: archived
+                  ? "archived"
+                  : page.status === "done"
+                    ? "done"
+                    : page.status === "backlog"
+                      ? "backlog"
+                      : "active",
+                id: page.id,
+                title: page.title,
+                snippet: page.description.slice(0, 160),
+                where: archived ? "Archived" : PAGE_STATUS_LABELS[page.status],
+                category: page.category,
+                categoryColor: board.categories.find((item) => item.slug === page.category)?.color ?? null,
+                assigneeName: page.assigneeName,
+              },
             });
           }
-          for (const idea of project.ideas)
-            if (term && `${idea.title} ${idea.description}`.toLowerCase().includes(term))
+          for (const idea of project.ideas) {
+            const rank = matchSearchRank(idea.title, idea.description, term);
+            if (rank !== null)
               hits.push({
-                kind: "idea",
-                group: "ideas",
-                id: idea.id,
-                title: idea.title,
-                snippet: idea.description.slice(0, 160),
-                where: IDEA_STATE_LABELS[idea.state],
-                category: null,
-                categoryColor: null,
-                assigneeName: null,
+                rank,
+                recency: idea.updatedAt,
+                hit: {
+                  kind: "idea",
+                  group: "ideas",
+                  id: idea.id,
+                  title: idea.title,
+                  snippet: idea.description.slice(0, 160),
+                  where: IDEA_STATE_LABELS[idea.state],
+                  category: null,
+                  categoryColor: null,
+                  assigneeName: null,
+                },
               });
-          return { query, total: hits.length, hits: hits.slice(0, 100) };
+          }
+          return searchWindow(hits, query, limit, offset, scope);
         }
       }
       return structuredClone(
