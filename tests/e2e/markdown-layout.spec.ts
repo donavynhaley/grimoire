@@ -38,6 +38,9 @@ test("wide Markdown stays inside the notes and tables scroll independently", asy
   await page.getByRole("button", { name: "View notes", exact: true }).click();
   await expect(table).toBeVisible();
   await page.getByRole("button", { name: "Close page", exact: true }).click();
+  // Closing flushes pending notes before dismissing the editor and clearing its deep link.
+  await expect(page.getByRole("dialog", { name: "Edit page", exact: true })).toBeHidden();
+  await expect(page).not.toHaveURL(/[?&]page=/);
   await page.reload();
   await page.getByRole("button", { name: /^Open Make yourself at home/ }).click();
   await expect(page.locator(".cm-lp-table")).toBeVisible();
