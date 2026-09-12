@@ -52,6 +52,7 @@ function installEventSource(): { push: () => void } {
     close = vi.fn();
     constructor(readonly url: string) {}
     addEventListener(type: string, value: EventListener) {
+      if (type === "open") queueMicrotask(() => value(new Event("open")));
       if (type === "workspace") listener = value;
     }
     removeEventListener = vi.fn();

@@ -580,6 +580,12 @@ Only failures spend, so a right answer is never refused for having followed wron
 Unlike an agent credential, the key here is chosen by whoever is knocking, so the map is swept: a bucket that has fully refilled is indistinguishable from one that never existed, and those are the ones that go.
 Whether a forwarded address is believed is a deployment fact rather than a preference, so it is configured rather than guessed — wrong in one direction every visitor shares one allowance, wrong in the other the limit is free to step around.
 
+## Project identity on narrow phones
+
+At 480 CSS pixels and below the project switcher uses a second header row instead of hiding the project name.
+Its name truncates within that row, while the workspace tabs, search, account, and agent review keep their own row.
+The same layout serves signed-in boards and the demo so the selected project remains visible in both (UI-5, UI-6).
+
 ## First-run board
 
 The first person to open an installation gets a Getting started project rather than an empty one: six ordinary pages spread across the columns, each explaining the part of the board it sits in, so reading the board and learning it are the same act and clearing it out is the first thing it teaches.
@@ -587,6 +593,23 @@ They are seeded through the same `createPage` every other page goes through, so 
 The seed is not one transaction: the project row commits on its own and the pages are files written afterwards.
 A write that fails undoes the whole seed — the files already written and the row, whose fixed slug would otherwise refuse every later attempt at setup — so setup can simply be tried again; a process that dies mid-seed leaves both behind, and setup then needs the row removed by hand.
 A pages directory that already holds work is somebody's board being recovered beside a new database, and it is adopted as it stands rather than taught over.
+
+## Live reconnection
+
+An open SSE connection does not prove the browser saw changes sent during a disconnect.
+Every stream open invalidates Work and any loaded Ideas, and the connection becomes current only after canonical reads succeed.
+Failed reads keep their invalidation pending and retry with a delay capped at five seconds; cleanup cancels retries and ignores the old stream's completions.
+A delayed, quiet status distinguishes reconnection from a save error.
+Seen cursors only advance while the visible workspace has reconciled, including when a hidden tab returns (UI-2, ARCH-5).
+
+## Workspace response lifetime
+
+Board and idea reads belong to one workspace visit and one surface request.
+Switching projects, signing out, or unmounting cancels outstanding reads and invalidates their generation.
+A response that has already arrived still checks its generation before committing, because cancelling a network request alone cannot revoke a resolved promise.
+A newer read of the same surface also supersedes the older one.
+The API client captures the project before any asynchronous demo import so the request cannot drift into a later project.
+This keeps late background updates from replacing the selected board or its request scope (UI-8, ARCH-5).
 
 ## Agent access
 
@@ -649,6 +672,15 @@ The migration is restart-safe when a process stops after writing files but befor
 Grimoire does not automatically commit or push project changes.
 Point `GRIMOIRE_CARDS_DIRECTORY` into a Git repository when normal Git history, review, and backup behavior is desired.
 Repository access should match the sensitivity of the project notes because work and idea Markdown contain plain project content.
+
+## Search result windows
+
+Search ranks exact titles before prefixes, other title matches, and note matches before applying a bounded result window.
+Group, recency, and ID provide deterministic tie-breaks; the interface still groups each accumulated set by where work lives.
+The response adds an optional nextOffset for fetching another window, keeping the existing query, total, and hits contract compatible with older clients.
+Offsets describe the current canonical result set, not a frozen snapshot; edits during pagination may reorder results, so the UI deduplicates IDs and a fresh search starts from the current set.
+An explicit Archived scope accepts an empty query so recovery does not require remembering a title.
+The server and browser demo share ranking and window selection to avoid a different search contract in the playground.
 
 ## Public demonstration
 

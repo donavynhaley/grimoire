@@ -38,7 +38,17 @@ export function boardRoutes(app: AppContext): Route[] {
         json(
           context.response,
           200,
-          searchProject(database, pageStore, chapterStore, ideaStore, projectId, input.q, input.limit),
+          searchProject(
+            database,
+            pageStore,
+            chapterStore,
+            ideaStore,
+            projectId,
+            input.q,
+            input.limit,
+            input.offset,
+            input.scope,
+          ),
         );
       },
     },
