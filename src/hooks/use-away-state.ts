@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { AwayState } from "../../shared/types";
 import { away as loadAway, markSeen } from "../api/client";
 
@@ -13,11 +13,16 @@ import { away as loadAway, markSeen } from "../api/client";
 export function useAwayState(
   active: boolean,
   projectId: string | undefined,
+  ready = true,
 ): { awayState: AwayState | null; advanceSeen: () => void } {
+  const readyRef = useRef(ready);
+  useLayoutEffect(() => {
+    readyRef.current = ready;
+  }, [ready]);
   const [awayState, setAwayState] = useState<AwayState | null>(null);
 
   const advanceSeen = useCallback(() => {
-    if (document.visibilityState !== "visible") return;
+    if (!readyRef.current || document.visibilityState !== "visible") return;
     markSeen().catch(() => {
       // A missed advance only means the same changes greet the reader again.
     });

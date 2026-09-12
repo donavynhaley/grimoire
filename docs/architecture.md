@@ -588,6 +588,23 @@ The seed is not one transaction: the project row commits on its own and the page
 A write that fails undoes the whole seed — the files already written and the row, whose fixed slug would otherwise refuse every later attempt at setup — so setup can simply be tried again; a process that dies mid-seed leaves both behind, and setup then needs the row removed by hand.
 A pages directory that already holds work is somebody's board being recovered beside a new database, and it is adopted as it stands rather than taught over.
 
+## Live reconnection
+
+An open SSE connection does not prove the browser saw changes sent during a disconnect.
+Every stream open invalidates Work and any loaded Ideas, and the connection becomes current only after canonical reads succeed.
+Failed reads keep their invalidation pending and retry with a delay capped at five seconds; cleanup cancels retries and ignores the old stream's completions.
+A delayed, quiet status distinguishes reconnection from a save error.
+Seen cursors only advance while the visible workspace has reconciled, including when a hidden tab returns (UI-2, ARCH-5).
+
+## Workspace response lifetime
+
+Board and idea reads belong to one workspace visit and one surface request.
+Switching projects, signing out, or unmounting cancels outstanding reads and invalidates their generation.
+A response that has already arrived still checks its generation before committing, because cancelling a network request alone cannot revoke a resolved promise.
+A newer read of the same surface also supersedes the older one.
+The API client captures the project before any asynchronous demo import so the request cannot drift into a later project.
+This keeps late background updates from replacing the selected board or its request scope (UI-8, ARCH-5).
+
 ## Agent access
 
 Grimoire already had the API an agent needs, and lacked only a way for something without a browser to say who it is.

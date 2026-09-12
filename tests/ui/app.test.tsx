@@ -93,6 +93,7 @@ describe("Grimoire board", () => {
       close = vi.fn();
       constructor(readonly url: string) {}
       addEventListener(type: string, listener: EventListener) {
+        if (type === "open") queueMicrotask(() => listener(new Event("open")));
         if (type === "workspace") workspaceListener = listener;
       }
       removeEventListener = vi.fn();
@@ -1713,6 +1714,7 @@ describe("Grimoire board", () => {
       close = vi.fn();
       constructor(readonly url: string) {}
       addEventListener(type: string, listener: EventListener) {
+        if (type === "open") queueMicrotask(() => listener(new Event("open")));
         if (type === "presence") presenceListener = listener;
       }
       removeEventListener = vi.fn();
