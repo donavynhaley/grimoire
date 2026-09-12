@@ -1,92 +1,118 @@
 import { useEffect, useState } from "react";
-import { ApiError, liveEventsUrl } from "../api/client";
+import { liveEventsUrl } from "../api/client";
 import { demoMode } from "../demo/mode";
 
-/**
- * One Server-Sent Events stream per signed-in board, and the presence read off it.
- *
- * Events name what changed - work, ideas, or both - rather than carrying data, and nearby
- * events coalesce into one reload of canonical state. Watching a live change happen counts
- * as seeing it, so the flush advances the seen cursor; hidden tabs skip that inside
- * `advanceSeen` itself.
- */
+/** A connected stream is current only after missed workspace changes have been reconciled. */
 export function useLiveEvents({
   active,
   projectId,
   ideasLoaded,
   refreshBoard,
   refreshIdeas,
-  advanceSeen,
-  onError,
 }: {
   active: boolean;
   projectId: string | undefined;
   ideasLoaded: boolean;
   refreshBoard: () => Promise<void>;
   refreshIdeas: () => Promise<void>;
-  advanceSeen: () => void;
-  onError: (message: string) => void;
-}): ReadonlySet<string> {
+}): { online: ReadonlySet<string>; connected: boolean } {
   const [online, setOnline] = useState<ReadonlySet<string>>(() => new Set());
+  const [connected, setConnected] = useState(true);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: projectId is the trigger that reconnects the stream when the project changes; without it a switch would keep streaming the previous project's events
+  // biome-ignore lint/correctness/useExhaustiveDependencies: projectId reconnects the stream when the selected project changes
   useEffect(() => {
     if (demoMode || !active || typeof EventSource === "undefined") return;
     const source = new EventSource(liveEventsUrl());
+    let alive = true;
+    let opened = false;
     let pendingWork = false;
     let pendingIdeas = false;
     let refreshing = false;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    let retryDelay = 250;
+    setConnected(false);
 
     const flush = async () => {
-      if (refreshing) return;
+      if (!alive || !opened || refreshing) return;
+      clearTimeout(retry);
       refreshing = true;
       try {
-        while (pendingWork || pendingIdeas) {
+        while (alive && opened && (pendingWork || pendingIdeas)) {
           const work = pendingWork;
-          const ideaGarden = pendingIdeas;
+          const ideas = pendingIdeas;
           pendingWork = false;
           pendingIdeas = false;
-          await Promise.all([
-            work ? refreshBoard() : Promise.resolve(),
-            ideaGarden && ideasLoaded ? refreshIdeas() : Promise.resolve(),
-          ]);
-          advanceSeen();
+          try {
+            await Promise.all([
+              work ? refreshBoard() : Promise.resolve(),
+              ideas && ideasLoaded ? refreshIdeas() : Promise.resolve(),
+            ]);
+          } catch {
+            if (!alive) return;
+            pendingWork ||= work;
+            pendingIdeas ||= ideas;
+            setConnected(false);
+            retry = setTimeout(() => void flush(), retryDelay);
+            retryDelay = Math.min(retryDelay * 2, 5000);
+            return;
+          }
         }
-      } catch (value) {
-        onError(value instanceof ApiError ? value.message : "Live changes could not be loaded");
+        if (alive && opened) {
+          retryDelay = 250;
+          setConnected(true);
+        }
       } finally {
         refreshing = false;
       }
     };
-
-    const receiveWorkspaceChange = (event: Event) => {
+    const reconnect = () => {
+      opened = true;
+      pendingWork = true;
+      pendingIdeas = true;
+      setConnected(false);
+      void flush();
+    };
+    const disconnected = () => {
+      opened = false;
+      setConnected(false);
+      setOnline(new Set());
+      clearTimeout(retry);
+    };
+    const workspace = (event: Event) => {
       try {
         const scope = JSON.parse((event as MessageEvent<string>).data) as { scope?: string };
         pendingWork ||= scope.scope === "work" || scope.scope === "both";
         pendingIdeas ||= scope.scope === "ideas" || scope.scope === "both";
-        void flush();
+        if (pendingWork || pendingIdeas) {
+          setConnected(false);
+          void flush();
+        }
       } catch {
-        // Ignore malformed stream messages and keep the connection alive.
+        // A malformed message cannot invalidate the connection itself.
       }
     };
-    const receivePresence = (event: Event) => {
+    const presence = (event: Event) => {
       try {
         const payload = JSON.parse((event as MessageEvent<string>).data) as { online?: unknown };
         if (Array.isArray(payload.online)) setOnline(new Set(payload.online.map(String)));
       } catch {
-        // Ignore malformed stream messages and keep the connection alive.
+        // Keep listening after a malformed presence message.
       }
     };
-
-    source.addEventListener("workspace", receiveWorkspaceChange);
-    source.addEventListener("presence", receivePresence);
+    source.addEventListener("open", reconnect);
+    source.addEventListener("error", disconnected);
+    source.addEventListener("workspace", workspace);
+    source.addEventListener("presence", presence);
     return () => {
-      source.removeEventListener("workspace", receiveWorkspaceChange);
-      source.removeEventListener("presence", receivePresence);
+      alive = false;
+      clearTimeout(retry);
+      source.removeEventListener("open", reconnect);
+      source.removeEventListener("error", disconnected);
+      source.removeEventListener("workspace", workspace);
+      source.removeEventListener("presence", presence);
       source.close();
       setOnline(new Set());
     };
-  }, [active, advanceSeen, ideasLoaded, onError, projectId, refreshBoard, refreshIdeas]);
-
-  return online;
+  }, [active, ideasLoaded, projectId, refreshBoard, refreshIdeas]);
+  return { online, connected };
 }

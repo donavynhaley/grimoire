@@ -63,7 +63,6 @@ export function App() {
    */
   const [pageToOpen, setPageToOpen] = useState<{ id: string; token: number } | null>(null);
   const authenticated = sessionState?.status === "authenticated";
-  const { awayState, advanceSeen } = useAwayState(authenticated, board?.project.id);
 
   // Bumped on every canonical reload so open history views know to refetch.
   const [revision, setRevision] = useState(0);
@@ -114,15 +113,23 @@ export function App() {
     };
   }, [workspaceReads]);
 
-  const online = useLiveEvents({
-    active: authenticated && board !== null,
+  const { online, connected } = useLiveEvents({
+    active: authenticated && board !== null && !projectOpening,
     projectId: board?.project.id,
     ideasLoaded: ideas !== null,
     refreshBoard,
     refreshIdeas,
-    advanceSeen,
-    onError: setError,
   });
+  const { awayState, advanceSeen } = useAwayState(
+    authenticated,
+    board?.project.id,
+    connected && !projectOpening,
+  );
+  const reconnectingSlow = useSlowWait(authenticated && !projectOpening && !connected);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: revision identifies newly committed canonical state that can now be marked seen
+  useEffect(() => {
+    if (authenticated && connected && !projectOpening) advanceSeen();
+  }, [authenticated, connected, projectOpening, revision, advanceSeen]);
 
   const onAuthenticated = async (_user: User) => {
     await refreshBoard();
@@ -557,6 +564,11 @@ export function App() {
 
   return (
     <>
+      {reconnectingSlow && (
+        <div className="connection-status" role="status">
+          Reconnecting to live changes...
+        </div>
+      )}
       {error && (
         <div className="error-banner global-error" role="alert">
           {error}
