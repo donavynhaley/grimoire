@@ -42,6 +42,7 @@ async function openPage(page: Page) {
   await userEvent.click(await screen.findByRole("button", { name: /open backlog/i }));
   await userEvent.click(await screen.findByText(page.title, { exact: true }));
   await screen.findByRole("dialog", { name: "Edit page" });
+  await screen.findByRole("textbox", { name: "Notes" });
 }
 
 /** A live workspace event, so a teammate's change reaches an open dialog the way it really does. */

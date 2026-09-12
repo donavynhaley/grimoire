@@ -25,6 +25,7 @@ import { type DragPoint, gapIndexIn, pointWithin } from "../hooks/use-pointer-dr
 import { soleMemberId } from "../lib/capture-pickers";
 import { chapterWhen } from "../lib/chapter-dates";
 import { plainTextFromMarkdown } from "../lib/markdown-text";
+import { settingsSectionsFor } from "../lib/settings-sections";
 import { AwayDigest } from "./AwayDigest";
 import { BoardDialogs } from "./BoardDialogs";
 import { BoardTopBar } from "./BoardTopBar";
@@ -39,11 +40,7 @@ import { MoveSlot } from "./MoveSlot";
 import { MovingBar } from "./MovingBar";
 import { PageTile } from "./PageTile";
 import type { ProjectActions } from "./ProjectMenu";
-import {
-  type ProjectSettingsActions,
-  type SettingsSection,
-  settingsSectionsFor,
-} from "./ProjectSettingsDialog";
+import type { ProjectSettingsActions, SettingsSection } from "./ProjectSettingsDialog";
 import { type CapturePageInput, QuickCapture } from "./QuickCapture";
 import { WorkFilters } from "./WorkFilters";
 

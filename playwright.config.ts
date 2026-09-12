@@ -16,6 +16,7 @@ const WEB_PORT = 5302;
 
 export default defineConfig({
   testDir: "tests/e2e",
+  outputDir: "test-results/development",
   // Every test signs into the same freshly-bootstrapped project, so they take turns.
   workers: 1,
   fullyParallel: false,

@@ -36,6 +36,15 @@ jobs:
       - name: Build production application
         run: npm run build
 
+      - name: Install browser for end-to-end checks
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify browser behavior
+        run: npm run test:e2e
+
+      - name: Verify production feature loading
+        run: npm run test:production
+
       - name: Install MCP package dependencies
         run: npm ci
         working-directory: packages/grimoire-mcp

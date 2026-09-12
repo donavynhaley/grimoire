@@ -26,3 +26,5 @@ coverage/
 
 # Local design scratch pages.
 .lavish/
+
+/tests/production/.data/

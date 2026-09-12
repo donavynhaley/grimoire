@@ -1,3 +1,4 @@
+import type { ComponentProps } from "react";
 import { useCallback, useEffect, useState } from "react";
 import type {
   BoardWorkspace,
@@ -26,7 +27,13 @@ import {
   uploadAvatar,
 } from "./api/client";
 import { AuthScreen } from "./components/AuthScreen";
-import { Board } from "./components/Board";
+import { deferComponent } from "./components/Deferred";
+
+const Board = deferComponent<ComponentProps<typeof import("./components/Board")["Board"]>>(
+  () => import("./components/Board").then((module) => ({ default: module.Board })),
+  { exportName: "Board", label: "your board", workspace: true },
+);
+
 import type { CapturePageInput } from "./components/QuickCapture";
 import { type UndoNotice, UndoToast } from "./components/UndoToast";
 import { demoMode } from "./demo/mode";

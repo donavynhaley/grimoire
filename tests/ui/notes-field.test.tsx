@@ -34,8 +34,10 @@ function notesElement(value: string, onChange: (value: string) => void = () => u
   );
 }
 
-function renderNotes(value: string, onChange: (value: string) => void = () => undefined) {
-  return render(notesElement(value, onChange));
+async function renderNotes(value: string, onChange: (value: string) => void = () => undefined) {
+  const view = render(notesElement(value, onChange));
+  await screen.findByRole("textbox", { name: "Notes" });
+  return view;
 }
 
 /** What the surface is currently showing, which is never the same as what it holds. */
@@ -48,8 +50,8 @@ function surface(): HTMLElement {
 }
 
 describe("NotesField live preview", () => {
-  it("draws what the Markdown produces instead of the Markdown", () => {
-    const { container } = renderNotes("# Goal\n\nUse **bold** words and *quiet* ones.");
+  it("draws what the Markdown produces instead of the Markdown", async () => {
+    const { container } = await renderNotes("# Goal\n\nUse **bold** words and *quiet* ones.");
 
     expect(container.querySelector(".cm-lp-h1")).not.toBeNull();
     expect(container.querySelector(".cm-lp-strong")?.textContent).toBe("bold");
@@ -61,9 +63,9 @@ describe("NotesField live preview", () => {
     expect(shown()).toContain("bold");
   });
 
-  it("keeps the whole document, not just the part it is drawing", () => {
+  it("keeps the whole document, not just the part it is drawing", async () => {
     const changes: string[] = [];
-    renderNotes("**bold**", (value) => changes.push(value));
+    await renderNotes("**bold**", (value) => changes.push(value));
 
     // Nothing was rewritten to make it render: the notes still say what they said.
     expect(screen.getByRole("textbox", { name: "Notes" })).toBeInTheDocument();
@@ -72,7 +74,7 @@ describe("NotesField live preview", () => {
 
   it("shows a link as a link and follows it rather than editing it", async () => {
     const open = vi.spyOn(window, "open").mockReturnValue(null);
-    const { container } = renderNotes("A [reference](https://example.com) worth reading.");
+    const { container } = await renderNotes("A [reference](https://example.com) worth reading.");
 
     const link = container.querySelector(".cm-lp-link") as HTMLElement;
     expect(link.textContent).toBe("reference");
@@ -82,15 +84,15 @@ describe("NotesField live preview", () => {
     expect(open).toHaveBeenCalledWith("https://example.com", "_blank", "noreferrer");
   });
 
-  it("shows raw HTML as text rather than injecting it", () => {
-    renderNotes('<img src="x" onerror="alert(1)">definitely text');
+  it("shows raw HTML as text rather than injecting it", async () => {
+    await renderNotes('<img src="x" onerror="alert(1)">definitely text');
 
     expect(document.querySelector('img[src="x"]')).toBeNull();
     expect(shown()).toContain("definitely text");
   });
 
-  it("draws a rule, a quote, and a bullet as themselves", () => {
-    const { container } = renderNotes("> quoted\n\n- first\n- second\n\n---");
+  it("draws a rule, a quote, and a bullet as themselves", async () => {
+    const { container } = await renderNotes("> quoted\n\n- first\n- second\n\n---");
 
     expect(container.querySelector(".cm-lp-quote")).not.toBeNull();
     expect(container.querySelectorAll(".cm-lp-bullet")).toHaveLength(2);
@@ -98,8 +100,8 @@ describe("NotesField live preview", () => {
     expect(shown()).not.toContain(">");
   });
 
-  it("draws a table as a table, because no hidden pipe makes rows into columns", () => {
-    const { container } = renderNotes("| Part | Owner |\n| --- | ---: |\n| Door | Ana |");
+  it("draws a table as a table, because no hidden pipe makes rows into columns", async () => {
+    const { container } = await renderNotes("| Part | Owner |\n| --- | ---: |\n| Door | Ana |");
 
     const table = container.querySelector(".cm-lp-table table");
     expect(table).not.toBeNull();
@@ -120,6 +122,7 @@ describe("NotesField live preview", () => {
       });
     }
     render(<TableHarness />);
+    await screen.findByRole("textbox", { name: "Notes" });
 
     fireEvent.mouseDown(screen.getByRole("button", { name: "Add a column" }));
 
@@ -138,6 +141,7 @@ describe("NotesField live preview", () => {
       });
     }
     render(<TableHarness />);
+    await screen.findByRole("textbox", { name: "Notes" });
 
     fireEvent.mouseDown(screen.getByRole("button", { name: "Add a row" }));
 
@@ -147,7 +151,7 @@ describe("NotesField live preview", () => {
   });
 
   it("takes a click on a cell as a request to write in that cell", async () => {
-    const { container } = renderNotes("| Part | Owner |\n| --- | --- |\n| Door | Ana |");
+    const { container } = await renderNotes("| Part | Owner |\n| --- | --- |\n| Door | Ana |");
 
     const ana = Array.from(container.querySelectorAll("td")).find((cell) => cell.textContent === "Ana");
     expect(ana).toBeDefined();
@@ -158,8 +162,8 @@ describe("NotesField live preview", () => {
     expect(shown()).toContain("| Door | Ana |");
   });
 
-  it("keeps a fenced block as the characters it contains", () => {
-    const { container } = renderNotes("```\nconst door = 1;\n```");
+  it("keeps a fenced block as the characters it contains", async () => {
+    const { container } = await renderNotes("```\nconst door = 1;\n```");
 
     expect(container.querySelector(".cm-lp-code-line")).not.toBeNull();
     expect(shown()).toContain("const door = 1;");
@@ -167,8 +171,8 @@ describe("NotesField live preview", () => {
 });
 
 describe("NotesField Obsidian embeds", () => {
-  it("renders ![[name]] embeds as project images the way Obsidian does", () => {
-    const { container } = renderNotes("See ![[shot.png]] for the layout.");
+  it("renders ![[name]] embeds as project images the way Obsidian does", async () => {
+    const { container } = await renderNotes("See ![[shot.png]] for the layout.");
 
     const image = container.querySelector("img.cm-lp-image");
     expect(image).toHaveAttribute("src", "/api/images/shot.png");
@@ -177,8 +181,8 @@ describe("NotesField Obsidian embeds", () => {
     expect(shown()).not.toContain("![[shot.png]]");
   });
 
-  it("honors Obsidian display sizes and alt modifiers", () => {
-    const { container } = renderNotes(
+  it("honors Obsidian display sizes and alt modifiers", async () => {
+    const { container } = await renderNotes(
       "![[shot.png|300]]\n\n![[plan.png|300x200]]\n\n![[door.png|door sketch]]",
     );
 
@@ -191,24 +195,24 @@ describe("NotesField Obsidian embeds", () => {
     expect(images[2]).not.toHaveAttribute("width");
   });
 
-  it("leaves embeds inside code as literal text", () => {
-    const { container } = renderNotes("Use `![[literal.png]]` to embed.\n\n```\n![[fenced.png]]\n```");
+  it("leaves embeds inside code as literal text", async () => {
+    const { container } = await renderNotes("Use `![[literal.png]]` to embed.\n\n```\n![[fenced.png]]\n```");
 
     expect(container.querySelector("img.cm-lp-image")).toBeNull();
     expect(shown()).toContain("![[literal.png]]");
     expect(shown()).toContain("![[fenced.png]]");
   });
 
-  it("resolves hand-written relative image paths by file name", () => {
-    const { container } = renderNotes("![goal](images/goal.png)");
+  it("resolves hand-written relative image paths by file name", async () => {
+    const { container } = await renderNotes("![goal](images/goal.png)");
 
     const image = container.querySelector("img.cm-lp-image");
     expect(image).toHaveAttribute("src", "/api/images/goal.png");
     expect(image).toHaveAttribute("alt", "goal");
   });
 
-  it("leaves absolute image sources untouched", () => {
-    const { container } = renderNotes("![chart](https://example.com/chart.png)");
+  it("leaves absolute image sources untouched", async () => {
+    const { container } = await renderNotes("![chart](https://example.com/chart.png)");
 
     expect(container.querySelector("img.cm-lp-image")).toHaveAttribute(
       "src",
@@ -224,6 +228,7 @@ describe("NotesField task checkboxes", () => {
       return notesElement(value, setValue);
     }
     const { container } = render(<TaskHarness />);
+    await screen.findByRole("textbox", { name: "Notes" });
 
     const box = container.querySelector("input.cm-lp-task") as HTMLInputElement;
     expect(box.checked).toBe(false);
@@ -236,7 +241,7 @@ describe("NotesField task checkboxes", () => {
   });
 
   it("hands the box back as [ ] once the caret is on its line", async () => {
-    const { container } = renderNotes("- [ ] hang the door");
+    const { container } = await renderNotes("- [ ] hang the door");
     expect(container.querySelector("input.cm-lp-task")).not.toBeNull();
 
     surface().focus();
@@ -277,6 +282,7 @@ describe("NotesField image paste", () => {
     vi.mocked(uploadImage).mockResolvedValue({ name: "pasted-image-20260807-183045-ab12.png" });
     const written: string[] = [];
     render(<PasteHarness onValue={(value) => written.push(value)} />);
+    await screen.findByRole("textbox", { name: "Notes" });
 
     const file = png();
     fireEvent.paste(surface(), { clipboardData: clipboard([file]) });
@@ -290,6 +296,7 @@ describe("NotesField image paste", () => {
   it("draws the picture once the caret is no longer standing on it", async () => {
     vi.mocked(uploadImage).mockResolvedValue({ name: "settled.png" });
     const { container } = render(<PasteHarness />);
+    await screen.findByRole("textbox", { name: "Notes" });
 
     fireEvent.paste(surface(), { clipboardData: clipboard([png()]) });
     await waitFor(() => expect(uploadImage).toHaveBeenCalled());
@@ -305,6 +312,7 @@ describe("NotesField image paste", () => {
   it("removes the placeholder and reports when an upload fails", async () => {
     vi.mocked(uploadImage).mockRejectedValue(new Error("boom"));
     render(<PasteHarness />);
+    await screen.findByRole("textbox", { name: "Notes" });
 
     fireEvent.paste(surface(), { clipboardData: clipboard([png()]) });
 
@@ -316,6 +324,7 @@ describe("NotesField image paste", () => {
     vi.mocked(uploadImage).mockResolvedValue({ name: "from-camera-roll.png" });
     const written: string[] = [];
     const { container } = render(<PasteHarness onValue={(value) => written.push(value)} />);
+    await screen.findByRole("textbox", { name: "Notes" });
 
     expect(screen.getByRole("button", { name: "Add an image" })).toBeInTheDocument();
     const picker = container.querySelector('input[type="file"]') as HTMLInputElement;
@@ -329,8 +338,9 @@ describe("NotesField image paste", () => {
     await waitFor(() => expect(written.at(-1)).toBe("Existing notes.\n\n![[from-camera-roll.png]]"));
   });
 
-  it("ignores pastes that contain no image", () => {
+  it("ignores pastes that contain no image", async () => {
     render(<PasteHarness />);
+    await screen.findByRole("textbox", { name: "Notes" });
 
     fireEvent.paste(surface(), { clipboardData: clipboard([]) });
 
@@ -342,6 +352,7 @@ describe("NotesField image paste", () => {
     vi.mocked(uploadImage).mockResolvedValue({ name: "dropped.png" });
     const written: string[] = [];
     const { container } = render(<PasteHarness onValue={(value) => written.push(value)} />);
+    await screen.findByRole("textbox", { name: "Notes" });
 
     const field = container.querySelector(".notes-field") as Element;
     const file = new File([Uint8Array.from([137, 80, 78, 71])], "sketch.png", { type: "image/png" });
@@ -350,8 +361,9 @@ describe("NotesField image paste", () => {
     await waitFor(() => expect(written.at(-1)).toBe("Existing notes.\n\n![[dropped.png]]"));
   });
 
-  it("shows the drop affordance while files drag across the field", () => {
+  it("shows the drop affordance while files drag across the field", async () => {
     const { container } = render(<PasteHarness />);
+    await screen.findByRole("textbox", { name: "Notes" });
     const field = container.querySelector(".notes-field") as Element;
 
     fireEvent.dragEnter(field, { dataTransfer: { files: [], types: ["Files"] } });
@@ -364,7 +376,7 @@ describe("NotesField image paste", () => {
 
 describe("NotesField source mode", () => {
   it("hands over the Markdown itself, and offers the drawn document back", async () => {
-    const { container } = renderNotes("# Goal\n\nUse **bold** words and ![[shot.png]] beside them.");
+    const { container } = await renderNotes("# Goal\n\nUse **bold** words and ![[shot.png]] beside them.");
     expect(container.querySelector(".cm-lp-h1")).not.toBeNull();
 
     await userEvent.click(screen.getByRole("button", { name: "Edit notes" }));
@@ -387,7 +399,7 @@ describe("NotesField source mode", () => {
 
   it("changes what is drawn and never what is written", async () => {
     const changes: string[] = [];
-    renderNotes("# Goal\n\n- [ ] hang the door", (value) => changes.push(value));
+    await renderNotes("# Goal\n\n- [ ] hang the door", (value) => changes.push(value));
 
     await userEvent.click(screen.getByRole("button", { name: "Edit notes" }));
     await waitFor(() => expect(shown()).toContain("# Goal"));
@@ -397,7 +409,7 @@ describe("NotesField source mode", () => {
   });
 
   it("brings the caret with it, because asking for the Markdown is asking to write in it", async () => {
-    renderNotes("notes");
+    await renderNotes("notes");
 
     await userEvent.click(screen.getByRole("button", { name: "Edit notes" }));
 
@@ -416,6 +428,7 @@ describe("NotesField as a controlled field", () => {
       });
     }
     render(<TypingHarness />);
+    await screen.findByRole("textbox", { name: "Notes" });
 
     await userEvent.type(surface(), "hello");
 
@@ -431,15 +444,15 @@ describe("NotesField as a controlled field", () => {
     await waitFor(() => expect(shown()).toBe("theirs, adopted while this field sat untouched"));
   });
 
-  it("names the surface and offers the same destination to a keyboard", () => {
-    renderNotes("notes");
+  it("names the surface and offers the same destination to a keyboard", async () => {
+    await renderNotes("notes");
 
     expect(screen.getByRole("textbox", { name: "Notes" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Edit notes" })).toBeInTheDocument();
   });
 
-  it("carries the resting height the rows asked for", () => {
-    const { container } = renderNotes("");
+  it("carries the resting height the rows asked for", async () => {
+    const { container } = await renderNotes("");
 
     expect(
       (container.querySelector(".notes-field") as HTMLElement).style.getPropertyValue("--notes-rows"),
@@ -448,26 +461,26 @@ describe("NotesField as a controlled field", () => {
 });
 
 describe("plainTextFromMarkdown", () => {
-  it("strips the syntax that would clutter a page tile", () => {
+  it("strips the syntax that would clutter a page tile", async () => {
     const text = plainTextFromMarkdown(
       "# Goal\n\nUse **bold** and [a link](https://example.com).\n\n- one\n- two",
     );
     expect(text).toBe("Goal Use bold and a link. one two");
   });
 
-  it("keeps snake_case identifiers intact", () => {
+  it("keeps snake_case identifiers intact", async () => {
     expect(plainTextFromMarkdown("open wizard_tower_door now")).toBe("open wizard_tower_door now");
   });
 
-  it("drops Obsidian embeds from previews entirely", () => {
+  it("drops Obsidian embeds from previews entirely", async () => {
     expect(plainTextFromMarkdown("before ![[shot.png]] after")).toBe("before after");
   });
 
-  it("keeps code content while dropping the fences", () => {
+  it("keeps code content while dropping the fences", async () => {
     expect(plainTextFromMarkdown("```ts\nconst x = 1;\n```")).toBe("const x = 1;");
   });
 
-  it("reduces images and task lists to their text", () => {
+  it("reduces images and task lists to their text", async () => {
     expect(plainTextFromMarkdown("- [x] ![shot](a.png) done")).toBe("shot done");
   });
 });

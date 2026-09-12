@@ -1,6 +1,13 @@
-import { useRef, useState } from "react";
+import type { ComponentProps } from "react";
+import { useCallback, useRef, useState } from "react";
 import { uploadImage } from "../api/client";
-import { MarkdownEditor, type MarkdownEditorHandle } from "./MarkdownEditor";
+import { deferComponent } from "./Deferred";
+import type { MarkdownEditorHandle } from "./MarkdownEditor";
+
+const MarkdownEditor = deferComponent<ComponentProps<typeof import("./MarkdownEditor")["MarkdownEditor"]>>(
+  () => import("./MarkdownEditor").then((module) => ({ default: module.MarkdownEditor })),
+  { exportName: "MarkdownEditor", label: "notes editor" },
+);
 
 type Props = {
   label: string;
@@ -65,6 +72,11 @@ export function NotesField({
   const dragDepth = useRef(0);
   const imagePicker = useRef<HTMLInputElement | null>(null);
   const editor = useRef<MarkdownEditorHandle | null>(null);
+  const [ready, setReady] = useState(false);
+  const attachEditor = useCallback((handle: MarkdownEditorHandle | null) => {
+    editor.current = handle;
+    setReady(handle !== null);
+  }, []);
   const focused = useRef(false);
   const valueRef = useRef(value);
   valueRef.current = value;
@@ -86,6 +98,7 @@ export function NotesField({
   };
 
   const importImages = async (files: File[]) => {
+    if (!editor.current) return;
     const images = files.filter((file) => file.type.startsWith("image/"));
     if (images.length === 0) return;
     setUploadFailed(false);
@@ -156,6 +169,7 @@ export function NotesField({
             reached the way a phone actually holds pictures.
           */}
           <button
+            disabled={!ready}
             aria-label={addImageLabel}
             className="text-button notes-add-image"
             onClick={() => imagePicker.current?.click()}
@@ -190,6 +204,7 @@ export function NotesField({
             control has always offered a keyboard: the end of the notes.
           */}
           <button
+            disabled={!ready}
             aria-label={source ? viewLabel : editLabel}
             className="text-button"
             onClick={() => {
@@ -213,7 +228,7 @@ export function NotesField({
           }}
           onPasteFiles={(files) => void importImages(files)}
           placeholder={placeholder}
-          ref={editor}
+          ref={attachEditor}
           scrollerClass="notes-view"
           source={source}
           value={value}

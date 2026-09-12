@@ -15,12 +15,14 @@
     "check": "tsc --noEmit && biome ci",
     "format": "biome check --write",
     "format:check": "biome ci",
-    "build": "npm run check && vite build && npm run build:server",
+    "build": "npm run check && vite build && npm run check:bundle && npm run build:server",
     "build:server": "esbuild server/index.ts --bundle --format=esm --packages=external --platform=node --sourcemap --outfile=server-dist/index.js",
     "preview": "vite preview",
     "check:mcp": "npm --prefix packages/grimoire-mcp run check",
     "verify:mcp": "npm --prefix packages/grimoire-mcp run verify",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "check:bundle": "node scripts/check-bundle.mjs",
+    "test:production": "playwright test --config playwright.production.config.ts"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.0",

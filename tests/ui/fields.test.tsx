@@ -145,7 +145,7 @@ describe("page fields", () => {
     const calls = mountWith(board);
 
     await user.click(await screen.findByText(board.pages[1]!.title));
-    await user.click(screen.getByRole("button", { name: "Change Region" }));
+    await user.click(await screen.findByRole("button", { name: "Change Region" }));
     await user.type(screen.getByLabelText("Find a Region option"), "fore");
     // The list narrows to what was typed instead of offering every option as a button.
     expect(screen.queryByRole("button", { name: "Set Region to salt marsh" })).not.toBeInTheDocument();
@@ -170,7 +170,7 @@ describe("page fields", () => {
     await user.click(await screen.findByText(board.pages[1]!.title));
     const rail = screen.getByLabelText("Page properties");
 
-    await user.click(screen.getByRole("button", { name: "Change Region" }));
+    await user.click(await screen.findByRole("button", { name: "Change Region" }));
     const popover = screen.getByRole("dialog", { name: "Choose a Region" });
     expect(popover).toBeInTheDocument();
 
@@ -196,7 +196,7 @@ describe("page fields", () => {
     mountWith(board);
 
     await user.click(await screen.findByText(board.pages[1]!.title));
-    await user.click(screen.getByRole("button", { name: "Change Region" }));
+    await user.click(await screen.findByRole("button", { name: "Change Region" }));
     expect(screen.getByRole("dialog", { name: "Choose a Region" })).toBeInTheDocument();
 
     // Clicking elsewhere is the way out people reach for before they find the cancel.

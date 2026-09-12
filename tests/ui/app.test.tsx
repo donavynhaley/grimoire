@@ -442,7 +442,7 @@ describe("Grimoire board", () => {
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Edit page" })).not.toBeInTheDocument());
 
     await userEvent.click(await screen.findByRole("button", { name: /open account settings/i }));
-    await userEvent.click(screen.getByRole("button", { name: "sign out" }));
+    await userEvent.click(await screen.findByRole("button", { name: "sign out" }));
     await userEvent.type(await screen.findByLabelText("Email"), initial.currentUser.email);
     await userEvent.type(screen.getByLabelText("Password"), "correct horse wizard tower");
     await userEvent.click(screen.getByRole("button", { name: "sign in" }));
@@ -1458,7 +1458,7 @@ describe("Grimoire board", () => {
     expect(
       screen.queryByRole("button", { name: `Remove ${initial.currentUser.name}` }),
     ).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: `Remove ${removedMember.name}` }));
+    await userEvent.click(await screen.findByRole("button", { name: `Remove ${removedMember.name}` }));
     await userEvent.click(screen.getByRole("button", { name: `Confirm remove ${removedMember.name}` }));
 
     await waitFor(() => expect(screen.queryByText(removedMember.email)).not.toBeInTheDocument());
@@ -1500,7 +1500,7 @@ describe("Grimoire board", () => {
     expect(
       screen.queryByRole("button", { name: `Make ${initial.currentUser.name} a member` }),
     ).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: `Make ${promoted.name} an owner` }));
+    await userEvent.click(await screen.findByRole("button", { name: `Make ${promoted.name} an owner` }));
 
     expect(fetchMock).toHaveBeenCalledWith(
       `/api/members/${promoted.id}`,

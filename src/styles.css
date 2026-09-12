@@ -4515,6 +4515,15 @@ textarea:hover {
   }
 }
 
+/* Deferred features -------------------------------------------------------- */
+.deferred-dialog {
+  min-height: 8rem;
+}
+.deferred-inline {
+  min-height: 4rem;
+  color: var(--muted);
+}
+
 .loading-screen,
 .auth-shell {
   display: grid;

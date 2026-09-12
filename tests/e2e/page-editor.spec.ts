@@ -28,6 +28,7 @@ async function seedWordyPage(page: Page, title: string): Promise<void> {
 
 /** What the panel and the notes each have to scroll, measured together in the one pass. */
 async function measure(page: Page) {
+  await expect(page.locator(".notes-view")).toBeAttached();
   return page.locator(".page-editor").evaluate((panel) => {
     const notes = panel.querySelector(".notes-view") as HTMLElement | null;
     return {
