@@ -3,6 +3,7 @@ import { defineConfig, devices } from "@playwright/test";
 /** Exercise actual built imports, including the browser's failed-module cache. */
 export default defineConfig({
   testDir: "tests/production",
+  outputDir: "test-results/production",
   workers: 1,
   use: { baseURL: "http://127.0.0.1:5303", trace: "retain-on-failure" },
   projects: [
