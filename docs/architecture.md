@@ -580,6 +580,12 @@ Only failures spend, so a right answer is never refused for having followed wron
 Unlike an agent credential, the key here is chosen by whoever is knocking, so the map is swept: a bucket that has fully refilled is indistinguishable from one that never existed, and those are the ones that go.
 Whether a forwarded address is believed is a deployment fact rather than a preference, so it is configured rather than guessed — wrong in one direction every visitor shares one allowance, wrong in the other the limit is free to step around.
 
+## Project identity on narrow phones
+
+At 480 CSS pixels and below the project switcher uses a second header row instead of hiding the project name.
+Its name truncates within that row, while the workspace tabs, search, account, and agent review keep their own row.
+The same layout serves signed-in boards and the demo so the selected project remains visible in both (UI-5, UI-6).
+
 ## First-run board
 
 The first person to open an installation gets a Getting started project rather than an empty one: six ordinary pages spread across the columns, each explaining the part of the board it sits in, so reading the board and learning it are the same act and clearing it out is the first thing it teaches.
