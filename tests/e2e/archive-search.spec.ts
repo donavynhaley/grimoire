@@ -1,9 +1,16 @@
 import { expect, test } from "@playwright/test";
-import { openBoard } from "./helpers";
+import { signIn } from "./helpers";
 
 test("search reaches every match and restores an archived exact title", async ({ page }) => {
-  await openBoard(page);
+  await signIn(page);
   const query = `recovery${Date.now()}`;
+  // Keep this deliberately large board out of the gesture tests' shared starter project.
+  const created = await page.request.post("/api/projects", { data: { name: query } });
+  expect(created.ok()).toBe(true);
+  const project = (await created.json()).project;
+  await page.context().setExtraHTTPHeaders({ "x-grimoire-project": project.id });
+  await page.goto(`/?project=${project.id}`);
+  await expect(page.getByLabel("Capture work page")).toBeVisible();
   for (let index = 0; index < 40; index += 1) {
     const response = await page.request.post("/api/pages", {
       data: { title: `Task ${index}`, description: `mentions ${query}`, status: "ready" },
