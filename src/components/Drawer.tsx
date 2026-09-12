@@ -25,6 +25,8 @@ type Props = {
    * drawer open - in which case a swipe springs back rather than closing.
    */
   onClose: () => void | Promise<void>;
+  /** Disable editing during an exit while the backdrop still shields the board. */
+  inert?: boolean;
   children: ReactNode;
 };
 
@@ -41,7 +43,15 @@ type Props = {
  * the sheet - it is the original, still in place. Everything the sheet needs and the dialog
  * does not is added only when a thumb is holding the device.
  */
-export function Drawer({ className, backdropClassName = "", labelledBy, label, onClose, children }: Props) {
+export function Drawer({
+  className,
+  backdropClassName = "",
+  labelledBy,
+  label,
+  onClose,
+  inert = false,
+  children,
+}: Props) {
   const coarse = useCoarsePointer();
   const panel = useRef<HTMLElement>(null);
   const [drag, setDrag] = useState<{ from: number; at: number; startedAt: number } | null>(null);
@@ -94,6 +104,7 @@ export function Drawer({ className, backdropClassName = "", labelledBy, label, o
           aria-label={label}
           aria-labelledby={labelledBy}
           aria-modal="true"
+          inert={inert}
           className={className}
           ref={panel}
           role="dialog"
@@ -116,6 +127,7 @@ export function Drawer({ className, backdropClassName = "", labelledBy, label, o
         aria-label={label}
         aria-labelledby={labelledBy}
         aria-modal="true"
+        inert={inert}
         className={`${className} drawer-sheet`}
         ref={panel}
         role="dialog"

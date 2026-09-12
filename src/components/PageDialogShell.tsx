@@ -72,8 +72,13 @@ export function PageDialogShell({ onClose, ...props }: Props) {
   }, [closing]);
 
   return (
-    <div className={`page-modal${closing ? " closing" : ""}`} ref={shell} inert={closing}>
-      <Drawer className="dialog-panel page-editor" labelledBy="dialog-panel-title" onClose={close}>
+    <div className={`page-modal${closing ? " closing" : ""}`} ref={shell}>
+      <Drawer
+        className="dialog-panel page-editor"
+        labelledBy="dialog-panel-title"
+        onClose={close}
+        inert={closing}
+      >
         <header className="dialog-header">
           <div>
             <p className="eyebrow">page details</p>

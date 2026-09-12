@@ -42,7 +42,15 @@ test("the page stays interactive during entrance and dismisses once after its sh
       .locator(".modal-backdrop")
       .evaluate((node) => node.getAnimations()[0]!.effect!.getTiming().duration),
   ).toBe(90);
-  await expect(page.locator(".page-modal")).toHaveAttribute("inert", "");
+  await expect(page.locator(".page-editor")).toHaveAttribute("inert", "");
+  // A click during the exit must still land on the backdrop, never on the board beneath.
+  expect(
+    await page.locator(".project-menu-trigger").evaluate((trigger) => {
+      const box = trigger.getBoundingClientRect();
+      const target = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+      return target?.classList.contains("modal-backdrop");
+    }),
+  ).toBe(true);
   // Repeated Escape cannot schedule another dismissal of a subsequently opened page.
   await page.keyboard.press("Escape");
   await page.evaluate(() => {
@@ -90,7 +98,7 @@ test("reduced motion opens and closes without animation and save failures keep t
     await page.getByLabel("Title", { exact: true }).fill(kept);
     await page.getByRole("button", { name: "Close page", exact: true }).click();
     await expect(page.getByText("save failed", { exact: true })).toBeVisible();
-    await expect(page.locator(".page-modal")).not.toHaveAttribute("inert");
+    await expect(page.locator(".page-editor")).not.toHaveAttribute("inert");
     await expect(page.getByLabel("Title", { exact: true })).toHaveValue(kept);
     await page.unrouteAll({ behavior: "wait" });
     const motions: string[] = [];

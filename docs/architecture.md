@@ -738,5 +738,6 @@ The page editor keeps one Drawer shell mounted across the lazy feature download 
 Its backdrop fades in over 140 ms while the panel settles upward by 6 px on desktop or 10 px in the mobile sheet, with ease-out timing and no scale or bounce.
 Input is available immediately; the animation does not gate focus or editing.
 Closing first flushes pending content and stays open if saving fails or needs a conflict decision.
-After a successful flush, the shell becomes inert and fades out over 90 ms before dismissal restores focus to the opener.
+After a successful flush, the editor becomes inert and fades out over 90 ms before dismissal restores focus to the opener.
+The backdrop keeps intercepting pointer input throughout the exit so a click cannot reach the board before focus is restored.
 The close lifecycle waits on the CSS animation rather than a duplicate JavaScript timer, and reduced motion removes the animation and its delay (UI-1, UI-5, UI-8).
