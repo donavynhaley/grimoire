@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.1.1](https://github.com/donavynhaley/grimoire/compare/v1.1.0...v1.1.1) (2026-09-12)
+
+
+### Bug Fixes
+
+* keep mobile Markdown within the notes panel ([e66b8c8](https://github.com/donavynhaley/grimoire/commit/e66b8c8ed3120859c758c85b07a0b14ba5a4bd0a))
+* keep mobile Markdown within the notes panel ([d7c8ee7](https://github.com/donavynhaley/grimoire/commit/d7c8ee7866b1106c41f645960cc2b1d7d5c29c98))
+* **live:** guard seen writes before React renders disconnects ([2297059](https://github.com/donavynhaley/grimoire/commit/2297059a5d7f678a2d8156872f447123b3b14d00))
+* **live:** prevent seen advances during stream reconciliation ([cba872f](https://github.com/donavynhaley/grimoire/commit/cba872f1453a3354e60ce72e4bc3b6db22ded039))
+* **live:** reconcile workspace state after reconnecting ([5dc1842](https://github.com/donavynhaley/grimoire/commit/5dc1842c0e482852e928472d077ecbf8841d122b))
+* **live:** reconcile workspace state after reconnecting ([b3a4d85](https://github.com/donavynhaley/grimoire/commit/b3a4d85e27289cdcb9f26af5c2573ab01ca6cb5f))
+* **previews:** describe projects and keep page details private ([e191318](https://github.com/donavynhaley/grimoire/commit/e1913182f1b1c584daf0f1a8e8f72396698a8813))
+* **previews:** describe projects and keep page details private ([028891a](https://github.com/donavynhaley/grimoire/commit/028891a864fec2b101e5bafc4d3cedc0b36bd4ce))
+* **search:** make archived matches reachable beyond the result cap ([607b451](https://github.com/donavynhaley/grimoire/commit/607b45124b0a526253b8ce419e5fca243ab176e3))
+* **search:** make archived matches reachable beyond the result cap ([e25a4d6](https://github.com/donavynhaley/grimoire/commit/e25a4d6df08a8d384c5f837a3e559a1b7ea75430))
+* **ui:** keep project identity visible on narrow phones ([4bcd8e2](https://github.com/donavynhaley/grimoire/commit/4bcd8e2dcfca4e1a66f6c994e00428d3437b8705))
+* **ui:** keep project identity visible on narrow phones ([31546e3](https://github.com/donavynhaley/grimoire/commit/31546e3c53f832d9060b63847a04a0ab25bf1a68))
+* **workspace:** discard responses from previous project visits ([476848c](https://github.com/donavynhaley/grimoire/commit/476848ce4a079ca94f11580d85fff442ddf6c398))
+* **workspace:** discard responses from previous project visits ([fda449f](https://github.com/donavynhaley/grimoire/commit/fda449fcfa7fe634a695a90ad21f1ef8b8c2e71c))
+
+
+### Performance Improvements
+
+* **ui:** load editor and settings features on demand ([9a0e4e5](https://github.com/donavynhaley/grimoire/commit/9a0e4e54ddd3c4bb19930a15059b66cabb7804cf))
+* **ui:** load editor and settings features on demand ([9660b4c](https://github.com/donavynhaley/grimoire/commit/9660b4cce0e5b7e2c238a1c201dec431a686a563))
+
 ## [1.1.0](https://github.com/donavynhaley/grimoire/compare/v1.0.0...v1.1.0) (2026-09-09)
 
 
