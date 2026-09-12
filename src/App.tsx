@@ -34,12 +34,14 @@ import { useAwayState } from "./hooks/use-away-state";
 import { useLiveEvents } from "./hooks/use-live-events";
 import { useSlowWait } from "./hooks/use-slow-wait";
 import { applyOptimisticPageUpdate } from "./lib/optimistic-page";
+import { WorkspaceReads } from "./lib/workspace-reads";
 
 type PendingUndo = UndoNotice & {
   run: () => Promise<void>;
 };
 
 export function App() {
+  const [workspaceReads] = useState(() => new WorkspaceReads());
   const [sessionState, setSessionState] = useState<SessionState | null>(null);
   const [board, setBoard] = useState<BoardWorkspace | null>(null);
   const [ideas, setIdeas] = useState<IdeaWorkspace | null>(null);
@@ -75,13 +77,15 @@ export function App() {
   }, []);
 
   const refreshBoard = useCallback(async () => {
-    applyBoard(await loadBoard());
-  }, [applyBoard]);
+    await workspaceReads.run("board", loadBoard, applyBoard);
+  }, [applyBoard, workspaceReads]);
 
   const refreshIdeas = useCallback(async () => {
-    setIdeas(await loadIdeas());
-    setRevision((current) => current + 1);
-  }, []);
+    await workspaceReads.run("ideas", loadIdeas, (value) => {
+      setIdeas(value);
+      setRevision((current) => current + 1);
+    });
+  }, [workspaceReads]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: the boot effect reads view once, to decide whether ideas load on first paint; depending on it would re-run the whole session bootstrap every time somebody switches tab
   useEffect(() => {
@@ -106,8 +110,9 @@ export function App() {
       );
     return () => {
       alive = false;
+      workspaceReads.reset();
     };
-  }, []);
+  }, [workspaceReads]);
 
   const online = useLiveEvents({
     active: authenticated && board !== null,
@@ -397,6 +402,7 @@ export function App() {
    */
   const openProject = async (id: string | null) => {
     const previousProjectId = board?.project.id ?? null;
+    workspaceReads.reset();
     setUndoNotice(null);
     // A leftover open-request must not ride into the next board's mount as a page to open.
     setPageToOpen(null);
@@ -408,12 +414,15 @@ export function App() {
       // Both halves are read before either is committed. Committing the board on its
       // own would put one project's work beside the other's ideas for a frame, which
       // is the flicker this avoids and a lie about whose garden you are looking at.
-      const [nextBoard, nextIdeas] = await Promise.all([
-        loadBoard(),
-        view === "ideas" ? loadIdeas() : Promise.resolve(null),
-      ]);
-      applyBoard(nextBoard);
-      setIdeas(nextIdeas);
+      await workspaceReads.run(
+        "project",
+        async (signal) =>
+          Promise.all([loadBoard(signal), view === "ideas" ? loadIdeas(signal) : Promise.resolve(null)]),
+        ([nextBoard, nextIdeas]) => {
+          applyBoard(nextBoard);
+          setIdeas(nextIdeas);
+        },
+      );
     } catch (value) {
       // The old board is still a valid place to land if the next one cannot be read.
       // Put the request scope and URL back with it rather than leaving subsequent calls
@@ -496,6 +505,8 @@ export function App() {
       return;
     }
     await request("/api/auth/logout", { method: "POST", body: JSON.stringify({}) });
+    workspaceReads.reset();
+    setActiveProjectId(null);
     // An offer made in this session must not stand on the next one's board: a leftover
     // open-request would replay when the board mounts again after signing back in.
     setUndoNotice(null);
