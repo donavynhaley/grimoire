@@ -2525,6 +2525,17 @@ textarea:hover {
   }
 }
 
+/* Search scopes ------------------------------------------------------------ */
+.search-scopes {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+}
+.search-scopes [aria-pressed="true"] {
+  color: var(--accent);
+  border-color: var(--accent-border);
+}
+
 /* Search owns its scrolling: the field stays put and only the answers move. */
 .search-dialog.drawer-sheet {
   padding: env(safe-area-inset-top, 0px) 0 0;
@@ -7357,4 +7368,20 @@ textarea:hover {
     display: inline-flex;
     align-items: center;
   }
+}
+
+/* Live connection status --------------------------------------------------- */
+.connection-status {
+  position: fixed;
+  bottom: 1rem;
+  left: 1rem;
+  z-index: 20;
+  max-width: calc(100vw - 2rem);
+  padding: 0.625rem 0.875rem;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  font-size: 0.6875rem;
+  pointer-events: none;
 }

@@ -9,6 +9,7 @@ import {
   IDEA_STATES,
   PAGE_STATUSES,
   PROJECT_ROLES,
+  SEARCH_SCOPES,
 } from "./types";
 
 /*
@@ -213,10 +214,18 @@ export const memberRoleSchema = z.object({ role: z.enum(PROJECT_ROLES) }).strict
 /** Naming an account outright, because the alternative is listing everyone to choose from. */
 export const memberAddSchema = z.object({ email: z.string().trim().email().max(320) }).strict();
 
-export const searchSchema = z.object({
-  q: z.string().trim().min(1).max(240),
-  limit: z.coerce.number().int().min(1).max(100).optional(),
-});
+export const searchSchema = z
+  .object({
+    q: z.string().trim().max(240).default(""),
+    limit: z.coerce.number().int().min(1).max(100).optional(),
+    offset: z.coerce.number().int().min(0).max(Number.MAX_SAFE_INTEGER).default(0),
+    scope: z.enum(SEARCH_SCOPES).default("all"),
+  })
+  .strict()
+  .refine((input) => input.q.length > 0 || input.scope === "archived", {
+    message: "Enter a search query or choose Archived",
+    path: ["q"],
+  });
 
 /** Query strings validate through zod like every body does; hand-rolled parsing drifted. */
 export const activityQuerySchema = z.object({

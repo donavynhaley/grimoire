@@ -14,6 +14,7 @@ import type {
   OidcProviderDescription,
   OidcSettings,
   SearchResults,
+  SearchScope,
   SessionState,
 } from "../../shared/types";
 import { demoAssets, demoMode, EMPTY_DEMO_IMAGE } from "../demo/mode";
@@ -50,11 +51,12 @@ export function editConflict<T>(error: unknown): EditConflict<T> | null {
 }
 
 export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const projectId = activeProjectId;
   const headers = new Headers(init.headers);
   if (init.body && !headers.has("content-type")) headers.set("content-type", "application/json");
-  if (activeProjectId) headers.set("x-grimoire-project", activeProjectId);
+  if (projectId) headers.set("x-grimoire-project", projectId);
   const response = demoMode
-    ? await (await import("../demo/store")).demoResponse(path, init, activeProjectId)
+    ? await (await import("../demo/store")).demoResponse(path, init, projectId)
     : await fetch(path, { ...init, headers, credentials: "same-origin" });
   // Read as text before parsing: a failure body is not always JSON. A proxy
   // answering 502 with an HTML page must still become an ApiError the interface
@@ -84,12 +86,12 @@ export function session(): Promise<SessionState> {
   return request<SessionState>("/api/session");
 }
 
-export function board(): Promise<BoardWorkspace> {
-  return request<BoardWorkspace>("/api/board");
+export function board(signal?: AbortSignal): Promise<BoardWorkspace> {
+  return request<BoardWorkspace>("/api/board", { signal });
 }
 
-export function ideas(): Promise<IdeaWorkspace> {
-  return request<IdeaWorkspace>("/api/ideas");
+export function ideas(signal?: AbortSignal): Promise<IdeaWorkspace> {
+  return request<IdeaWorkspace>("/api/ideas", { signal });
 }
 
 export function activity(
@@ -154,8 +156,15 @@ export function markDiscussionSeen(pageId: string): Promise<{ ok: boolean }> {
 }
 
 /** Searches the whole project - every column, the idea garden, and archived pages. */
-export function search(query: string, signal?: AbortSignal): Promise<SearchResults> {
-  return request<SearchResults>(`/api/search?q=${encodeURIComponent(query)}`, { signal });
+export function search(
+  query: string,
+  signal?: AbortSignal,
+  options: { scope?: SearchScope; offset?: number } = {},
+): Promise<SearchResults> {
+  const params = new URLSearchParams({ q: query });
+  if (options.scope && options.scope !== "all") params.set("scope", options.scope);
+  if (options.offset) params.set("offset", String(options.offset));
+  return request<SearchResults>(`/api/search?${params}`, { signal });
 }
 
 export function away(): Promise<AwayState> {
