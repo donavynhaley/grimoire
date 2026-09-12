@@ -26,15 +26,17 @@ test("a late background response cannot replace a newly selected project", async
       await route.fulfill({ response }).catch(() => undefined);
     } else await route.continue();
   });
+  let backgroundId: string | undefined;
   try {
     // Wait for the live stream before creating the change that starts the delayed read.
     await expect
       .poll(async () => page.evaluate(() => document.querySelector('[title$=" (online)"]') !== null))
       .toBe(true);
-    await page.request.post("/api/pages", {
+    const background = await page.request.post("/api/pages", {
       headers: { "x-grimoire-project": original.project.id },
       data: { title: "Background change", status: "ready" },
     });
+    backgroundId = (await background.json()).page.id;
     await held;
     await page.locator(".project-menu-trigger").click();
     await page.getByRole("menuitem", { name: second.name, exact: true }).click();
@@ -52,5 +54,9 @@ test("a late background response cannot replace a newly selected project", async
   } finally {
     release();
     await page.unrouteAll({ behavior: "wait" });
+    if (backgroundId)
+      await page.request.delete(`/api/pages/${backgroundId}`, {
+        headers: { "x-grimoire-project": original.project.id },
+      });
   }
 });
