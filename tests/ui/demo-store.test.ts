@@ -184,3 +184,28 @@ describe("the browser demo owns its own work", () => {
     expect(call(store, `/api/pages/${id}`)).toMatchObject({ page: { title: "A visitor's page" } });
   });
 });
+
+it("uses the same search window and archived scope as the server", () => {
+  const store = new DemoStore(memoryStorage());
+  for (let index = 0; index < 40; index += 1) {
+    const id = createPage(store, `Current ${index}`);
+    call(store, `/api/pages/${id}`, "PATCH", { description: "mentions recoveryneedle" });
+  }
+  const id = createPage(store, "recoveryneedle");
+  call(store, `/api/pages/${id}`, "DELETE");
+  expect(call(store, "/api/search?q=recoveryneedle")).toMatchObject({
+    total: 41,
+    nextOffset: 40,
+    hits: [
+      expect.objectContaining({ id, group: "archived" }),
+      ...Array.from({ length: 39 }, () => expect.anything()),
+    ],
+  });
+  expect(call(store, "/api/search?q=recoveryneedle&offset=40")).toMatchObject({
+    total: 41,
+    hits: [expect.anything()],
+  });
+  expect(call(store, "/api/search?scope=archived")).toMatchObject({
+    hits: [expect.objectContaining({ id })],
+  });
+});

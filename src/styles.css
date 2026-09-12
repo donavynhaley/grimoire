@@ -7343,3 +7343,14 @@ textarea:hover {
     align-items: center;
   }
 }
+
+/* Search scopes ------------------------------------------------------------ */
+.search-scopes {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+}
+.search-scopes [aria-pressed="true"] {
+  color: var(--accent);
+  border-color: var(--accent-border);
+}

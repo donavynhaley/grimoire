@@ -650,6 +650,15 @@ Grimoire does not automatically commit or push project changes.
 Point `GRIMOIRE_CARDS_DIRECTORY` into a Git repository when normal Git history, review, and backup behavior is desired.
 Repository access should match the sensitivity of the project notes because work and idea Markdown contain plain project content.
 
+## Search result windows
+
+Search ranks exact titles before prefixes, other title matches, and note matches before applying a bounded result window.
+Group, recency, and ID provide deterministic tie-breaks; the interface still groups each accumulated set by where work lives.
+The response adds an optional nextOffset for fetching another window, keeping the existing query, total, and hits contract compatible with older clients.
+Offsets describe the current canonical result set, not a frozen snapshot; edits during pagination may reorder results, so the UI deduplicates IDs and a fresh search starts from the current set.
+An explicit Archived scope accepts an empty query so recovery does not require remembering a title.
+The server and browser demo share ranking and window selection to avoid a different search contract in the playground.
+
 ## Public demonstration
 
 The public playground lives at `/demo` in the ordinary application and reuses its board components.

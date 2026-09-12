@@ -14,6 +14,7 @@ import type {
   OidcProviderDescription,
   OidcSettings,
   SearchResults,
+  SearchScope,
   SessionState,
 } from "../../shared/types";
 import { demoAssets, demoMode, EMPTY_DEMO_IMAGE } from "../demo/mode";
@@ -154,8 +155,15 @@ export function markDiscussionSeen(pageId: string): Promise<{ ok: boolean }> {
 }
 
 /** Searches the whole project - every column, the idea garden, and archived pages. */
-export function search(query: string, signal?: AbortSignal): Promise<SearchResults> {
-  return request<SearchResults>(`/api/search?q=${encodeURIComponent(query)}`, { signal });
+export function search(
+  query: string,
+  signal?: AbortSignal,
+  options: { scope?: SearchScope; offset?: number } = {},
+): Promise<SearchResults> {
+  const params = new URLSearchParams({ q: query });
+  if (options.scope && options.scope !== "all") params.set("scope", options.scope);
+  if (options.offset) params.set("offset", String(options.offset));
+  return request<SearchResults>(`/api/search?${params}`, { signal });
 }
 
 export function away(): Promise<AwayState> {

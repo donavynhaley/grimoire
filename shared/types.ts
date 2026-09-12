@@ -544,6 +544,8 @@ export type IdeaWorkspace = {
  */
 export const SEARCH_GROUPS = ["active", "backlog", "ideas", "done", "archived"] as const;
 export type SearchGroup = (typeof SEARCH_GROUPS)[number];
+export const SEARCH_SCOPES = ["all", ...SEARCH_GROUPS] as const;
+export type SearchScope = (typeof SEARCH_SCOPES)[number];
 
 export type SearchHit = {
   kind: "page" | "idea";
@@ -564,6 +566,7 @@ export type SearchResults = {
   /** Exact match count, even when `hits` was capped. */
   total: number;
   hits: SearchHit[];
+  nextOffset?: number;
 };
 
 /**

@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { SEARCH_GROUPS, type SearchGroup, type SearchHit, type SearchResults } from "../../shared/types";
+import {
+  SEARCH_GROUPS,
+  type SearchGroup,
+  type SearchHit,
+  type SearchResults,
+  type SearchScope,
+} from "../../shared/types";
 import { ApiError, search as searchProject } from "../api/client";
 import { useTypingFocus } from "../hooks/use-typing-focus";
 import { categoryColorStyle } from "../lib/category-style";
@@ -38,6 +44,10 @@ type Props = {
 export function SearchDialog({ initialQuery, onClose, onOpenPage, onOpenIdea, onRestorePage }: Props) {
   const focusForTyping = useTypingFocus<HTMLInputElement>({ always: true });
   const [query, setQuery] = useState(initialQuery);
+  const [scope, setScope] = useState<SearchScope>("all");
+  const [offset, setOffset] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [retry, setRetry] = useState(0);
   const [results, setResults] = useState<SearchResults | null>(null);
   const [failed, setFailed] = useState(false);
   const [active, setActive] = useState(0);
@@ -50,17 +60,31 @@ export function SearchDialog({ initialQuery, onClose, onOpenPage, onOpenIdea, on
   // Opening from a filtered board seeds the query, so a fresh search is one keystroke away.
   useEffect(() => inputRef.current?.select(), []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: retry explicitly repeats the current query after a failed request
   useEffect(() => {
-    if (!trimmed) {
+    if (!trimmed && scope !== "archived") {
       setResults(null);
       setFailed(false);
+      setLoading(false);
       return;
     }
+    setLoading(true);
+    setFailed(false);
     const controller = new AbortController();
     const timeout = setTimeout(() => {
-      searchProject(trimmed, controller.signal)
+      searchProject(trimmed, controller.signal, { scope, offset })
         .then((value) => {
-          setResults(value);
+          if (controller.signal.aborted) return;
+          setResults((current) =>
+            offset === 0
+              ? value
+              : {
+                  ...value,
+                  hits: [...(current?.hits ?? []), ...value.hits].filter(
+                    (hit, index, hits) => hits.findIndex((candidate) => candidate.id === hit.id) === index,
+                  ),
+                },
+          );
           setFailed(false);
           setActive(0);
         })
@@ -69,14 +93,17 @@ export function SearchDialog({ initialQuery, onClose, onOpenPage, onOpenIdea, on
           if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError"))
             return;
           setFailed(error instanceof ApiError || error instanceof Error);
-          setResults(null);
+          if (offset === 0) setResults(null);
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setLoading(false);
         });
     }, QUERY_DELAY);
     return () => {
       clearTimeout(timeout);
       controller.abort();
     };
-  }, [trimmed]);
+  }, [trimmed, scope, offset, retry]);
 
   const grouped = useMemo(() => {
     const hits = results?.query === trimmed ? results.hits : [];
@@ -142,8 +169,16 @@ export function SearchDialog({ initialQuery, onClose, onOpenPage, onOpenIdea, on
     highlighted?.scrollIntoView?.({ block: "nearest" });
   }, [active, grouped]);
 
-  const showEmpty = Boolean(trimmed) && !failed && results?.query === trimmed && grouped.length === 0;
-  const hidden = results && results.query === trimmed ? results.total - results.hits.length : 0;
+  const showEmpty =
+    (Boolean(trimmed) || scope === "archived") &&
+    !failed &&
+    results?.query === trimmed &&
+    grouped.length === 0;
+  const chooseScope = (next: SearchScope) => {
+    setScope(next);
+    setOffset(0);
+    setResults(null);
+  };
 
   return (
     <Drawer
@@ -162,7 +197,11 @@ export function SearchDialog({ initialQuery, onClose, onOpenPage, onOpenIdea, on
         <input
           id="global-search"
           name="globalSearch"
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setOffset(0);
+            setResults(null);
+          }}
           onKeyDown={onKeyDown}
           placeholder="Search pages, notes, ideas, archived work..."
           ref={(node) => {
@@ -177,15 +216,44 @@ export function SearchDialog({ initialQuery, onClose, onOpenPage, onOpenIdea, on
         </button>
       </div>
 
+      <div className="search-scopes" role="group" aria-label="Search scope">
+        <button
+          type="button"
+          className="quiet-button"
+          aria-pressed={scope === "all"}
+          onClick={() => chooseScope("all")}
+        >
+          Everything
+        </button>
+        <button
+          type="button"
+          className="quiet-button"
+          aria-pressed={scope === "archived"}
+          onClick={() => chooseScope("archived")}
+        >
+          Archived
+        </button>
+      </div>
       <div aria-live="polite" className="search-results" ref={listRef}>
-        {!trimmed && (
+        {!trimmed && scope !== "archived" && (
           <p className="search-hint">
             Everything is in here: every column, the backlog, the idea garden, completed work, and pages that
             were archived.
           </p>
         )}
-        {failed && <p className="search-hint">Search could not be reached. Try again in a moment.</p>}
-        {showEmpty && <p className="search-hint">Nothing in this project mentions “{trimmed}”.</p>}
+        {failed && (
+          <p className="search-hint">
+            Search could not be reached.{" "}
+            <button type="button" className="quiet-button" onClick={() => setRetry((value) => value + 1)}>
+              Retry search
+            </button>
+          </p>
+        )}
+        {showEmpty && (
+          <p className="search-hint">
+            {trimmed ? `Nothing in this project mentions “${trimmed}”.` : "No archived pages."}
+          </p>
+        )}
         {grouped.map((section) => (
           <div className="search-group" key={section.group}>
             <p className="search-group-label">
@@ -241,10 +309,15 @@ export function SearchDialog({ initialQuery, onClose, onOpenPage, onOpenIdea, on
             })}
           </div>
         ))}
-        {hidden > 0 && (
-          <p className="search-hint">
-            {hidden} more match{hidden === 1 ? "" : "es"}. Narrow the search to reach them.
-          </p>
+        {results?.nextOffset !== undefined && (
+          <button
+            className="quiet-button"
+            type="button"
+            disabled={loading}
+            onClick={() => setOffset(results.nextOffset ?? 0)}
+          >
+            Show more matches
+          </button>
         )}
       </div>
 

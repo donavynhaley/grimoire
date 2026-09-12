@@ -61,8 +61,8 @@ describe("project search", () => {
     expect(groups).toContain("ideas");
     expect(groups).toContain("done");
     expect(groups).toContain("archived");
-    // Groups arrive in reading order, so the overlay never has to sort them itself.
-    expect(groups).toEqual([...groups].sort((left, right) => order(left) - order(right)));
+    // Relevance selects the window; the overlay presents the selected hits in groups.
+    expect(body.hits[0]!.title).toBe("Reagent rarity colours");
   });
 
   it("says where each result lives, as a reader would name it", async () => {
@@ -161,6 +161,31 @@ describe("project search", () => {
   });
 });
 
-function order(group: string): number {
-  return ["active", "backlog", "ideas", "done", "archived"].indexOf(group);
-}
+it("keeps exact archived titles reachable and pages through every match deterministically", async () => {
+  const server = await startTestServer();
+  await bootstrap(server);
+  for (let index = 0; index < 40; index += 1) {
+    await addPage(server, {
+      title: `Current task ${index}`,
+      status: "ready",
+      description: "mentions recoveryneedle",
+    });
+  }
+  const archived = await addPage(server, { title: "recoveryneedle", status: "backlog" });
+  await server.request(`/api/pages/${archived.id}`, { method: "DELETE" });
+  const first = (await search(server, "recoveryneedle")).body;
+  expect(first.total).toBe(41);
+  expect(first.hits[0]!.id).toBe(archived.id);
+  expect(first.hits).toHaveLength(40);
+  expect(first.nextOffset).toBe(40);
+  const second = (await server.request<SearchResults>("/api/search?q=recoveryneedle&offset=40")).body;
+  expect(second.hits).toHaveLength(1);
+  expect(second.nextOffset).toBeUndefined();
+  expect(new Set([...first.hits, ...second.hits].map((hit) => hit.id)).size).toBe(41);
+  expect((await search(server, "recoveryneedle")).body).toEqual(first);
+  const archive = (await server.request<SearchResults>("/api/search?scope=archived")).body;
+  expect(archive.hits.map((hit) => hit.id)).toContain(archived.id);
+  expect(archive.hits.every((hit) => hit.group === "archived")).toBe(true);
+  expect((await server.fetchRaw("/api/search?q=needle&offset=-1")).status).toBe(400);
+  expect((await server.fetchRaw("/api/search?q=needle&scope=invalid")).status).toBe(400);
+});
