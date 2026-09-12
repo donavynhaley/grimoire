@@ -13,16 +13,16 @@ import { away as loadAway, markSeen } from "../api/client";
 export function useAwayState(
   active: boolean,
   projectId: string | undefined,
-  ready = true,
+  canAdvance: () => boolean,
 ): { awayState: AwayState | null; advanceSeen: () => void } {
-  const readyRef = useRef(ready);
+  const canAdvanceRef = useRef(canAdvance);
   useLayoutEffect(() => {
-    readyRef.current = ready;
-  }, [ready]);
+    canAdvanceRef.current = canAdvance;
+  }, [canAdvance]);
   const [awayState, setAwayState] = useState<AwayState | null>(null);
 
   const advanceSeen = useCallback(() => {
-    if (!readyRef.current || document.visibilityState !== "visible") return;
+    if (!canAdvanceRef.current() || document.visibilityState !== "visible") return;
     markSeen().catch(() => {
       // A missed advance only means the same changes greet the reader again.
     });

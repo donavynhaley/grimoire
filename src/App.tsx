@@ -120,7 +120,7 @@ export function App() {
     };
   }, [workspaceReads]);
 
-  const { online, connected } = useLiveEvents({
+  const { online, connected, isCurrent } = useLiveEvents({
     active: authenticated && board !== null && !projectOpening,
     projectId: board?.project.id,
     ideasLoaded: ideas !== null,
@@ -130,7 +130,7 @@ export function App() {
   const { awayState, advanceSeen } = useAwayState(
     authenticated,
     board?.project.id,
-    connected && !projectOpening,
+    () => authenticated && !projectOpening && isCurrent(),
   );
   const reconnectingSlow = useSlowWait(authenticated && !projectOpening && !connected);
   // biome-ignore lint/correctness/useExhaustiveDependencies: revision identifies newly committed canonical state that can now be marked seen
