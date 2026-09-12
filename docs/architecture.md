@@ -650,6 +650,12 @@ Grimoire does not automatically commit or push project changes.
 Point `GRIMOIRE_CARDS_DIRECTORY` into a Git repository when normal Git history, review, and backup behavior is desired.
 Repository access should match the sensitivity of the project notes because work and idea Markdown contain plain project content.
 
+## Project identity on narrow phones
+
+At 480 CSS pixels and below the project switcher uses a second header row instead of hiding the project name.
+Its name truncates within that row, while the workspace tabs, search, account, and agent review keep their own row.
+The same layout serves signed-in boards and the demo so the selected project remains visible in both (UI-5, UI-6).
+
 ## Public demonstration
 
 The public playground lives at `/demo` in the ordinary application and reuses its board components.
