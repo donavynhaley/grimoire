@@ -11,14 +11,11 @@ test("the page stays interactive during entrance and dismisses once after its sh
   await page.getByRole("button", { name: "Close page", exact: true }).click();
   await expect(page.locator(".page-modal")).toHaveCount(0);
 
-  // Pause at real animation events so input and dismissal are tested during motion,
-  // independently of runner speed. The CSS itself still supplies duration and distance.
-  await page.evaluate(() => {
-    document.addEventListener("animationstart", (event) => {
-      if (!event.animationName.startsWith("page-modal-")) return;
-      if (!(event.target instanceof HTMLElement)) return;
-      for (const animation of event.target.getAnimations()) animation.pause();
-    });
+  // CSS pauses from the first frame, independent of animation-event delivery or runner speed.
+  // The application stylesheet still supplies the actual duration, distance, and easing.
+  await page.addStyleTag({
+    content:
+      ".page-modal > .modal-backdrop, .page-modal .page-editor { animation-play-state: paused !important; }",
   });
   await opener.click();
   const panel = page.locator(".page-editor");
