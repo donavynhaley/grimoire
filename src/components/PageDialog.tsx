@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type {
   AuditPage,
   Chapter,
@@ -13,7 +13,6 @@ import { usePageDiscussion } from "../hooks/use-page-discussion";
 import { usePageHistory } from "../hooks/use-page-history";
 import { ConfirmInline } from "./ConfirmInline";
 import { DiscussionSection } from "./DiscussionSection";
-import { Drawer } from "./Drawer";
 import { GithubLink } from "./GithubLink";
 import { NotesField } from "./NotesField";
 import { PageHistory } from "./PageHistory";
@@ -35,7 +34,7 @@ type Props = {
   revision: number;
   onUpdate: (input: Record<string, unknown>) => Promise<void>;
   onArchive: () => Promise<void>;
-  onClose: () => void;
+  registerCloseGuard: (guard: () => Promise<boolean>) => () => void;
   onLoadActivity: (options: { entityId?: string; limit?: number }) => Promise<AuditPage>;
   /** The conversation on this page, and the three things anyone can do to it. */
   onLoadDiscussion: (pageId: string) => Promise<{ threads: DiscussionThread[] }>;
@@ -46,6 +45,7 @@ type Props = {
   onSeeDiscussion: (pageId: string) => Promise<void>;
 };
 
+/** Editing content inside the persistent PageDialogShell. */
 export function PageDialog({
   page,
   pages,
@@ -59,7 +59,7 @@ export function PageDialog({
   revision,
   onUpdate,
   onArchive,
-  onClose,
+  registerCloseGuard,
   onLoadActivity,
   onLoadDiscussion,
   onAsk,
@@ -153,22 +153,10 @@ export function PageDialog({
   }, [showingDiscussion, threads, page.id, onSeeDiscussion]);
   const otherEditor = otherEditorName(history, currentUserId);
 
-  const close = async () => {
-    if (await editor.flush()) onClose();
-  };
+  useLayoutEffect(() => registerCloseGuard(editor.flush), [registerCloseGuard, editor.flush]);
 
   return (
-    <Drawer className="dialog-panel page-editor" labelledBy="dialog-panel-title" onClose={close}>
-      <header className="dialog-header">
-        <div>
-          <p className="eyebrow">page details</p>
-          <h2 id="dialog-panel-title">Edit page</h2>
-        </div>
-        <button aria-label="Close page" className="icon-button" onClick={() => void close()} type="button">
-          ×
-        </button>
-      </header>
-
+    <>
       {/*
         The switch between the two halves. It is hidden by the stylesheet wherever they fit
         side by side, so the control exists only where there is a choice to make - and the
@@ -355,6 +343,6 @@ export function PageDialog({
           triggerClass="text-button danger-text"
         />
       </footer>
-    </Drawer>
+    </>
   );
 }
