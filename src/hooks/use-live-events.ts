@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { liveEventsUrl } from "../api/client";
 import { demoMode } from "../demo/mode";
 
@@ -15,13 +15,24 @@ export function useLiveEvents({
   ideasLoaded: boolean;
   refreshBoard: () => Promise<void>;
   refreshIdeas: () => Promise<void>;
-}): { online: ReadonlySet<string>; connected: boolean } {
+}): { online: ReadonlySet<string>; connected: boolean; isCurrent: () => boolean } {
   const [online, setOnline] = useState<ReadonlySet<string>>(() => new Set());
   const [connected, setConnected] = useState(true);
 
+  const current = useRef(true);
+  const isCurrent = useCallback(() => current.current, []);
+
   // biome-ignore lint/correctness/useExhaustiveDependencies: projectId reconnects the stream when the selected project changes
   useEffect(() => {
-    if (demoMode || !active || typeof EventSource === "undefined") return;
+    // Cursor writes must see invalidation before React commits the next render.
+    const updateConnected = (value: boolean) => {
+      current.current = value;
+      setConnected(value);
+    };
+    if (demoMode || !active || typeof EventSource === "undefined") {
+      updateConnected(true);
+      return;
+    }
     const source = new EventSource(liveEventsUrl());
     let alive = true;
     let opened = false;
@@ -30,7 +41,7 @@ export function useLiveEvents({
     let refreshing = false;
     let retry: ReturnType<typeof setTimeout> | undefined;
     let retryDelay = 250;
-    setConnected(false);
+    updateConnected(false);
 
     const flush = async () => {
       if (!alive || !opened || refreshing) return;
@@ -51,7 +62,7 @@ export function useLiveEvents({
             if (!alive) return;
             pendingWork ||= work;
             pendingIdeas ||= ideas;
-            setConnected(false);
+            updateConnected(false);
             retry = setTimeout(() => void flush(), retryDelay);
             retryDelay = Math.min(retryDelay * 2, 5000);
             return;
@@ -59,7 +70,7 @@ export function useLiveEvents({
         }
         if (alive && opened) {
           retryDelay = 250;
-          setConnected(true);
+          updateConnected(true);
         }
       } finally {
         refreshing = false;
@@ -69,12 +80,12 @@ export function useLiveEvents({
       opened = true;
       pendingWork = true;
       pendingIdeas = true;
-      setConnected(false);
+      updateConnected(false);
       void flush();
     };
     const disconnected = () => {
       opened = false;
-      setConnected(false);
+      updateConnected(false);
       setOnline(new Set());
       clearTimeout(retry);
     };
@@ -84,7 +95,7 @@ export function useLiveEvents({
         pendingWork ||= scope.scope === "work" || scope.scope === "both";
         pendingIdeas ||= scope.scope === "ideas" || scope.scope === "both";
         if (pendingWork || pendingIdeas) {
-          setConnected(false);
+          updateConnected(false);
           void flush();
         }
       } catch {
@@ -105,6 +116,7 @@ export function useLiveEvents({
     source.addEventListener("presence", presence);
     return () => {
       alive = false;
+      current.current = false;
       clearTimeout(retry);
       source.removeEventListener("open", reconnect);
       source.removeEventListener("error", disconnected);
@@ -114,5 +126,5 @@ export function useLiveEvents({
       setOnline(new Set());
     };
   }, [active, ideasLoaded, projectId, refreshBoard, refreshIdeas]);
-  return { online, connected };
+  return { online, connected, isCurrent };
 }

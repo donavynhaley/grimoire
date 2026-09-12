@@ -601,6 +601,7 @@ Every stream open invalidates Work and any loaded Ideas, and the connection beco
 Failed reads keep their invalidation pending and retry with a delay capped at five seconds; cleanup cancels retries and ignores the old stream's completions.
 A delayed, quiet status distinguishes reconnection from a save error.
 Seen cursors only advance while the visible workspace has reconciled, including when a hidden tab returns (UI-2, ARCH-5).
+Their guard reads the live hook's synchronous current-state predicate, because a stream invalidation can precede React committing its disconnected render.
 
 ## Workspace response lifetime
 
