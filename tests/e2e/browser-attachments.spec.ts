@@ -182,7 +182,16 @@ test("closing during an upload preserves edits, stops queued files, and allows r
     await (await chooser).setFiles([fixture("recording.mp4"), fixture("image.png")]);
     await chunkStarted;
     if (isMobile) await page.getByRole("button", { name: "Notes", exact: true }).click();
-    await page.getByRole("textbox", { name: "Notes", exact: true }).fill("Written while uploading.");
+    const notes = page.getByRole("textbox", { name: "Notes", exact: true });
+    // CodeMirror owns selection; use its keyboard commands rather than fill's DOM range.
+    await notes.click();
+    await notes.press("ControlOrMeta+a");
+    await notes.press("Backspace");
+    await expect(
+      notes.getByText("Add only the context someone needs to act...", { exact: true }),
+    ).toBeVisible();
+    await notes.pressSequentially("Written while uploading.");
+    await expect(notes).toHaveText("Written while uploading.");
     await page.getByRole("button", { name: "Close page", exact: true }).click();
     await expect(page.getByRole("dialog")).toBeHidden();
     unblock();
