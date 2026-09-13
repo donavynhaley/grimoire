@@ -102,6 +102,7 @@ describe("page attachments", () => {
       mediaType: "image/png",
       sha256: sha(PNG),
       reference: `/api/attachments/${upload.id}?project=${ctx.board.project.id}`,
+      embed: `![evidence.png](/api/attachments/${upload.id}?project=${ctx.board.project.id} "image/png")`,
     });
     expect(await ctx.complete(upload.id)).toEqual(result);
     expect(await ctx.begin()).toEqual(result);

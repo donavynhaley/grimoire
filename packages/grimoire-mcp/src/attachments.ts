@@ -86,7 +86,7 @@ export function registerAttachmentTools(server: McpServer, client: GrimoireClien
     {
       title: "Validate and attach uploaded evidence",
       description:
-        "Verify size, SHA-256, and decodable media, then atomically attach to the page. Returns attachment ID, page ID, filename, media type, and private stable reference. Validation can take up to 75 seconds. Retry safely after a lost response. On validation failure, bytes stay private until cancelled or expired; no partial attachment is shown.",
+        "Verify size, SHA-256, and decodable media, then atomically attach to the page. Returns attachment ID, page ID, filename, media type, private stable reference, and embed Markdown. To place the media in notes, read the latest page and insert attachment.embed at the requested position with grimoire_update_page, passing expectedNotes. Preserve all existing text, reconcile conflicts, and check for the same reference before retrying a notes insertion. Upload completion alone does not insert it in notes. Validation can take up to 75 seconds. Retry safely after a lost response. On validation failure, bytes stay private until cancelled or expired; no partial attachment is shown.",
       inputSchema: { id },
       annotations: { destructiveHint: false, idempotentHint: true },
     },

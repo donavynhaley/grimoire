@@ -60,10 +60,11 @@ test("a signed-in writer chooses images and videos and retries a lost response w
   await dialog.getByRole("button", { name: "Add image or video", exact: true }).click();
   await (await chooser).setFiles([fixture("image.png"), fixture("recording.mp4")]);
   await expect(dialog.getByRole("button", { name: "Retry image.png", exact: true })).toBeVisible();
-  await expect(dialog.getByRole("link", { name: "Download recording.mp4" })).toBeVisible();
+  await expect(dialog.locator(".notes-field video")).toBeVisible();
   await dialog.getByRole("button", { name: "Retry image.png", exact: true }).click();
   await expect(dialog.getByRole("alert")).toHaveCount(0);
-  await expect(dialog.locator(".page-attachment")).toHaveCount(2);
+  await expect(dialog.locator(".notes-field img.cm-lp-image")).toHaveCount(1);
+  await expect(dialog.locator(".notes-field video")).toHaveCount(1);
   const video = dialog.locator("video");
   await video.evaluate(async (element: HTMLVideoElement) => {
     element.muted = true;
@@ -73,7 +74,10 @@ test("a signed-in writer chooses images and videos and retries a lost response w
     .poll(() => video.evaluate((element: HTMLVideoElement) => element.currentTime))
     .toBeGreaterThan(0.1);
   await video.evaluate((element: HTMLVideoElement) => element.pause());
-  expect((await (await page.request.get(`/api/pages/${id}`)).json()).page.description).toBe(
+  await expect
+    .poll(async () => (await (await page.request.get(`/api/pages/${id}`)).json()).page.description)
+    .toContain('"video/mp4"');
+  expect((await (await page.request.get(`/api/pages/${id}`)).json()).page.description).toContain(
     "Keep this brief intact.",
   );
   expect((await (await page.request.get(`/api/pages/${id}/attachments`)).json()).attachments).toHaveLength(2);
@@ -94,7 +98,8 @@ test("file drops on notes and the modal header attach media and reject unsupport
   const id = await openPage(page, `Dropped evidence ${testInfo.project.name}`);
   await expect(page.locator(".cm-content")).toBeVisible();
   expect(await dropFiles(page, ".cm-content", ["image.png", "recording.mp4"])).toBe(true);
-  await expect(page.locator(".page-attachment")).toHaveCount(2);
+  await expect(page.locator(".notes-field img.cm-lp-image")).toHaveCount(1);
+  await expect(page.locator(".notes-field video")).toHaveCount(1);
   expect(await dropFiles(page, ".dialog-header", ["image.png", "recording.mp4"])).toBe(true);
   await expect(page.locator(".page-upload").filter({ hasText: "Attached" })).toHaveCount(4);
   await page.evaluate(() => {
@@ -109,8 +114,9 @@ test("file drops on notes and the modal header attach media and reject unsupport
   await expect(page.getByRole("alert").filter({ hasText: "10 MB or smaller" })).toBeVisible();
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(page.locator(".page-editor.drop-active")).toHaveCount(0);
-  await expect(page.locator(".page-attachment")).toHaveCount(2);
-  expect((await (await page.request.get(`/api/pages/${id}`)).json()).page.description).toBe(
+  await expect(page.locator(".notes-field img.cm-lp-image")).toHaveCount(2);
+  await expect(page.locator(".notes-field video")).toHaveCount(2);
+  expect((await (await page.request.get(`/api/pages/${id}`)).json()).page.description).toContain(
     "Keep this brief intact.",
   );
 });
@@ -209,8 +215,12 @@ test("closing during an upload preserves edits, stops queued files, and allows r
     const resume = page.waitForEvent("filechooser");
     await page.getByRole("button", { name: "Add image or video", exact: true }).click();
     await (await resume).setFiles([fixture("recording.mp4"), fixture("image.png")]);
-    await expect(page.locator(".page-attachment")).toHaveCount(2);
-    expect((await (await page.request.get(`/api/pages/${id}`)).json()).page.description).toBe(
+    await expect(page.locator(".notes-field img.cm-lp-image")).toHaveCount(1);
+    await expect(page.locator(".notes-field video")).toHaveCount(1);
+    await expect
+      .poll(async () => (await (await page.request.get(`/api/pages/${id}`)).json()).page.description)
+      .toContain('"video/mp4"');
+    expect((await (await page.request.get(`/api/pages/${id}`)).json()).page.description).toContain(
       "Written while uploading.",
     );
     expect(
@@ -219,5 +229,101 @@ test("closing during an upload preserves edits, stops queued files, and allows r
   } finally {
     unblock();
     await page.unrouteAll({ behavior: "ignoreErrors" });
+  }
+});
+
+test("an inline recording keeps its insertion point through typing and survives reopening with surrounding notes", async ({
+  page,
+}, testInfo) => {
+  const id = await openPage(page, `Inline recording ${testInfo.project.name}`);
+  await page.getByRole("button", { name: "Edit notes", exact: true }).click();
+  const notes = page.getByRole("textbox", { name: "Notes", exact: true });
+  await notes.press("ControlOrMeta+a");
+  await notes.press("Backspace");
+  await expect(
+    notes.getByText("Add only the context someone needs to act...", { exact: true }),
+  ).toBeVisible();
+  await notes.pressSequentially("Before.");
+  await notes.press("Enter");
+  await expect(notes.locator(".cm-line")).toHaveCount(2);
+  await notes.press("Enter");
+  await expect(notes.locator(".cm-line")).toHaveCount(3);
+  await notes.pressSequentially("After.");
+  await notes.press("ControlOrMeta+Home");
+  await notes.press("End");
+  let release!: () => void;
+  const blocked = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let started!: () => void;
+  const completing = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  await page.route("**/api/attachment-uploads/*/complete", async (route) => {
+    started();
+    await blocked;
+    await route.continue();
+  });
+  try {
+    const chooser = page.waitForEvent("filechooser");
+    await page.getByRole("button", { name: "Add image or video", exact: true }).click();
+    await (await chooser).setFiles(fixture("recording.mp4"));
+    await completing;
+    await notes.click();
+    await notes.press("ControlOrMeta+Home");
+    await notes.pressSequentially("Updated ");
+    release();
+    await expect
+      .poll(async () => (await (await page.request.get(`/api/pages/${id}`)).json()).page.description)
+      .toMatch(/^Updated Before\.\n\n!\[recording\.mp4\]\(.+ "video\/mp4"\)\n\nAfter\.$/);
+    await page.getByRole("button", { name: "View notes", exact: true }).click();
+    await expect(page.locator(".notes-field video")).toBeVisible();
+    await page.getByRole("button", { name: "Close page", exact: true }).click();
+    await page.goto(`/?page=${id}`);
+    const video = page.locator(".notes-field video");
+    await expect(video).toBeVisible();
+    await expect(notes).toContainText("Updated Before.");
+    await expect(notes).toContainText("After.");
+    await video.evaluate(async (element: HTMLVideoElement) => {
+      element.muted = true;
+      await element.play();
+    });
+    await expect
+      .poll(() => video.evaluate((element: HTMLVideoElement) => element.currentTime))
+      .toBeGreaterThan(0.1);
+    await video.evaluate((element: HTMLVideoElement) => {
+      element.pause();
+      element.currentTime = 0.8;
+    });
+    await expect
+      .poll(() => video.evaluate((element: HTMLVideoElement) => element.currentTime))
+      .toBeCloseTo(0.8, 1);
+    await page.screenshot({ path: testInfo.outputPath("inline-notes.png") });
+    await page.getByRole("button", { name: "Edit notes", exact: true }).click();
+    await notes.press("ControlOrMeta+a");
+    await notes.press("Backspace");
+    await expect(
+      notes.getByText("Add only the context someone needs to act...", { exact: true }),
+    ).toBeVisible();
+    await notes.pressSequentially("Updated Before.");
+    await notes.press("Enter");
+    await expect(notes.locator(".cm-line")).toHaveCount(2);
+    await notes.press("Enter");
+    await expect(notes.locator(".cm-line")).toHaveCount(3);
+    await notes.pressSequentially("After.");
+    await page.getByRole("button", { name: "View notes", exact: true }).click();
+    await expect(video).toHaveCount(0);
+    await expect
+      .poll(async () => (await (await page.request.get(`/api/pages/${id}`)).json()).page.description)
+      .toBe("Updated Before.\n\nAfter.");
+    expect((await (await page.request.get(`/api/pages/${id}/attachments`)).json()).attachments).toHaveLength(
+      1,
+    );
+    await page.getByRole("button", { name: "Files", exact: true }).click();
+    await page.getByRole("button", { name: "Insert recording.mp4 in notes", exact: true }).click();
+    await expect(video).toBeVisible();
+  } finally {
+    release();
+    await page.unrouteAll({ behavior: "wait" });
   }
 });

@@ -171,6 +171,27 @@ describe("NotesField live preview", () => {
 });
 
 describe("NotesField Obsidian embeds", () => {
+  it("plays a recording among the note text using its explicit media type", async () => {
+    const { container } = await renderNotes(
+      'Before.\n\n![Reproduction](/api/attachments/recording?project=one "video/mp4")\n\nAfter.',
+    );
+    const video = container.querySelector("video.cm-lp-video");
+    expect(video).toHaveAttribute("src", "/api/attachments/recording?project=one");
+    expect(video).toHaveAttribute("controls");
+    expect(video).toHaveAttribute("playsinline");
+    expect(video).not.toHaveAttribute("autoplay");
+    expect(shown()).toContain("Before.");
+    expect(shown()).toContain("After.");
+    expect(container.querySelector("img.cm-lp-image")).toBeNull();
+  });
+
+  it("keeps video embed examples inside code literal", async () => {
+    const { container } = await renderNotes(
+      '`![Example](/recording.mp4 "video/mp4")`\n\n```\n![[recording.mp4]]\n```',
+    );
+    expect(container.querySelector("video")).toBeNull();
+    expect(shown()).toContain("![[recording.mp4]]");
+  });
   it("renders ![[name]] embeds as project images the way Obsidian does", async () => {
     const { container } = await renderNotes("See ![[shot.png]] for the layout.");
 

@@ -23,6 +23,8 @@ export type PageAttachment = {
   createdBy: string;
   /** An authenticated, project-qualified URL path, stable across retries. */
   reference: string;
+  /** Ready-to-insert notes Markdown, when supplied by the server. */
+  embed?: string;
 };
 
 export type AttachmentUploadInput = {

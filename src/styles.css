@@ -3468,14 +3468,21 @@ textarea:hover {
   vertical-align: -1px;
   accent-color: var(--accent);
 }
-.cm-lp-image {
+.cm-lp-image,
+.cm-lp-video {
   max-width: 100%;
   border-radius: 0.25rem;
   vertical-align: middle;
 }
-.cm-lp-image.block {
+.cm-lp-image.block,
+.cm-lp-video.block {
   display: block;
   margin: 0.25rem 0;
+}
+.cm-lp-video {
+  width: 100%;
+  max-height: min(24rem, 30dvh);
+  background: #000;
 }
 .cm-lp-rule {
   margin: 0.5rem 0;

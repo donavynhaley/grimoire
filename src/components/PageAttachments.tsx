@@ -10,10 +10,12 @@ export function PageAttachments({
   pageId,
   revision,
   onFiles,
+  onInsert,
 }: {
   pageId: string;
   revision: number;
   onFiles?: (files: File[]) => void;
+  onInsert?: (attachment: PageAttachment) => void;
 }) {
   const [loaded, setLoaded] = useState<{ pageId: string; files: PageAttachment[] } | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
@@ -77,6 +79,16 @@ export function PageAttachments({
           <figcaption>
             <span className="attachment-filename">{file.filename}</span>
             <div className="attachment-actions">
+              {onInsert && (
+                <button
+                  className="text-button"
+                  type="button"
+                  onClick={() => onInsert(file)}
+                  aria-label={`Insert ${file.filename} in notes`}
+                >
+                  Insert in notes
+                </button>
+              )}
               <span>
                 {file.size < 1_000_000
                   ? `${Math.max(1, Math.round(file.size / 1000))} KB`

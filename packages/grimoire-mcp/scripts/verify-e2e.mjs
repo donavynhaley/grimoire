@@ -302,6 +302,11 @@ try {
     );
     const repeated = await callTool("grimoire_begin_attachment", input);
     check(
+      "MCP returns notes Markdown with the correct media type",
+      file.embed === `![${filename}](${file.reference.slice(baseUrl.length)} "${mediaType}")`,
+      completed.text,
+    );
+    check(
       "MCP retries return the same completed attachment",
       JSON.parse(repeated.text).attachment?.id === file.id,
       repeated.text,
