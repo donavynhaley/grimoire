@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import * as agentAttachmentConstants from "../../packages/grimoire-mcp/src/attachment-types";
 // Imported from the package's dependency-free modules only - never from server.ts, whose
 // SDK import would make this suite depend on the package's own install step. The root
 // `npm test` must hold the contract on a fresh clone, and in CI it runs first.
@@ -12,6 +13,7 @@ import {
   MCP_VERSION,
 } from "../../packages/grimoire-mcp/src/client";
 import { columnLabel, PAGE_COLUMNS } from "../../packages/grimoire-mcp/src/resolve";
+import * as attachmentConstants from "../../shared/attachments";
 import {
   BODY_MAX_LENGTH,
   type BoardWorkspace,
@@ -43,7 +45,15 @@ void board;
 void hits;
 void status;
 
+const attachment: agentAttachmentConstants.PageAttachment = {} as attachmentConstants.PageAttachment;
+const upload: attachmentConstants.AttachmentUpload = {} as agentAttachmentConstants.AttachmentUpload;
+void attachment;
+void upload;
+
 describe("the mcp package's mirrors", () => {
+  it("carries the same attachment transport limits and media types", () => {
+    expect(agentAttachmentConstants).toEqual(attachmentConstants);
+  });
   it("carries the same body limits the server enforces", () => {
     expect(AGENT_BODY_MAX_LENGTH).toBe(BODY_MAX_LENGTH);
     expect(AGENT_DISCUSSION_BODY_MAX_LENGTH).toBe(DISCUSSION_BODY_MAX_LENGTH);

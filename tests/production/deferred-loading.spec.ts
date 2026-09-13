@@ -1,7 +1,9 @@
+import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 
 test("loads features on demand and retries a failed notes download without losing the title", async ({
   page,
+  isMobile,
 }) => {
   const assets: string[] = [];
   page.on("request", (request) => {
@@ -47,13 +49,21 @@ test("loads features on demand and retries a failed notes download without losin
     .first()
     .click();
   await expect(page.getByRole("alert")).toContainText("Could not load notes editor");
-  await expect(page.getByRole("button", { name: "Add an image" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Add image or video" })).toBeEnabled();
   await page.getByLabel("Title", { exact: true }).fill("A title retained through retry");
+  // Attachments remain usable even when the independent notes editor failed to load.
+  const chooser = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "Add image or video", exact: true }).click();
+  await (await chooser).setFiles(
+    fileURLToPath(new URL("../fixtures/attachments/image.png", import.meta.url)),
+  );
+  await expect(page.getByRole("link", { name: "Download image.png" })).toBeVisible();
+  if (isMobile) await page.getByRole("button", { name: "Notes", exact: true }).click();
   await page.getByRole("button", { name: "Retry loading" }).click();
   await expect(page.getByRole("textbox", { name: "Notes", exact: true })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Notes", exact: true })).toBeFocused();
   await expect(page.getByLabel("Title", { exact: true })).toHaveValue("A title retained through retry");
-  await expect(page.getByRole("button", { name: "Add an image" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Add image or video" })).toBeEnabled();
   await page.getByRole("button", { name: "Close page", exact: true }).click();
   await page.locator(".project-menu-trigger").click();
   await page.getByRole("menuitem", { name: "Project settings" }).click();

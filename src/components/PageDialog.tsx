@@ -11,11 +11,14 @@ import type {
 import { useContentEditor } from "../hooks/use-content-editor";
 import { usePageDiscussion } from "../hooks/use-page-discussion";
 import { usePageHistory } from "../hooks/use-page-history";
+import { usePageUploads } from "../hooks/use-page-uploads";
 import { ConfirmInline } from "./ConfirmInline";
 import { DiscussionSection } from "./DiscussionSection";
 import { Drawer } from "./Drawer";
 import { GithubLink } from "./GithubLink";
+import { Growing } from "./Growing";
 import { NotesField } from "./NotesField";
+import { PageAttachments } from "./PageAttachments";
 import { PageHistory } from "./PageHistory";
 import { PageRail } from "./PageRail";
 import { otherEditorName, SaveState } from "./SaveState";
@@ -67,6 +70,14 @@ export function PageDialog({
   onSetAnswered,
   onSeeDiscussion,
 }: Props) {
+  const uploads = usePageUploads(page.id);
+  const [dropActive, setDropActive] = useState(false);
+  const dragDepth = useRef(0);
+  const receiveFiles = (files: File[]) => {
+    uploads.add(files);
+    setPane("aside");
+    setAside("attachments");
+  };
   const [confirmArchive, setConfirmArchive] = useState(false);
   /**
    * Which half of the page is on screen when there is only room for one.
@@ -86,7 +97,7 @@ export function PageDialog({
    *
    * It starts on the properties. A page opens on what it is, not on what was said about it.
    */
-  const [aside, setAside] = useState<"details" | "discussion">("details");
+  const [aside, setAside] = useState<"details" | "discussion" | "attachments">("details");
   /**
    * History starts folded. Editing a page refetches it, so an open list would redraw
    * itself under the notes on every save — motion next to the field someone is typing
@@ -112,6 +123,8 @@ export function PageDialog({
   // biome-ignore lint/correctness/useExhaustiveDependencies: page.id is the trigger: opening a different page is what should put every fold back to where it starts on first sight
   useEffect(() => {
     setShowingHistory(false);
+    setDropActive(false);
+    dragDepth.current = 0;
     setPane("notes");
     setAside("details");
     marked.current = null;
@@ -158,7 +171,45 @@ export function PageDialog({
   };
 
   return (
-    <Drawer className="dialog-panel page-editor" labelledBy="dialog-panel-title" onClose={close}>
+    <Drawer
+      className={`dialog-panel page-editor${dropActive ? " drop-active" : ""}`}
+      labelledBy="dialog-panel-title"
+      onClose={close}
+      fileDropHandlers={
+        uploads.available
+          ? {
+              onDragEnterCapture(event) {
+                if (!event.dataTransfer.types.includes("Files")) return;
+                event.preventDefault();
+                event.stopPropagation();
+                dragDepth.current += 1;
+                setDropActive(true);
+              },
+              onDragOverCapture(event) {
+                if (!event.dataTransfer.types.includes("Files")) return;
+                event.preventDefault();
+                event.stopPropagation();
+                event.dataTransfer.dropEffect = "copy";
+              },
+              onDragLeaveCapture(event) {
+                if (!event.dataTransfer.types.includes("Files")) return;
+                event.stopPropagation();
+                dragDepth.current = Math.max(0, dragDepth.current - 1);
+                if (!dragDepth.current) setDropActive(false);
+              },
+              onDropCapture(event) {
+                if (!event.dataTransfer.types.includes("Files")) return;
+                event.preventDefault();
+                event.stopPropagation();
+                dragDepth.current = 0;
+                setDropActive(false);
+                receiveFiles(Array.from(event.dataTransfer.files));
+              },
+            }
+          : undefined
+      }
+    >
+      {dropActive && <div className="page-drop-hint">Drop images or videos to attach</div>}
       <header className="dialog-header">
         <div>
           <p className="eyebrow">page details</p>
@@ -207,8 +258,59 @@ export function PageDialog({
           Discussion{unseenCount > 0 ? ` · ${unseenCount}` : ""}
           {namedCount > 0 ? " @" : ""}
         </button>
+        <button
+          aria-pressed={pane === "aside" && aside === "attachments"}
+          className="pane-tab"
+          onClick={() => {
+            setPane("aside");
+            setAside("attachments");
+          }}
+          type="button"
+        >
+          Files
+        </button>
       </div>
 
+      <Growing className="page-upload-slot">
+        <div className="page-upload-list">
+          {uploads.items
+            .filter((item) => item.filename)
+            .map((item) => (
+              <div className="page-upload" key={item.id}>
+                <span className="attachment-filename">{item.filename}</span>
+                <span role={item.state === "failed" ? "alert" : "status"}>
+                  {item.state === "failed"
+                    ? item.error
+                    : item.state === "complete"
+                      ? "Attached"
+                      : item.state === "queued"
+                        ? "Queued"
+                        : `${item.progress.phase}${item.progress.phase === "Uploading" ? ` ${item.progress.percent}%` : "..."}`}
+                </span>
+                {item.state === "failed" && item.retryable && (
+                  <button
+                    className="text-button"
+                    aria-label={`Retry ${item.filename}`}
+                    onClick={() => uploads.retry(item.id)}
+                    type="button"
+                  >
+                    Retry
+                  </button>
+                )}
+                {(item.state === "complete" || item.state === "failed") && (
+                  <button
+                    className="text-button"
+                    aria-label={`Dismiss upload status for ${item.filename}`}
+                    onClick={() => uploads.dismiss(item.id)}
+                    type="button"
+                  >
+                    Dismiss
+                  </button>
+                )}
+              </div>
+            ))}
+        </div>
+      </Growing>
       <div className="page-editor-split" data-pane={pane}>
         <div className="page-editor-main">
           <div className="record-form">
@@ -229,6 +331,7 @@ export function PageDialog({
             editorLabel="Notes"
             fill
             label="Notes"
+            onAttachFiles={uploads.available ? receiveFiles : undefined}
             onChange={editor.setDescription}
             placeholder="Add only the context someone needs to act..."
             rows={10}
@@ -282,9 +385,23 @@ export function PageDialog({
                 </span>
               )}
             </button>
+            <button
+              aria-pressed={aside === "attachments"}
+              className="pane-tab"
+              onClick={() => setAside("attachments")}
+              type="button"
+            >
+              Files
+            </button>
           </div>
 
-          {aside === "discussion" ? (
+          {aside === "attachments" ? (
+            <PageAttachments
+              pageId={page.id}
+              revision={revision + uploads.revision}
+              onFiles={uploads.available ? receiveFiles : undefined}
+            />
+          ) : aside === "discussion" ? (
             <DiscussionSection
               currentUserId={currentUserId}
               failed={discussionFailed}

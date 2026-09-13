@@ -38,7 +38,9 @@ test.describe("grimoire in one hand", () => {
   test("a held touch lifts a page and carries it to another column", async ({ page }) => {
     await openBoard(page, [{ title: "Bind the third grimoire", status: "ready" }]);
 
+    await page.getByRole("searchbox", { name: "Search pages", exact: true }).fill("Bind the third grimoire");
     const card = page.locator("article.board-page", { hasText: "Bind the third grimoire" });
+    await expect(card).toBeInViewport();
     const from = await centerOf(card);
     // The header keeps the destination inside the viewport however long the stack has grown.
     const to = await centerOf(page.locator("section.column-in_progress header"));
@@ -53,9 +55,16 @@ test.describe("grimoire in one hand", () => {
   });
 
   test("a swipe that sets off at once scrolls instead of lifting", async ({ page }) => {
-    await openBoard(page, [{ title: "Sweep the astronomy tower", status: "ready" }]);
-
-    const from = await centerOf(page.locator("article.board-page", { hasText: "Sweep the astronomy tower" }));
+    // Give this gesture its own scrollable stack; earlier journeys must not decide its coordinates.
+    await openBoard(
+      page,
+      Array.from({ length: 10 }, (_, index) => ({ title: `Scroll fixture ${index}`, status: "ready" })),
+    );
+    await page.getByRole("searchbox", { name: "Search pages", exact: true }).fill("Scroll fixture");
+    const card = page.locator("article.board-page").first();
+    await expect(card).toBeInViewport();
+    const title = await card.locator("strong").innerText();
+    const from = await centerOf(card);
     const scrolled = page.waitForFunction(() => {
       const main = document.querySelector(".board-main");
       return (main ? main.scrollTop : 0) > 0 || window.scrollY > 0;
@@ -65,7 +74,7 @@ test.describe("grimoire in one hand", () => {
 
     // And the page has not gone anywhere.
     await expect(
-      page.getByRole("region", { name: "Up Next" }).getByText("Sweep the astronomy tower"),
+      page.getByRole("region", { name: "Up Next" }).getByText(title, { exact: true }),
     ).toBeVisible();
   });
 

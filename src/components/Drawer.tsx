@@ -9,6 +9,10 @@ const FLICK_DISTANCE = 32;
 const DISMISS_VELOCITY = 0.55;
 
 type Props = {
+  fileDropHandlers?: Pick<
+    React.HTMLAttributes<HTMLElement>,
+    "onDragEnterCapture" | "onDragOverCapture" | "onDragLeaveCapture" | "onDropCapture"
+  >;
   /**
    * Classes for the panel itself. On a desktop pointer these are the only thing that styles
    * it, which is how the centred dialog stays exactly as it was.
@@ -41,7 +45,15 @@ type Props = {
  * the sheet - it is the original, still in place. Everything the sheet needs and the dialog
  * does not is added only when a thumb is holding the device.
  */
-export function Drawer({ className, backdropClassName = "", labelledBy, label, onClose, children }: Props) {
+export function Drawer({
+  className,
+  backdropClassName = "",
+  labelledBy,
+  label,
+  onClose,
+  children,
+  fileDropHandlers,
+}: Props) {
   const coarse = useCoarsePointer();
   const panel = useRef<HTMLElement>(null);
   const [drag, setDrag] = useState<{ from: number; at: number; startedAt: number } | null>(null);
@@ -91,6 +103,7 @@ export function Drawer({ className, backdropClassName = "", labelledBy, label, o
         }}
       >
         <section
+          {...fileDropHandlers}
           aria-label={label}
           aria-labelledby={labelledBy}
           aria-modal="true"
@@ -113,6 +126,7 @@ export function Drawer({ className, backdropClassName = "", labelledBy, label, o
       }}
     >
       <section
+        {...fileDropHandlers}
         aria-label={label}
         aria-labelledby={labelledBy}
         aria-modal="true"

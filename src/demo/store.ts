@@ -2,6 +2,7 @@ import { z } from "zod";
 import { searchSchema } from "../../shared/request-schemas";
 import { matchSearchRank, type RankedSearchHit, searchWindow } from "../../shared/search-order";
 import { IDEA_STATE_LABELS, PAGE_STATUS_LABELS } from "../../shared/types";
+import { clearDemoAttachments } from "./attachments";
 import { DEMO_STORAGE_KEY, demoAssets, setDemoStorageNotice } from "./mode";
 import { type DemoState, seedDemo } from "./seed";
 import { settingsRequest } from "./settings";
@@ -81,6 +82,7 @@ export class DemoStore {
     return settingsRequest(this.state, project, path, command.method, command.body, command.at);
   }
   reset(): void {
+    clearDemoAttachments();
     this.state = seedDemo();
     this.commands = [];
     this.syncAssets();

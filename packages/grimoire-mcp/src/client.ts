@@ -1,3 +1,4 @@
+import type { AttachmentUpload, AttachmentUploadInput, PageAttachment } from "./attachment-types.js";
 /**
  * A thin HTTP client for one Grimoire project.
  *
@@ -198,7 +199,15 @@ export class GrimoireClient {
       throw new GrimoireError(0, `Could not reach Grimoire at ${this.baseUrl}: ${(cause as Error).message}`);
     }
 
-    const text = await response.text();
+    let text: string;
+    try {
+      text = await response.text();
+    } catch {
+      throw new GrimoireError(
+        0,
+        "The response was interrupted. For an attachment, read its status or repeat the same operation and retry key.",
+      );
+    }
     const body = text ? safeParse(text) : null;
 
     if (response.status === 409 && isConflict(body)) {
@@ -231,6 +240,51 @@ export class GrimoireClient {
       throw new GrimoireError(response.status, message);
     }
     return body as T;
+  }
+
+  async attachments(pageId: string): Promise<{ attachments: PageAttachment[] }> {
+    const result = await this.request<{ attachments: PageAttachment[] }>(
+      `/api/pages/${encodeURIComponent(pageId)}/attachments`,
+    );
+    return {
+      attachments: result.attachments.map((file) => ({
+        ...file,
+        reference: new URL(file.reference, this.baseUrl).href,
+      })),
+    };
+  }
+
+  beginAttachment(pageId: string, input: AttachmentUploadInput): Promise<AttachmentUpload> {
+    return this.uploadRequest(`/api/pages/${encodeURIComponent(pageId)}/attachments/uploads`, input);
+  }
+
+  attachmentStatus(id: string): Promise<AttachmentUpload> {
+    return this.uploadRequest(`/api/attachment-uploads/${encodeURIComponent(id)}`);
+  }
+
+  attachmentChunk(id: string, offset: number, data: string): Promise<AttachmentUpload> {
+    return this.uploadRequest(`/api/attachment-uploads/${encodeURIComponent(id)}/chunks`, { offset, data });
+  }
+
+  completeAttachment(id: string): Promise<AttachmentUpload> {
+    return this.uploadRequest(`/api/attachment-uploads/${encodeURIComponent(id)}/complete`, {});
+  }
+
+  cancelAttachment(id: string): Promise<{ ok: boolean }> {
+    return this.request(`/api/attachment-uploads/${encodeURIComponent(id)}/cancel`, {
+      method: "POST",
+      body: "{}",
+    });
+  }
+
+  private async uploadRequest(path: string, body?: unknown): Promise<AttachmentUpload> {
+    const result = await this.request<AttachmentUpload>(
+      path,
+      body === undefined ? {} : { method: "POST", body: JSON.stringify(body) },
+    );
+    if (result.attachment)
+      result.attachment.reference = new URL(result.attachment.reference, this.baseUrl).href;
+    return result;
   }
 
   /** Who this credential is, including its scope, so the server can shape its tool surface. */

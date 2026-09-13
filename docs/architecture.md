@@ -731,3 +731,34 @@ Medians were: sign-in 5,888 to 2,101 ms, board ready 5,836 to 3,201 ms, first ed
 Initial decoded JavaScript fell from 929,963 to 217,900 bytes for sign-in and to 335,889 bytes for the board.
 These are local controlled measurements rather than field latency claims; gzip sizes are reported separately by the build budget because this local server did not compress responses.
 Browser tests run against built assets with `npm run test:production` to cover demand loading and failure recovery, alongside the normal development-server E2E suite.
+
+## Page attachments
+
+Agent evidence has independent Markdown records and bytes under each project's `attachments/` directory.
+This keeps attachments out of the notes compare-and-swap cycle, so an upload cannot overwrite a brief or invalidate an in-flight notes edit.
+A resumable, base64 chunk transport carries bytes across machines without asking the MCP host to read the caller's filesystem.
+The optional `grimoire-upload` companion runs beside the local file and uses the same HTTP routes.
+
+An upload's ID is derived from its page and retry key.
+Its private staging directory holds an immutable manifest and a content file whose length is the durable resume offset.
+Overlapping retries verify existing bytes before appending, and completion verifies SHA-256 and decodes the media before atomically renaming the entire directory into the committed collection.
+No partially written file is readable through the attachment route.
+Expired staging is collected on startup and the next begin; explicit cancellation removes unfinished bytes only.
+The eight-upload project cap bounds abandoned staging.
+
+FFmpeg is a runtime dependency because signature-only checks cannot establish that a recording decodes or uses a browser-playable codec.
+The Docker image installs the maintained system package.
+Validation forces the demuxer, disables network protocols and MOV external references, bounds dimensions and execution time, and admits two concurrent decodes.
+Project membership and delegated credentials are rechecked after validation yields.
+The file route checks project and page access on every request, serves single byte ranges for seeking, and provides named downloads with private caching.
+The page's Files pane loads canonical attachment metadata and refreshes on work invalidation.
+[The attachment workflow](agent-attachments.md) documents the tools, limits, errors, and recovery procedure.
+
+The page's image/video picker, file drops, and pasted images use the same attachment transport as agents.
+The browser uploader is demand-loaded, hashes one file at a time, and pins the destination project before sending chunks.
+Its stable retry key includes the filename, media type, and digest, so retries cannot duplicate a completed upload or collide with a renamed file's immutable metadata.
+App's `performAttachment` owns the mutation and canonical board refresh through a context, avoiding another callback chain through Board and BoardDialogs.
+The page owns its bounded progress display and sequential queue instead of blocking the board with a global busy state.
+Closing or changing pages aborts that queue; completed files remain canonical and unfinished staging can be resumed by selecting the file again.
+Capture-phase file handlers on the shared Drawer shell prevent the notes editor or browser navigation from consuming a media drop first.
+The demo uses tab-local object URLs, bounded to 100 MB in total and revoked on reset, with an explicit lifetime notice.
