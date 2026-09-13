@@ -51,8 +51,11 @@ export function editConflict<T>(error: unknown): EditConflict<T> | null {
   return payload?.conflict === true && payload.current !== undefined ? (payload as EditConflict<T>) : null;
 }
 
-export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const projectId = activeProjectId;
+export async function request<T>(
+  path: string,
+  init: RequestInit = {},
+  projectId = activeProjectId,
+): Promise<T> {
   const headers = new Headers(init.headers);
   if (init.body && !headers.has("content-type")) headers.set("content-type", "application/json");
   if (projectId) headers.set("x-grimoire-project", projectId);
@@ -362,6 +365,35 @@ export function uploadAvatar(file: Blob): Promise<{ avatarUrl: string }> {
 
 /** Evidence is fetched independently of the notes and their save lifecycle. */
 export function attachments(pageId: string): Promise<{ attachments: PageAttachment[] }> {
-  if (demoMode) return Promise.resolve({ attachments: [] });
+  if (demoMode) {
+    const projectId = activeProjectId;
+    return import("../demo/attachments").then(({ demoAttachments }) => ({
+      attachments: demoAttachments(projectId, pageId),
+    }));
+  }
   return request(`/api/pages/${encodeURIComponent(pageId)}/attachments`);
+}
+
+/** Pin the project before hashing or sending any chunks; navigation cannot retarget a retry. */
+export async function uploadPageAttachment(
+  pageId: string,
+  file: File,
+  signal: AbortSignal,
+  progress: (value: import("./upload-attachment").UploadProgress) => void,
+  projectId = activeProjectId,
+): Promise<PageAttachment> {
+  const { uploadAttachment } = await import("./upload-attachment");
+  return uploadAttachment(
+    pageId,
+    file,
+    signal,
+    progress,
+    <T>(path: string, body: unknown) =>
+      request<T>(
+        path,
+        { method: "POST", body: JSON.stringify(body), signal, headers: { "x-grimoire-client-id": clientId } },
+        projectId,
+      ),
+    demoMode ? projectId : undefined,
+  );
 }

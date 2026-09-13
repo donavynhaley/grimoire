@@ -753,3 +753,12 @@ Project membership and delegated credentials are rechecked after validation yiel
 The file route checks project and page access on every request, serves single byte ranges for seeking, and provides named downloads with private caching.
 The page's Files pane loads canonical attachment metadata and refreshes on work invalidation.
 [The attachment workflow](agent-attachments.md) documents the tools, limits, errors, and recovery procedure.
+
+The page's image/video picker, file drops, and pasted images use the same attachment transport as agents.
+The browser uploader is demand-loaded, hashes one file at a time, and pins the destination project before sending chunks.
+Its stable retry key includes the filename, media type, and digest, so retries cannot duplicate a completed upload or collide with a renamed file's immutable metadata.
+App's `performAttachment` owns the mutation and canonical board refresh through a context, avoiding another callback chain through Board and BoardDialogs.
+The page owns its bounded progress display and sequential queue instead of blocking the board with a global busy state.
+Closing or changing pages aborts that queue; completed files remain canonical and unfinished staging can be resumed by selecting the file again.
+Capture-phase file handlers on the shared Drawer shell prevent the notes editor or browser navigation from consuming a media drop first.
+The demo uses tab-local object URLs, bounded to 100 MB in total and revoked on reset, with an explicit lifetime notice.

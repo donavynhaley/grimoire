@@ -3,6 +3,7 @@ import { useCallback, useRef, useState } from "react";
 import { uploadImage } from "../api/client";
 import { deferComponent } from "./Deferred";
 import type { MarkdownEditorHandle } from "./MarkdownEditor";
+import { MediaPicker } from "./MediaPicker";
 
 const MarkdownEditor = deferComponent<ComponentProps<typeof import("./MarkdownEditor")["MarkdownEditor"]>>(
   () => import("./MarkdownEditor").then((module) => ({ default: module.MarkdownEditor })),
@@ -30,6 +31,7 @@ type Props = {
   fill?: boolean;
   value: string;
   onChange: (value: string) => void;
+  onAttachFiles?: (files: File[]) => void;
 };
 
 /**
@@ -64,6 +66,7 @@ export function NotesField({
   fill = false,
   value,
   onChange,
+  onAttachFiles,
 }: Props) {
   const [source, setSource] = useState(false);
   const [pendingUploads, setPendingUploads] = useState(0);
@@ -168,31 +171,37 @@ export function NotesField({
             clipboard is several steps that end in the wrong app. This is the same upload,
             reached the way a phone actually holds pictures.
           */}
-          <button
-            disabled={!ready}
-            aria-label={addImageLabel}
-            className="text-button notes-add-image"
-            onClick={() => imagePicker.current?.click()}
-            type="button"
-          >
-            <span aria-hidden="true">+</span> image
-          </button>
-          <input
-            accept="image/*"
-            aria-hidden="true"
-            className="sr-only"
-            onChange={(event) => {
-              const files = collectFiles(event.target.files);
-              // The same input has to accept the same picture twice in a row.
-              event.target.value = "";
-              if (!hasImage(files)) return;
-              void importImages(files);
-            }}
-            multiple
-            ref={imagePicker}
-            tabIndex={-1}
-            type="file"
-          />
+          {onAttachFiles ? (
+            <MediaPicker onFiles={onAttachFiles} />
+          ) : (
+            <>
+              <button
+                disabled={!ready}
+                aria-label={addImageLabel}
+                className="text-button notes-add-image"
+                onClick={() => imagePicker.current?.click()}
+                type="button"
+              >
+                <span aria-hidden="true">+</span> image
+              </button>
+              <input
+                accept="image/*"
+                aria-hidden="true"
+                className="sr-only"
+                onChange={(event) => {
+                  const files = collectFiles(event.target.files);
+                  // The same input has to accept the same picture twice in a row.
+                  event.target.value = "";
+                  if (!hasImage(files)) return;
+                  void importImages(files);
+                }}
+                multiple
+                ref={imagePicker}
+                tabIndex={-1}
+                type="file"
+              />
+            </>
+          )}
           {/*
             The word on this control names what a click will do rather than what is on
             screen, the way a play button does, so it swaps with the mode instead of
@@ -226,7 +235,7 @@ export function NotesField({
           onFocusChange={(next) => {
             focused.current = next;
           }}
-          onPasteFiles={(files) => void importImages(files)}
+          onPasteFiles={(files) => (onAttachFiles ? onAttachFiles(files) : void importImages(files))}
           placeholder={placeholder}
           ref={attachEditor}
           scrollerClass="notes-view"

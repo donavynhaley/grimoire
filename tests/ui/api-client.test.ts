@@ -1,5 +1,13 @@
+import { File as NodeFile } from "node:buffer";
+import { webcrypto } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiError, editConflict, request, setActiveProjectId } from "../../src/api/client";
+import {
+  ApiError,
+  editConflict,
+  request,
+  setActiveProjectId,
+  uploadPageAttachment,
+} from "../../src/api/client";
 
 /**
  * The client is the one door every interface request goes through, so its error
@@ -86,4 +94,49 @@ describe("the api client", () => {
     const headers = new Headers((call[1] as RequestInit).headers);
     expect(headers.get("x-grimoire-project")).toBe("project-7");
   });
+});
+
+it("keeps every upload chunk in its original project when the active board changes", async () => {
+  vi.stubGlobal("crypto", webcrypto);
+  const attachment = { id: "committed" };
+  const headers: string[] = [];
+  const chunks: Buffer[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (path: string, init: RequestInit) => {
+      headers.push(new Headers(init.headers).get("x-grimoire-project")!);
+      const body = JSON.parse(init.body as string);
+      const base = {
+        id: "pending",
+        pageId: "original-page",
+        state: "uploading",
+        size: 4,
+        chunkLimit: 2,
+        attachment: null,
+      };
+      if (path.endsWith("/uploads")) {
+        setActiveProjectId("next-project");
+        return Response.json({ ...base, offset: 0 });
+      }
+      if (path.endsWith("/chunks")) {
+        const bytes = Buffer.from(body.data, "base64");
+        chunks.push(bytes);
+        return Response.json({ ...base, offset: body.offset + bytes.length });
+      }
+      if (path.endsWith("/complete")) return Response.json({ ...base, state: "complete", attachment });
+      throw new Error(`Unexpected request: ${path}`);
+    }),
+  );
+  setActiveProjectId("original-project");
+  const file = new NodeFile([new Uint8Array([1, 2, 3, 4])], "image.png", { type: "image/png" });
+  await expect(
+    uploadPageAttachment(
+      "original-page",
+      file as unknown as File,
+      new AbortController().signal,
+      () => undefined,
+    ),
+  ).resolves.toEqual(attachment);
+  expect(headers).toEqual(Array(4).fill("original-project"));
+  expect(Buffer.concat(chunks)).toEqual(Buffer.from([1, 2, 3, 4]));
 });

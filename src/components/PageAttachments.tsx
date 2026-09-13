@@ -1,10 +1,20 @@
 import { useEffect, useState } from "react";
 import type { PageAttachment } from "../../shared/attachments";
 import { attachments } from "../api/client";
+import { demoMode } from "../demo/mode";
 import { useSlowWait } from "../hooks/use-slow-wait";
+import { MediaPicker } from "./MediaPicker";
 
 /** Evidence has its own records, so receiving a file never changes a writer's notes. */
-export function PageAttachments({ pageId, revision }: { pageId: string; revision: number }) {
+export function PageAttachments({
+  pageId,
+  revision,
+  onFiles,
+}: {
+  pageId: string;
+  revision: number;
+  onFiles?: (files: File[]) => void;
+}) {
   const [loaded, setLoaded] = useState<{ pageId: string; files: PageAttachment[] } | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [reloads, setReloads] = useState(0);
@@ -31,6 +41,17 @@ export function PageAttachments({ pageId, revision }: { pageId: string; revision
 
   return (
     <section aria-label="Attachments" className="page-attachments">
+      {onFiles && (
+        <div className="attachment-picker">
+          <MediaPicker label="Add more images or videos" onFiles={onFiles} />
+          <p className="empty-note">
+            Drop images or videos anywhere on this page.
+            <br />
+            PNG, JPEG, WebP, GIF up to 10 MB. MP4 up to 100 MB.
+          </p>
+          {demoMode && <p className="empty-note">Demo files stay in this tab until you reload or reset.</p>}
+        </div>
+      )}
       {failed === pageId && (
         <div role="alert">
           Attachments could not be loaded.{" "}
@@ -64,7 +85,7 @@ export function PageAttachments({ pageId, revision }: { pageId: string; revision
               <a
                 aria-label={`Download ${file.filename}`}
                 download={file.filename}
-                href={`${file.reference}&download=1`}
+                href={file.reference.startsWith("blob:") ? file.reference : `${file.reference}&download=1`}
               >
                 Download
               </a>

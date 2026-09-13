@@ -25,7 +25,9 @@ import {
   setActiveProjectId,
   setThreadAnswered,
   uploadAvatar,
+  uploadPageAttachment,
 } from "./api/client";
+import { AttachmentUploadContext } from "./components/AttachmentUploadContext";
 import { AuthScreen } from "./components/AuthScreen";
 import { deferComponent } from "./components/Deferred";
 
@@ -154,6 +156,13 @@ export function App() {
     } finally {
       setBusy(false);
     }
+  };
+
+  // Long uploads own their local busy/error state so a writer can keep editing notes.
+  const performAttachment: typeof uploadPageAttachment = async (pageId, file, signal, progress) => {
+    const attachment = await uploadPageAttachment(pageId, file, signal, progress, board?.project.id);
+    if (!signal.aborted) await refreshBoard();
+    return attachment;
   };
 
   /**
@@ -570,7 +579,7 @@ export function App() {
   if (!board) return null;
 
   return (
-    <>
+    <AttachmentUploadContext value={performAttachment}>
       {reconnectingSlow && (
         <div className="connection-status" role="status">
           Reconnecting to live changes...
@@ -677,6 +686,6 @@ export function App() {
           <p>opening project...</p>
         </div>
       )}
-    </>
+    </AttachmentUploadContext>
   );
 }

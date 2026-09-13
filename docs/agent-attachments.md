@@ -1,8 +1,28 @@
-# Attaching agent evidence
+# Attaching images and videos
 
-A write-scoped project token can upload PNG, JPEG, WebP, GIF, and MP4 evidence to a page.
+Signed-in project members and write-scoped project tokens can upload PNG, JPEG, WebP, GIF, and MP4 evidence to a page.
 Open the page's **Files** tab to view image previews and play recordings, seek, enter fullscreen, or download the original file.
 Attachments have their own Markdown records; receiving evidence never rewrites a page's notes or competes with an unsaved notes edit.
+
+## In the browser
+
+Choose **+ image/video** in the page's Notes toolbar, or in **Files**, to select one or more files.
+You can also drag images and videos onto any part of the open page modal, including the notes and header.
+New media appears in Files without modifying the notes; existing inline image embeds continue to render.
+The picker accepts PNG, JPEG, WebP, and GIF images up to 10 MB, and MP4 videos up to 100 MB.
+Recordings must meet the codec and duration limits below.
+
+Files upload sequentially with individual progress, validation errors, and retry controls.
+A failed file does not prevent the rest of the selection from uploading.
+**Retry** resumes the same file, including when the server saved it but the completion response was lost.
+Choosing the same file with the same name again returns the existing attachment.
+Notes remain editable during uploads.
+Closing the modal stops the local queue and aborts outstanding requests; an already committed attachment remains saved.
+Choose unfinished files again on the original page to resume them before their 24-hour staging expiry.
+Browser uploads require HTTPS or localhost for SHA-256 hashing.
+
+The demo holds selected media only in the current tab's memory, with a 100 MB total limit.
+It sends no upload requests, does not run server-side media validation, and releases these files on reload or playground reset.
 
 ## From the machine holding the file
 
