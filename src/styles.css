@@ -7394,3 +7394,55 @@ textarea:hover {
   font-size: 0.6875rem;
   pointer-events: none;
 }
+
+/* Evidence stays inside the page's independently scrolling side column. */
+.page-attachments {
+  grid-auto-rows: max-content;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+}
+.page-attachment {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+.page-attachment img,
+.page-attachment video {
+  display: block;
+  width: 100%;
+  max-height: 20rem;
+  object-fit: contain;
+  background: var(--background);
+}
+.page-attachment figcaption {
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+}
+.attachment-filename {
+  overflow-wrap: anywhere;
+}
+.attachment-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--muted);
+}
+.attachment-actions a {
+  color: var(--accent);
+}
+@media (pointer: coarse) {
+  .attachment-actions a {
+    display: flex;
+    min-height: 2.75rem;
+    align-items: center;
+  }
+}

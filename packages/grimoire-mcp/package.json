@@ -24,7 +24,8 @@
     "node": ">=20"
   },
   "bin": {
-    "grimoire-mcp": "dist/index.js"
+    "grimoire-mcp": "dist/index.js",
+    "grimoire-upload": "dist/upload.js"
   },
   "files": [
     "dist",

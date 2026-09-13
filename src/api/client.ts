@@ -1,3 +1,4 @@
+import type { PageAttachment } from "../../shared/attachments";
 import type {
   AgentReview,
   AgentToken,
@@ -357,4 +358,10 @@ export function uploadAvatar(file: Blob): Promise<{ avatarUrl: string }> {
       "x-grimoire-client-id": clientId,
     },
   });
+}
+
+/** Evidence is fetched independently of the notes and their save lifecycle. */
+export function attachments(pageId: string): Promise<{ attachments: PageAttachment[] }> {
+  if (demoMode) return Promise.resolve({ attachments: [] });
+  return request(`/api/pages/${encodeURIComponent(pageId)}/attachments`);
 }

@@ -36,6 +36,7 @@ import { MarkdownPageStore } from "./markdown-pages";
 import { type OidcConfig, type OidcIdentity, oidcHttpFetcher, PendingSignIns } from "./oidc";
 import { findOidcLink, linkOidcIdentity, oidcLinkForUser, touchOidcLink } from "./oidc-identities";
 import { emailAllowed, OidcProviders, resolveOidc } from "./oidc-settings";
+import { PageAttachmentStore } from "./page-attachments";
 import { ProjectImageStore } from "./project-images";
 import { buildRecap, discordPoster, postRecap, recapMessages } from "./recap";
 import {
@@ -61,6 +62,7 @@ import {
 import { projectForLinkPreview } from "./repository/projects";
 import { activityRoutes } from "./routes/activity";
 import { agentReviewRoutes } from "./routes/agent-review";
+import { attachmentRoutes } from "./routes/attachments";
 import { authRoutes } from "./routes/auth";
 import { boardRoutes } from "./routes/board";
 import { chapterRoutes } from "./routes/chapters";
@@ -93,6 +95,7 @@ export function createGrimoireServer(options: Options) {
   const ideaStore = new MarkdownIdeaStore(pageStore.rootDirectory);
   const chapterStore = new MarkdownChapterStore(pageStore.rootDirectory);
   const imageStore = new ProjectImageStore(pageStore.rootDirectory);
+  const attachmentStore = new PageAttachmentStore(pageStore.rootDirectory);
   const avatarStore = new AvatarStore(join(dirname(options.databasePath), "avatars"));
   // Every project's `cards/` directory becomes `pages/` before anything reads one. This runs
   // ahead of the legacy SQLite migration so both end up writing to the same place.
@@ -140,6 +143,7 @@ export function createGrimoireServer(options: Options) {
     chapterStore,
     avatarStore,
     imageStore,
+    attachmentStore,
     withAvatar,
     audit,
     auditAs,
@@ -179,6 +183,7 @@ export function createGrimoireServer(options: Options) {
     ...authRoutes(appContext),
     ...boardRoutes(appContext),
     ...fileRoutes(appContext),
+    ...attachmentRoutes(appContext),
     ...githubRoutes(appContext),
     ...projectRoutes(appContext),
     ...projectConfigRoutes(appContext),

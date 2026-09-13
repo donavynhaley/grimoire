@@ -11,7 +11,7 @@ import type { RequestContext } from "../app-types";
  * extend.
  */
 export type Route = {
-  method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
+  method: "HEAD" | "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   /** A literal pathname, or a regex whose capture groups reach the handler as `match`. */
   pattern: string | RegExp;
   handler: (context: RequestContext, match: RegExpMatchArray | null) => Promise<void> | void;

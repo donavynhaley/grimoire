@@ -5,8 +5,10 @@
  * HTTP route, then speaks the MCP protocol over stdio to the real built server binary and
  * checks the effects landed in Grimoire.
  */
+
 import { spawn } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -199,6 +201,12 @@ try {
   const names = listed.result.tools.map((tool) => tool.name).sort();
   console.log(`  tools: ${names.join(", ")}`);
   const expected = [
+    "grimoire_attachment_status",
+    "grimoire_begin_attachment",
+    "grimoire_cancel_attachment_upload",
+    "grimoire_complete_attachment",
+    "grimoire_list_attachments",
+    "grimoire_upload_attachment_chunk",
     "grimoire_board",
     "grimoire_create_idea",
     "grimoire_create_page",
@@ -213,7 +221,7 @@ try {
   ];
   check(
     "exposes exactly the intended tools",
-    JSON.stringify(names) === JSON.stringify(expected),
+    JSON.stringify(names) === JSON.stringify(expected.sort()),
     names.join(","),
   );
   check("no archive tool exists", !names.some((name) => name.includes("archive")));
@@ -252,6 +260,67 @@ try {
     "the write is credited to the person",
     page?.createdByName === "Donavyn",
     String(page?.createdByName),
+  );
+
+  console.log("\nAttachments over MCP byte transport");
+  for (const [filename, mediaType] of [
+    ["image.png", "image/png"],
+    ["recording.mp4", "video/mp4"],
+  ]) {
+    const bytes = readFileSync(`${ROOT}/tests/fixtures/attachments/${filename}`);
+    const sha256 = createHash("sha256").update(bytes).digest("hex");
+    const input = { pageId: page.id, filename, mediaType, size: bytes.length, sha256, key: sha256 };
+    const begun = await callTool("grimoire_begin_attachment", input);
+    check(`MCP begins ${filename}`, !begun.isError, begun.text);
+    const upload = JSON.parse(begun.text);
+    const chunk = await callTool("grimoire_upload_attachment_chunk", {
+      id: upload.id,
+      offset: 0,
+      data: bytes.toString("base64"),
+    });
+    check(
+      `MCP receives remote ${filename} bytes`,
+      !chunk.isError && JSON.parse(chunk.text).offset === bytes.length,
+      chunk.text,
+    );
+    const status = await callTool("grimoire_attachment_status", { id: upload.id });
+    check("MCP reports the durable offset", JSON.parse(status.text).offset === bytes.length, status.text);
+    const completed = await callTool("grimoire_complete_attachment", { id: upload.id });
+    check(
+      `MCP attaches valid ${filename}`,
+      !completed.isError && JSON.parse(completed.text).state === "complete",
+      completed.text,
+    );
+    const file = JSON.parse(completed.text).attachment;
+    check(
+      "MCP returns an actionable private reference",
+      file.pageId === page.id &&
+        file.filename === filename &&
+        file.mediaType === mediaType &&
+        file.reference.startsWith(`${baseUrl}/api/attachments/`),
+      completed.text,
+    );
+    const repeated = await callTool("grimoire_begin_attachment", input);
+    check(
+      "MCP retries return the same completed attachment",
+      JSON.parse(repeated.text).attachment?.id === file.id,
+      repeated.text,
+    );
+    const downloaded = await fetch(file.reference, { headers: { authorization: `Bearer ${secret}` } });
+    check(
+      "the attachment preserves every byte",
+      downloaded.ok && Buffer.from(await downloaded.arrayBuffer()).equals(bytes),
+    );
+  }
+  const attachments = await callTool("grimoire_list_attachments", { pageId: page.id });
+  check(
+    "MCP lists both attachments once",
+    JSON.parse(attachments.text).attachments.length === 2,
+    attachments.text,
+  );
+  check(
+    "attaching evidence preserves notes",
+    (await api(`/api/pages/${page.id}`)).body.page.description === page.description,
   );
 
   // ------------------------------------------------------------ attribution
@@ -617,7 +686,9 @@ try {
     "read scope registers exactly the reading tools",
     JSON.stringify(readTools) ===
       JSON.stringify([
+        "grimoire_attachment_status",
         "grimoire_board",
+        "grimoire_list_attachments",
         "grimoire_list_ideas",
         // Reading what was asked is a read; only saying something back is a write.
         "grimoire_read_discussion",

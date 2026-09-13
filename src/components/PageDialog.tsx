@@ -16,6 +16,7 @@ import { DiscussionSection } from "./DiscussionSection";
 import { Drawer } from "./Drawer";
 import { GithubLink } from "./GithubLink";
 import { NotesField } from "./NotesField";
+import { PageAttachments } from "./PageAttachments";
 import { PageHistory } from "./PageHistory";
 import { PageRail } from "./PageRail";
 import { otherEditorName, SaveState } from "./SaveState";
@@ -86,7 +87,7 @@ export function PageDialog({
    *
    * It starts on the properties. A page opens on what it is, not on what was said about it.
    */
-  const [aside, setAside] = useState<"details" | "discussion">("details");
+  const [aside, setAside] = useState<"details" | "discussion" | "attachments">("details");
   /**
    * History starts folded. Editing a page refetches it, so an open list would redraw
    * itself under the notes on every save — motion next to the field someone is typing
@@ -207,6 +208,17 @@ export function PageDialog({
           Discussion{unseenCount > 0 ? ` · ${unseenCount}` : ""}
           {namedCount > 0 ? " @" : ""}
         </button>
+        <button
+          aria-pressed={pane === "aside" && aside === "attachments"}
+          className="pane-tab"
+          onClick={() => {
+            setPane("aside");
+            setAside("attachments");
+          }}
+          type="button"
+        >
+          Files
+        </button>
       </div>
 
       <div className="page-editor-split" data-pane={pane}>
@@ -282,9 +294,19 @@ export function PageDialog({
                 </span>
               )}
             </button>
+            <button
+              aria-pressed={aside === "attachments"}
+              className="pane-tab"
+              onClick={() => setAside("attachments")}
+              type="button"
+            >
+              Files
+            </button>
           </div>
 
-          {aside === "discussion" ? (
+          {aside === "attachments" ? (
+            <PageAttachments pageId={page.id} revision={revision} />
+          ) : aside === "discussion" ? (
             <DiscussionSection
               currentUserId={currentUserId}
               failed={discussionFailed}
