@@ -1,4 +1,5 @@
 import { useContext, useEffect, useMemo, useState } from "react";
+import type { PageAttachment } from "../../shared/attachments";
 import { ApiError } from "../api/client";
 import type { UploadProgress } from "../api/upload-attachment";
 import { AttachmentUploadContext } from "../components/AttachmentUploadContext";
@@ -11,6 +12,8 @@ type UploadItem = {
   progress: UploadProgress;
   error?: string;
   retryable?: boolean;
+  onComplete?: (attachment: PageAttachment) => void;
+  onDismiss?: () => void;
 };
 
 export function usePageUploads(pageId: string) {
@@ -39,12 +42,13 @@ export function usePageUploads(pageId: string) {
         job.state = "uploading";
         publish();
         try {
-          await upload(pageId, job.file, signal, (progress) => {
+          const attachment = await upload(pageId, job.file, signal, (progress) => {
             if (signal.aborted) return;
             job.progress = progress;
             publish();
           });
           if (signal.aborted) return;
+          job.onComplete?.(attachment);
           job.state = "complete";
           job.file = null;
           setRevision((value) => value + 1);
@@ -65,14 +69,22 @@ export function usePageUploads(pageId: string) {
     available: upload !== null,
     items: snapshot.session === session ? snapshot.jobs : [],
     revision,
-    add(files: File[]) {
-      for (const file of files)
+    add(
+      files: File[],
+      callbacks?: {
+        complete: (index: number, attachment: PageAttachment) => void;
+        dismiss: (index: number) => void;
+      },
+    ) {
+      for (const [index, file] of files.entries())
         session.jobs.push({
           id: String(session.nextId++),
           filename: file.name,
           file,
           state: "queued",
           progress: { phase: "Preparing", percent: 0 },
+          onComplete: callbacks ? (attachment) => callbacks.complete(index, attachment) : undefined,
+          onDismiss: callbacks ? () => callbacks.dismiss(index) : undefined,
         });
       publish();
       void drain();
@@ -86,6 +98,8 @@ export function usePageUploads(pageId: string) {
       void drain();
     },
     dismiss(id: string) {
+      const job = session.jobs.find((item) => item.id === id);
+      if (job && ["complete", "failed"].includes(job.state)) job.onDismiss?.();
       session.jobs = session.jobs.filter(
         (item) => item.id !== id || !["complete", "failed"].includes(item.state),
       );

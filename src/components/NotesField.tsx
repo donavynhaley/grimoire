@@ -1,5 +1,7 @@
 import type { ComponentProps } from "react";
-import { useCallback, useRef, useState } from "react";
+import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from "react";
+import { attachmentEmbed } from "../../shared/attachment-embed";
+import type { PageAttachment } from "../../shared/attachments";
 import { uploadImage } from "../api/client";
 import { deferComponent } from "./Deferred";
 import type { MarkdownEditorHandle } from "./MarkdownEditor";
@@ -31,7 +33,18 @@ type Props = {
   fill?: boolean;
   value: string;
   onChange: (value: string) => void;
-  onAttachFiles?: (files: File[]) => void;
+  onAttachFiles?: (
+    files: File[],
+    callbacks: {
+      complete: (index: number, attachment: PageAttachment) => void;
+      dismiss: (index: number) => void;
+    },
+  ) => void;
+};
+
+export type NotesFieldHandle = {
+  importFiles: (files: File[]) => void;
+  insertAttachment: (attachment: PageAttachment) => void;
 };
 
 /**
@@ -55,19 +68,22 @@ type Props = {
  * begins over the notes rather than over the caret, and a placeholder token holds the
  * spot while the upload runs so typing during it never misplaces the embed.
  */
-export function NotesField({
-  label,
-  editLabel,
-  viewLabel,
-  addImageLabel = "Add an image",
-  editorLabel,
-  placeholder,
-  rows,
-  fill = false,
-  value,
-  onChange,
-  onAttachFiles,
-}: Props) {
+export const NotesField = forwardRef<NotesFieldHandle, Props>(function NotesField(
+  {
+    label,
+    editLabel,
+    viewLabel,
+    addImageLabel = "Add an image",
+    editorLabel,
+    placeholder,
+    rows,
+    fill = false,
+    value,
+    onChange,
+    onAttachFiles,
+  }: Props,
+  ref,
+) {
   const [source, setSource] = useState(false);
   const [pendingUploads, setPendingUploads] = useState(0);
   const [uploadFailed, setUploadFailed] = useState(false);
@@ -81,6 +97,7 @@ export function NotesField({
     setReady(handle !== null);
   }, []);
   const focused = useRef(false);
+  const hasFocused = useRef(false);
   const valueRef = useRef(value);
   valueRef.current = value;
 
@@ -121,6 +138,26 @@ export function NotesField({
     }
   };
 
+  const importFiles = (files: File[]) => {
+    if (!onAttachFiles) {
+      void importImages(files);
+      return;
+    }
+    const handle = editor.current;
+    if (!handle) return;
+    const positions = files.map(() => handle.reserveInsertion(!hasFocused.current));
+    onAttachFiles(files, {
+      complete: (index, attachment) => positions[index]?.insert(attachmentEmbed(attachment)),
+      dismiss: (index) => positions[index]?.cancel(),
+    });
+  };
+  useImperativeHandle(ref, () => ({
+    importFiles,
+    insertAttachment: (attachment) => {
+      editor.current?.reserveInsertion(!hasFocused.current).insert(attachmentEmbed(attachment));
+    },
+  }));
+
   const collectFiles = (list: FileList | null | undefined) => Array.from(list ?? []);
   const hasImage = (files: File[]) => files.some((file) => file.type.startsWith("image/"));
   const draggingFiles = (transfer: DataTransfer | null) => Boolean(transfer?.types.includes("Files"));
@@ -146,6 +183,12 @@ export function NotesField({
         dragDepth.current = 0;
         setDropActive(false);
         const files = collectFiles(event.dataTransfer?.files);
+        if (onAttachFiles && files.length) {
+          event.preventDefault();
+          event.stopPropagation();
+          importFiles(files);
+          return;
+        }
         if (!hasImage(files)) return;
         event.preventDefault();
         void importImages(files);
@@ -172,7 +215,7 @@ export function NotesField({
             reached the way a phone actually holds pictures.
           */}
           {onAttachFiles ? (
-            <MediaPicker onFiles={onAttachFiles} />
+            <MediaPicker disabled={!ready} onFiles={importFiles} />
           ) : (
             <>
               <button
@@ -234,8 +277,9 @@ export function NotesField({
           onChange={onChange}
           onFocusChange={(next) => {
             focused.current = next;
+            if (next) hasFocused.current = true;
           }}
-          onPasteFiles={(files) => (onAttachFiles ? onAttachFiles(files) : void importImages(files))}
+          onPasteFiles={importFiles}
           placeholder={placeholder}
           ref={attachEditor}
           scrollerClass="notes-view"
@@ -245,4 +289,4 @@ export function NotesField({
       </div>
     </div>
   );
-}
+});

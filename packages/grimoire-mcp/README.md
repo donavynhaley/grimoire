@@ -159,7 +159,7 @@ The tool transport sends base64 chunks of at most 512000 decoded bytes; it never
 Begin with the page ID, filename, media type, byte length, SHA-256, and a stable retry key, send chunks at the returned offset, and complete to validate and attach.
 Reuse the same key and metadata after an interruption.
 Only a completed result confirms that the page received the file.
-The returned attachment includes its ID, page ID, filename, media type, and authenticated stable reference.
+The returned attachment includes its ID, page ID, filename, media type, authenticated stable reference, and `embed` Markdown.
 Read-only credentials receive list and status tools but no upload tools.
 
 For large files, run `grimoire-upload <page-id> <local-file>` on the machine holding the file, using the MCP server's environment variables.
@@ -167,9 +167,12 @@ From a checkout, use `node packages/grimoire-mcp/dist/upload.js <page-id> <local
 The helper computes the digest, sends bounded chunks, respects rate limits, and resumes when rerun.
 It prints the completed attachment as JSON; progress goes to stderr.
 
-Open the page's **Files** tab for previews, playback, seeking, fullscreen, and downloads.
+To embed the media in Notes, read the latest page and insert `attachment.embed` at the requested position using `grimoire_update_page` with `expectedNotes`.
+Preserve the surrounding text, reconcile conflicts, and check for the same reference before retrying a notes insertion.
+Images render and recordings play directly among the note text, with seeking and fullscreen controls.
+The **Files** tab retains originals and can insert previously uploaded evidence into Notes.
 Links remain private to authorized project members.
-Notes are never replaced.
+Byte upload completion never silently rewrites notes.
 Unfinished uploads expire after 24 hours and are collected on startup or the next begin; cancellation removes unfinished bytes immediately.
 Keep completion timeouts above 75 seconds and check status after a lost response.
 See [the full workflow and HTTP contract](https://github.com/donavynhaley/grimoire/blob/main/docs/agent-attachments.md) for validation limits, error recovery, and operator requirements.

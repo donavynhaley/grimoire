@@ -1,14 +1,20 @@
 # Attaching images and videos
 
 Signed-in project members and write-scoped project tokens can upload PNG, JPEG, WebP, GIF, and MP4 evidence to a page.
-Open the page's **Files** tab to view image previews and play recordings, seek, enter fullscreen, or download the original file.
-Attachments have their own Markdown records; receiving evidence never rewrites a page's notes or competes with an unsaved notes edit.
+Images and recordings can be embedded among the page's notes, where recordings play with native controls, seeking, and fullscreen.
+The **Files** tab retains the stored originals and offers **Insert in notes** for evidence uploaded previously.
+Attachments retain independent Markdown records and bytes.
+Uploading the bytes does not rewrite notes; browser insertion edits the current notes document and uses its existing autosave and conflict protection.
 
 ## In the browser
 
 Choose **+ image/video** in the page's Notes toolbar, or in **Files**, to select one or more files.
 You can also drag images and videos onto any part of the open page modal, including the notes and header.
-New media appears in Files without modifying the notes; existing inline image embeds continue to render.
+Completed media is inserted directly into Notes at the remembered caret, or at the end if the editor has not been focused.
+Uploads keep Notes open, and multiple files can appear between paragraphs.
+The insertion position tracks typing during the upload without saving temporary markers.
+Deleting that position prevents a late completion from restoring removed content.
+Existing inline image embeds continue to render.
 The picker accepts PNG, JPEG, WebP, and GIF images up to 10 MB, and MP4 videos up to 100 MB.
 Recordings must meet the codec and duration limits below.
 
@@ -23,6 +29,24 @@ Browser uploads require HTTPS or localhost for SHA-256 hashing.
 
 The demo holds selected media only in the current tab's memory, with a 100 MB total limit.
 It sends no upload requests, does not run server-side media validation, and releases these files on reload or playground reset.
+
+## Embedded media syntax
+
+Images use Markdown image syntax with the stable attachment reference.
+Recordings use the same syntax with a `"video/mp4"` title so the notes renderer can recognize authenticated URLs without filename extensions:
+
+```markdown
+Before the recording.
+
+![Reproduction](/api/attachments/ATTACHMENT_ID?project=PROJECT_ID "video/mp4")
+
+What happened next.
+```
+
+The server's `embed` value already escapes the filename and includes the media type.
+Source mode exposes the reference for moving, editing the label, or removing it from the notes.
+Removing an embed leaves the stored original available in Files.
+An explicit second insertion may reuse the same stored file at another position; transport retries do not duplicate its stored bytes.
 
 ## From the machine holding the file
 
@@ -55,9 +79,12 @@ No MCP tool accepts a filesystem path or fetches a supplied remote URL.
    Omit data URL prefixes and whitespace.
 5. Call `grimoire_complete_attachment` after every byte has arrived.
    Only a response with `state: "complete"` confirms attachment to the page.
-6. Confirm the returned `attachment.pageId`, filename, media type, and stable `reference`.
-   Use `grimoire_list_attachments` to verify the page's evidence and include its link in the existing discussion report.
-   Never replace the notes to add a file or report completion.
+6. Confirm the returned `attachment.pageId`, filename, media type, stable `reference`, and `embed` Markdown.
+7. Read the latest page notes and insert `attachment.embed` at the requested position using `grimoire_update_page` with the exact `expectedNotes`.
+   Preserve the surrounding text and reconcile a conflict against the latest notes instead of overwriting another writer.
+   After an interrupted notes update, check for the same attachment reference before inserting it again.
+8. Read the page back and verify the embed is in the intended position.
+   Upload completion confirms stored bytes; successful notes insertion confirms embedded evidence.
 
 `grimoire_attachment_status` returns the durable offset after a lost response.
 Repeating begin with the original metadata and key also resumes safely.

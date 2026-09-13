@@ -3,14 +3,17 @@ import { useRef } from "react";
 export function MediaPicker({
   onFiles,
   label = "Add image or video",
+  disabled = false,
 }: {
   onFiles: (files: File[]) => void;
   label?: string;
+  disabled?: boolean;
 }) {
   const input = useRef<HTMLInputElement>(null);
   return (
     <>
       <button
+        disabled={disabled}
         aria-label={label}
         className="text-button notes-add-image"
         onClick={() => input.current?.click()}

@@ -71,12 +71,12 @@ export function PageDialog({
   onSeeDiscussion,
 }: Props) {
   const uploads = usePageUploads(page.id);
+  const notes = useRef<import("./NotesField").NotesFieldHandle | null>(null);
   const [dropActive, setDropActive] = useState(false);
   const dragDepth = useRef(0);
   const receiveFiles = (files: File[]) => {
-    uploads.add(files);
-    setPane("aside");
-    setAside("attachments");
+    notes.current?.importFiles(files);
+    setPane("notes");
   };
   const [confirmArchive, setConfirmArchive] = useState(false);
   /**
@@ -327,11 +327,13 @@ export function PageDialog({
           {/* The notes take whatever height the column has left over, and are the only
               thing on this panel allowed to scroll. */}
           <NotesField
+            key={page.id}
+            ref={notes}
             editLabel="Edit notes"
             editorLabel="Notes"
             fill
             label="Notes"
-            onAttachFiles={uploads.available ? receiveFiles : undefined}
+            onAttachFiles={uploads.available ? uploads.add : undefined}
             onChange={editor.setDescription}
             placeholder="Add only the context someone needs to act..."
             rows={10}
@@ -397,6 +399,11 @@ export function PageDialog({
 
           {aside === "attachments" ? (
             <PageAttachments
+              onInsert={(attachment) => {
+                notes.current?.insertAttachment(attachment);
+                setPane("notes");
+                setAside("details");
+              }}
               pageId={page.id}
               revision={revision + uploads.revision}
               onFiles={uploads.available ? receiveFiles : undefined}

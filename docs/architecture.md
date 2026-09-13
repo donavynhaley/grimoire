@@ -735,7 +735,8 @@ Browser tests run against built assets with `npm run test:production` to cover d
 ## Page attachments
 
 Agent evidence has independent Markdown records and bytes under each project's `attachments/` directory.
-This keeps attachments out of the notes compare-and-swap cycle, so an upload cannot overwrite a brief or invalidate an in-flight notes edit.
+Byte uploads stay outside the notes compare-and-swap cycle.
+Embedding their references is a separate notes edit, so insertion preserves the current draft and uses the normal conflict checks.
 A resumable, base64 chunk transport carries bytes across machines without asking the MCP host to read the caller's filesystem.
 The optional `grimoire-upload` companion runs beside the local file and uses the same HTTP routes.
 
@@ -752,6 +753,7 @@ Validation forces the demuxer, disables network protocols and MOV external refer
 Project membership and delegated credentials are rechecked after validation yields.
 The file route checks project and page access on every request, serves single byte ranges for seeking, and provides named downloads with private caching.
 The page's Files pane loads canonical attachment metadata and refreshes on work invalidation.
+It retains originals and allows inserting existing evidence in Notes; uploads themselves keep Notes visible.
 [The attachment workflow](agent-attachments.md) documents the tools, limits, errors, and recovery procedure.
 
 The page's image/video picker, file drops, and pasted images use the same attachment transport as agents.
@@ -762,3 +764,15 @@ The page owns its bounded progress display and sequential queue instead of block
 Closing or changing pages aborts that queue; completed files remain canonical and unfinished staging can be resumed by selecting the file again.
 Capture-phase file handlers on the shared Drawer shell prevent the notes editor or browser navigation from consuming a media drop first.
 The demo uses tab-local object URLs, bounded to 100 MB in total and revoked on reset, with an explicit lifetime notice.
+
+Completed browser uploads insert Markdown embeds into the notes document at a position reserved in CodeMirror state.
+Transactions map that position through typing; deleting it cancels the insertion, and unmounting discards the reservation.
+Reservations never enter the saved Markdown, avoiding stale upload placeholders after a close or interrupted session.
+The insertion uses the live document rather than a captured notes string, so it cannot replace typing performed while bytes were uploading.
+The ordinary notes autosave remains responsible for conflict handling and persistence.
+
+Media embeds retain standard Markdown image syntax, with a `"video/mp4"` title identifying a video when its private URL has no filename extension.
+The live-preview widget constructs an image or native controlled video element without interpreting raw HTML.
+The source mode and code-fence rules apply to both media types.
+The attachment API returns escaped `embed` Markdown to agents; agents insert it through the existing guarded notes update rather than letting upload completion silently mutate a brief.
+Demo inline media resolves only object URLs registered by the current demo session, preserving the demo's external-request boundary.

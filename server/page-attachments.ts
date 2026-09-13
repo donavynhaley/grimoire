@@ -15,6 +15,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
+import { attachmentEmbed } from "../shared/attachment-embed";
 import {
   ATTACHMENT_CHUNK_LIMIT,
   ATTACHMENT_IMAGE_LIMIT,
@@ -313,9 +314,10 @@ export class PageAttachmentStore {
   }
   private publicRecord(record: AttachmentRecord, projectId: string): PageAttachment {
     const { key: _key, ...attachment } = record;
-    return {
+    const result = {
       ...attachment,
       reference: `/api/attachments/${record.id}?project=${encodeURIComponent(projectId)}`,
     };
+    return { ...result, embed: attachmentEmbed(result) };
   }
 }

@@ -1,4 +1,5 @@
 import type { AttachmentUploadInput, PageAttachment } from "../../shared/attachments";
+import { demoAttachmentSources } from "./mode";
 
 const files = new Map<string, PageAttachment[]>();
 const scope = (project: string | null, page: string) => `${project ?? "default"}/${page}`;
@@ -32,10 +33,12 @@ export function addDemoAttachment(
     reference: URL.createObjectURL(file),
   };
   files.set(scope(project, pageId), [...list, attachment]);
+  demoAttachmentSources.add(attachment.reference);
   return attachment;
 }
 
 export function clearDemoAttachments(): void {
   for (const list of files.values()) for (const file of list) URL.revokeObjectURL(file.reference);
   files.clear();
+  demoAttachmentSources.clear();
 }
