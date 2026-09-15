@@ -9,6 +9,10 @@ const FLICK_DISTANCE = 32;
 const DISMISS_VELOCITY = 0.55;
 
 type Props = {
+  fileDropHandlers?: Pick<
+    React.HTMLAttributes<HTMLElement>,
+    "onDragEnterCapture" | "onDragOverCapture" | "onDragLeaveCapture" | "onDropCapture"
+  >;
   /**
    * Classes for the panel itself. On a desktop pointer these are the only thing that styles
    * it, which is how the centred dialog stays exactly as it was.
@@ -51,6 +55,7 @@ export function Drawer({
   onClose,
   inert = false,
   children,
+  fileDropHandlers,
 }: Props) {
   const coarse = useCoarsePointer();
   const panel = useRef<HTMLElement>(null);
@@ -101,6 +106,7 @@ export function Drawer({
         }}
       >
         <section
+          {...fileDropHandlers}
           aria-label={label}
           aria-labelledby={labelledBy}
           aria-modal="true"
@@ -124,6 +130,7 @@ export function Drawer({
       }}
     >
       <section
+        {...fileDropHandlers}
         aria-label={label}
         aria-labelledby={labelledBy}
         aria-modal="true"

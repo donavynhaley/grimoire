@@ -1,8 +1,11 @@
 import type { ComponentProps } from "react";
-import { useCallback, useRef, useState } from "react";
+import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from "react";
+import { attachmentEmbed } from "../../shared/attachment-embed";
+import type { PageAttachment } from "../../shared/attachments";
 import { uploadImage } from "../api/client";
 import { deferComponent } from "./Deferred";
 import type { MarkdownEditorHandle } from "./MarkdownEditor";
+import { MediaPicker } from "./MediaPicker";
 
 const MarkdownEditor = deferComponent<ComponentProps<typeof import("./MarkdownEditor")["MarkdownEditor"]>>(
   () => import("./MarkdownEditor").then((module) => ({ default: module.MarkdownEditor })),
@@ -30,6 +33,18 @@ type Props = {
   fill?: boolean;
   value: string;
   onChange: (value: string) => void;
+  onAttachFiles?: (
+    files: File[],
+    callbacks: {
+      complete: (index: number, attachment: PageAttachment) => void;
+      dismiss: (index: number) => void;
+    },
+  ) => void;
+};
+
+export type NotesFieldHandle = {
+  importFiles: (files: File[]) => void;
+  insertAttachment: (attachment: PageAttachment) => void;
 };
 
 /**
@@ -53,18 +68,22 @@ type Props = {
  * begins over the notes rather than over the caret, and a placeholder token holds the
  * spot while the upload runs so typing during it never misplaces the embed.
  */
-export function NotesField({
-  label,
-  editLabel,
-  viewLabel,
-  addImageLabel = "Add an image",
-  editorLabel,
-  placeholder,
-  rows,
-  fill = false,
-  value,
-  onChange,
-}: Props) {
+export const NotesField = forwardRef<NotesFieldHandle, Props>(function NotesField(
+  {
+    label,
+    editLabel,
+    viewLabel,
+    addImageLabel = "Add an image",
+    editorLabel,
+    placeholder,
+    rows,
+    fill = false,
+    value,
+    onChange,
+    onAttachFiles,
+  }: Props,
+  ref,
+) {
   const [source, setSource] = useState(false);
   const [pendingUploads, setPendingUploads] = useState(0);
   const [uploadFailed, setUploadFailed] = useState(false);
@@ -78,6 +97,7 @@ export function NotesField({
     setReady(handle !== null);
   }, []);
   const focused = useRef(false);
+  const hasFocused = useRef(false);
   const valueRef = useRef(value);
   valueRef.current = value;
 
@@ -118,6 +138,26 @@ export function NotesField({
     }
   };
 
+  const importFiles = (files: File[]) => {
+    if (!onAttachFiles) {
+      void importImages(files);
+      return;
+    }
+    const handle = editor.current;
+    if (!handle) return;
+    const positions = files.map(() => handle.reserveInsertion(!hasFocused.current));
+    onAttachFiles(files, {
+      complete: (index, attachment) => positions[index]?.insert(attachmentEmbed(attachment)),
+      dismiss: (index) => positions[index]?.cancel(),
+    });
+  };
+  useImperativeHandle(ref, () => ({
+    importFiles,
+    insertAttachment: (attachment) => {
+      editor.current?.reserveInsertion(!hasFocused.current).insert(attachmentEmbed(attachment));
+    },
+  }));
+
   const collectFiles = (list: FileList | null | undefined) => Array.from(list ?? []);
   const hasImage = (files: File[]) => files.some((file) => file.type.startsWith("image/"));
   const draggingFiles = (transfer: DataTransfer | null) => Boolean(transfer?.types.includes("Files"));
@@ -143,6 +183,12 @@ export function NotesField({
         dragDepth.current = 0;
         setDropActive(false);
         const files = collectFiles(event.dataTransfer?.files);
+        if (onAttachFiles && files.length) {
+          event.preventDefault();
+          event.stopPropagation();
+          importFiles(files);
+          return;
+        }
         if (!hasImage(files)) return;
         event.preventDefault();
         void importImages(files);
@@ -168,31 +214,37 @@ export function NotesField({
             clipboard is several steps that end in the wrong app. This is the same upload,
             reached the way a phone actually holds pictures.
           */}
-          <button
-            disabled={!ready}
-            aria-label={addImageLabel}
-            className="text-button notes-add-image"
-            onClick={() => imagePicker.current?.click()}
-            type="button"
-          >
-            <span aria-hidden="true">+</span> image
-          </button>
-          <input
-            accept="image/*"
-            aria-hidden="true"
-            className="sr-only"
-            onChange={(event) => {
-              const files = collectFiles(event.target.files);
-              // The same input has to accept the same picture twice in a row.
-              event.target.value = "";
-              if (!hasImage(files)) return;
-              void importImages(files);
-            }}
-            multiple
-            ref={imagePicker}
-            tabIndex={-1}
-            type="file"
-          />
+          {onAttachFiles ? (
+            <MediaPicker disabled={!ready} onFiles={importFiles} />
+          ) : (
+            <>
+              <button
+                disabled={!ready}
+                aria-label={addImageLabel}
+                className="text-button notes-add-image"
+                onClick={() => imagePicker.current?.click()}
+                type="button"
+              >
+                <span aria-hidden="true">+</span> image
+              </button>
+              <input
+                accept="image/*"
+                aria-hidden="true"
+                className="sr-only"
+                onChange={(event) => {
+                  const files = collectFiles(event.target.files);
+                  // The same input has to accept the same picture twice in a row.
+                  event.target.value = "";
+                  if (!hasImage(files)) return;
+                  void importImages(files);
+                }}
+                multiple
+                ref={imagePicker}
+                tabIndex={-1}
+                type="file"
+              />
+            </>
+          )}
           {/*
             The word on this control names what a click will do rather than what is on
             screen, the way a play button does, so it swaps with the mode instead of
@@ -225,8 +277,9 @@ export function NotesField({
           onChange={onChange}
           onFocusChange={(next) => {
             focused.current = next;
+            if (next) hasFocused.current = true;
           }}
-          onPasteFiles={(files) => void importImages(files)}
+          onPasteFiles={importFiles}
           placeholder={placeholder}
           ref={attachEditor}
           scrollerClass="notes-view"
@@ -236,4 +289,4 @@ export function NotesField({
       </div>
     </div>
   );
-}
+});

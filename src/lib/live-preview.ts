@@ -40,6 +40,7 @@ class ImageWidget extends WidgetType {
     readonly width: number | undefined,
     readonly height: number | undefined,
     readonly block: boolean,
+    readonly video = false,
   ) {
     super();
   }
@@ -50,11 +51,24 @@ class ImageWidget extends WidgetType {
       other.alt === this.alt &&
       other.width === this.width &&
       other.height === this.height &&
-      other.block === this.block
+      other.block === this.block &&
+      other.video === this.video
     );
   }
 
   override toDOM(): HTMLElement {
+    if (this.video) {
+      const video = document.createElement("video");
+      video.className = this.block ? "cm-lp-video block" : "cm-lp-video";
+      video.src = resolveImageSource(this.src);
+      video.controls = true;
+      video.playsInline = true;
+      video.preload = "metadata";
+      video.setAttribute("aria-label", this.alt || "Video recording");
+      if (this.width) video.width = this.width;
+      if (this.height) video.height = this.height;
+      return video;
+    }
     const image = document.createElement("img");
     image.className = this.block ? "cm-lp-image block" : "cm-lp-image";
     image.src = resolveImageSource(this.src);
@@ -534,7 +548,18 @@ function build(state: EditorState, focused: boolean): Built {
         const alone = line.text.trim() === state.doc.sliceString(node.from, node.to).trim();
         decorations.push(
           Decoration.replace({
-            widget: new ImageWidget(url, altOf(state, node.node), undefined, undefined, alone),
+            widget: new ImageWidget(
+              url,
+              altOf(state, node.node),
+              undefined,
+              undefined,
+              alone,
+              childrenOf(node.node).some(
+                (child) =>
+                  child.name === "LinkTitle" &&
+                  /^['"]video\/mp4['"]$/.test(state.doc.sliceString(child.from, child.to)),
+              ) || /\.mp4(?:[?#]|$)/i.test(url),
+            ),
           }).range(node.from, node.to),
         );
         atomic.push(HIDDEN.range(node.from, node.to));
@@ -558,10 +583,16 @@ function build(state: EditorState, focused: boolean): Built {
     const line = state.doc.lineAt(start);
     const alone = line.text.trim() === match[0];
     decorations.push(
-      Decoration.replace({ widget: new ImageWidget(match[1]!.trim(), alt, width, height, alone) }).range(
-        start,
-        end,
-      ),
+      Decoration.replace({
+        widget: new ImageWidget(
+          match[1]!.trim(),
+          alt,
+          width,
+          height,
+          alone,
+          /\.mp4(?:[?#]|$)/i.test(match[1]!.trim()),
+        ),
+      }).range(start, end),
     );
     atomic.push(HIDDEN.range(start, end));
   }

@@ -3,7 +3,7 @@ import { deferComponent } from "./Deferred";
 import { Drawer } from "./Drawer";
 
 type EditorProps = ComponentProps<typeof import("./PageDialog")["PageDialog"]>;
-type Props = Omit<EditorProps, "registerCloseGuard"> & { onClose: () => void };
+type Props = Omit<EditorProps, "registerCloseGuard" | "registerFileReceiver"> & { onClose: () => void };
 
 const PageDialog = deferComponent<EditorProps>(
   () => import("./PageDialog").then((module) => ({ default: module.PageDialog })),
@@ -18,6 +18,10 @@ export function PageDialogShell({ onClose, ...props }: Props) {
   const alive = useRef(true);
   const [ready, setReady] = useState(false);
   const [closing, setClosing] = useState(false);
+  const fileReceiver = useRef<((files: File[]) => void) | null>(null);
+  const [acceptsFiles, setAcceptsFiles] = useState(false);
+  const [dropActive, setDropActive] = useState(false);
+  const dragDepth = useRef(0);
   const onCloseRef = useRef(onClose);
   useLayoutEffect(() => {
     onCloseRef.current = onClose;
@@ -34,6 +38,17 @@ export function PageDialogShell({ onClose, ...props }: Props) {
     setReady(true);
     return () => {
       guard.current = null;
+    };
+  }, []);
+
+  const registerFileReceiver = useCallback((receive: (files: File[]) => void) => {
+    fileReceiver.current = receive;
+    setAcceptsFiles(true);
+    return () => {
+      fileReceiver.current = null;
+      setAcceptsFiles(false);
+      setDropActive(false);
+      dragDepth.current = 0;
     };
   }, []);
 
@@ -74,11 +89,45 @@ export function PageDialogShell({ onClose, ...props }: Props) {
   return (
     <div className={`page-modal${closing ? " closing" : ""}`} ref={shell}>
       <Drawer
-        className="dialog-panel page-editor"
+        className={`dialog-panel page-editor${dropActive ? " drop-active" : ""}`}
         labelledBy="dialog-panel-title"
         onClose={close}
         inert={closing}
+        fileDropHandlers={
+          acceptsFiles && !closing
+            ? {
+                onDragEnterCapture(event) {
+                  if (!event.dataTransfer.types.includes("Files")) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  dragDepth.current += 1;
+                  setDropActive(true);
+                },
+                onDragOverCapture(event) {
+                  if (!event.dataTransfer.types.includes("Files")) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  event.dataTransfer.dropEffect = "copy";
+                },
+                onDragLeaveCapture(event) {
+                  if (!event.dataTransfer.types.includes("Files")) return;
+                  event.stopPropagation();
+                  dragDepth.current = Math.max(0, dragDepth.current - 1);
+                  if (!dragDepth.current) setDropActive(false);
+                },
+                onDropCapture(event) {
+                  if (!event.dataTransfer.types.includes("Files")) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  dragDepth.current = 0;
+                  setDropActive(false);
+                  fileReceiver.current?.(Array.from(event.dataTransfer.files));
+                },
+              }
+            : undefined
+        }
       >
+        {dropActive && <div className="page-drop-hint">Drop images or videos to attach</div>}
         <header className="dialog-header">
           <div>
             <p className="eyebrow">page details</p>
@@ -93,7 +142,11 @@ export function PageDialogShell({ onClose, ...props }: Props) {
             ×
           </button>
         </header>
-        <PageDialog {...props} registerCloseGuard={registerCloseGuard} />
+        <PageDialog
+          {...props}
+          registerCloseGuard={registerCloseGuard}
+          registerFileReceiver={registerFileReceiver}
+        />
       </Drawer>
     </div>
   );

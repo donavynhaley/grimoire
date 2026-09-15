@@ -1,5 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { registerAttachmentTools } from "./attachments.js";
 import {
   BODY_MAX_LENGTH,
   type Board,
@@ -71,6 +72,7 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
           ? "A project may also define its own fields - a priority, an estimate, whatever it " +
             "tracks - and you can fill those in on any page. You can create and edit pages and " +
             "ideas, and place a page into an existing chapter or take it out of one. " +
+            "Attach images and MP4 recordings with grimoire_begin_attachment, grimoire_upload_attachment_chunk, and grimoire_complete_attachment. Send base64 file bytes from the agent machine, never a path for this server to read. Reuse the same key and metadata to resume safely. " +
             "Every page also has a discussion beside it, and that is where you report: post " +
             "what you did, what you found, and what you need decided with " +
             "grimoire_post_in_discussion rather than writing it into the notes, because the " +
@@ -249,6 +251,7 @@ export function createServer(client: GrimoireClient, options: ServerOptions = {}
     },
   );
 
+  registerAttachmentTools(server, client, writable);
   if (!writable) return server;
 
   server.registerTool(

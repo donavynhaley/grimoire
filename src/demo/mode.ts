@@ -2,6 +2,7 @@
 export const demoMode = globalThis.location?.pathname.replace(/\/$/, "") === "/demo";
 export const DEMO_STORAGE_KEY = "grimoire.demo.v1";
 export const demoAssets = new Map<string, string>();
+export const demoAttachmentSources = new Set<string>();
 export const EMPTY_DEMO_IMAGE = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
 let storageNotice = "";
 export function demoStorageNotice(): string {

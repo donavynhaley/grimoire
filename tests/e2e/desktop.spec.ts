@@ -29,7 +29,11 @@ test.describe("grimoire at a desk, unchanged", () => {
   test("a mouse still drags a page between columns", async ({ page }) => {
     await openBoard(page, [{ title: "Polish the scrying bowl", status: "ready" }]);
 
-    const from = await centerOf(page.locator("article.board-page", { hasText: "Polish the scrying bowl" }));
+    // Other tests share this board. Keep the gesture target on screen as the fixture grows.
+    await page.getByRole("searchbox", { name: "Search pages" }).fill("Polish the scrying bowl");
+    const card = page.locator("article.board-page", { hasText: "Polish the scrying bowl" });
+    await expect(card).toBeInViewport();
+    const from = await centerOf(card);
     const to = await centerOf(page.locator("section.column-in_progress header"));
     await page.mouse.move(from.x, from.y);
     await page.mouse.down();
@@ -45,7 +49,11 @@ test.describe("grimoire at a desk, unchanged", () => {
   test("dropping a page back where it started only opens nothing", async ({ page }) => {
     await openBoard(page, [{ title: "Feed the archive moths", status: "ready" }]);
 
-    const from = await centerOf(page.locator("article.board-page", { hasText: "Feed the archive moths" }));
+    // Other tests share this board. Keep the gesture target on screen as the fixture grows.
+    await page.getByRole("searchbox", { name: "Search pages" }).fill("Feed the archive moths");
+    const card = page.locator("article.board-page", { hasText: "Feed the archive moths" });
+    await expect(card).toBeInViewport();
+    const from = await centerOf(card);
     await page.mouse.move(from.x, from.y);
     await page.mouse.down();
     await page.mouse.move(from.x + 30, from.y + 10, { steps: 4 });

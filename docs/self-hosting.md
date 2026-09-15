@@ -7,6 +7,7 @@ Nothing here depends on a particular cloud or host.
 ## What you need
 
 - A Linux host with Docker Engine and the Compose plugin, or Node.js 24 or newer for the route without Docker.
+- FFmpeg and ffprobe on `PATH` for attachment validation when running without Docker; the image includes them.
 - About two GiB of memory while the image builds; the running service needs far less.
 - A hostname with TLS in front of it, if anybody reaches the instance over the internet.
 
@@ -136,3 +137,6 @@ Choose a release tag or exact commit for your own deployment so that every backu
 
 Do not run two Grimoire processes against one data directory; both the database and the Markdown writer assume a single writer.
 Do not put the instance on a plain HTTP address and expect anyone to stay signed in; the Secure cookie is doing what it should.
+
+Image and recording evidence is stored alongside project Markdown and must be included in backups.
+See [agent attachments](agent-attachments.md) for the upload workflow, storage layout, and validation limits.

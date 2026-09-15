@@ -67,6 +67,12 @@ Build it first with `npm install && npm run build` in this directory.
 | `grimoire_read_discussion` | Everything said about one page, thread by thread, with what is open and what has been answered |
 | `grimoire_post_in_discussion` | Opens a thread on a page - what you did, what you found, what you need decided |
 | `grimoire_reply_in_discussion` | Answers a thread somebody opened, in the thread it was asked in |
+| `grimoire_list_attachments` | Lists a page's image/video evidence and private stable links |
+| `grimoire_attachment_status` | Reads a resumable upload's durable offset or completed result |
+| `grimoire_begin_attachment` | Begins or resumes uploading evidence with a stable retry key |
+| `grimoire_upload_attachment_chunk` | Sends base64 bytes from the machine holding the file |
+| `grimoire_complete_attachment` | Validates and atomically attaches uploaded evidence without changing notes |
+| `grimoire_cancel_attachment_upload` | Discards the caller's unfinished upload |
 
 Category, chapter, assignee, and blockers all take the names a person would use, and are resolved against the board.
 `"me"` resolves to the person the token acts as.
@@ -144,3 +150,29 @@ MIT. Copyright © 2026 Donavyn Haley.
 
 This package is licensed separately from Grimoire itself, which is AGPL-3.0-only.
 The server this talks to carries the copyleft; the client you talk to it with should be free to go anywhere, so it does not.
+
+
+## Images and recordings
+
+Attachments support PNG, JPEG, WebP, and GIF up to 10 MB, and H.264/AAC MP4 recordings up to 100 MB and 10 minutes.
+The tool transport sends base64 chunks of at most 512000 decoded bytes; it never assumes the MCP server can read an agent's local filesystem path.
+Begin with the page ID, filename, media type, byte length, SHA-256, and a stable retry key, send chunks at the returned offset, and complete to validate and attach.
+Reuse the same key and metadata after an interruption.
+Only a completed result confirms that the page received the file.
+The returned attachment includes its ID, page ID, filename, media type, authenticated stable reference, and `embed` Markdown.
+Read-only credentials receive list and status tools but no upload tools.
+
+For large files, run `grimoire-upload <page-id> <local-file>` on the machine holding the file, using the MCP server's environment variables.
+From a checkout, use `node packages/grimoire-mcp/dist/upload.js <page-id> <local-file>` after building the package.
+The helper computes the digest, sends bounded chunks, respects rate limits, and resumes when rerun.
+It prints the completed attachment as JSON; progress goes to stderr.
+
+To embed the media in Notes, read the latest page and insert `attachment.embed` at the requested position using `grimoire_update_page` with `expectedNotes`.
+Preserve the surrounding text, reconcile conflicts, and check for the same reference before retrying a notes insertion.
+Images render and recordings play directly among the note text, with seeking and fullscreen controls.
+The **Files** tab retains originals and can insert previously uploaded evidence into Notes.
+Links remain private to authorized project members.
+Byte upload completion never silently rewrites notes.
+Unfinished uploads expire after 24 hours and are collected on startup or the next begin; cancellation removes unfinished bytes immediately.
+Keep completion timeouts above 75 seconds and check status after a lost response.
+See [the full workflow and HTTP contract](https://github.com/donavynhaley/grimoire/blob/main/docs/agent-attachments.md) for validation limits, error recovery, and operator requirements.

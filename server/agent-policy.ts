@@ -27,7 +27,13 @@ export const AGENT_REPLY_PATH = /^\/api\/pages\/[^/]+\/discussion\/[^/]+\/replie
  * `null` means refuse. Reads are unmetered; writes are charged against the rate limit.
  */
 export function agentMayReach(method: string, pathname: string): "read" | "write" | null {
+  if ((method === "GET" || method === "HEAD") && /^\/api\/attachments\/[^/]+$/.test(pathname)) return "read";
   if (method === "GET") {
+    if (
+      /^\/api\/pages\/[^/]+\/attachments$/.test(pathname) ||
+      /^\/api\/attachment-uploads\/[^/]+$/.test(pathname)
+    )
+      return "read";
     if (pathname === "/api/health" || pathname === "/api/session") return "read";
     if (pathname === "/api/board" || pathname === "/api/search" || pathname === "/api/ideas") return "read";
     // One page, for an agent that already knows which one it wants. Reading a single page by
@@ -56,6 +62,12 @@ export function agentMayReach(method: string, pathname: string): "read" | "write
    * own work settled, and the one judgement a discussion carries would stop meaning anything.
    */
   if (method === "POST" && (AGENT_DISCUSSION_PATH.test(pathname) || AGENT_REPLY_PATH.test(pathname)))
+    return "write";
+  if (
+    method === "POST" &&
+    (/^\/api\/pages\/[^/]+\/attachments\/uploads$/.test(pathname) ||
+      /^\/api\/attachment-uploads\/[^/]+\/(chunks|complete|cancel)$/.test(pathname))
+  )
     return "write";
   // Marking a conversation read is a claim about a person's attention, and an agent has none.
   return null;

@@ -12,6 +12,7 @@ import type { MarkdownIdeaStore } from "../markdown-ideas";
 import type { MarkdownPageStore } from "../markdown-pages";
 import type { OidcConfig, OidcIdentity, PendingSignIns } from "../oidc";
 import type { OidcProviders, OidcSource } from "../oidc-settings";
+import type { PageAttachmentStore } from "../page-attachments";
 import type { ProjectImageStore } from "../project-images";
 
 /**
@@ -29,6 +30,7 @@ export type AppContext = {
   chapterStore: MarkdownChapterStore;
   avatarStore: AvatarStore;
   imageStore: ProjectImageStore;
+  attachmentStore: PageAttachmentStore;
   /** Decorates a user with their picture URL; the boards store people, not bytes. */
   withAvatar: <T extends User>(user: T) => T;
   audit: (context: RequestContext, input: Omit<RecordAuditInput, "actor">) => void;

@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 
 test("loads features on demand and retries a failed notes download without losing the title", async ({
@@ -47,13 +48,23 @@ test("loads features on demand and retries a failed notes download without losin
     .first()
     .click();
   await expect(page.getByRole("alert")).toContainText("Could not load notes editor");
-  await expect(page.getByRole("button", { name: "Add an image" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Add image or video" })).toBeDisabled();
   await page.getByLabel("Title", { exact: true }).fill("A title retained through retry");
   await page.getByRole("button", { name: "Retry loading" }).click();
   await expect(page.getByRole("textbox", { name: "Notes", exact: true })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Notes", exact: true })).toBeFocused();
   await expect(page.getByLabel("Title", { exact: true })).toHaveValue("A title retained through retry");
-  await expect(page.getByRole("button", { name: "Add an image" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Add image or video" })).toBeEnabled();
+  // Inline uploads become available when the recovered editor can preserve their position.
+  const chooser = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "Add image or video", exact: true }).click();
+  await (await chooser).setFiles(
+    fileURLToPath(new URL("../fixtures/attachments/image.png", import.meta.url)),
+  );
+  await expect(page.locator(".cm-content img[alt='image.png']")).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Notes", exact: true })).toBeVisible();
+  await expect(page.getByLabel("Title", { exact: true })).toHaveValue("A title retained through retry");
+  await expect(page.getByRole("button", { name: "Add image or video" })).toBeEnabled();
   await page.getByRole("button", { name: "Close page", exact: true }).click();
   await page.locator(".project-menu-trigger").click();
   await page.getByRole("menuitem", { name: "Project settings" }).click();

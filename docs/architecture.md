@@ -735,9 +735,55 @@ Browser tests run against built assets with `npm run test:production` to cover d
 ## Page modal motion
 
 The page editor keeps one Drawer shell mounted across the lazy feature download and editing, so loading the editor cannot restart its entrance or replace its focus boundary.
+The loaded editor registers its file receiver with that shell, keeping header and notes drops on the same capture boundary without remounting the modal.
 Its backdrop fades in over 140 ms while the panel settles upward by 6 px on desktop or 10 px in the mobile sheet, with ease-out timing and no scale or bounce.
 Input is available immediately; the animation does not gate focus or editing.
 Closing first flushes pending content and stays open if saving fails or needs a conflict decision.
 After a successful flush, the editor becomes inert and fades out over 90 ms before dismissal restores focus to the opener.
 The backdrop keeps intercepting pointer input throughout the exit so a click cannot reach the board before focus is restored.
 The close lifecycle waits on the CSS animation rather than a duplicate JavaScript timer, and reduced motion removes the animation and its delay (UI-1, UI-5, UI-8).
+
+## Page attachments
+
+Agent evidence has independent Markdown records and bytes under each project's `attachments/` directory.
+Byte uploads stay outside the notes compare-and-swap cycle.
+Embedding their references is a separate notes edit, so insertion preserves the current draft and uses the normal conflict checks.
+A resumable, base64 chunk transport carries bytes across machines without asking the MCP host to read the caller's filesystem.
+The optional `grimoire-upload` companion runs beside the local file and uses the same HTTP routes.
+
+An upload's ID is derived from its page and retry key.
+Its private staging directory holds an immutable manifest and a content file whose length is the durable resume offset.
+Overlapping retries verify existing bytes before appending, and completion verifies SHA-256 and decodes the media before atomically renaming the entire directory into the committed collection.
+No partially written file is readable through the attachment route.
+Expired staging is collected on startup and the next begin; explicit cancellation removes unfinished bytes only.
+The eight-upload project cap bounds abandoned staging.
+
+FFmpeg is a runtime dependency because signature-only checks cannot establish that a recording decodes or uses a browser-playable codec.
+The Docker image installs the maintained system package.
+Validation forces the demuxer, disables network protocols and MOV external references, bounds dimensions and execution time, and admits two concurrent decodes.
+Project membership and delegated credentials are rechecked after validation yields.
+The file route checks project and page access on every request, serves single byte ranges for seeking, and provides named downloads with private caching.
+The page's Files pane loads canonical attachment metadata and refreshes on work invalidation.
+It retains originals and allows inserting existing evidence in Notes; uploads themselves keep Notes visible.
+[The attachment workflow](agent-attachments.md) documents the tools, limits, errors, and recovery procedure.
+
+The page's image/video picker, file drops, and pasted images use the same attachment transport as agents.
+The browser uploader is demand-loaded, hashes one file at a time, and pins the destination project before sending chunks.
+Its stable retry key includes the filename, media type, and digest, so retries cannot duplicate a completed upload or collide with a renamed file's immutable metadata.
+App's `performAttachment` owns the mutation and canonical board refresh through a context, avoiding another callback chain through Board and BoardDialogs.
+The page owns its bounded progress display and sequential queue instead of blocking the board with a global busy state.
+Closing or changing pages aborts that queue; completed files remain canonical and unfinished staging can be resumed by selecting the file again.
+Capture-phase file handlers on the shared Drawer shell prevent the notes editor or browser navigation from consuming a media drop first.
+The demo uses tab-local object URLs, bounded to 100 MB in total and revoked on reset, with an explicit lifetime notice.
+
+Completed browser uploads insert Markdown embeds into the notes document at a position reserved in CodeMirror state.
+Transactions map that position through typing; deleting it cancels the insertion, and unmounting discards the reservation.
+Reservations never enter the saved Markdown, avoiding stale upload placeholders after a close or interrupted session.
+The insertion uses the live document rather than a captured notes string, so it cannot replace typing performed while bytes were uploading.
+The ordinary notes autosave remains responsible for conflict handling and persistence.
+
+Media embeds retain standard Markdown image syntax, with a `"video/mp4"` title identifying a video when its private URL has no filename extension.
+The live-preview widget constructs an image or native controlled video element without interpreting raw HTML.
+The source mode and code-fence rules apply to both media types.
+The attachment API returns escaped `embed` Markdown to agents; agents insert it through the existing guarded notes update rather than letting upload completion silently mutate a brief.
+Demo inline media resolves only object URLs registered by the current demo session, preserving the demo's external-request boundary.
