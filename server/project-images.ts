@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { projectDirectory, writeAtomic } from "./markdown-files";
 
@@ -68,6 +68,18 @@ export class ProjectImageStore {
     const name = `pasted-image-${stamp}-${randomBytes(2).toString("hex")}.${EXTENSIONS[contentType]}`;
     writeAtomic(join(this.imagesDirectory(projectSlug), name), data);
     return name;
+  }
+
+  names(projectSlug: string): string[] {
+    const directory = this.imagesDirectory(projectSlug);
+    return existsSync(directory)
+      ? readdirSync(directory).filter((name) => IMAGE_NAME_PATTERN.test(name))
+      : [];
+  }
+
+  remove(projectSlug: string, imageName: string): void {
+    const image = this.get(projectSlug, imageName);
+    if (image) unlinkSync(image.path);
   }
 
   private imagesDirectory(projectSlug: string): string {

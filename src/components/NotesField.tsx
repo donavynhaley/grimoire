@@ -3,6 +3,7 @@ import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from "
 import { attachmentEmbed } from "../../shared/attachment-embed";
 import type { PageAttachment } from "../../shared/attachments";
 import { uploadImage } from "../api/client";
+import type { MediaUploadStatus } from "../lib/media-insertion";
 import { deferComponent } from "./Deferred";
 import type { MarkdownEditorHandle } from "./MarkdownEditor";
 import { MediaPicker } from "./MediaPicker";
@@ -38,13 +39,13 @@ type Props = {
     callbacks: {
       complete: (index: number, attachment: PageAttachment) => void;
       dismiss: (index: number) => void;
+      update: (index: number, status: MediaUploadStatus) => void;
     },
   ) => void;
 };
 
 export type NotesFieldHandle = {
   importFiles: (files: File[]) => void;
-  insertAttachment: (attachment: PageAttachment) => void;
 };
 
 /**
@@ -145,17 +146,20 @@ export const NotesField = forwardRef<NotesFieldHandle, Props>(function NotesFiel
     }
     const handle = editor.current;
     if (!handle) return;
-    const positions = files.map(() => handle.reserveInsertion(!hasFocused.current));
+    const positions = files.map((file) =>
+      handle.reserveInsertion(!hasFocused.current, {
+        filename: file.name,
+        message: "Waiting to add to notes",
+      }),
+    );
     onAttachFiles(files, {
       complete: (index, attachment) => positions[index]?.insert(attachmentEmbed(attachment)),
       dismiss: (index) => positions[index]?.cancel(),
+      update: (index, status) => positions[index]?.update(status),
     });
   };
   useImperativeHandle(ref, () => ({
     importFiles,
-    insertAttachment: (attachment) => {
-      editor.current?.reserveInsertion(!hasFocused.current).insert(attachmentEmbed(attachment));
-    },
   }));
 
   const collectFiles = (list: FileList | null | undefined) => Array.from(list ?? []);

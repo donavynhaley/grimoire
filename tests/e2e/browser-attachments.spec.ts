@@ -101,7 +101,8 @@ test("file drops on notes and the modal header attach media and reject unsupport
   await expect(page.locator(".notes-field img.cm-lp-image")).toHaveCount(1);
   await expect(page.locator(".notes-field video")).toHaveCount(1);
   expect(await dropFiles(page, ".dialog-header", ["image.png", "recording.mp4"])).toBe(true);
-  await expect(page.locator(".page-upload").filter({ hasText: "Attached" })).toHaveCount(4);
+  await expect(page.locator(".inline-upload")).toHaveCount(0);
+  await expect(page.locator(".notes-field video")).toHaveCount(2);
   await page.evaluate(() => {
     const transfer = new DataTransfer();
     transfer.items.add(new File(["unsupported"], "report.txt", { type: "text/plain" }));
@@ -150,8 +151,7 @@ test("demo visitors can attach and play media without sending any API requests",
   await page.getByRole("button", { name: "Reset demo", exact: true }).click();
   await page.getByRole("button", { name: "Reset", exact: true }).click();
   await page.getByRole("button", { name: /^Open Make yourself at home/ }).click();
-  await page.getByRole("button", { name: "Files", exact: true }).click();
-  await expect(page.getByText("No attachments yet.")).toBeVisible();
+  await expect(page.locator('.notes-field video, .notes-field img[src^="blob:"]')).toHaveCount(0);
   expect(requests).toEqual([]);
 });
 
@@ -197,7 +197,7 @@ test("closing during an upload preserves edits, stops queued files, and allows r
       notes.getByText("Add only the context someone needs to act...", { exact: true }),
     ).toBeVisible();
     await notes.pressSequentially("Written while uploading.");
-    await expect(notes).toHaveText("Written while uploading.");
+    await expect(notes.locator(".cm-line")).toHaveText("Written while uploading.");
     await page.getByRole("button", { name: "Close page", exact: true }).click();
     await expect(page.getByRole("dialog")).toBeHidden();
     unblock();
@@ -208,8 +208,7 @@ test("closing during an upload preserves edits, stops queued files, and allows r
     });
     const { page: other } = await created.json();
     await page.goto(`/?page=${other.id}`);
-    await page.getByRole("button", { name: "Files", exact: true }).click();
-    await expect(page.getByText("No attachments yet.")).toBeVisible();
+    await expect(page.locator('.notes-field video, .notes-field img[src^="blob:"]')).toHaveCount(0);
     expect(begins).toBe(1);
     await page.goto(`/?page=${id}`);
     const resume = page.waitForEvent("filechooser");
@@ -269,6 +268,12 @@ test("an inline recording keeps its insertion point through typing and survives 
     await page.getByRole("button", { name: "Add image or video", exact: true }).click();
     await (await chooser).setFiles(fixture("recording.mp4"));
     await completing;
+    const pending = page.locator(".notes-field .inline-upload");
+    await expect(pending).toContainText("recording.mp4");
+    await expect(pending.getByRole("progressbar")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Files", exact: true })).toHaveCount(0);
+    await expect(pending).toHaveCSS("opacity", "1");
+    await page.screenshot({ path: testInfo.outputPath("inline-upload-progress.png") });
     await notes.click();
     await notes.press("ControlOrMeta+Home");
     await notes.pressSequentially("Updated ");
@@ -317,11 +322,10 @@ test("an inline recording keeps its insertion point through typing and survives 
       .poll(async () => (await (await page.request.get(`/api/pages/${id}`)).json()).page.description)
       .toBe("Updated Before.\n\nAfter.");
     expect((await (await page.request.get(`/api/pages/${id}/attachments`)).json()).attachments).toHaveLength(
-      1,
+      0,
     );
-    await page.getByRole("button", { name: "Files", exact: true }).click();
-    await page.getByRole("button", { name: "Insert recording.mp4 in notes", exact: true }).click();
-    await expect(video).toBeVisible();
+    await page.reload();
+    await expect(page.locator(".notes-field video")).toHaveCount(0);
   } finally {
     release();
     await page.unrouteAll({ behavior: "wait" });

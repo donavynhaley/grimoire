@@ -2,13 +2,14 @@
 
 Signed-in project members and write-scoped project tokens can upload PNG, JPEG, WebP, GIF, and MP4 evidence to a page.
 Images and recordings can be embedded among the page's notes, where recordings play with native controls, seeking, and fullscreen.
-The **Files** tab retains the stored originals and offers **Insert in notes** for evidence uploaded previously.
+Images and videos live in Notes; there is no separate Files tab.
+On upgrade, older standalone attachments are appended to their page notes once, including archived pages.
 Attachments retain independent Markdown records and bytes.
 Uploading the bytes does not rewrite notes; browser insertion edits the current notes document and uses its existing autosave and conflict protection.
 
 ## In the browser
 
-Choose **+ image/video** in the page's Notes toolbar, or in **Files**, to select one or more files.
+Choose **+ image/video** in the page's Notes toolbar to select one or more files.
 You can also drag images and videos onto any part of the open page modal, including the notes and header.
 Completed media is inserted directly into Notes at the remembered caret, or at the end if the editor has not been focused.
 Uploads keep Notes open, and multiple files can appear between paragraphs.
@@ -18,7 +19,8 @@ Existing inline image embeds continue to render.
 The picker accepts PNG, JPEG, WebP, and GIF images up to 10 MB, and MP4 videos up to 100 MB.
 Recordings must meet the codec and duration limits below.
 
-Files upload sequentially with individual progress, validation errors, and retry controls.
+Files upload sequentially with progress, validation errors, and retry controls at their insertion point inside Notes.
+Progress is temporary editor state and is never saved in the notes.
 A failed file does not prevent the rest of the selection from uploading.
 **Retry** resumes the same file, including when the server saved it but the completion response was lost.
 Choosing the same file with the same name again returns the existing attachment.
@@ -99,6 +101,11 @@ Incomplete or rejected uploads remain private, expire 24 hours after begin, and 
 At most eight unfinished uploads may exist per project, limiting staged storage to 800 MB.
 Expired uploads must begin again with the same key and metadata.
 Successful attachments do not expire.
+Saving page notes after removing their last media reference deletes the stored original and its attachment record.
+References elsewhere in the project, including archived pages, ideas, chapter notes, and discussions, protect shared media.
+This also covers legacy project images.
+Removing one of several embeds, failed saves, and content conflicts do not delete the original.
+After deletion has been saved, undoing the text cannot restore the bytes; choose the original file again to upload it.
 
 ## Limits and errors
 

@@ -1,6 +1,14 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -121,6 +129,114 @@ describe("page attachments", () => {
       history.body.events.filter((event) => event.changes.some((change) => change.field === "attachment")),
     ).toHaveLength(1);
   });
+
+  it("deletes bytes only after the last embed is successfully saved away", async () => {
+    const ctx = await setup();
+    const { attachment } = await ctx.attach();
+    const embed = attachment!.embed!;
+    const patch = (description: string, expectedDescription?: string) =>
+      ctx.server.request(`/api/pages/${ctx.page.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ description, expectedDescription }),
+      });
+    await patch(`${embed}\n\n${embed}`);
+    await patch(embed);
+    expect((await ctx.server.fetchRaw(attachment!.reference)).status).toBe(200);
+    const conflict = await patch("", "stale draft");
+    expect(conflict.response.status).toBe(409);
+    expect((await ctx.server.fetchRaw(attachment!.reference)).status).toBe(200);
+    await patch("Keep the surrounding notes.", embed);
+    expect((await ctx.server.fetchRaw(attachment!.reference)).status).toBe(404);
+    const slug = readdirSync(ctx.server.pagesDirectory)[0]!;
+    expect(existsSync(join(ctx.server.pagesDirectory, slug, "attachments", attachment!.id))).toBe(false);
+    expect(
+      (await ctx.server.request<{ attachments: PageAttachment[] }>(`/api/pages/${ctx.page.id}/attachments`))
+        .body.attachments,
+    ).toEqual([]);
+    // Re-selecting deleted media starts a new upload even with the original retry key.
+    expect((await ctx.begin()).state).toBe("uploading");
+  });
+
+  it("keeps media referenced by another page, including an archived page", async () => {
+    const ctx = await setup();
+    const { attachment } = await ctx.attach();
+    const embed = attachment!.embed!;
+    const other = await ctx.server.request<{ page: Page }>("/api/pages", {
+      method: "POST",
+      body: JSON.stringify({ title: "Shared evidence", description: embed }),
+    });
+    await ctx.server.request(`/api/pages/${ctx.page.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ description: embed }),
+    });
+    await ctx.server.request(`/api/pages/${other.body.page.id}`, { method: "DELETE" });
+    await ctx.server.request(`/api/pages/${ctx.page.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ description: "" }),
+    });
+    expect((await ctx.server.fetchRaw(attachment!.reference)).status).toBe(200);
+    await ctx.server.request(`/api/pages/${other.body.page.id}/restore`, { method: "POST", body: "{}" });
+    await ctx.server.request(`/api/pages/${other.body.page.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ description: "" }),
+    });
+    expect((await ctx.server.fetchRaw(attachment!.reference)).status).toBe(404);
+  });
+
+  it("retains evidence cited in discussion when its notes embed is removed", async () => {
+    const ctx = await setup();
+    const { attachment } = await ctx.attach();
+    await ctx.server.request(`/api/pages/${ctx.page.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ description: attachment!.embed }),
+    });
+    const discussion = await ctx.server.request(`/api/pages/${ctx.page.id}/discussion`, {
+      method: "POST",
+      body: JSON.stringify({ body: `See ${attachment!.reference}` }),
+    });
+    expect(discussion.response.status).toBeLessThan(300);
+    await ctx.server.request(`/api/pages/${ctx.page.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ description: "" }),
+    });
+    expect((await ctx.server.fetchRaw(attachment!.reference)).status).toBe(200);
+  });
+
+  it.each([false, true])(
+    "moves legacy evidence into notes once, including archived pages (%s)",
+    async (archived) => {
+      const directory = mkdtempSync(join(tmpdir(), "grimoire-notes-migration-"));
+      directories.push(directory);
+      const ctx = await setup(directory);
+      const image = (await ctx.attach()).attachment!;
+      const video = (await ctx.attach(VIDEO, "video/mp4")).attachment!;
+      await ctx.server.request(`/api/pages/${ctx.page.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ description: image.embed }),
+      });
+      const slug = readdirSync(ctx.server.pagesDirectory)[0]!;
+      for (const file of [image, video]) {
+        rmSync(join(ctx.server.pagesDirectory, slug, "attachments", file.id, "notes-inline"));
+      }
+      if (archived) await ctx.server.request(`/api/pages/${ctx.page.id}`, { method: "DELETE" });
+      await ctx.server.close();
+      const reopened = await startTestServer(directory);
+      const record = readFileSync(
+        join(reopened.pagesDirectory, slug, archived ? "archive" : "pages", `${ctx.page.id}.md`),
+        "utf8",
+      );
+      expect(record.split(image.reference)).toHaveLength(2);
+      expect(record.split(video.reference)).toHaveLength(2);
+      await reopened.close();
+      const again = await startTestServer(directory);
+      expect(
+        readFileSync(
+          join(again.pagesDirectory, slug, archived ? "archive" : "pages", `${ctx.page.id}.md`),
+          "utf8",
+        ),
+      ).toBe(record);
+    },
+  );
 
   it.each([
     ["image.jpg", "image/jpeg"],

@@ -42,3 +42,20 @@ export function clearDemoAttachments(): void {
   files.clear();
   demoAttachmentSources.clear();
 }
+
+/** Match saved-note deletion in the playground and release its tab-local bytes. */
+export function removeDemoNoteMedia(project: string, before: string, documents: string[]): void {
+  for (const [key, list] of files) {
+    if (!key.startsWith(`${project}/`)) continue;
+    files.set(
+      key,
+      list.filter((file) => {
+        if (!before.includes(file.reference) || documents.some((body) => body.includes(file.reference)))
+          return true;
+        URL.revokeObjectURL(file.reference);
+        demoAttachmentSources.delete(file.reference);
+        return false;
+      }),
+    );
+  }
+}

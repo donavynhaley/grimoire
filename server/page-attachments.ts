@@ -29,6 +29,7 @@ import {
 import { validateAttachmentMedia } from "./attachment-media";
 import { HttpError } from "./http";
 import { parseMarkdown, projectDirectory, serializeMarkdown, writeAtomic } from "./markdown-files";
+import type { MarkdownPageStore } from "./markdown-pages";
 
 export const attachmentInputSchema = z
   .object({
@@ -123,6 +124,7 @@ export class PageAttachmentStore {
     mkdirSync(path);
     try {
       this.write(path, record);
+      writeAtomic(join(path, "notes-inline"), "1\n");
       writeAtomic(join(path, "content"), Buffer.alloc(0));
     } catch (error) {
       rmSync(path, { recursive: true, force: true });
@@ -279,6 +281,27 @@ export class PageAttachmentStore {
       attachment: this.publicRecord(this.read(found.path), projectId),
       path: join(found.path, "content"),
     };
+  }
+
+  /** Older Files-only evidence gets a notes home once, before serving requests. */
+  migrateNotes(slug: string, projectId: string, pages: MarkdownPageStore): void {
+    const root = this.root(slug);
+    if (!existsSync(root)) return;
+    for (const id of readdirSync(root).filter((name) => /^[a-f0-9]{64}$/.test(name))) {
+      const path = join(root, id);
+      const record = this.read(path);
+      if (existsSync(join(path, "notes-inline"))) continue;
+      const attachment = this.publicRecord(record, projectId);
+      if (!pages.migrateAttachmentNote(slug, record.pageId, attachment.reference, attachment.embed!))
+        continue;
+      // Writing notes first makes an interrupted migration safe to retry without duplication.
+      writeAtomic(join(path, "notes-inline"), "1\n");
+    }
+  }
+
+  remove(slug: string, id: string): void {
+    const found = this.locate(slug, id);
+    if (found?.complete) rmSync(found.path, { recursive: true, force: true });
   }
 
   cleanup(slug: string): void {
