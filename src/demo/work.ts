@@ -9,6 +9,7 @@ import {
   pageUpdateSchema,
 } from "../../shared/request-schemas";
 import type { AuditAction, AuditEntityType, DiscussionMessage, Idea, Page } from "../../shared/types";
+import { removeDemoNoteMedia } from "./attachments";
 import { type DemoProject, type DemoState, demoId, newDemoPage } from "./seed";
 
 export class DemoError extends Error {
@@ -194,6 +195,7 @@ export function workRequest(
           "GitHub links need a connected repository on your own installation. The demo never contacts GitHub.",
         );
       const { fields, github, expectedTitle: _title, expectedDescription: _description, ...rest } = input;
+      const previousDescription = page.description;
       const previousStatus = page.status;
       Object.assign(page, rest);
       if (github === null) {
@@ -205,6 +207,16 @@ export function workRequest(
         else page.fields[key] = value;
       }
       validatePage(project, page);
+      if (input.description !== undefined)
+        removeDemoNoteMedia(board.project.id, previousDescription, [
+          ...board.pages.map((item) => item.description),
+          ...project.archivedPages.map((item) => item.description),
+          ...project.ideas.map((item) => item.description),
+          ...board.chapters.map((item) => item.description),
+          ...Object.values(project.discussions).flatMap((threads) =>
+            threads.flatMap((thread) => [thread.body, ...thread.replies.map((reply) => reply.body)]),
+          ),
+        ]);
       page.updatedAt = now;
       page.completedAt = page.status === "done" ? (page.completedAt ?? now) : null;
       const reordered = board.pages

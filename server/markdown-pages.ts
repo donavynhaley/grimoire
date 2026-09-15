@@ -130,6 +130,21 @@ export class MarkdownPageStore {
     writeAtomic(this.activePath(projectSlug, page.id), serializePage(page));
   }
 
+  /** Preserve previously standalone evidence when upgrading to notes-only media. */
+  migrateAttachmentNote(projectSlug: string, pageId: string, reference: string, embed: string): boolean {
+    const page = this.get(projectSlug, pageId) ?? this.getArchived(projectSlug, pageId);
+    if (!page) return false;
+    if (page.description.includes(reference)) return true;
+    const path = page.archivedAt
+      ? this.archivePath(projectSlug, pageId)
+      : this.activePath(projectSlug, pageId);
+    writeAtomic(
+      path,
+      serializePage({ ...page, description: `${page.description}${page.description ? "\n\n" : ""}${embed}` }),
+    );
+    return true;
+  }
+
   archive(projectSlug: string, page: StoredPage): void {
     const activePath = this.activePath(projectSlug, page.id);
     if (!existsSync(activePath)) throw new Error(`Page file does not exist: ${activePath}`);

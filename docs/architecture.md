@@ -91,7 +91,8 @@ Chapters are the exception: their slug is fixed at creation and survives renames
 Images pasted into notes are stored once per project in `images/` and embedded with Obsidian's `![[name]]` syntax.
 Embeds resolve by file name rather than by relative path, so a page keeps its images through archive and restore, and an idea keeps them through promotion.
 The web application serves the same files through an authenticated project-scoped route, and a vault or repository that contains the project directory renders them natively in Obsidian.
-Uploads are verified by content signature (PNG, JPEG, WebP, or GIF), written atomically with generated names, and never deleted by the application.
+Uploads are verified by content signature (PNG, JPEG, WebP, or GIF) and written atomically with generated names.
+A successful page-notes save collects images whose last project reference was removed, using the same conservative reference checks as attachments.
 
 ## Notes editing
 
@@ -763,15 +764,20 @@ The Docker image installs the maintained system package.
 Validation forces the demuxer, disables network protocols and MOV external references, bounds dimensions and execution time, and admits two concurrent decodes.
 Project membership and delegated credentials are rechecked after validation yields.
 The file route checks project and page access on every request, serves single byte ranges for seeking, and provides named downloads with private caching.
-The page's Files pane loads canonical attachment metadata and refreshes on work invalidation.
-It retains originals and allows inserting existing evidence in Notes; uploads themselves keep Notes visible.
+Images and videos appear exclusively in Notes.
+On startup, completed attachments from the Files-pane era are appended to their owning page notes if missing, including archived pages.
+A `notes-inline` sidecar marks new uploads and migrated records without changing the manifest schema older servers read.
+The page is atomically saved before the marker is written, so an interrupted migration can retry without duplicating the embed.
+Original titles, statuses, archival state, timestamps, and surrounding notes remain intact.
 [The attachment workflow](agent-attachments.md) documents the tools, limits, errors, and recovery procedure.
 
 The page's image/video picker, file drops, and pasted images use the same attachment transport as agents.
 The browser uploader is demand-loaded, hashes one file at a time, and pins the destination project before sending chunks.
 Its stable retry key includes the filename, media type, and digest, so retries cannot duplicate a completed upload or collide with a renamed file's immutable metadata.
 App's `performAttachment` owns the mutation and canonical board refresh through a context, avoiding another callback chain through Board and BoardDialogs.
-The page owns its bounded progress display and sequential queue instead of blocking the board with a global busy state.
+The page owns its sequential queue, with progress, errors, and retry controls drawn as temporary CodeMirror widgets at the insertion point.
+Progress updates reuse the widget DOM so the entrance animation and focus do not restart for each chunk.
+Native progress bars distinguish byte progress from preparation and validation, and reduced motion removes the entrance fade.
 Closing or changing pages aborts that queue; completed files remain canonical and unfinished staging can be resumed by selecting the file again.
 Capture-phase file handlers on the shared Drawer shell prevent the notes editor or browser navigation from consuming a media drop first.
 The demo uses tab-local object URLs, bounded to 100 MB in total and revoked on reset, with an explicit lifetime notice.
@@ -787,3 +793,14 @@ The live-preview widget constructs an image or native controlled video element w
 The source mode and code-fence rules apply to both media types.
 The attachment API returns escaped `embed` Markdown to agents; agents insert it through the existing guarded notes update rather than letting upload completion silently mutate a brief.
 Demo inline media resolves only object URLs registered by the current demo session, preserving the demo's external-request boundary.
+
+### Removing embedded media
+
+After a page-notes update passes its content conflict checks and saves successfully, the server compares its old and new references.
+It collects only removed media that no longer appears in any project Markdown record or discussion message.
+Archived pages, promoted ideas, chapter notes, duplicate embeds, plain links, and literal code examples all protect the original.
+New uploads awaiting insertion are not collection candidates.
+Legacy project images follow the same rule, including encoded filenames and Markdown or Obsidian syntax.
+The notes commit precedes byte removal: a process or filesystem failure between them can leave unreferenced bytes, but cannot delete media from a rejected save.
+This is permanent removal of the original, so editor undo after a successful deletion restores text only; uploading the original file again restores the media.
+The tab-local demo releases removed object URLs under the same saved-notes rule.

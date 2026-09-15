@@ -29,8 +29,7 @@ test("agent evidence renders privately with video playback, seeking, and downloa
     await page.goto(`/?page=${work.id}`);
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
-    await dialog.getByRole("button", { name: "Files", exact: true }).click();
-    await expect(dialog.getByText("No attachments yet.")).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Files", exact: true })).toHaveCount(0);
     for (const [filename, mediaType] of [
       ["image.png", "image/png"],
       ["recording.mp4", "video/mp4"],
@@ -51,7 +50,15 @@ test("agent evidence renders privately with video playback, seeking, and downloa
       ).toBe(true);
       const complete = await agent.post(`/api/attachment-uploads/${upload.id}/complete`, { data: {} });
       expect(complete.ok(), await complete.text()).toBe(true);
-      await expect(dialog.getByRole("link", { name: `Download ${filename}` })).toBeVisible();
+      const result = (await complete.json()) as AttachmentUpload;
+      const current = (await (await agent.get(`/api/pages/${work.id}`)).json()).page;
+      const saved = await agent.patch(`/api/pages/${work.id}`, {
+        data: {
+          description: `${current.description}\n\n${result.attachment!.embed}`,
+          expectedDescription: current.description,
+        },
+      });
+      expect(saved.ok()).toBe(true);
     }
     const image = dialog.getByRole("img", { name: "image.png" });
     await expect.poll(() => image.evaluate((element: HTMLImageElement) => element.naturalWidth)).toBe(320);
@@ -80,21 +87,11 @@ test("agent evidence renders privately with video playback, seeking, and downloa
       )
       .toBe(true);
     expect(await video.evaluate((element: HTMLVideoElement) => element.error)).toBeNull();
-    const downloadPromise = page.waitForEvent("download");
-    await dialog.getByRole("link", { name: "Download recording.mp4" }).click();
-    const download = await downloadPromise;
-    expect(download.suggestedFilename()).toBe("recording.mp4");
-    const path = await download.path();
-    expect(readFileSync(path!)).toEqual(
+    const download = await agent.get(`${await video.getAttribute("src")}&download=1`);
+    expect(download.headers()["content-disposition"]).toContain("recording.mp4");
+    expect(await download.body()).toEqual(
       readFileSync(new URL("../fixtures/attachments/recording.mp4", import.meta.url)),
     );
-    for (const card of await dialog.locator(".page-attachment").all()) {
-      const box = await card.evaluate((element) => ({
-        client: element.clientHeight,
-        scroll: element.scrollHeight,
-      }));
-      expect(box.scroll).toBeLessThanOrEqual(box.client + 1);
-    }
     const sizes = await dialog.evaluate((element) => ({
       width: element.clientWidth,
       scroll: element.scrollWidth,
@@ -104,7 +101,7 @@ test("agent evidence renders privately with video playback, seeking, and downloa
     expect(sizes.scroll).toBeLessThanOrEqual(sizes.width + 1);
     expect(sizes.scrollHeight).toBeLessThanOrEqual(sizes.height + 1);
     await expect(page.locator(".error-banner")).toHaveCount(0);
-    expect((await (await agent.get(`/api/pages/${work.id}`)).json()).page.description).toBe(
+    expect((await (await agent.get(`/api/pages/${work.id}`)).json()).page.description).toContain(
       "The original brief stays here.",
     );
     await page.screenshot({ path: testInfo.outputPath("attachments.png") });

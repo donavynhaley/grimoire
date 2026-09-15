@@ -7458,83 +7458,50 @@ textarea:hover {
   pointer-events: none;
 }
 
-/* Evidence stays inside the page's independently scrolling side column. */
-.page-attachments {
-  grid-auto-rows: max-content;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  display: grid;
-  align-content: start;
-  gap: 1rem;
-}
-.page-attachment {
-  margin: 0;
-  min-width: 0;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-}
-.page-attachment img,
-.page-attachment video {
-  display: block;
-  width: 100%;
-  max-height: 20rem;
-  object-fit: contain;
-  background: var(--background);
-}
-.page-attachment figcaption {
-  padding: 0.75rem;
-  display: grid;
-  gap: 0.5rem;
-  font-size: 0.8125rem;
-}
-.attachment-filename {
-  overflow-wrap: anywhere;
-}
-.attachment-actions {
+/* Upload placeholders live at their future media position inside Notes. */
+.inline-upload {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.5rem;
-  color: var(--muted);
-}
-.attachment-actions a {
-  color: var(--accent);
-}
-@media (pointer: coarse) {
-  .attachment-actions a {
-    display: flex;
-    min-height: 2.75rem;
-    align-items: center;
-  }
-}
-
-/* Upload outcomes have one bounded slot, leaving both the notes and files usable. */
-.page-upload-slot {
-  flex: none;
-  min-height: 0;
-}
-.page-upload-list {
-  max-height: 7rem;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-.page-upload {
-  display: flex;
-  align-items: baseline;
   flex-wrap: wrap;
-  gap: 0.25rem 0.75rem;
-  padding: 0.375rem 0;
-  font-size: 0.75rem;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin: 0.75rem 0;
+  padding: 1rem;
+  border: 1px dashed var(--accent);
+  border-radius: 0.5rem;
+  background: var(--surface);
   color: var(--muted);
+  font: 0.8125rem / 1.5 var(--font-body);
+  overflow-wrap: anywhere;
+  animation: inline-upload-in 190ms ease-out both;
 }
-.page-upload .attachment-filename {
-  flex: 1 1 10rem;
+.inline-upload strong {
+  flex-basis: 100%;
   color: var(--text);
 }
-.page-upload [role="alert"] {
+.inline-upload progress {
+  flex-basis: 100%;
+  width: 100%;
+  height: 0.375rem;
+  accent-color: var(--accent);
+}
+.inline-upload.failed {
+  border-color: var(--red);
+}
+.inline-upload [role="alert"] {
   color: var(--red);
+}
+@keyframes inline-upload-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .inline-upload {
+    animation: none;
+  }
 }
 .page-editor.drop-active {
   outline: 0.125rem solid var(--accent);
@@ -7552,14 +7519,8 @@ textarea:hover {
   border-radius: 0.5rem;
   pointer-events: none;
 }
-.attachment-picker .empty-note {
-  margin: 0.5rem 0 0;
-  color: var(--muted);
-  font-size: 0.75rem;
-  line-height: 1.5;
-}
 @media (pointer: coarse) {
-  .page-upload button {
+  .inline-upload button {
     min-height: 2.75rem;
   }
 }

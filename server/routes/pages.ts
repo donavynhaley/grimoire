@@ -2,6 +2,8 @@ import type { PageGithubLink } from "../../shared/types";
 import { changeAction, pageChanges, pageCreationChanges } from "../audit";
 import { parseGithubReference } from "../github";
 import { HttpError, json, readJson, requestClientId } from "../http";
+import { removeUnreferencedNoteMedia } from "../removed-note-media";
+import { projectSlug } from "../repository";
 import { clearGithubStatus, projectGithubConfig } from "../repository/github";
 import { archivePage, createPage, findPage, restorePage, updatePage } from "../repository/pages";
 import { pageSchema, pageUpdateSchema } from "../schemas";
@@ -87,8 +89,8 @@ export function pageRecordRoutes(app: AppContext): Route[] {
         const user = requireUser(context);
         const projectId = app.requireProject(context, user);
         const labels = app.labelsForProject(projectId);
-        const before = findPage(database, pageStore, projectId, match![1]!);
         const { github: githubRaw, ...input } = pageUpdateSchema.parse(await readJson(context.request));
+        const before = findPage(database, pageStore, projectId, match![1]!);
         if (input.chapter) app.requireChaptersEnabled(projectId);
         let githubLink: PageGithubLink | null | undefined;
         if (githubRaw !== undefined) {
@@ -106,6 +108,15 @@ export function pageRecordRoutes(app: AppContext): Route[] {
           ...(githubLink !== undefined ? { github: githubLink } : {}),
         });
         if (!page) throw new HttpError(404, "Page or assignee not found");
+        if (before && input.description !== undefined) {
+          removeUnreferencedNoteMedia(
+            app,
+            projectId,
+            projectSlug(database, projectId)!,
+            before.description,
+            page.description,
+          );
+        }
         // A dropped link needs no cached answer.
         if (githubLink === null) clearGithubStatus(database, projectId, page.id);
         /*

@@ -1,8 +1,9 @@
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo } from "react";
 import type { PageAttachment } from "../../shared/attachments";
 import { ApiError } from "../api/client";
 import type { UploadProgress } from "../api/upload-attachment";
 import { AttachmentUploadContext } from "../components/AttachmentUploadContext";
+import type { MediaUploadStatus } from "../lib/media-insertion";
 
 type UploadItem = {
   id: string;
@@ -14,6 +15,7 @@ type UploadItem = {
   retryable?: boolean;
   onComplete?: (attachment: PageAttachment) => void;
   onDismiss?: () => void;
+  onUpdate?: (status: MediaUploadStatus) => void;
 };
 
 export function usePageUploads(pageId: string) {
@@ -23,14 +25,30 @@ export function usePageUploads(pageId: string) {
     () => ({ jobs: [] as UploadItem[], controller: new AbortController(), running: false, nextId: 0 }),
     [pageId],
   );
-  const [snapshot, setSnapshot] = useState({ session, jobs: session.jobs });
-  const [revision, setRevision] = useState(0);
   useEffect(() => {
     session.controller = new AbortController();
     const controller = session.controller;
     return () => controller.abort();
   }, [session]);
-  const publish = () => setSnapshot({ session, jobs: session.jobs.map((job) => ({ ...job })) });
+  const publish = () => {
+    for (const job of session.jobs) {
+      if (job.state === "complete") continue;
+      job.onUpdate?.({
+        filename: job.filename,
+        failed: job.state === "failed",
+        message:
+          job.state === "failed"
+            ? job.error!
+            : job.state === "queued"
+              ? "Waiting to add to notes"
+              : `${job.progress.phase}${job.progress.phase === "Uploading" ? ` ${job.progress.percent}%` : ""} - adding to notes`,
+        percent:
+          job.state === "uploading" && job.progress.phase === "Uploading" ? job.progress.percent : undefined,
+        retry: job.state === "failed" && job.retryable ? () => retry(job.id) : undefined,
+        dismiss: job.state === "failed" ? () => dismiss(job.id) : undefined,
+      });
+    }
+  };
   const drain = async () => {
     if (session.running || !upload) return;
     session.running = true;
@@ -51,7 +69,6 @@ export function usePageUploads(pageId: string) {
           job.onComplete?.(attachment);
           job.state = "complete";
           job.file = null;
-          setRevision((value) => value + 1);
         } catch (error) {
           if (signal.aborted) return;
           job.state = "failed";
@@ -67,13 +84,12 @@ export function usePageUploads(pageId: string) {
   };
   return {
     available: upload !== null,
-    items: snapshot.session === session ? snapshot.jobs : [],
-    revision,
     add(
       files: File[],
       callbacks?: {
         complete: (index: number, attachment: PageAttachment) => void;
         dismiss: (index: number) => void;
+        update?: (index: number, status: MediaUploadStatus) => void;
       },
     ) {
       for (const [index, file] of files.entries())
@@ -84,26 +100,29 @@ export function usePageUploads(pageId: string) {
           state: "queued",
           progress: { phase: "Preparing", percent: 0 },
           onComplete: callbacks ? (attachment) => callbacks.complete(index, attachment) : undefined,
+          onUpdate: callbacks?.update ? (status) => callbacks.update?.(index, status) : undefined,
           onDismiss: callbacks ? () => callbacks.dismiss(index) : undefined,
         });
       publish();
       void drain();
     },
-    retry(id: string) {
-      const job = session.jobs.find((item) => item.id === id);
-      if (job?.state !== "failed") return;
-      job.state = "queued";
-      job.error = undefined;
-      publish();
-      void drain();
-    },
-    dismiss(id: string) {
-      const job = session.jobs.find((item) => item.id === id);
-      if (job && ["complete", "failed"].includes(job.state)) job.onDismiss?.();
-      session.jobs = session.jobs.filter(
-        (item) => item.id !== id || !["complete", "failed"].includes(item.state),
-      );
-      publish();
-    },
+    retry,
+    dismiss,
   };
+
+  function retry(id: string): void {
+    const job = session.jobs.find((item) => item.id === id);
+    if (job?.state !== "failed") return;
+    job.state = "queued";
+    job.error = undefined;
+    publish();
+    void drain();
+  }
+  function dismiss(id: string): void {
+    const job = session.jobs.find((item) => item.id === id);
+    if (!job || !["complete", "failed"].includes(job.state)) return;
+    job.onDismiss?.();
+    session.jobs = session.jobs.filter((item) => item.id !== id);
+    publish();
+  }
 }

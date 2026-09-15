@@ -105,6 +105,9 @@ export function createGrimoireServer(options: Options) {
     }
   }
   pageStore.migrateLegacyPages(database);
+  for (const project of database.prepare("SELECT id, slug FROM projects").all()) {
+    attachmentStore.migrateNotes(String(project.slug), String(project.id), pageStore);
+  }
   let databaseClosed = false;
   const eventClients = new Set<EventClient>();
   // Per-token write allowance. In memory on purpose: it guards this process against a

@@ -1,24 +1,22 @@
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown, markdownKeymap, markdownLanguage, pasteURLAsLink } from "@codemirror/lang-markdown";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
-import {
-  Compartment,
-  EditorSelection,
-  EditorState,
-  type Extension,
-  MapMode,
-  StateEffect,
-  StateField,
-} from "@codemirror/state";
+import { Compartment, EditorSelection, EditorState, type Extension } from "@codemirror/state";
 import { EditorView, keymap, placeholder as placeholderExtension } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import { GFM } from "@lezer/markdown";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { livePreview } from "../lib/live-preview";
+import {
+  type MediaInsertion,
+  type MediaUploadStatus,
+  mediaInsertions,
+  reserveMediaInsertion,
+} from "../lib/media-insertion";
 
 export type MarkdownEditorHandle = {
   /** Tracks an insertion through typing without saving an unfinished upload in the notes. */
-  reserveInsertion: (atEnd?: boolean) => { insert: (text: string) => void; cancel: () => void };
+  reserveInsertion: (atEnd?: boolean, status?: MediaUploadStatus) => MediaInsertion;
   /** Focuses the surface, optionally putting the caret at a source offset. */
   focus: (caret?: number) => void;
   /** Writes text over the current selection and leaves the caret after it. */
@@ -26,24 +24,6 @@ export type MarkdownEditorHandle = {
   /** Swaps the first occurrence of a token, leaving the caret where it was. */
   replaceFirst: (token: string, replacement: string) => void;
 };
-
-const reserveInsertion = StateEffect.define<{ id: symbol; position: number }>();
-const releaseInsertion = StateEffect.define<symbol>();
-const insertions = StateField.define<Map<symbol, number>>({
-  create: () => new Map(),
-  update(current, transaction) {
-    const next = new Map<symbol, number>();
-    for (const [id, position] of current) {
-      const mapped = transaction.changes.mapPos(position, 1, MapMode.TrackDel);
-      if (mapped !== null) next.set(id, mapped);
-    }
-    for (const effect of transaction.effects) {
-      if (effect.is(reserveInsertion)) next.set(effect.value.id, effect.value.position);
-      if (effect.is(releaseInsertion)) next.delete(effect.value);
-    }
-    return next;
-  },
-});
 
 type Props = {
   ariaLabel: string;
@@ -125,7 +105,7 @@ function editorExtensions(props: {
 }): Extension[] {
   return [
     history(),
-    insertions,
+    mediaInsertions,
     // Markdown's own Enter and Backspace come first, so a list carries on rather than
     // simply breaking the line.
     keymap.of([
@@ -273,34 +253,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, Props>(function M
   }, [value]);
 
   useImperativeHandle(ref, () => ({
-    reserveInsertion: (atEnd = false) => {
+    reserveInsertion: (atEnd = false, status) => {
       const editor = view.current;
-      const id = Symbol("media insertion");
-      editor?.dispatch({
-        effects: reserveInsertion.of({
-          id,
-          position: atEnd ? editor.state.doc.length : editor.state.selection.main.to,
-        }),
-      });
-      return {
-        insert: (text) => {
-          if (!editor || view.current !== editor) return;
-          const position = editor.state.field(insertions).get(id);
-          if (position === undefined) return;
-          const before = editor.state.doc.sliceString(0, position);
-          const after = editor.state.doc.sliceString(position);
-          editor.dispatch({
-            changes: {
-              from: position,
-              insert: `${before && !before.endsWith("\n\n") ? "\n\n" : ""}${text}${after && !after.startsWith("\n\n") ? "\n\n" : ""}`,
-            },
-            effects: releaseInsertion.of(id),
-          });
-        },
-        cancel: () => {
-          if (editor && view.current === editor) editor.dispatch({ effects: releaseInsertion.of(id) });
-        },
-      };
+      if (!editor) return { insert: () => {}, cancel: () => {}, update: () => {} };
+      return reserveMediaInsertion(editor, () => view.current === editor, atEnd, status);
     },
     focus: (caret?: number) => {
       const editor = view.current;

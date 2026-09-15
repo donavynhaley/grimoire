@@ -33,6 +33,30 @@ describe("project images", () => {
     expect(Buffer.from(await served.arrayBuffer()).equals(ONE_PIXEL_PNG)).toBe(true);
   });
 
+  it("deletes a legacy image after its last notes reference is removed", async () => {
+    const server = await startTestServer();
+    await bootstrap(server);
+    const uploaded = await server.request<{ name: string }>("/api/images", {
+      method: "POST",
+      body: ONE_PIXEL_PNG,
+      headers: { "content-type": "image/png" },
+    });
+    const name = uploaded.body.name;
+    const created = await server.request<{ page: { id: string } }>("/api/pages", {
+      method: "POST",
+      body: JSON.stringify({ title: "Legacy image", description: `![[${name}]]` }),
+    });
+    const path = `/api/pages/${created.body.page.id}`;
+    await server.request(path, {
+      method: "PATCH",
+      body: JSON.stringify({ description: `![Screenshot](/api/images/${encodeURIComponent(name)})` }),
+    });
+    expect((await server.fetchRaw(`/api/images/${name}`)).status).toBe(200);
+    await server.request(path, { method: "PATCH", body: JSON.stringify({ description: "Image removed" }) });
+    expect((await server.fetchRaw(`/api/images/${name}`)).status).toBe(404);
+    expect(existsSync(join(server.pagesDirectory, "getting-started", "images", name))).toBe(false);
+  });
+
   it("accepts animated GIF reference material", async () => {
     const server = await startTestServer();
     await bootstrap(server);
