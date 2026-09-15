@@ -3365,7 +3365,6 @@ textarea:hover {
 .markdown-editor .cm-content {
   min-width: 0;
   padding: 0;
-  caret-color: var(--text);
 }
 .markdown-editor .cm-line {
   padding: 0;
@@ -3377,14 +3376,15 @@ textarea:hover {
 .markdown-editor .cm-dropCursor {
   border-left-color: var(--text);
 }
-/*
- * Selected text is the stylesheet's business, not this editor's.
- *
- * The interface already answers what a selection looks like, once, at the top of this file:
- * the accent behind it and the background colour on top. Restating only the background here
- * kept that dark foreground and put it on a dark green, which is a selection you cannot read
- * through. Notes are text like any other text on the page, so they take the same answer.
- */
+/* CodeMirror draws the caret and selection from the same measured text coordinates. */
+.markdown-editor .cm-editor > .cm-scroller > .cm-selectionLayer .cm-selectionBackground,
+.markdown-editor .cm-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
+  background: var(--accent-soft);
+}
+/* The native highlight is transparent, so preserve readable text over the drawn selection. */
+.markdown-editor ::selection {
+  color: var(--text);
+}
 
 /*
  * Notes that fill the height they are handed instead of growing with what is in them.

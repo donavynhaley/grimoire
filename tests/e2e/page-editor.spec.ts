@@ -88,7 +88,7 @@ test.describe("the page editor holds to one screen", () => {
     const sizes = await measure(page);
     expect(sizes.panelScroll).toBeLessThanOrEqual(sizes.panelClient + 1);
 
-    await page.getByRole("button", { name: "Notes" }).click();
+    await page.getByRole("button", { name: /^notes$/i }).click();
     await expect(page.getByRole("button", { name: "Edit notes" })).toBeVisible();
   });
 
