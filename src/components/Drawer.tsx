@@ -29,6 +29,8 @@ type Props = {
    * drawer open - in which case a swipe springs back rather than closing.
    */
   onClose: () => void | Promise<void>;
+  /** Disable editing during an exit while the backdrop still shields the board. */
+  inert?: boolean;
   children: ReactNode;
 };
 
@@ -51,6 +53,7 @@ export function Drawer({
   labelledBy,
   label,
   onClose,
+  inert = false,
   children,
   fileDropHandlers,
 }: Props) {
@@ -107,6 +110,7 @@ export function Drawer({
           aria-label={label}
           aria-labelledby={labelledBy}
           aria-modal="true"
+          inert={inert}
           className={className}
           ref={panel}
           role="dialog"
@@ -130,6 +134,7 @@ export function Drawer({
         aria-label={label}
         aria-labelledby={labelledBy}
         aria-modal="true"
+        inert={inert}
         className={`${className} drawer-sheet`}
         ref={panel}
         role="dialog"

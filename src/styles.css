@@ -6603,6 +6603,61 @@ textarea:hover {
   max-height: none;
 }
 
+/* One shell stays mounted through the cold editor download, so it enters only once. */
+.page-modal {
+  display: contents;
+}
+.page-modal > .modal-backdrop {
+  animation: page-modal-fade-in 140ms ease-out;
+}
+.page-modal .page-editor {
+  --page-enter-distance: 0.375rem;
+  animation: page-modal-enter 140ms ease-out;
+}
+.page-modal .page-editor.drawer-sheet {
+  --page-enter-distance: 0.625rem;
+}
+.page-modal.closing > .modal-backdrop {
+  animation: page-modal-fade-out 90ms ease-in forwards;
+}
+.page-modal.closing .page-editor {
+  animation: page-modal-leave 90ms ease-in forwards;
+}
+@keyframes page-modal-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes page-modal-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes page-modal-enter {
+  from {
+    translate: 0 var(--page-enter-distance);
+  }
+  to {
+    translate: 0 0;
+  }
+}
+@keyframes page-modal-leave {
+  to {
+    translate: 0 var(--page-enter-distance);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-modal > .modal-backdrop,
+  .page-modal .page-editor,
+  .page-modal.closing > .modal-backdrop,
+  .page-modal.closing .page-editor {
+    animation: none;
+  }
+}
+
 /* The furniture holds its size; only the split in the middle gives and takes. */
 .page-editor > .dialog-header,
 .page-editor > .page-editor-panes,

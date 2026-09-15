@@ -732,6 +732,17 @@ Initial decoded JavaScript fell from 929,963 to 217,900 bytes for sign-in and to
 These are local controlled measurements rather than field latency claims; gzip sizes are reported separately by the build budget because this local server did not compress responses.
 Browser tests run against built assets with `npm run test:production` to cover demand loading and failure recovery, alongside the normal development-server E2E suite.
 
+## Page modal motion
+
+The page editor keeps one Drawer shell mounted across the lazy feature download and editing, so loading the editor cannot restart its entrance or replace its focus boundary.
+The loaded editor registers its file receiver with that shell, keeping header and notes drops on the same capture boundary without remounting the modal.
+Its backdrop fades in over 140 ms while the panel settles upward by 6 px on desktop or 10 px in the mobile sheet, with ease-out timing and no scale or bounce.
+Input is available immediately; the animation does not gate focus or editing.
+Closing first flushes pending content and stays open if saving fails or needs a conflict decision.
+After a successful flush, the editor becomes inert and fades out over 90 ms before dismissal restores focus to the opener.
+The backdrop keeps intercepting pointer input throughout the exit so a click cannot reach the board before focus is restored.
+The close lifecycle waits on the CSS animation rather than a duplicate JavaScript timer, and reduced motion removes the animation and its delay (UI-1, UI-5, UI-8).
+
 ## Page attachments
 
 Agent evidence has independent Markdown records and bytes under each project's `attachments/` directory.

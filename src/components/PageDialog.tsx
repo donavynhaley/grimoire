@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type {
   AuditPage,
   Chapter,
@@ -14,7 +14,6 @@ import { usePageHistory } from "../hooks/use-page-history";
 import { usePageUploads } from "../hooks/use-page-uploads";
 import { ConfirmInline } from "./ConfirmInline";
 import { DiscussionSection } from "./DiscussionSection";
-import { Drawer } from "./Drawer";
 import { GithubLink } from "./GithubLink";
 import { Growing } from "./Growing";
 import { NotesField } from "./NotesField";
@@ -38,7 +37,8 @@ type Props = {
   revision: number;
   onUpdate: (input: Record<string, unknown>) => Promise<void>;
   onArchive: () => Promise<void>;
-  onClose: () => void;
+  registerFileReceiver: (receive: (files: File[]) => void) => () => void;
+  registerCloseGuard: (guard: () => Promise<boolean>) => () => void;
   onLoadActivity: (options: { entityId?: string; limit?: number }) => Promise<AuditPage>;
   /** The conversation on this page, and the three things anyone can do to it. */
   onLoadDiscussion: (pageId: string) => Promise<{ threads: DiscussionThread[] }>;
@@ -49,6 +49,7 @@ type Props = {
   onSeeDiscussion: (pageId: string) => Promise<void>;
 };
 
+/** Editing content inside the persistent PageDialogShell. */
 export function PageDialog({
   page,
   pages,
@@ -62,7 +63,8 @@ export function PageDialog({
   revision,
   onUpdate,
   onArchive,
-  onClose,
+  registerCloseGuard,
+  registerFileReceiver,
   onLoadActivity,
   onLoadDiscussion,
   onAsk,
@@ -72,12 +74,13 @@ export function PageDialog({
 }: Props) {
   const uploads = usePageUploads(page.id);
   const notes = useRef<import("./NotesField").NotesFieldHandle | null>(null);
-  const [dropActive, setDropActive] = useState(false);
-  const dragDepth = useRef(0);
-  const receiveFiles = (files: File[]) => {
+  const receiveFiles = useCallback((files: File[]) => {
     notes.current?.importFiles(files);
     setPane("notes");
-  };
+  }, []);
+  useLayoutEffect(() => {
+    if (uploads.available) return registerFileReceiver(receiveFiles);
+  }, [uploads.available, registerFileReceiver, receiveFiles]);
   const [confirmArchive, setConfirmArchive] = useState(false);
   /**
    * Which half of the page is on screen when there is only room for one.
@@ -123,8 +126,6 @@ export function PageDialog({
   // biome-ignore lint/correctness/useExhaustiveDependencies: page.id is the trigger: opening a different page is what should put every fold back to where it starts on first sight
   useEffect(() => {
     setShowingHistory(false);
-    setDropActive(false);
-    dragDepth.current = 0;
     setPane("notes");
     setAside("details");
     marked.current = null;
@@ -166,60 +167,10 @@ export function PageDialog({
   }, [showingDiscussion, threads, page.id, onSeeDiscussion]);
   const otherEditor = otherEditorName(history, currentUserId);
 
-  const close = async () => {
-    if (await editor.flush()) onClose();
-  };
+  useLayoutEffect(() => registerCloseGuard(editor.flush), [registerCloseGuard, editor.flush]);
 
   return (
-    <Drawer
-      className={`dialog-panel page-editor${dropActive ? " drop-active" : ""}`}
-      labelledBy="dialog-panel-title"
-      onClose={close}
-      fileDropHandlers={
-        uploads.available
-          ? {
-              onDragEnterCapture(event) {
-                if (!event.dataTransfer.types.includes("Files")) return;
-                event.preventDefault();
-                event.stopPropagation();
-                dragDepth.current += 1;
-                setDropActive(true);
-              },
-              onDragOverCapture(event) {
-                if (!event.dataTransfer.types.includes("Files")) return;
-                event.preventDefault();
-                event.stopPropagation();
-                event.dataTransfer.dropEffect = "copy";
-              },
-              onDragLeaveCapture(event) {
-                if (!event.dataTransfer.types.includes("Files")) return;
-                event.stopPropagation();
-                dragDepth.current = Math.max(0, dragDepth.current - 1);
-                if (!dragDepth.current) setDropActive(false);
-              },
-              onDropCapture(event) {
-                if (!event.dataTransfer.types.includes("Files")) return;
-                event.preventDefault();
-                event.stopPropagation();
-                dragDepth.current = 0;
-                setDropActive(false);
-                receiveFiles(Array.from(event.dataTransfer.files));
-              },
-            }
-          : undefined
-      }
-    >
-      {dropActive && <div className="page-drop-hint">Drop images or videos to attach</div>}
-      <header className="dialog-header">
-        <div>
-          <p className="eyebrow">page details</p>
-          <h2 id="dialog-panel-title">Edit page</h2>
-        </div>
-        <button aria-label="Close page" className="icon-button" onClick={() => void close()} type="button">
-          ×
-        </button>
-      </header>
-
+    <>
       {/*
         The switch between the two halves. It is hidden by the stylesheet wherever they fit
         side by side, so the control exists only where there is a choice to make - and the
@@ -479,6 +430,6 @@ export function PageDialog({
           triggerClass="text-button danger-text"
         />
       </footer>
-    </Drawer>
+    </>
   );
 }

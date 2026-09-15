@@ -7,6 +7,8 @@ type Options<P> = {
   label: string;
   close?: (props: P) => () => void;
   workspace?: boolean;
+  /** The parent already owns the dialog shell and its direct-child layout. */
+  dialogBody?: boolean;
 };
 
 /** Cache successful feature imports; failures stay local and retry without replacing the board. */
@@ -57,9 +59,13 @@ export function deferComponent<P extends object>(
     const slow = useSlowWait(!component);
     const inline = useRef<HTMLDivElement>(null);
     const focusAfterLoad = useRef(false);
+    const focusReturn = useRef<HTMLElement | null>(null);
     useEffect(() => {
       if (component && focusAfterLoad.current) {
-        inline.current?.querySelector<HTMLElement>('[role="textbox"], input, button')?.focus();
+        const target = options.dialogBody
+          ? focusReturn.current
+          : inline.current?.querySelector<HTMLElement>('[role="textbox"], input, button');
+        target?.focus();
         focusAfterLoad.current = false;
       }
     }, [component]);
@@ -74,6 +80,7 @@ export function deferComponent<P extends object>(
         .then(() => {
           if (alive) {
             focusAfterLoad.current = inline.current?.contains(document.activeElement) ?? false;
+            focusReturn.current = inline.current?.closest<HTMLElement>('[role="dialog"]') ?? null;
             setComponent(() => loaded);
           }
         })
@@ -86,7 +93,7 @@ export function deferComponent<P extends object>(
     }, [attempt]);
     if (component) {
       const Feature = component;
-      return options.close || options.workspace ? (
+      return options.close || options.workspace || options.dialogBody ? (
         <Feature {...props} />
       ) : (
         <div ref={inline} style={{ display: "contents" }}>

@@ -24,12 +24,7 @@ import { type ChapterFilter, NO_CHAPTER } from "./ChapterPicker";
 import type { ChapterActions } from "./ChaptersSection";
 import { DoneHistoryDialog } from "./DoneHistoryDialog";
 import type { FieldActions } from "./FieldsSection";
-
-const PageDialog = deferComponent<ComponentProps<typeof import("./PageDialog")["PageDialog"]>>(
-  () => import("./PageDialog").then((module) => ({ default: module.PageDialog })),
-  { exportName: "PageDialog", label: "page editor", close: (props) => props.onClose },
-);
-
+import { PageDialogShell } from "./PageDialogShell";
 import type { ProjectSettingsActions, SettingsSection } from "./ProjectSettingsDialog";
 import { SearchDialog } from "./SearchDialog";
 
@@ -166,7 +161,8 @@ export function BoardDialogs({
         />
       )}
       {selectedPage && (
-        <PageDialog
+        <PageDialogShell
+          key={selectedPage.id}
           pages={board.pages}
           page={selectedPage}
           categories={board.categories}
