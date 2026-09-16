@@ -2,7 +2,7 @@ import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown, markdownKeymap, markdownLanguage, pasteURLAsLink } from "@codemirror/lang-markdown";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { Compartment, EditorSelection, EditorState, type Extension } from "@codemirror/state";
-import { EditorView, keymap, placeholder as placeholderExtension } from "@codemirror/view";
+import { drawSelection, EditorView, keymap, placeholder as placeholderExtension } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import { GFM } from "@lezer/markdown";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
@@ -121,6 +121,8 @@ function editorExtensions(props: {
     syntaxHighlighting(CODE_HIGHLIGHT),
     props.preview.of(props.source ? [] : LIVE_PREVIEW),
     EditorView.lineWrapping,
+    // Measure the caret from the rendered line, including noneditable placeholder widgets.
+    drawSelection(),
     placeholderExtension(props.placeholder),
     EditorView.contentAttributes.of({ "aria-label": props.ariaLabel }),
     EditorView.updateListener.of((update) => {

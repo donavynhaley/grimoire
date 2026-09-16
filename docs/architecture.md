@@ -100,6 +100,10 @@ Notes are edited on a CodeMirror surface that is always rendered, which is Obsid
 `src/lib/live-preview.ts` walks the parsed Markdown tree and hides the syntax that produced formatting, except on the lines the selection touches; an unfocused editor reveals nothing, because notes nobody is writing in are notes someone is reading.
 Everything is decided from the tree rather than from text patterns, so syntax inside code stays literal.
 
+CodeMirror draws the caret and selection from its measured text coordinates, including the noneditable placeholder on empty notes.
+This avoids relying on browser-native caret placement around widgets, which can disagree with where the text is rendered.
+The drawn selection uses the accent-soft background and the normal text foreground; the native selection stays transparent so the two highlights do not overlap.
+
 Obsidian's `![[name]]` embeds are not Markdown and no parser reports them, so they are found in the text and then disqualified wherever the tree says Markdown has stopped applying.
 Tables and horizontal rules are replaced as whole blocks, which is why the decorations live in a state field rather than a view plugin: block replacements change how tall a line is, and CodeMirror only accepts them from the state.
 
