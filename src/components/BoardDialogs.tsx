@@ -16,11 +16,11 @@ const AccountDialog = deferComponent<ComponentProps<typeof import("./AccountDial
   { exportName: "AccountDialog", label: "account settings", close: (props) => props.onClose },
 );
 
+import { type ChapterFilter, NO_CHAPTER } from "../lib/chapter-filter";
 import { ActivityDialog } from "./ActivityDialog";
 import { AgentReviewDialog } from "./AgentReviewDialog";
 import { BacklogDialog } from "./BacklogDialog";
 import type { CategoryActions } from "./CategoriesSection";
-import { type ChapterFilter, NO_CHAPTER } from "./ChapterPicker";
 import type { ChapterActions } from "./ChaptersSection";
 import { DoneHistoryDialog } from "./DoneHistoryDialog";
 import type { FieldActions } from "./FieldsSection";
@@ -240,6 +240,9 @@ export function BoardDialogs({
       {historyOpen && (
         <DoneHistoryDialog
           busy={busy}
+          chapters={board.chapters}
+          chaptersEnabled={chaptersOn}
+          initialChapter={chaptersOn ? chapter : null}
           pages={completedPages}
           categories={board.categories}
           members={board.members}

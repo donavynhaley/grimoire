@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import type { Member, Page, PageCategory, ProjectCategory } from "../../shared/types";
+import type { Chapter, Member, Page, PageCategory, ProjectCategory } from "../../shared/types";
 import { useTypingFocus } from "../hooks/use-typing-focus";
 import { categoryDisplay, categoryStyle } from "../lib/category-style";
+import { type ChapterFilter, matchesChapter, NO_CHAPTER } from "../lib/chapter-filter";
 import { compareCompletion } from "../lib/page-order";
 import { pageText } from "../lib/page-search";
 import { Drawer } from "./Drawer";
@@ -10,6 +11,9 @@ type Props = {
   busy: boolean;
   pages: Page[];
   categories: ProjectCategory[];
+  chapters: Chapter[];
+  chaptersEnabled: boolean;
+  initialChapter: ChapterFilter;
   members: Member[];
   onClose: () => void;
   onOpenPage: (id: string) => void;
@@ -20,12 +24,24 @@ export function DoneHistoryDialog({
   busy,
   pages,
   categories,
+  chapters,
+  chaptersEnabled,
+  initialChapter,
   members,
   onClose,
   onOpenPage,
   onReopen,
 }: Props) {
   const focusForTyping = useTypingFocus<HTMLInputElement>();
+  const [chapter, setChapter] = useState(initialChapter);
+  const selectedChapter =
+    chaptersEnabled && (chapter === NO_CHAPTER || chapters.some((value) => value.slug === chapter))
+      ? chapter
+      : null;
+  const chapterPages = useMemo(
+    () => pages.filter((page) => matchesChapter(page, selectedChapter)),
+    [pages, selectedChapter],
+  );
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<PageCategory | null>(null);
   const [person, setPerson] = useState<string | null>(null);
@@ -38,14 +54,14 @@ export function DoneHistoryDialog({
   );
   const visiblePages = useMemo(
     () =>
-      pages
+      chapterPages
         .filter((page) => {
           if (category && page.category !== category) return false;
           if (person && (page.assigneeId ?? "unassigned") !== person) return false;
           return !normalizedQuery || pageText(page).includes(normalizedQuery);
         })
         .sort(compareCompletion),
-    [pages, category, normalizedQuery, person],
+    [chapterPages, category, normalizedQuery, person],
   );
   const groups = useMemo(() => groupByMonth(visiblePages), [visiblePages]);
 
@@ -61,7 +77,7 @@ export function DoneHistoryDialog({
           <p className="eyebrow">project record</p>
           <h2 id="history-dialog-title">Completed work</h2>
           <p>
-            {pages.length} finished page{pages.length === 1 ? "" : "s"}
+            {chapterPages.length} finished page{chapterPages.length === 1 ? "" : "s"}
           </p>
         </div>
         <button aria-label="Close completed work" className="icon-button" onClick={onClose} type="button">
@@ -70,6 +86,25 @@ export function DoneHistoryDialog({
       </header>
 
       <div className="library-tools">
+        {chaptersEnabled && (
+          <label className="completed-chapter-filter">
+            <span>chapter</span>
+            <select
+              aria-label="Completed work chapter"
+              value={selectedChapter ?? ""}
+              onChange={(event) => setChapter(event.target.value || null)}
+            >
+              <option value="">All work</option>
+              {chapters.map((value) => (
+                <option key={value.slug} value={value.slug}>
+                  {value.name}
+                  {value.state === "closed" ? " (closed)" : ""}
+                </option>
+              ))}
+              <option value={NO_CHAPTER}>No chapter</option>
+            </select>
+          </label>
+        )}
         <label className="library-search">
           <span className="sr-only">Search completed work</span>
           <input
@@ -167,9 +202,11 @@ export function DoneHistoryDialog({
         ))}
         {visiblePages.length === 0 && (
           <div className="library-empty">
-            <strong>{pages.length === 0 ? "Nothing finished yet." : "No completed pages match."}</strong>
+            <strong>
+              {chapterPages.length === 0 ? "Nothing finished yet." : "No completed pages match."}
+            </strong>
             <span>
-              {pages.length === 0
+              {chapterPages.length === 0
                 ? "Finished work will collect here automatically."
                 : "Try a broader search or remove a filter."}
             </span>

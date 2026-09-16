@@ -2,16 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import type { Chapter, Page } from "../../shared/types";
 import { useDismissOnOutside } from "../hooks/use-dismiss-on-outside";
 import { chapterWhen } from "../lib/chapter-dates";
+import { type ChapterFilter, NO_CHAPTER } from "../lib/chapter-filter";
 import { Growing } from "./Growing";
-
-/**
- * What the board is narrowed to: every page, one chapter, or the pages nobody has placed.
- * `null` means all work, which is always reachable so the picker can never hide the project.
- */
-export type ChapterFilter = string | null;
-
-/** The value the URL uses for "pages belonging to no chapter". */
-export const NO_CHAPTER = "none";
 
 type Props = {
   pages: Page[];

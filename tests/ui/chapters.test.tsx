@@ -496,3 +496,93 @@ describe("the project menu", () => {
     expect(new URLSearchParams(location.search).get("settings")).toBe("chapters");
   });
 });
+
+/** Enough completed work in each scope to expose a mismatched footer or history seed. */
+function completedBoard(currentCount = 12): BoardWorkspace {
+  const board = withClosedChapter();
+  return {
+    ...board,
+    pages: [
+      ...board.pages,
+      ...(["first-brew", "old-brew", null] as const).flatMap((slug) =>
+        Array.from({ length: slug === "first-brew" ? currentCount : 12 }, (_, index) =>
+          page({
+            id: `done-${slug}-${index}`,
+            title: `${slug ?? "unplaced"} completed ${index}`,
+            status: "done",
+            chapter: slug,
+            completedAt: "2026-09-01T12:00:00.000Z",
+          }),
+        ),
+      ),
+    ],
+  };
+}
+
+describe("completed work chapter scope", () => {
+  it.each([0, 10, 11])(
+    "shows the history trigger only when this chapter's %i pages exceed the column limit",
+    async (count) => {
+      mountWith(completedBoard(count));
+      const done = await screen.findByRole("region", { name: "Done" });
+      const trigger = within(done).queryByRole("button", { name: /Search all completed work/ });
+      if (count > 10) expect(trigger).toHaveAccessibleName(`Search all completed work, ${count} pages`);
+      else expect(trigger).toBeNull();
+    },
+  );
+
+  it.each(["old-brew", "none"])(
+    "seeds completed history from the selected %s scope rather than the open chapter",
+    async (selected) => {
+      window.history.replaceState({}, "", `/?chapter=${selected}`);
+      mountWith(completedBoard());
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Search all completed work, 12 pages" }),
+      );
+      const history = screen.getByRole("dialog", { name: "Completed work" });
+      expect(within(history).getByRole("combobox", { name: "Completed work chapter" })).toHaveValue(selected);
+      expect(history).toHaveTextContent("12 finished pages");
+      expect(history).not.toHaveTextContent("first-brew completed");
+      expect(within(history).getAllByRole("article")).toHaveLength(12);
+    },
+  );
+
+  it("keeps the completed count chapter-wide when board search narrows the visible tiles", async () => {
+    mountWith(completedBoard());
+    const search = await screen.findByRole("searchbox", { name: "Search pages" });
+    await userEvent.type(search, "first-brew completed 11");
+    const done = screen.getByRole("region", { name: "Done" });
+    expect(within(done).getAllByRole("article")).toHaveLength(1);
+    await userEvent.click(within(done).getByRole("button", { name: "Search all completed work, 12 pages" }));
+    expect(
+      within(screen.getByRole("dialog", { name: "Completed work" })).getAllByRole("article"),
+    ).toHaveLength(12);
+  });
+
+  it("shows project-wide history when the board is set to All work", async () => {
+    mountWith(completedBoard());
+    await userEvent.click(await screen.findByRole("button", { name: /Filter by chapter/ }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /All work/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Search all completed work, 36 pages" }));
+    const history = screen.getByRole("dialog", { name: "Completed work" });
+    expect(within(history).getByRole("combobox", { name: "Completed work chapter" })).toHaveValue("");
+    expect(within(history).getAllByRole("article")).toHaveLength(36);
+  });
+
+  it("keeps all history accessible when no chapter is open", async () => {
+    const board = completedBoard();
+    mountWith({ ...board, chapters: board.chapters.map((value) => ({ ...value, state: "closed" })) });
+    await userEvent.click(await screen.findByRole("button", { name: "Search all completed work, 36 pages" }));
+    expect(screen.getByRole("combobox", { name: "Completed work chapter" })).toHaveValue("");
+  });
+
+  it("ignores a chapter URL and hides the chapter selector when chapters are disabled", async () => {
+    window.history.replaceState({}, "", "/?chapter=none");
+    const board = completedBoard();
+    mountWith({ ...board, project: { ...board.project, chaptersEnabled: false }, chapters: [] });
+    await userEvent.click(await screen.findByRole("button", { name: "Search all completed work, 36 pages" }));
+    const history = screen.getByRole("dialog", { name: "Completed work" });
+    expect(within(history).queryByRole("combobox", { name: "Completed work chapter" })).toBeNull();
+    expect(within(history).getAllByRole("article")).toHaveLength(36);
+  });
+});

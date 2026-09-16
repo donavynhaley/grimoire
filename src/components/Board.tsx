@@ -24,13 +24,13 @@ import { useFlip } from "../hooks/use-flip";
 import { type DragPoint, gapIndexIn, pointWithin } from "../hooks/use-pointer-drag";
 import { soleMemberId } from "../lib/capture-pickers";
 import { chapterWhen } from "../lib/chapter-dates";
+import { NO_CHAPTER } from "../lib/chapter-filter";
 import { plainTextFromMarkdown } from "../lib/markdown-text";
 import { settingsSectionsFor } from "../lib/settings-sections";
 import { AwayDigest } from "./AwayDigest";
 import { BoardDialogs } from "./BoardDialogs";
 import { BoardTopBar } from "./BoardTopBar";
 import type { CategoryActions } from "./CategoriesSection";
-import { NO_CHAPTER } from "./ChapterPicker";
 import type { ChapterActions } from "./ChaptersSection";
 import type { FieldActions } from "./FieldsSection";
 import { Growing } from "./Growing";
@@ -194,6 +194,7 @@ export function Board({
     categoriesBySlug,
     categoryName,
     normalizedQuery,
+    chapterPages,
     filteredPages,
     pagesByStatus,
     changeChapter,
@@ -230,6 +231,7 @@ export function Board({
   ).length;
   const backlogPages = board.pages.filter((page) => page.status === "backlog");
   const completedPages = board.pages.filter((page) => page.status === "done");
+  const chapterCompletedCount = chapterPages.filter((page) => page.status === "done").length;
   const offBoardMatches = useMemo(
     () => ({
       backlog: filteredPages.filter((page) => page.status === "backlog").length,
@@ -587,15 +589,15 @@ export function Board({
                       </div>
                     )}
                   </div>
-                  {status === "done" && completedPages.length > DONE_COLUMN_LIMIT && (
+                  {status === "done" && chapterCompletedCount > DONE_COLUMN_LIMIT && (
                     <button
-                      aria-label={`Search all completed work, ${completedPages.length} pages`}
+                      aria-label={`Search all completed work, ${chapterCompletedCount} pages`}
                       className="library-trigger completed-trigger"
                       onClick={() => setHistoryOpen(true)}
                       type="button"
                     >
                       <span>all completed</span>
-                      <strong>{completedPages.length}</strong>
+                      <strong>{chapterCompletedCount}</strong>
                     </button>
                   )}
                   {status !== "done" && (
