@@ -246,6 +246,10 @@ Closing a chapter writes nothing to any page.
 Chapters are served only for a project whose `chapters_enabled` column is set.
 Turning the gate off hides the interface without deleting a chapter file or clearing a page's `chapter` field, so turning it back on restores the prior state exactly.
 
+The Done column's “all completed” count uses the board's selected chapter before search, people, or other facets.
+Completed history opens with that same chapter selected and lets the reader choose another chapter, No chapter, or All work without changing the board.
+Reopening history starts from the board again; chapter-disabled projects keep project-wide counts and history.
+
 ## Idea format
 
 Idea files use the same strict frontmatter and Markdown body envelope as pages.

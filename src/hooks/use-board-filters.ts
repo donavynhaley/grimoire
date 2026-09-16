@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { BoardWorkspace, Chapter, Page, PageStatus, ProjectCategory } from "../../shared/types";
-import { type ChapterFilter, NO_CHAPTER } from "../components/ChapterPicker";
+import { type ChapterFilter, matchesChapter, NO_CHAPTER } from "../lib/chapter-filter";
 import {
   decodeFacets,
   encodeFacets,
@@ -40,6 +40,8 @@ export type BoardFilters = {
   normalizedQuery: string;
   /** The board as the bar's own controls leave it, before the filter panel has its say. */
   pagesBeforeFacets: Page[];
+  /** All pages in the selected chapter, before search, people, or facets. */
+  chapterPages: Page[];
   filteredPages: Page[];
   pagesByStatus: Record<(typeof BOARD_STATUSES)[number], Page[]>;
   changeQuery: (value: string) => void;
@@ -96,9 +98,19 @@ export function useBoardFilters(board: BoardWorkspace): BoardFilters {
   // A chapter that was deleted, or a gate switched off, must not leave the board filtered
   // to something the reader can no longer see or reach.
   useEffect(() => {
-    if (chapter === null || chapter === NO_CHAPTER) return;
-    if (!chaptersOn || !board.chapters.some((value) => value.slug === chapter)) setChapter(null);
+    if (!chaptersOn) setChapter(null);
+    else if (
+      chapter !== null &&
+      chapter !== NO_CHAPTER &&
+      !board.chapters.some((value) => value.slug === chapter)
+    )
+      setChapter(null);
   }, [board.chapters, chapter, chaptersOn]);
+
+  const chapterPages = useMemo(
+    () => board.pages.filter((page) => matchesChapter(page, chaptersOn ? chapter : null)),
+    [board.pages, chapter, chaptersOn],
+  );
 
   const categoriesBySlug = useMemo(
     () => new Map(board.categories.map((category) => [category.slug, category])),
@@ -121,9 +133,7 @@ export function useBoardFilters(board: BoardWorkspace): BoardFilters {
   // biome-ignore lint/correctness/useExhaustiveDependencies: categoryName and chapterName are redefined every render, so the list names the stable Maps they close over instead; depending on the functions would defeat the memo entirely
   const pagesBeforeFacets = useMemo(
     () =>
-      board.pages.filter((page) => {
-        if (chapter === NO_CHAPTER && page.chapter !== null) return false;
-        if (chapter !== null && chapter !== NO_CHAPTER && page.chapter !== chapter) return false;
+      chapterPages.filter((page) => {
         if (people.size > 0 && !people.has(page.assigneeId ?? "unassigned")) return false;
         if (
           normalizedQuery &&
@@ -134,7 +144,7 @@ export function useBoardFilters(board: BoardWorkspace): BoardFilters {
           return false;
         return true;
       }),
-    [board.pages, categoriesBySlug, chapter, chaptersBySlug, normalizedQuery, people],
+    [chapterPages, categoriesBySlug, chaptersBySlug, normalizedQuery, people],
   );
   const matchesFacets = useMemo(() => facetPredicate(facets, facetContext), [facetContext, facets]);
   const filteredPages = useMemo(
@@ -216,6 +226,7 @@ export function useBoardFilters(board: BoardWorkspace): BoardFilters {
     categoryName,
     normalizedQuery,
     pagesBeforeFacets,
+    chapterPages,
     filteredPages,
     pagesByStatus,
     changeQuery,
