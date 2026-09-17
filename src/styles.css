@@ -7659,3 +7659,68 @@ textarea:hover {
     min-height: 2.75rem;
   }
 }
+
+/* The idea editor: a box with room to think in --------------------------------- */
+
+/*
+ * An idea used to open into the default dialog box - a little over thirty-eight rem, scrolling
+ * as one piece - while the page it might become opened into a panel twice that with the writing
+ * given every pixel spare. The two are the same act at different weights, and the lighter one
+ * was the one with nowhere to think: seven rows of notes in a box that scrolled the title away
+ * as soon as the idea got interesting.
+ *
+ * So it borrows the page editor's behaviour rather than its layout: one screen that does not
+ * scroll itself, with the notes taking whatever height is left. It stays a single column,
+ * because an idea carries one decision and three buttons do not fill a column of their own -
+ * the width is worth more to the writing than to a second column beside it.
+ */
+.idea-editor {
+  position: relative;
+  display: flex;
+  /* The measure the page editor gives its own writing column, which is what this panel is. */
+  width: min(56rem, 100%);
+  flex-direction: column;
+  overflow: hidden;
+}
+.idea-editor:not(.drawer-sheet) {
+  height: min(56rem, calc(100dvh - 3rem));
+  max-height: none;
+}
+.idea-editor > .dialog-header,
+.idea-editor > .autosave-state,
+.idea-editor > .dialog-footer {
+  flex: none;
+}
+.idea-editor > .dialog-header {
+  margin-bottom: 1.125rem;
+}
+/* The line answers for the notes above it, so it keeps to their edge rather than the panel's. */
+.idea-editor > .autosave-state {
+  margin-top: 0.75rem;
+  align-self: flex-end;
+}
+.idea-editor > .dialog-footer {
+  margin-top: 0.875rem;
+}
+
+.idea-editor-main {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0.875rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.idea-editor-main > * {
+  flex: none;
+}
+.idea-editor-main > .notes-field {
+  min-height: 8rem;
+  flex: 1 1 auto;
+}
+/* Its own rule and padding already separate it from the notes; the column gap is the rest. */
+.idea-editor-main > .dialog-section {
+  margin-top: 0;
+}
