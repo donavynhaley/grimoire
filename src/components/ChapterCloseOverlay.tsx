@@ -80,35 +80,36 @@ export function ChapterCloseOverlay({
                 ? "Open the chapter the work is heading into, or name a new one. Nothing opens on its own."
                 : "Nothing is planned after this one. Name the next stretch, or leave the project between chapters."}
             </p>
-            <div className="chapter-close-choices">
-              {!naming &&
-                planned.map((candidate) => (
+            {!naming && (
+              <>
+                <div className="chapter-close-options">
+                  {planned.map((candidate) => (
+                    <button
+                      className={`chapter-close-option${candidate.slug === next?.slug ? " lead" : ""}`}
+                      disabled={busy}
+                      key={candidate.slug}
+                      onClick={() => void onOpenChapter(candidate.slug).then((ok) => ok && onDismiss())}
+                      type="button"
+                    >
+                      open {candidate.name}
+                    </button>
+                  ))}
                   <button
-                    className={candidate.slug === next?.slug ? "primary-button compact" : ""}
+                    className={`chapter-close-option${planned.length === 0 ? " lead" : ""}`}
                     disabled={busy}
-                    key={candidate.slug}
-                    onClick={() => void onOpenChapter(candidate.slug).then((ok) => ok && onDismiss())}
+                    onClick={() => setNaming(true)}
                     type="button"
                   >
-                    open {candidate.name}
+                    start a new chapter
                   </button>
-                ))}
-              {!naming && (
-                <button
-                  className={planned.length === 0 ? "primary-button compact" : ""}
-                  disabled={busy}
-                  onClick={() => setNaming(true)}
-                  type="button"
-                >
-                  start a new chapter
-                </button>
-              )}
-              {!naming && (
-                <button className="chapter-close-dismiss" disabled={busy} onClick={onDismiss} type="button">
-                  not now
-                </button>
-              )}
-            </div>
+                </div>
+                <div className="chapter-close-footer">
+                  <button className="chapter-close-dismiss" disabled={busy} onClick={onDismiss} type="button">
+                    not now
+                  </button>
+                </div>
+              </>
+            )}
             {naming && (
               <form className="chapter-close-new" onSubmit={(event) => void submitNew(event)}>
                 <label className="sr-only" htmlFor="chapter-close-new-name">
@@ -145,10 +146,10 @@ export function ChapterCloseOverlay({
             {/* Nothing here happens by default. Automatic rollover is the most sprint-like
                 behaviour there is, so the unfinished pages move only because someone chose
                 one of these, and dismissing does nothing at all. */}
-            <div className="chapter-close-choices">
+            <div className="chapter-close-options">
               {unfinished > 0 && next && (
                 <button
-                  className="primary-button compact"
+                  className="chapter-close-option lead"
                   disabled={busy}
                   onClick={() => void choose("next")}
                   type="button"
@@ -156,17 +157,10 @@ export function ChapterCloseOverlay({
                   roll them into {next.name}
                 </button>
               )}
-              <button
-                className={unfinished > 0 ? "" : "primary-button compact"}
-                disabled={busy}
-                onClick={() => void choose("keep")}
-                type="button"
-              >
-                {unfinished > 0 ? "leave them here" : "close it"}
-              </button>
               {unfinished > 0 &&
                 others.map((candidate) => (
                   <button
+                    className="chapter-close-option"
                     disabled={busy}
                     key={candidate.slug}
                     onClick={() => void choose(candidate.slug)}
@@ -175,11 +169,26 @@ export function ChapterCloseOverlay({
                     move them to {candidate.name}
                   </button>
                 ))}
+              <button
+                className={`chapter-close-option${unfinished > 0 ? "" : " lead"}`}
+                disabled={busy}
+                onClick={() => void choose("keep")}
+                type="button"
+              >
+                {unfinished > 0 ? "leave them here" : "close it"}
+              </button>
               {unfinished > 0 && (
-                <button disabled={busy} onClick={() => void choose("release")} type="button">
+                <button
+                  className="chapter-close-option"
+                  disabled={busy}
+                  onClick={() => void choose("release")}
+                  type="button"
+                >
                   release them
                 </button>
               )}
+            </div>
+            <div className="chapter-close-footer">
               <button className="chapter-close-dismiss" disabled={busy} onClick={onDismiss} type="button">
                 cancel
               </button>
