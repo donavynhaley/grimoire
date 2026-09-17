@@ -1,12 +1,17 @@
 import { type RefObject, useLayoutEffect, useRef } from "react";
-import type { PageMotion } from "../lib/page-motion";
 
-/** The panel travels further than anything else on screen, so it gets longer than a dialog fade. */
-const OPEN_DURATION = 260;
+/**
+ * The same 190ms every other motion in the product takes.
+ *
+ * The panel travels further than anything else on screen, which argued for longer, but the
+ * distance is not what the eye is waiting on - the page is. Matching `useFlip` and
+ * `useHeightSwap` keeps the whole interface moving at one speed.
+ */
+const OPEN_DURATION = 190;
 /** The curve every other motion in the product uses, so this one is not a new opinion. */
 const OPEN_EASING = "cubic-bezier(0.2, 0.7, 0.2, 1)";
 /** Leaving is quicker than arriving: the answer is already known, and the board is wanted back. */
-const CLOSE_DURATION = 190;
+const CLOSE_DURATION = 130;
 const CLOSE_EASING = "cubic-bezier(0.45, 0, 0.9, 0.45)";
 /**
  * How small the panel starts.
@@ -18,16 +23,9 @@ const CLOSE_EASING = "cubic-bezier(0.45, 0, 0.9, 0.45)";
 const START_SCALE = 0.9;
 
 /** The CSS exits, by name, so an indicator looping inside the panel is never waited on. */
-const CSS_EXITS = new Set([
-  "page-modal-fade-out",
-  "page-modal-leave",
-  "page-veil-out",
-  "page-unfold-out",
-  "drawer-fall",
-]);
+const CSS_EXITS = new Set(["page-modal-fade-out", "page-modal-leave", "drawer-fall"]);
 
 type Options = {
-  motion: PageMotion;
   /** The `data-flip-id` of the tile this page was opened from, when it is still on the board. */
   originId: string;
   closing: boolean;
@@ -50,9 +48,13 @@ type Options = {
  * Only the centred dialog lifts. On a thumb the panel is the whole screen, there is no tile
  * left visible to grow from, and the sheet's own rise is already the right gesture - so the
  * stylesheet keeps that one and this stays out of its way.
+ *
+ * A page with no tile at all - opened from the backlog, or filtered off the board - is marked
+ * `data-plain` for the stylesheet's plain entrance instead, which is the one case where this
+ * hook decides the motion without running it.
  */
 export function usePageMotion(shell: RefObject<HTMLElement | null>, options: Options): void {
-  const { motion, originId, closing, onExited } = options;
+  const { originId, closing, onExited } = options;
   const entrance = useRef<Animation[]>([]);
   const exited = useRef(onExited);
   useLayoutEffect(() => {
@@ -61,7 +63,7 @@ export function usePageMotion(shell: RefObject<HTMLElement | null>, options: Opt
 
   useLayoutEffect(() => {
     const root = shell.current;
-    if (!root || motion !== "lift") return;
+    if (!root) return;
     const panel = liftablePanel(root);
     if (!panel) return;
     const opening = measure(panel, originId);
@@ -94,7 +96,7 @@ export function usePageMotion(shell: RefObject<HTMLElement | null>, options: Opt
       for (const animation of entrance.current) animation.cancel();
       entrance.current = [];
     };
-  }, [shell, motion, originId]);
+  }, [shell, originId]);
 
   useLayoutEffect(() => {
     if (!closing) return;
@@ -109,7 +111,7 @@ export function usePageMotion(shell: RefObject<HTMLElement | null>, options: Opt
     for (const animation of entrance.current) animation.cancel();
     entrance.current = [];
 
-    const panel = root && motion === "lift" ? liftablePanel(root) : null;
+    const panel = root ? liftablePanel(root) : null;
     const leaving = panel ? measure(panel, originId) : null;
     const exits = leaving && panel ? play(panel, leaving, "out") : cssExits(root);
 
@@ -118,7 +120,7 @@ export function usePageMotion(shell: RefObject<HTMLElement | null>, options: Opt
     return () => {
       cancelled = true;
     };
-  }, [shell, motion, originId, closing]);
+  }, [shell, originId, closing]);
 }
 
 /** The centred panel, or nothing when the surface is a full-height sheet or motion is refused. */
@@ -233,7 +235,7 @@ function play(panel: HTMLElement, opening: Opening, direction: "in" | "out"): An
   return running;
 }
 
-/** The stylesheet's own exits, for the sheet, the other motions, and reduced motion's absence of one. */
+/** The stylesheet's own exits, for the sheet and for the plain entrance the lift falls back to. */
 function cssExits(root: HTMLElement | null): Animation[] {
   return (
     root

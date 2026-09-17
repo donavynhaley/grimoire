@@ -1,9 +1,7 @@
 import { type ComponentProps, useCallback, useLayoutEffect, useRef, useState } from "react";
 import { usePageMotion } from "../hooks/use-page-motion";
-import { motionWasAsked, type PageMotion, resolvePageMotion } from "../lib/page-motion";
 import { deferComponent } from "./Deferred";
 import { Drawer } from "./Drawer";
-import { MotionPicker } from "./MotionPicker";
 
 type EditorProps = ComponentProps<typeof import("./PageDialog")["PageDialog"]>;
 type Props = Omit<EditorProps, "registerCloseGuard" | "registerFileReceiver"> & { onClose: () => void };
@@ -21,8 +19,6 @@ export function PageDialogShell({ onClose, ...props }: Props) {
   const alive = useRef(true);
   const [ready, setReady] = useState(false);
   const [closing, setClosing] = useState(false);
-  const [motion, setMotion] = useState<PageMotion>(() => resolvePageMotion(window.location.search));
-  const comparing = motionWasAsked(window.location.search);
   const fileReceiver = useRef<((files: File[]) => void) | null>(null);
   const [acceptsFiles, setAcceptsFiles] = useState(false);
   const [dropActive, setDropActive] = useState(false);
@@ -74,14 +70,13 @@ export function PageDialogShell({ onClose, ...props }: Props) {
   // The motion owns the duration, and dismissal waits on it rather than on a second timer.
   // Reduced motion has no animation to wait for and so adds no exit delay.
   usePageMotion(shell, {
-    motion,
     originId: props.page.id,
     closing,
     onExited: useCallback(() => onCloseRef.current(), []),
   });
 
   return (
-    <div className={`page-modal${closing ? " closing" : ""}`} data-motion={motion} ref={shell}>
+    <div className={`page-modal${closing ? " closing" : ""}`} ref={shell}>
       <Drawer
         className={`dialog-panel page-editor${dropActive ? " drop-active" : ""}`}
         labelledBy="dialog-panel-title"
@@ -142,17 +137,6 @@ export function PageDialogShell({ onClose, ...props }: Props) {
           registerFileReceiver={registerFileReceiver}
         />
       </Drawer>
-      {comparing && (
-        <MotionPicker
-          motion={motion}
-          onChange={(chosen) => {
-            setMotion(chosen);
-            const address = new URL(window.location.href);
-            address.searchParams.set("motion", chosen);
-            window.history.replaceState(null, "", address);
-          }}
-        />
-      )}
     </div>
   );
 }
