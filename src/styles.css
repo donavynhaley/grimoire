@@ -7660,7 +7660,7 @@ textarea:hover {
   }
 }
 
-/* The idea editor: the page editor's shape, with less in it ------------------ */
+/* The idea editor: a box with room to think in --------------------------------- */
 
 /*
  * An idea used to open into the default dialog box - a little over thirty-eight rem, scrolling
@@ -7669,14 +7669,16 @@ textarea:hover {
  * was the one with nowhere to think: seven rows of notes in a box that scrolled the title away
  * as soon as the idea got interesting.
  *
- * So it takes the page's shape rather than a size of its own: one screen that does not scroll,
- * a writing column that keeps the room, and a second column beside it. What differs is what is
- * in that column, which is the honest difference between an idea and a page.
+ * So it borrows the page editor's behaviour rather than its layout: one screen that does not
+ * scroll itself, with the notes taking whatever height is left. It stays a single column,
+ * because an idea carries one decision and three buttons do not fill a column of their own -
+ * the width is worth more to the writing than to a second column beside it.
  */
 .idea-editor {
   position: relative;
   display: flex;
-  width: min(72rem, 100%);
+  /* The measure the page editor gives its own writing column, which is what this panel is. */
+  width: min(56rem, 100%);
   flex-direction: column;
   overflow: hidden;
 }
@@ -7701,22 +7703,11 @@ textarea:hover {
   margin-top: 0.875rem;
 }
 
-.idea-editor-split {
-  display: grid;
-  min-height: 0;
-  flex: 1 1 auto;
-  /*
-   * Narrower than the page's second column, and for a stated reason: that one is sized to hold
-   * a conversation, and this one holds a single decision. Sizing it to the page's would be
-   * matching a number rather than matching the shape.
-   */
-  grid-template-columns: minmax(0, 1fr) 16rem;
-  gap: 0;
-}
 .idea-editor-main {
   display: flex;
   min-width: 0;
   min-height: 0;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 0.875rem;
   overflow-y: auto;
@@ -7729,42 +7720,7 @@ textarea:hover {
   min-height: 8rem;
   flex: 1 1 auto;
 }
-/*
- * No padding above it, unlike the page's column. That one starts with a control and is dropped
- * to meet the title box; this one starts with a label, which already sits on the same line as
- * the writing column's own.
- */
-.idea-aside {
-  display: flex;
-  min-width: 0;
-  min-height: 0;
-  margin-left: 1.375rem;
-  flex-direction: column;
-  gap: 0.875rem;
-  overflow-y: auto;
-}
-.idea-aside > .dialog-section {
+/* Its own rule and padding already separate it from the notes; the column gap is the rest. */
+.idea-editor-main > .dialog-section {
   margin-top: 0;
-  padding-top: 0;
-  border-top: 0;
-}
-
-/*
- * Too narrow to stand two columns side by side, so they take turns down the panel instead and
- * the split itself is what scrolls. The sheet on a phone lands here too, which is why the
- * height rule above is the one that does not apply to it.
- */
-@media (max-width: 60rem) {
-  .idea-editor-split {
-    grid-template-columns: minmax(0, 1fr);
-    overflow-y: auto;
-  }
-  .idea-editor-main,
-  .idea-aside {
-    overflow-y: visible;
-  }
-  .idea-aside {
-    margin-top: 0.875rem;
-    margin-left: 0;
-  }
 }

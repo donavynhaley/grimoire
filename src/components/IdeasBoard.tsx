@@ -552,70 +552,61 @@ function IdeaDialog({
         </button>
       </header>
 
-      <div className="idea-editor-split">
-        <div className="idea-editor-main">
-          <div className="record-form">
-            <label>
-              <span>Title</span>
-              <input
-                aria-label="Idea title"
-                name="ideaTitle"
-                onChange={(event) => editor.setTitle(event.target.value)}
-                value={editor.title}
-              />
-            </label>
-          </div>
-
-          {/* The notes take whatever height the column has left over, exactly as a page's do.
-              An idea is where the thinking is still loose, so it is the half that most wanted
-              the room the old panel would not give it. */}
-          <NotesField
-            editLabel="Edit idea notes"
-            editorLabel="Idea notes"
-            fill
-            label="Notes"
-            onChange={editor.setDescription}
-            placeholder="What makes this interesting?"
-            rows={10}
-            value={editor.description}
-            viewLabel="View idea notes"
-          />
+      <div className="idea-editor-main">
+        <div className="record-form">
+          <label>
+            <span>Title</span>
+            <input
+              aria-label="Idea title"
+              name="ideaTitle"
+              onChange={(event) => editor.setTitle(event.target.value)}
+              value={editor.title}
+            />
+          </label>
         </div>
 
-        {/*
-          The same column a page keeps beside its writing, with less in it.
+        {/* The notes take whatever height the panel has left over. An idea is where the
+            thinking is still loose, so it is the half that most wanted the room the old
+            box would not give it. */}
+        <NotesField
+          editLabel="Edit idea notes"
+          editorLabel="Idea notes"
+          fill
+          label="Notes"
+          onChange={editor.setDescription}
+          placeholder="What makes this interesting?"
+          rows={10}
+          value={editor.description}
+          viewLabel="View idea notes"
+        />
 
-          An idea carries one decision - where it is kept - so this column holds one section
-          rather than five. Matching the shape rather than shrinking the panel is what makes
-          the two surfaces read as the same thing at different weights, and it leaves the
-          obvious room for whatever an idea earns next.
-        */}
-        <div className="idea-aside">
-          <div className="dialog-section">
-            <span className="field-label">Keep it where?</span>
-            <div className="choice-grid">
-              <button
-                className={idea.state === "inbox" ? "choice active" : "choice"}
-                onClick={() => onUpdate({ state: "inbox" })}
-                type="button"
-              >
-                inbox
-              </button>
-              <button
-                className={idea.state === "shortlist" ? "choice active" : "choice"}
-                onClick={() => onUpdate({ state: "shortlist", position: shortlistPosition })}
-                type="button"
-              >
-                shortlist
-              </button>
-              <button
-                className={idea.state === "parked" ? "choice active" : "choice"}
-                onClick={() => onUpdate({ state: "parked" })}
-                type="button"
-              >
-                parked
-              </button>
-            </div>
+        {/* One decision, and it sits under the writing rather than in a column of its own:
+            three buttons do not fill a second column, and the notes would rather have the
+            width than share it. */}
+        <div className="dialog-section">
+          <span className="field-label">Keep it where?</span>
+          <div className="choice-grid">
+            <button
+              className={idea.state === "inbox" ? "choice active" : "choice"}
+              onClick={() => onUpdate({ state: "inbox" })}
+              type="button"
+            >
+              inbox
+            </button>
+            <button
+              className={idea.state === "shortlist" ? "choice active" : "choice"}
+              onClick={() => onUpdate({ state: "shortlist", position: shortlistPosition })}
+              type="button"
+            >
+              shortlist
+            </button>
+            <button
+              className={idea.state === "parked" ? "choice active" : "choice"}
+              onClick={() => onUpdate({ state: "parked" })}
+              type="button"
+            >
+              parked
+            </button>
           </div>
         </div>
       </div>
