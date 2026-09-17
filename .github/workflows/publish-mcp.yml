@@ -22,10 +22,10 @@ concurrency:
 
 jobs:
   publish:
-    # Releases for the app itself share this trigger, and must not publish the package.
-    # Only ever from a grimoire-mcp tag. A dispatch from a branch would publish
-    # whatever version that branch happens to carry, which is how an unreleased
-    # version reaches the registry by accident.
+    # Only ever from a grimoire-mcp tag. Releases for the app itself share this
+    # trigger and must not publish the package, and a dispatch from a branch would
+    # publish whatever version that branch happens to carry, which is how an
+    # unreleased version reaches the registry by accident.
     if: >-
       github.repository == 'donavynhaley/grimoire' &&
       (startsWith(github.event.release.tag_name, 'grimoire-mcp-v') ||
@@ -56,7 +56,6 @@ jobs:
       - name: Type check
         run: npm run check
 
-      # `prepublishOnly` builds, so the tarball carries dist/ even though it is not committed.
       # The tag says which version this is; refuse if the package disagrees, so a
       # mistagged release cannot quietly publish something else.
       - name: Check the package matches the tag
@@ -70,6 +69,7 @@ jobs:
           fi
           echo "publishing grimoire-mcp $actual"
 
+      # `prepublishOnly` builds, so the tarball carries dist/ even though it is not committed.
       - name: Publish
         run: npm publish --provenance --access public
         env:
