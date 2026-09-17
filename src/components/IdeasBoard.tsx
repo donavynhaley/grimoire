@@ -541,7 +541,7 @@ function IdeaDialog({
   };
 
   return (
-    <Drawer className="dialog-panel idea-dialog" labelledBy="idea-dialog-title" onClose={close}>
+    <Drawer className="dialog-panel idea-editor" labelledBy="idea-dialog-title" onClose={close}>
       <header className="dialog-header">
         <div>
           <p className="eyebrow">possibility, not commitment</p>
@@ -551,54 +551,68 @@ function IdeaDialog({
           ×
         </button>
       </header>
-      <div className="record-form">
-        <label>
-          <span>Title</span>
-          <input
-            aria-label="Idea title"
-            name="ideaTitle"
-            onChange={(event) => editor.setTitle(event.target.value)}
-            value={editor.title}
-          />
-        </label>
+
+      <div className="idea-editor-main">
+        <div className="record-form">
+          <label>
+            <span>Title</span>
+            <input
+              aria-label="Idea title"
+              name="ideaTitle"
+              onChange={(event) => editor.setTitle(event.target.value)}
+              value={editor.title}
+            />
+          </label>
+        </div>
+
+        {/* The notes take whatever height the panel has left over. An idea is where the
+            thinking is still loose, so it is the half that most wanted the room the old
+            box would not give it. */}
         <NotesField
           editLabel="Edit idea notes"
           editorLabel="Idea notes"
+          fill
           label="Notes"
           onChange={editor.setDescription}
           placeholder="What makes this interesting?"
-          rows={7}
+          rows={10}
           value={editor.description}
           viewLabel="View idea notes"
         />
-        <SaveState editor={editor} who={null} />
-      </div>
-      <div className="dialog-section">
-        <span className="field-label">Keep it where?</span>
-        <div className="choice-grid">
-          <button
-            className={idea.state === "inbox" ? "choice active" : "choice"}
-            onClick={() => onUpdate({ state: "inbox" })}
-            type="button"
-          >
-            inbox
-          </button>
-          <button
-            className={idea.state === "shortlist" ? "choice active" : "choice"}
-            onClick={() => onUpdate({ state: "shortlist", position: shortlistPosition })}
-            type="button"
-          >
-            shortlist
-          </button>
-          <button
-            className={idea.state === "parked" ? "choice active" : "choice"}
-            onClick={() => onUpdate({ state: "parked" })}
-            type="button"
-          >
-            parked
-          </button>
+
+        {/* One decision, and it sits under the writing rather than in a column of its own:
+            three buttons do not fill a second column, and the notes would rather have the
+            width than share it. */}
+        <div className="dialog-section">
+          <span className="field-label">Keep it where?</span>
+          <div className="choice-grid">
+            <button
+              className={idea.state === "inbox" ? "choice active" : "choice"}
+              onClick={() => onUpdate({ state: "inbox" })}
+              type="button"
+            >
+              inbox
+            </button>
+            <button
+              className={idea.state === "shortlist" ? "choice active" : "choice"}
+              onClick={() => onUpdate({ state: "shortlist", position: shortlistPosition })}
+              type="button"
+            >
+              shortlist
+            </button>
+            <button
+              className={idea.state === "parked" ? "choice active" : "choice"}
+              onClick={() => onUpdate({ state: "parked" })}
+              type="button"
+            >
+              parked
+            </button>
+          </div>
         </div>
       </div>
+
+      <SaveState editor={editor} who={null} />
+
       <footer className="dialog-footer promotion-footer">
         <span>captured by {idea.createdByName}</span>
         <ConfirmInline
