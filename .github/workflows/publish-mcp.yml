@@ -1,0 +1,60 @@
+name: Publish grimoire-mcp
+
+# The MCP package is published from its own release tag rather than by hand.
+#
+# It had drifted: the registry carried 0.3.0 from August while the tree had grown
+# the attachment tools and a second binary, because release-please only versioned
+# the app at the repository root and nothing ever published this package. Release
+# Please now owns its version too, and this runs when the release it cuts for the
+# `grimoire-mcp-v*` tag is published, so the registry follows the tag by itself.
+on:
+  release:
+    types: [published]
+  # So a publish that failed on a transient registry error can be run again
+  # without cutting another version.
+  workflow_dispatch:
+
+permissions: read-all
+
+concurrency:
+  group: publish-grimoire-mcp
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    # Releases for the app itself share this trigger, and must not publish the package.
+    if: >-
+      github.repository == 'donavynhaley/grimoire' &&
+      (github.event_name == 'workflow_dispatch' ||
+       startsWith(github.event.release.tag_name, 'grimoire-mcp-v'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # npm provenance signs the package against this workflow run.
+      id-token: write
+    defaults:
+      run:
+        working-directory: packages/grimoire-mcp
+    steps:
+      - name: Check out the tagged commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name || github.ref }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Install
+        run: npm ci
+
+      - name: Type check
+        run: npm run check
+
+      # `prepublishOnly` builds, so the tarball carries dist/ even though it is not committed.
+      - name: Publish
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
