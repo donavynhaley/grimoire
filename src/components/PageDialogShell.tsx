@@ -1,4 +1,5 @@
 import { type ComponentProps, useCallback, useLayoutEffect, useRef, useState } from "react";
+import { usePageMotion } from "../hooks/use-page-motion";
 import { deferComponent } from "./Deferred";
 import { Drawer } from "./Drawer";
 
@@ -66,25 +67,13 @@ export function PageDialogShell({ onClose, ...props }: Props) {
     }
   };
 
-  useLayoutEffect(() => {
-    if (!closing) return;
-    let cancelled = false;
-    // CSS owns the duration. Reduced motion has no animation and adds no exit delay.
-    const exits =
-      shell.current
-        ?.getAnimations?.({ subtree: true })
-        .filter(
-          (animation) => "animationName" in animation && animation.animationName === "page-modal-fade-out",
-        ) ?? [];
-    const finish = () => {
-      if (!cancelled) onCloseRef.current();
-    };
-    if (exits.length) void Promise.allSettled(exits.map((animation) => animation.finished)).then(finish);
-    else finish();
-    return () => {
-      cancelled = true;
-    };
-  }, [closing]);
+  // The motion owns the duration, and dismissal waits on it rather than on a second timer.
+  // Reduced motion has no animation to wait for and so adds no exit delay.
+  usePageMotion(shell, {
+    originId: props.page.id,
+    closing,
+    onExited: useCallback(() => onCloseRef.current(), []),
+  });
 
   return (
     <div className={`page-modal${closing ? " closing" : ""}`} ref={shell}>

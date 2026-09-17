@@ -42,7 +42,13 @@ should stay that way:
 
 - **Dialogs and popovers appearing.** They are not resizing in place; they enter, and
   they get entrance animations in CSS (see `capture-tools-in`), each with its own
-  `prefers-reduced-motion` override.
+  `prefers-reduced-motion` override. The page editor is the one exception, because it
+  enters from somewhere rather than simply appearing: it grows out of the tile that was
+  clicked, and the distance between those two boxes is only knowable at runtime. That
+  one is measured in `use-page-motion.ts` and driven with the Web Animations API, which
+  is the same rule reordering already follows. A backdrop that veils a panel fades its
+  background colour, never its own `opacity` - the panel is its child, and fading the
+  element fades the panel standing on it. `docs/architecture.md` holds the rest.
 - **Lists whose length tracks a query**, such as search results. The changing length
   is the answer to what was typed, not a section opening.
 

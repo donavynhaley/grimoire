@@ -6738,26 +6738,95 @@ textarea:hover {
   max-height: none;
 }
 
-/* One shell stays mounted through the cold editor download, so it enters only once. */
+/*
+ * The page editor arriving.
+ *
+ * One shell stays mounted through the cold editor download, so it enters only once.
+ *
+ * The centred panel grows out of the tile that was clicked, and that geometry is measured
+ * rather than written: `use-page-motion.ts` holds it. What is left here is the three cases a
+ * measurement cannot cover - the writing crossing over, the phone sheet, and having no tile
+ * to grow from - and the refusal that silences all of them.
+ */
 .page-modal {
   display: contents;
 }
-.page-modal > .modal-backdrop {
+
+/*
+ * The writing crossing over, held back until the panel has most of its size.
+ *
+ * Nothing is declared here for the centred panel's own geometry, deliberately: it is the
+ * distance between two boxes that exist only at runtime, and a stylesheet entrance would be a
+ * second opinion the measurement has to fight.
+ *
+ * The cross-fade is the stylesheet's because its subject is not. `data-entering` marks the
+ * shell only while the panel is actually growing, so a child that mounts inside that window -
+ * the editor body finishing its download - fades in with everything else rather than appearing
+ * at full strength in a panel that is still small. A hook could not have handed that child an
+ * animation, because it was not in the DOM when the entrance began.
+ */
+.page-modal[data-entering] .page-editor > * {
+  animation: page-lift-content 125ms 55ms ease-out backwards;
+}
+.page-modal.closing:not([data-plain]) .page-editor > * {
+  animation: page-lift-content 55ms ease-in reverse forwards;
+}
+@keyframes page-lift-content {
+  from {
+    opacity: 0;
+    translate: 0 0.375rem;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+/*
+ * The phone, where the sheet is the whole screen and there is no tile left visible to grow
+ * out of. `drawer-rise` already carries it up, so the exit is the only half missing.
+ *
+ * The backdrop's own `opacity` is what leaves here, and it may only ever be used on the sheet:
+ * the panel is the backdrop's child, so fading the element fades the panel standing on it. The
+ * sheet covers the screen and hides that; the centred dialog would show the board through its
+ * own surface, which is why the measured exit fades the veil's colour instead.
+ */
+.page-modal.closing > .modal-backdrop.drawer-backdrop {
+  animation: page-modal-fade-out 160ms ease-in forwards;
+}
+.page-modal.closing .page-editor.drawer-sheet {
+  animation: drawer-fall 180ms cubic-bezier(0.45, 0, 0.9, 0.45) forwards;
+}
+@keyframes drawer-fall {
+  to {
+    transform: translateY(100%);
+  }
+}
+
+/*
+ * The plain entrance, for a page with no tile to grow out of.
+ *
+ * `data-plain` is the lift admitting there is nowhere to come from - a page opened from the
+ * backlog, or one whose tile is filtered off the board. A fade with a short rise is a better
+ * answer there than a panel that appears with no entrance at all.
+ */
+.page-modal[data-plain] > .modal-backdrop {
   animation: page-modal-fade-in 140ms ease-out;
 }
-.page-modal .page-editor {
+.page-modal[data-plain] .page-editor {
   --page-enter-distance: 0.375rem;
   animation: page-modal-enter 140ms ease-out;
 }
-.page-modal .page-editor.drawer-sheet {
+.page-modal[data-plain] .page-editor.drawer-sheet {
   --page-enter-distance: 0.625rem;
 }
-.page-modal.closing > .modal-backdrop {
+.page-modal[data-plain].closing > .modal-backdrop {
   animation: page-modal-fade-out 90ms ease-in forwards;
 }
-.page-modal.closing .page-editor {
+.page-modal[data-plain].closing .page-editor {
   animation: page-modal-leave 90ms ease-in forwards;
 }
+
 @keyframes page-modal-fade-in {
   from {
     opacity: 0;
@@ -6784,11 +6853,18 @@ textarea:hover {
     translate: 0 var(--page-enter-distance);
   }
 }
+
+/*
+ * Refusal is total, and it has to be: the hook stands down on its own, but the sheet's rise,
+ * the cross-fade and the plain entrance are stylesheet rules that would otherwise still run.
+ */
 @media (prefers-reduced-motion: reduce) {
   .page-modal > .modal-backdrop,
   .page-modal .page-editor,
+  .page-modal .page-editor > *,
   .page-modal.closing > .modal-backdrop,
-  .page-modal.closing .page-editor {
+  .page-modal.closing .page-editor,
+  .page-modal.closing .page-editor > * {
     animation: none;
   }
 }
