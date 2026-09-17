@@ -95,6 +95,33 @@ function mountWith(board: BoardWorkspace): RecordedCall[] {
   return calls;
 }
 
+/**
+ * The same, for the close flow: the staged board answers the way a reload would, so the
+ * second half of the decision is asked against a chapter that has genuinely closed.
+ */
+function mountClosing(board: BoardWorkspace): RecordedCall[] {
+  let current = board;
+  const { calls } = routeFetch({
+    board: () => current,
+    routes: {
+      "POST /api/chapters/first-brew/close": () => {
+        current = {
+          ...current,
+          chapters: current.chapters.map((entry) =>
+            entry.slug === "first-brew" ? { ...entry, state: "closed" as const } : entry,
+          ),
+        };
+        return { ok: true };
+      },
+      "POST /api/chapters": () => ({
+        chapter: chapter({ slug: "third-brew", name: "Third Brew", state: "planned" }),
+      }),
+    },
+  });
+  render(<App />);
+  return calls;
+}
+
 describe("chapters on the board", () => {
   it("shows no chapter control at all when the project has not enabled them", async () => {
     mountWith(boardFixture());
@@ -452,6 +479,93 @@ describe("closing a chapter", () => {
     );
     // And no page was edited one at a time to achieve it.
     expect(calls.filter((call) => call.url.startsWith("/api/pages/"))).toHaveLength(0);
+  });
+
+  it("asks over the settings rather than inside the row, holding the panel inert", async () => {
+    const user = userEvent.setup();
+    mountWith(chapteredBoard());
+
+    await user.click(await screen.findByRole("button", { name: /Filter by chapter/ }));
+    await user.click(screen.getByRole("menuitem", { name: /Manage chapters/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Project settings" });
+    await user.click(within(dialog).getByRole("button", { name: "close" }));
+
+    // The decision is its own layer, and the settings underneath cannot be touched past it.
+    expect(screen.getByRole("dialog", { name: /Close First Brew/ })).toBeInTheDocument();
+    expect(dialog.querySelector(".settings-layout")).toHaveAttribute("inert");
+  });
+
+  it("lets Escape drop the decision without taking the settings with it", async () => {
+    const user = userEvent.setup();
+    mountWith(chapteredBoard());
+
+    await user.click(await screen.findByRole("button", { name: /Filter by chapter/ }));
+    await user.click(screen.getByRole("menuitem", { name: /Manage chapters/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Project settings" });
+    await user.click(within(dialog).getByRole("button", { name: "close" }));
+    await user.keyboard("{Escape}");
+
+    // The question goes; the panel it was asked over stays, and nothing was closed.
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: /Close First Brew/ })).toBeNull());
+    expect(screen.getByRole("dialog", { name: "Project settings" })).toBeInTheDocument();
+    expect(dialog.querySelector(".settings-layout")).not.toHaveAttribute("inert");
+  });
+
+  it("offers the chapter the work is heading into once this one is closed", async () => {
+    const user = userEvent.setup();
+    const calls = mountClosing(chapteredBoard());
+
+    await user.click(await screen.findByRole("button", { name: /Filter by chapter/ }));
+    await user.click(screen.getByRole("menuitem", { name: /Manage chapters/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Project settings" });
+    await user.click(within(dialog).getByRole("button", { name: "close" }));
+    await user.click(within(dialog).getByRole("button", { name: "roll them into Second Brew" }));
+
+    // Closing is not the end of the act: the chapter the pages just moved into is offered.
+    await user.click(await screen.findByRole("button", { name: "open Second Brew" }));
+    await waitFor(() =>
+      expect(calls).toContainEqual(
+        expect.objectContaining({
+          url: "/api/chapters/second-brew",
+          method: "PATCH",
+          body: { state: "open" },
+        }),
+      ),
+    );
+  });
+
+  it("names the next chapter when nothing is planned behind this one", async () => {
+    const user = userEvent.setup();
+    const board = chapteredBoard();
+    const calls = mountClosing({ ...board, chapters: [board.chapters[0]!] });
+
+    await user.click(await screen.findByRole("button", { name: /Filter by chapter/ }));
+    await user.click(screen.getByRole("menuitem", { name: /Manage chapters/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Project settings" });
+    await user.click(within(dialog).getByRole("button", { name: "close" }));
+    // With nowhere to roll to, the honest choices are leaving the work or letting it go.
+    expect(within(dialog).queryByRole("button", { name: /roll them into/ })).toBeNull();
+    await user.click(within(dialog).getByRole("button", { name: "leave them here" }));
+
+    await user.click(await screen.findByRole("button", { name: "start a new chapter" }));
+    await user.type(screen.getByRole("textbox", { name: "Name the next chapter" }), "Third Brew");
+    await user.click(screen.getByRole("button", { name: "create and open" }));
+
+    // The chapter is made and then opened, so the project is never left without a current one.
+    await waitFor(() =>
+      expect(calls).toContainEqual(
+        expect.objectContaining({ url: "/api/chapters", method: "POST", body: { name: "Third Brew" } }),
+      ),
+    );
+    await waitFor(() =>
+      expect(calls).toContainEqual(
+        expect.objectContaining({
+          url: "/api/chapters/third-brew",
+          method: "PATCH",
+          body: { state: "open" },
+        }),
+      ),
+    );
   });
 });
 

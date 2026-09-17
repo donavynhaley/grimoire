@@ -76,6 +76,16 @@ and an icon close button. Destructive actions confirm in place through
 `<ConfirmInline>` — the question replaces the button that asked it, inside a
 `Growing` container, never in a browser confirm or a second dialog.
 
+A decision with no default is the one thing that does not confirm in place. Where an
+act cannot proceed until somebody picks between real outcomes - closing a chapter,
+which has to say what becomes of the work it did not finish - the question is asked on
+a layer over the panel that raised it, and that panel is held `inert` until it is
+answered or dismissed (`ChapterCloseOverlay`). This is not a second dialog competing
+with the first: it is the same surface declining to let the reader edit around a
+question it has already asked. Escape belongs to the layer, which answers it in the
+capture phase and stops it there, so dropping the decision never takes the drawer with
+it.
+
 ## Accessibility is the markup, not a pass (UI-5)
 
 Interactive things are buttons. Disclosure state is `aria-expanded`, toggle state is

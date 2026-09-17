@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type {
   Chapter,
   ChapterVelocity,
@@ -13,6 +14,7 @@ import { useSettingsAction } from "../hooks/use-settings-action";
 import { type SettingsSection, settingsSectionsFor } from "../lib/settings-sections";
 import { AgentAccessSection } from "./AgentAccessSection";
 import { CategoriesSection, type CategoryActions } from "./CategoriesSection";
+import { ChapterCloseOverlay } from "./ChapterCloseOverlay";
 import { type ChapterActions, ChaptersSection } from "./ChaptersSection";
 import { DangerSection } from "./DangerSection";
 import { DiscordSection } from "./DiscordSection";
@@ -142,6 +144,23 @@ export function ProjectSettingsDialog({
   };
   const demoExplanation = demoMode ? demoExplanations[active] : undefined;
   const { error, saved, run } = useSettingsAction();
+  // The chapter whose close is being decided. Held here rather than in the section, because
+  // the question is asked over the whole panel and the panel is this component's to hold.
+  const [closingChapter, setClosingChapter] = useState<string | null>(null);
+  // Found by slug alone, not by state: the second half of this decision is asked after the
+  // chapter has already closed, so requiring it to still be open would unmount the question.
+  const closing = chapters.find((chapter) => chapter.slug === closingChapter);
+  const planned = chapters.filter((chapter) => chapter.state === "planned");
+
+  /** Runs a settings mutation and says whether it landed, which the close flow steps on. */
+  const attempt = async (change: () => Promise<void>, failure: string) => {
+    let ok = false;
+    await run(async () => {
+      await change();
+      ok = true;
+    }, failure);
+    return ok;
+  };
 
   return (
     <Drawer className="dialog-panel settings-dialog" labelledBy="project-settings-title" onClose={onClose}>
@@ -155,7 +174,7 @@ export function ProjectSettingsDialog({
         </button>
       </header>
 
-      <div className="settings-layout">
+      <div className="settings-layout" inert={closing !== undefined}>
         <nav aria-label="Settings sections" className="settings-rail">
           {sections.map((candidate) => (
             <button
@@ -229,6 +248,7 @@ export function ProjectSettingsDialog({
               canManage={isOwner}
               chapters={chapters}
               chaptersEnabled={chaptersEnabled}
+              onBeginClose={(chapter) => setClosingChapter(chapter.slug)}
               onSetChaptersEnabled={actions.setChaptersEnabled}
               pages={pages}
               velocity={velocity}
@@ -266,6 +286,30 @@ export function ProjectSettingsDialog({
           )}
         </Growing>
       </div>
+
+      {closing && (
+        <ChapterCloseOverlay
+          busy={busy}
+          chapter={closing}
+          onCloseChapter={(rollover) =>
+            attempt(() => chapterActions.close(closing.slug, rollover), "The chapter could not be closed")
+          }
+          onCreateChapter={async (name) => {
+            const created = await chapterActions.create({ name });
+            if (!created) return false;
+            return attempt(
+              () => chapterActions.update(created.slug, { state: "open" }),
+              "The chapter could not be opened",
+            );
+          }}
+          onDismiss={() => setClosingChapter(null)}
+          onOpenChapter={(slug) =>
+            attempt(() => chapterActions.update(slug, { state: "open" }), "The chapter could not be opened")
+          }
+          planned={planned}
+          unfinished={pages.filter((page) => page.chapter === closing.slug && page.status !== "done").length}
+        />
+      )}
 
       <Growing className="settings-feedback">
         {error && (

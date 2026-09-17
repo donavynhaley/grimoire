@@ -2,6 +2,7 @@ import type { ComponentProps } from "react";
 import { useCallback, useEffect, useState } from "react";
 import type {
   BoardWorkspace,
+  Chapter,
   FieldType,
   IdeaWorkspace,
   Page,
@@ -508,8 +509,14 @@ export function App() {
   ) => performSettings(() => mutate(`/api/fields/${key}`, "PATCH", input));
   const deleteField = (key: string) => performSettings(() => mutate(`/api/fields/${key}`, "DELETE"));
 
-  const createChapter = (input: { name: string; startsOn?: string | null; endsOn?: string | null }) =>
-    performSettings(() => mutate("/api/chapters", "POST", input));
+  /** Answers with what it made, so closing a chapter can open the one created to follow it. */
+  const createChapter = async (input: { name: string; startsOn?: string | null; endsOn?: string | null }) => {
+    let created: Chapter | undefined;
+    await performSettings(async () => {
+      created = (await mutate<{ chapter: Chapter }>("/api/chapters", "POST", input)).chapter;
+    });
+    return created;
+  };
   const updateChapter = (slug: string, input: Record<string, unknown>) =>
     performSettings(() => mutate(`/api/chapters/${slug}`, "PATCH", input));
   /** Closing decides what happens to unfinished work, so the server does it as one act. */

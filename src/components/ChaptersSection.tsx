@@ -6,7 +6,12 @@ import { ConfirmInline } from "./ConfirmInline";
 import { Growing } from "./Growing";
 
 export type ChapterActions = {
-  create: (input: { name: string; startsOn?: string | null; endsOn?: string | null }) => Promise<void>;
+  /** Creates a chapter and answers with it, so a caller can open the one it just made. */
+  create: (input: {
+    name: string;
+    startsOn?: string | null;
+    endsOn?: string | null;
+  }) => Promise<Chapter | undefined>;
   /** Closes a chapter and says what becomes of the work it did not finish. */
   close: (slug: string, rollover: "next" | "release" | "keep" | string) => Promise<void>;
   update: (
@@ -33,6 +38,8 @@ type Props = {
   /** Members read the chapters; only an owner runs them. */
   canManage: boolean;
   onSetChaptersEnabled: (enabled: boolean) => Promise<void>;
+  /** Raises the close decision, which the dialog asks over the panel rather than in the row. */
+  onBeginClose: (chapter: Chapter) => void;
   run: SettingsRun;
 };
 
@@ -50,6 +57,7 @@ export function ChaptersSection({
   chaptersEnabled,
   canManage,
   onSetChaptersEnabled,
+  onBeginClose,
   run,
 }: Props) {
   const [newName, setNewName] = useState("");
@@ -60,14 +68,10 @@ export function ChaptersSection({
   // Dates draft locally and commit on blur: a typed date used to fire a save per keystroke.
   const [dateDrafts, setDateDrafts] = useState<Record<string, string>>({});
   const [removing, setRemoving] = useState<string | null>(null);
-  const [closing, setClosing] = useState<string | null>(null);
   const current = openChapter(chapters);
   const placed = pages.filter((page) => page.chapter !== null).length;
 
   const countIn = (slug: string) => pages.filter((page) => page.chapter === slug).length;
-  const unfinishedIn = (slug: string) =>
-    pages.filter((page) => page.chapter === slug && page.status !== "done").length;
-  const plannedChapters = chapters.filter((chapter) => chapter.state === "planned");
 
   const submitCreate = (event: FormEvent) => {
     event.preventDefault();
@@ -191,9 +195,6 @@ export function ChaptersSection({
           <div className="chapter-manager">
             {chapters.map((chapter) => {
               const placedIn = countIn(chapter.slug);
-              const unfinished = unfinishedIn(chapter.slug);
-              // Where a rollover would send the work: the next chapter still planned.
-              const nextPlanned = plannedChapters.find((candidate) => candidate.slug !== chapter.slug);
               const chapterVelocity = velocity.find((entry) => entry.slug === chapter.slug);
               return (
                 <Growing className={`chapter-row state-${chapter.state}`} key={chapter.slug}>
@@ -342,94 +343,11 @@ export function ChaptersSection({
                         {current && current.slug !== chapter.slug ? `close ${current.name} and open` : "open"}
                       </button>
                     )}
-                    {chapter.state === "open" &&
-                      (closing === chapter.slug ? (
-                        <div className="chapter-close">
-                          <p className="chapter-close-question">
-                            Close {chapter.name}?
-                            {unfinished > 0 &&
-                              ` ${unfinished} page${unfinished === 1 ? " is" : "s are"} unfinished.`}
-                          </p>
-                          {/* Nothing here happens by default. Automatic rollover is the most
-                              sprint-like behaviour there is, so the unfinished pages move only
-                              because someone chose one of these, and dismissing does nothing. */}
-                          <div className="chapter-close-choices">
-                            {/*
-                              Rolling the work onward leads, because it is what a team
-                              closing a stretch of work almost always means - but it is still
-                              a choice somebody makes, never a thing that happens to them.
-                            */}
-                            {unfinished > 0 && nextPlanned && (
-                              <button
-                                disabled={busy}
-                                onClick={() =>
-                                  void run(
-                                    () => actions.close(chapter.slug, "next"),
-                                    "The chapter could not be closed",
-                                  )
-                                }
-                                type="button"
-                              >
-                                roll them into {nextPlanned.name}
-                              </button>
-                            )}
-                            <button
-                              disabled={busy}
-                              onClick={() =>
-                                void run(
-                                  () => actions.close(chapter.slug, "keep"),
-                                  "The chapter could not be closed",
-                                )
-                              }
-                              type="button"
-                            >
-                              {unfinished > 0 ? "leave them here" : "close it"}
-                            </button>
-                            {unfinished > 0 &&
-                              plannedChapters
-                                .filter(
-                                  (candidate) =>
-                                    candidate.slug !== chapter.slug && candidate.slug !== nextPlanned?.slug,
-                                )
-                                .map((candidate) => (
-                                  <button
-                                    disabled={busy}
-                                    key={candidate.slug}
-                                    onClick={() =>
-                                      void run(
-                                        () => actions.close(chapter.slug, candidate.slug),
-                                        "The pages could not be moved",
-                                      )
-                                    }
-                                    type="button"
-                                  >
-                                    move them to {candidate.name}
-                                  </button>
-                                ))}
-                            {unfinished > 0 && (
-                              <button
-                                disabled={busy}
-                                onClick={() =>
-                                  void run(
-                                    () => actions.close(chapter.slug, "release"),
-                                    "The pages could not be released",
-                                  )
-                                }
-                                type="button"
-                              >
-                                release them
-                              </button>
-                            )}
-                            <button onClick={() => setClosing(null)} type="button">
-                              cancel
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button disabled={busy} onClick={() => setClosing(chapter.slug)} type="button">
-                          close
-                        </button>
-                      ))}
+                    {chapter.state === "open" && (
+                      <button disabled={busy} onClick={() => onBeginClose(chapter)} type="button">
+                        close
+                      </button>
+                    )}
                     <ConfirmInline
                       cancelAriaLabel={`Cancel deleting ${chapter.name}`}
                       className="archive-confirm"
