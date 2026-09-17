@@ -23,10 +23,13 @@ concurrency:
 jobs:
   publish:
     # Releases for the app itself share this trigger, and must not publish the package.
+    # Only ever from a grimoire-mcp tag. A dispatch from a branch would publish
+    # whatever version that branch happens to carry, which is how an unreleased
+    # version reaches the registry by accident.
     if: >-
       github.repository == 'donavynhaley/grimoire' &&
-      (github.event_name == 'workflow_dispatch' ||
-       startsWith(github.event.release.tag_name, 'grimoire-mcp-v'))
+      (startsWith(github.event.release.tag_name, 'grimoire-mcp-v') ||
+       startsWith(github.ref, 'refs/tags/grimoire-mcp-v'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -54,6 +57,19 @@ jobs:
         run: npm run check
 
       # `prepublishOnly` builds, so the tarball carries dist/ even though it is not committed.
+      # The tag says which version this is; refuse if the package disagrees, so a
+      # mistagged release cannot quietly publish something else.
+      - name: Check the package matches the tag
+        run: |
+          tag="${{ github.event.release.tag_name || github.ref_name }}"
+          expected="${tag#grimoire-mcp-v}"
+          actual="$(node -p "require('./package.json').version")"
+          if [ "$expected" != "$actual" ]; then
+            echo "::error::tag $tag expects $expected but package.json says $actual"
+            exit 1
+          fi
+          echo "publishing grimoire-mcp $actual"
+
       - name: Publish
         run: npm publish --provenance --access public
         env:
