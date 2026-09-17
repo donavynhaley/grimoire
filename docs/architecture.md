@@ -246,6 +246,7 @@ Closing a chapter writes nothing to any page.
 Closing is a decision rather than a button.
 What becomes of the chapter's unfinished work is asked on a layer over the settings panel, with the panel held inert until the question is answered or dismissed, because it is the one settings act with no honest default.
 Nothing is chosen on the reader's behalf and dismissing the question closes nothing.
+Carrying the work onward does not depend on somebody having planned ahead: the chapter it travels into may be named there and is created before the close, so the last chapter in a project can hand over as readily as any other.
 Once the chapter is closed the same surface offers the handoff: opening a chapter already planned, or naming a new one, which is created and opened as a single act.
 Neither step opens anything on its own, so a project may sit between chapters when that is what its owner wants.
 

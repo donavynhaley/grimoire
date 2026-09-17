@@ -295,12 +295,11 @@ export function ProjectSettingsDialog({
             attempt(() => chapterActions.close(closing.slug, rollover), "The chapter could not be closed")
           }
           onCreateChapter={async (name) => {
-            const created = await chapterActions.create({ name });
-            if (!created) return false;
-            return attempt(
-              () => chapterActions.update(created.slug, { state: "open" }),
-              "The chapter could not be opened",
-            );
+            let slug: string | undefined;
+            await run(async () => {
+              slug = (await chapterActions.create({ name }))?.slug;
+            }, "The chapter could not be created");
+            return slug;
           }}
           onDismiss={() => setClosingChapter(null)}
           onOpenChapter={(slug) =>

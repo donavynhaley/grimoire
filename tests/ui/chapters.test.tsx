@@ -534,6 +534,43 @@ describe("closing a chapter", () => {
     );
   });
 
+  it("carries the work into a chapter it makes when nothing is planned behind this one", async () => {
+    const user = userEvent.setup();
+    const board = chapteredBoard();
+    const calls = mountClosing({ ...board, chapters: [board.chapters[0]!] });
+
+    await user.click(await screen.findByRole("button", { name: /Filter by chapter/ }));
+    await user.click(screen.getByRole("menuitem", { name: /Manage chapters/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Project settings" });
+    await user.click(within(dialog).getByRole("button", { name: "close" }));
+
+    // The last chapter is exactly where carrying onward matters, so it is offered here too.
+    await user.click(within(dialog).getByRole("button", { name: "carry them into a new chapter" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "Name the chapter to carry them into" }),
+      "Third Brew",
+    );
+    await user.click(screen.getByRole("button", { name: "create and carry" }));
+
+    // The chapter is made first, then the close names it, so the pages land in something real.
+    await waitFor(() =>
+      expect(calls).toContainEqual(
+        expect.objectContaining({ url: "/api/chapters", method: "POST", body: { name: "Third Brew" } }),
+      ),
+    );
+    await waitFor(() =>
+      expect(calls).toContainEqual(
+        expect.objectContaining({
+          url: "/api/chapters/first-brew/close",
+          method: "POST",
+          body: { rollover: "third-brew" },
+        }),
+      ),
+    );
+    // And no page was edited one at a time to achieve it.
+    expect(calls.filter((call) => call.url.startsWith("/api/pages/"))).toHaveLength(0);
+  });
+
   it("names the next chapter when nothing is planned behind this one", async () => {
     const user = userEvent.setup();
     const board = chapteredBoard();

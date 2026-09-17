@@ -55,3 +55,55 @@ test("closing a chapter asks over the panel and hands over to the next one", asy
   await expect(settings.locator(".chapter-row.state-open")).toContainText("Next chapter");
   await settings.screenshot({ path: testInfo.outputPath("after-handover.png") });
 });
+
+test("the last chapter carries its work into a chapter named on the way out", async ({ page }, testInfo) => {
+  await signIn(page);
+  const created = await page.request.post("/api/projects", { data: { name: "Last chapter" } });
+  expect(created.ok()).toBeTruthy();
+  const { project } = await created.json();
+  const headers = { "x-grimoire-project": project.id };
+  const enabled = await page.request.patch(`/api/projects/${project.id}`, {
+    data: { chaptersEnabled: true },
+  });
+  expect(enabled.ok()).toBeTruthy();
+  // Nothing planned behind it, which is where the old flow ran out of routes.
+  const only = await page.request.post("/api/chapters", {
+    headers,
+    data: { name: "Only chapter", state: "open" },
+  });
+  expect(only.ok()).toBeTruthy();
+  for (let i = 1; i <= 2; i++) {
+    const response = await page.request.post("/api/pages", {
+      headers,
+      data: { title: `Unfinished ${i}`, status: "ready", chapter: "only-chapter" },
+    });
+    expect(response.ok()).toBeTruthy();
+  }
+
+  await page.goto(`/?project=${project.id}`);
+  await page.getByRole("button", { name: /Filter by chapter/ }).click();
+  await page.getByRole("menuitem", { name: /Manage chapters/ }).click();
+  const settings = page.getByRole("dialog", { name: "Project settings" });
+  await expect(settings).toBeVisible();
+  await settings.getByRole("button", { name: "close", exact: true }).first().click();
+
+  const decision = page.getByRole("dialog", { name: "Close Only chapter?" });
+  await expect(decision).toBeVisible();
+  // With nowhere planned, carrying onward leads rather than being missing altogether.
+  await expect(decision.getByRole("button", { name: "carry them into a new chapter" })).toBeVisible();
+  await decision.screenshot({ path: testInfo.outputPath("last-chapter.png") });
+  await decision.getByRole("button", { name: "carry them into a new chapter" }).click();
+  await decision.getByRole("textbox", { name: "Name the chapter to carry them into" }).fill("Second stretch");
+  await decision.getByRole("button", { name: "create and carry" }).click();
+
+  // The chapter was made before the close, so the pages are in it rather than adrift.
+  await expect(page.getByRole("dialog", { name: "What comes next?" })).toBeVisible();
+  const board = await page.request.get("/api/board", { headers });
+  expect(board.ok()).toBeTruthy();
+  const workspace = await board.json();
+  const closed = workspace.chapters.find((entry: { slug: string }) => entry.slug === "only-chapter");
+  expect(closed.state).toBe("closed");
+  expect(closed.carriedTo).toBe("second-stretch");
+  expect(closed.carriedPages).toBe(2);
+  for (const item of workspace.pages) expect(item.chapter).toBe("second-stretch");
+});
