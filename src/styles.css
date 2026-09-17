@@ -6738,26 +6738,153 @@ textarea:hover {
   max-height: none;
 }
 
-/* One shell stays mounted through the cold editor download, so it enters only once. */
+/*
+ * The page editor arriving.
+ *
+ * One shell stays mounted through the cold editor download, so it enters only once.
+ *
+ * Three motions live here because the choice between them is still being made, and only the
+ * address chooses: `lift` is what a plain URL gets. Everything the default needs is measured
+ * rather than written - `use-page-motion.ts` holds it - so the rules below are the sheet's
+ * rise, the two comparisons, and the refusal.
+ */
 .page-modal {
   display: contents;
 }
-.page-modal > .modal-backdrop {
+
+/*
+ * The product's motion: the panel grows out of the tile that was clicked.
+ *
+ * Nothing is declared here for the centred dialog's geometry, deliberately. It is the distance
+ * between two boxes that only exist at runtime, so `use-page-motion.ts` owns every frame of it
+ * and a stylesheet entrance would be a second opinion the measurement has to fight. What is
+ * left for the stylesheet is the three cases the measurement does not cover.
+ */
+
+/*
+ * The writing crossing over, held back until the panel has most of its size.
+ *
+ * `entering` is on the shell only while the panel is actually growing, so a child that mounts
+ * during that window - the editor body finishing its download - fades in with everything else
+ * instead of appearing at full strength inside a panel that is still small.
+ */
+.page-modal[data-motion="lift"][data-entering] .page-editor > * {
+  animation: page-lift-content 170ms 80ms ease-out backwards;
+}
+.page-modal[data-motion="lift"].closing:not([data-plain]) .page-editor > * {
+  animation: page-lift-content 80ms ease-in reverse forwards;
+}
+@keyframes page-lift-content {
+  from {
+    opacity: 0;
+    translate: 0 0.375rem;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+/*
+ * The phone, where the sheet is the whole screen and there is no tile left visible to grow
+ * out of. `drawer-rise` already carries it up, so the exit is the only half missing.
+ *
+ * The backdrop's own `opacity` is what leaves here, and it may only ever be used on the sheet:
+ * the panel is the backdrop's child, so fading the element fades the panel standing on it. The
+ * sheet covers the screen and hides that; the centred dialog would show the board through its
+ * own surface, which is why the measured exit fades the veil's colour instead.
+ */
+.page-modal[data-motion="lift"].closing > .modal-backdrop.drawer-backdrop {
+  animation: page-modal-fade-out 160ms ease-in forwards;
+}
+.page-modal[data-motion="lift"].closing .page-editor.drawer-sheet {
+  animation: drawer-fall 180ms cubic-bezier(0.45, 0, 0.9, 0.45) forwards;
+}
+@keyframes drawer-fall {
+  to {
+    transform: translateY(100%);
+  }
+}
+
+/*
+ * A page turning: the panel opens on its left edge, with the spine still shading it.
+ *
+ * The veil fades by colour here too, for the same reason the lift does: the panel is the
+ * backdrop's child, so fading the backdrop element would show the board through the panel
+ * standing on it. The entrance carries no opacity of its own either - a book page arriving
+ * is opaque and merely turned, and fading it is what makes the effect look like a slide.
+ */
+.page-modal[data-motion="unfold"] > .modal-backdrop {
+  perspective: 90rem;
+  animation: page-veil-in 240ms ease-out;
+}
+.page-modal[data-motion="unfold"] .page-editor {
+  transform-origin: left center;
+  animation: page-unfold-in 320ms cubic-bezier(0.2, 0.8, 0.25, 1);
+}
+.page-modal[data-motion="unfold"].closing > .modal-backdrop {
+  animation: page-veil-out 180ms ease-in forwards;
+}
+.page-modal[data-motion="unfold"].closing .page-editor {
+  animation: page-unfold-out 180ms ease-in forwards;
+}
+/* `from` alone, so the resting frame is whatever the stylesheet already says it is. */
+@keyframes page-veil-in {
+  from {
+    background-color: transparent;
+    backdrop-filter: blur(0);
+  }
+}
+@keyframes page-veil-out {
+  to {
+    background-color: transparent;
+    backdrop-filter: blur(0);
+  }
+}
+@keyframes page-unfold-in {
+  from {
+    transform: rotateY(-26deg) translateZ(-4rem);
+    box-shadow:
+      inset 5rem 0 5rem -2.5rem rgb(0 0 0 / 60%),
+      0 1.5rem 5rem rgb(0 0 0 / 45%);
+  }
+}
+@keyframes page-unfold-out {
+  to {
+    opacity: 0;
+    transform: rotateY(-18deg) translateZ(-3rem);
+  }
+}
+
+/*
+ * The plain entrance: what shipped, and what the lift falls back to.
+ *
+ * `settle` asks for it by name so the two can be compared. `plain` is the lift admitting it
+ * has nowhere to grow from - a page reached through search, or one whose tile is filtered off
+ * the board - which is a better answer than a panel that appears without any entrance at all.
+ */
+.page-modal[data-motion="settle"] > .modal-backdrop,
+.page-modal[data-motion="lift"][data-plain] > .modal-backdrop {
   animation: page-modal-fade-in 140ms ease-out;
 }
-.page-modal .page-editor {
+.page-modal[data-motion="settle"] .page-editor,
+.page-modal[data-motion="lift"][data-plain] .page-editor {
   --page-enter-distance: 0.375rem;
   animation: page-modal-enter 140ms ease-out;
 }
-.page-modal .page-editor.drawer-sheet {
+.page-modal[data-motion="settle"] .page-editor.drawer-sheet,
+.page-modal[data-motion="lift"][data-plain] .page-editor.drawer-sheet {
   --page-enter-distance: 0.625rem;
 }
-.page-modal.closing > .modal-backdrop {
+.page-modal[data-motion="settle"].closing > .modal-backdrop,
+.page-modal[data-motion="lift"][data-plain].closing > .modal-backdrop {
   animation: page-modal-fade-out 90ms ease-in forwards;
 }
-.page-modal.closing .page-editor {
+.page-modal[data-motion="settle"].closing .page-editor,
+.page-modal[data-motion="lift"][data-plain].closing .page-editor {
   animation: page-modal-leave 90ms ease-in forwards;
 }
+
 @keyframes page-modal-fade-in {
   from {
     opacity: 0;
@@ -6784,13 +6911,53 @@ textarea:hover {
     translate: 0 var(--page-enter-distance);
   }
 }
+
+/*
+ * Refusal is total, and it has to be: the hook stands down on its own, but the sheet's rise
+ * and the two comparisons are stylesheet rules that would otherwise still run.
+ */
 @media (prefers-reduced-motion: reduce) {
   .page-modal > .modal-backdrop,
   .page-modal .page-editor,
+  .page-modal .page-editor > *,
   .page-modal.closing > .modal-backdrop,
-  .page-modal.closing .page-editor {
+  .page-modal.closing .page-editor,
+  .page-modal.closing .page-editor > * {
     animation: none;
   }
+}
+
+/*
+ * The comparison control, raised only by `?motion=` being in the address.
+ *
+ * It is review scaffolding rather than product: a person deciding between the three should
+ * not have to reload and find the page again between each one.
+ */
+.motion-picker {
+  position: fixed;
+  z-index: 60;
+  bottom: 1rem;
+  left: 1rem;
+  display: flex;
+  padding: 0.25rem;
+  gap: 0.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border-bright);
+  border-radius: 0.5rem;
+  box-shadow: 0 0.75rem 2rem rgb(0 0 0 / 45%);
+}
+.motion-picker button {
+  padding: 0.25rem 0.5rem;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 0.375rem;
+  font-size: 0.625rem;
+  cursor: pointer;
+}
+.motion-picker button[aria-pressed="true"] {
+  color: var(--accent);
+  background: var(--background);
 }
 
 /* The furniture holds its size; only the split in the middle gives and takes. */

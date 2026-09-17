@@ -16,14 +16,36 @@ for (const scenario of ["retry", "cancel"] as const) {
     });
     try {
       await page.goto("/demo");
+      // Counting entrances rather than animation events, because the centred panel is measured
+      // into place by `use-page-motion` and a measured animation raises no `animationstart`.
+      // The shell marks the one window in which it is entering, on every surface, so the mark
+      // appearing twice is the modal having restarted around the arriving editor.
       await page.evaluate(() => {
         document.documentElement.dataset.pageEntrances = "0";
-        document.addEventListener("animationstart", (event) => {
-          if (event.animationName === "page-modal-enter") {
-            document.documentElement.dataset.pageEntrances = String(
-              Number(document.documentElement.dataset.pageEntrances) + 1,
-            );
+        const seen = new WeakSet<Element>();
+        const count = (node: Element) => {
+          if (seen.has(node)) return;
+          seen.add(node);
+          document.documentElement.dataset.pageEntrances = String(
+            Number(document.documentElement.dataset.pageEntrances) + 1,
+          );
+        };
+        new MutationObserver((records) => {
+          for (const record of records) {
+            const target = record.target;
+            if (
+              target instanceof Element &&
+              target.matches(".page-modal[data-entering], .page-modal[data-plain]")
+            )
+              count(target);
+            for (const added of record.addedNodes)
+              if (added instanceof Element && added.matches?.(".page-modal")) count(added);
           }
+        }).observe(document.body, {
+          subtree: true,
+          childList: true,
+          attributes: true,
+          attributeFilter: ["data-entering", "data-plain"],
         });
       });
       await page.getByRole("button", { name: /^Open Make yourself at home/ }).click();

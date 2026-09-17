@@ -752,12 +752,32 @@ Browser tests run against built assets with `npm run test:production` to cover d
 
 The page editor keeps one Drawer shell mounted across the lazy feature download and editing, so loading the editor cannot restart its entrance or replace its focus boundary.
 The loaded editor registers its file receiver with that shell, keeping header and notes drops on the same capture boundary without remounting the modal.
-Its backdrop fades in over 140 ms while the panel settles upward by 6 px on desktop or 10 px in the mobile sheet, with ease-out timing and no scale or bounce.
-Input is available immediately; the animation does not gate focus or editing.
+
+On a fine pointer the panel grows out of the tile that was clicked, rather than fading in over the middle of the board.
+A dialog that simply appears does not say which page it is about; the eye has to read the title to find out.
+`src/hooks/use-page-motion.ts` measures the tile found by its `data-flip-id` against the panel's resting rectangle and drives the Web Animations API from a layout effect, because the distance between those two boxes exists only at runtime and a stylesheet entrance would be a second opinion the measurement has to fight.
+The opening is a clip window sized to the tile and carried on a translate, with the panel scaled to 0.9 underneath it, so the writing inside is at its final size from the first frame it can be seen at and no text is stretched to arrive.
+The entrance takes 260 ms on the `cubic-bezier(0.2, 0.7, 0.2, 1)` curve every other motion in the product already uses; the exit takes 190 ms and re-measures first, so a page whose column changed while it was open returns to where it now lives rather than where it was picked up.
+
+The backdrop fades its own background colour and the blur behind it, never its `opacity`.
+The panel is the backdrop's child, so fading the element fades the panel standing on it and the board shows through the surface that is meant to be covering it.
+The one exception is the phone sheet, which covers the screen and hides that.
+
+The shell marks itself with `data-entering` while the panel is growing and the stylesheet crosses the writing over against that mark, 170 ms after an 80 ms delay.
+The mark is an attribute rather than a class because the shell's `className` belongs to React and is rewritten in full on every render, including the one where the downloaded editor arrives.
+Driving the cross-fade from the stylesheet rather than from the hook is what covers that late child: it is not in the DOM when the entrance starts and so could never have been handed an animation.
+
+Where there is no tile to grow from - a page opened from the backlog, or one filtered off the board - the shell marks itself `data-plain` and takes the plain entrance instead: a 140 ms backdrop fade with the panel settling upward by 6 px.
+The phone sheet keeps its own `drawer-rise` and leaves by `drawer-fall`.
+Reduced motion removes every one of these and the exit delay with them.
+
+Input is available immediately; no animation gates focus or editing.
 Closing first flushes pending content and stays open if saving fails or needs a conflict decision.
-After a successful flush, the editor becomes inert and fades out over 90 ms before dismissal restores focus to the opener.
-The backdrop keeps intercepting pointer input throughout the exit so a click cannot reach the board before focus is restored.
-The close lifecycle waits on the CSS animation rather than a duplicate JavaScript timer, and reduced motion removes the animation and its delay (UI-1, UI-5, UI-8).
+After a successful flush the editor becomes inert and the backdrop keeps intercepting pointer input throughout the exit, so a click cannot reach the board before focus is restored to the opener.
+The close lifecycle waits on the animation itself rather than a duplicate JavaScript timer - the measured animations directly, and the stylesheet's exits by name, so a loading indicator cycling inside the panel is never waited on (UI-1, UI-5, UI-8).
+
+Two further entrances, `unfold` and `settle`, are reachable only through `?motion=` and exist while the choice between them is being made; `settle` is the plain entrance under its own name, kept so the others have something to be judged against.
+`MotionPicker` renders only when that parameter is present, so an ordinary session never sees it.
 
 ## Page attachments
 
