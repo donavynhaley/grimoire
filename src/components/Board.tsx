@@ -21,6 +21,7 @@ import { useBoardShortcuts } from "../hooks/use-board-shortcuts";
 import { useCaptureFlight } from "../hooks/use-capture-flight";
 import { type CardHint, useCardBoard } from "../hooks/use-card-board";
 import { useFlip } from "../hooks/use-flip";
+import { type SelectionClick, usePageSelection } from "../hooks/use-page-selection";
 import { type DragPoint, gapIndexIn, pointWithin } from "../hooks/use-pointer-drag";
 import { soleMemberId } from "../lib/capture-pickers";
 import { chapterWhen } from "../lib/chapter-dates";
@@ -42,6 +43,7 @@ import { PageTile } from "./PageTile";
 import type { ProjectActions } from "./ProjectMenu";
 import type { ProjectSettingsActions, SettingsSection } from "./ProjectSettingsDialog";
 import { type CapturePageInput, QuickCapture } from "./QuickCapture";
+import { SelectionBar } from "./SelectionBar";
 import { WorkFilters } from "./WorkFilters";
 
 const columnNames = PAGE_STATUS_LABELS;
@@ -63,6 +65,8 @@ type Props = {
   view: "work" | "ideas";
   onCreate: (input: CapturePageInput) => Promise<void>;
   onUpdate: (id: string, input: Record<string, unknown>) => Promise<void>;
+  /** One decision applied to every selected page, with a single reload after it. */
+  onUpdatePages: (ids: string[], input: Record<string, unknown>) => Promise<void>;
   onArchive: (id: string) => Promise<void>;
   onAddMember: (email: string) => Promise<void>;
   onCreateInvite: () => Promise<string>;
@@ -105,6 +109,7 @@ export function Board({
   view,
   onCreate,
   onUpdate,
+  onUpdatePages,
   onArchive,
   onAddMember,
   onCreateInvite,
@@ -249,6 +254,49 @@ export function Board({
     onOpenSearch: () => setSearchOpen(true),
     onViewChange,
   });
+
+  const selection = usePageSelection();
+  /*
+   * A card filtered off the board, moved to another project, or archived by somebody else
+   * must not stay held: the bar would go on counting work the reader can no longer see, and
+   * the next decision would reach pages they did not mean.
+   */
+  useEffect(() => {
+    selection.retain(new Set(board.pages.map((page) => page.id)));
+  }, [board.pages, selection.retain]);
+
+  /**
+   * Offers a tile's click to the selection first.
+   *
+   * The order matters: a held modifier means selection, and everything else still opens the
+   * page. `order` is the column the card sits in, which is what a shift range is measured
+   * along - a run of cards is a run within one column, not across the board's whole reading
+   * order.
+   */
+  const selectOrOpen = (event: SelectionClick, id: string, order: string[]) => {
+    if (selection.select(event, id, order)) return;
+    changeSelectedPage(id);
+  };
+
+  const applyToSelection = async (input: Record<string, unknown>) => {
+    await onUpdatePages([...selection.ids], input);
+  };
+
+  /*
+   * Escape puts a selection down, the same key that puts down a carried card. A dialog owns
+   * the keyboard while it is open, and a card being moved is the nearer thing to let go of,
+   * so this stands behind both rather than racing them.
+   */
+  useEffect(() => {
+    if (selection.ids.size === 0) return;
+    const clearOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (document.querySelector(".modal-backdrop")) return;
+      selection.clear();
+    };
+    window.addEventListener("keydown", clearOnEscape);
+    return () => window.removeEventListener("keydown", clearOnEscape);
+  }, [selection.ids.size, selection.clear]);
 
   const openPageFromSearch = (id: string) => {
     setSearchOpen(false);
@@ -419,6 +467,21 @@ export function Board({
       </Growing>
 
       {movingPage && <MovingBar onCancel={cancelMoving} title={movingPage.title} />}
+      {/*
+        The backlog shows this same bar over its own list, and the selection behind it is the
+        selection in it. Two bars would be one act with two status voices - the thing UI-5
+        rules out - so the board's stands down while the library is open.
+      */}
+      {selection.ids.size > 0 && !backlogOpen && (
+        <SelectionBar
+          busy={busy}
+          categories={board.categories}
+          count={selection.ids.size}
+          members={board.members}
+          onApply={applyToSelection}
+          onClear={selection.clear}
+        />
+      )}
 
       {view === "work" ? (
         <main className="board-main">
@@ -566,7 +629,14 @@ export function Board({
                             moving={moving === page.id}
                             unseen={unseenPageIds.has(page.id)}
                             guardClick={pointerDrag.consumeClick}
-                            onOpen={() => changeSelectedPage(page.id)}
+                            selected={selection.ids.has(page.id)}
+                            onOpen={(event) =>
+                              selectOrOpen(
+                                event,
+                                page.id,
+                                pages.map((candidate) => candidate.id),
+                              )
+                            }
                             onPointerDown={(event) => pointerDrag.start(event, page.id)}
                             onToggleMove={() => toggleMoving(page.id)}
                           />
@@ -678,6 +748,8 @@ export function Board({
         away={away}
         backlogOpen={backlogOpen}
         backlogPages={backlogPages}
+        selection={selection}
+        onApplyToSelection={applyToSelection}
         board={board}
         busy={busy}
         categoryActions={categoryActions}
