@@ -62,3 +62,69 @@ describe("the page editor's two halves", () => {
     }
   });
 });
+
+/** jsdom exposes `navigator.clipboard` through a getter, so it is redefined rather than set. */
+function stubClipboard(writeText: (text: string) => Promise<void>) {
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: { writeText },
+  });
+}
+/**
+ * Copying is delegating, and delegating is not starting: the board must do nothing at all
+ * when this is pressed, which is as much of the contract as the format itself.
+ */
+describe("handing a page to an agent", () => {
+  it("copies the deep link and the page's name, and nothing from the brief", async () => {
+    const user = userEvent.setup();
+    const base = boardFixture();
+    // The page carries notes, so "the brief is not copied" is a real assertion rather than
+    // one that passes on an empty string.
+    const page = { ...base.pages[1]!, description: "The workbench holds three reagent slots." };
+    const board = { ...base, pages: [page, ...base.pages.slice(2)] };
+    const written: string[] = [];
+    stubClipboard((text) => {
+      written.push(text);
+      return Promise.resolve();
+    });
+    const { fetchMock } = routeFetch({ board });
+    render(<App />);
+
+    await user.click(await screen.findByText(page.title));
+    await screen.findByRole("dialog", { name: "Edit page" });
+    const before = fetchMock.mock.calls.length;
+    await user.click(screen.getByRole("button", { name: "Copy for agent" }));
+
+    expect(written).toEqual([
+      [
+        `Grimoire page ${page.id} in project "${board.project.name}"`,
+        page.title,
+        `${window.location.origin}/?project=${board.project.id}&page=${page.id}`,
+      ].join("\n"),
+    ]);
+    // The notes are read through the agent's own credential against the page that is
+    // current; a copy of them here would fork the brief where the discussion cannot follow.
+    expect(written[0]).not.toContain(page.description);
+    // Nothing started, nothing was assigned, nothing was recorded.
+    expect(fetchMock.mock.calls.length).toBe(before);
+    expect(await screen.findByText("Copied for agent")).toBeInTheDocument();
+  });
+
+  it("shows the block to copy by hand when the clipboard is refused", async () => {
+    const user = userEvent.setup();
+    const board = boardFixture();
+    const page = board.pages[1]!;
+    stubClipboard(() => Promise.reject(new Error("denied")));
+    routeFetch({ board });
+    render(<App />);
+
+    await user.click(await screen.findByText(page.title));
+    await screen.findByRole("dialog", { name: "Edit page" });
+    await user.click(screen.getByRole("button", { name: "Copy for agent" }));
+
+    // A refusal is not an error: selecting the block by hand still does the job.
+    const block = await screen.findByText(`Grimoire page ${page.id}`, { exact: false });
+    expect(block).toHaveTextContent(`${window.location.origin}/?project=${board.project.id}&page=${page.id}`);
+    expect(screen.queryByText("Copied for agent")).toBeNull();
+  });
+});
