@@ -253,6 +253,49 @@ export function App() {
     }
   };
 
+  /**
+   * One decision applied to several pages, and one reload at the end of it.
+   *
+   * Running these through `updatePage` would ask the server for the whole board once per
+   * page: N reloads for one decision, with a half-applied board on screen between them. The
+   * writes go out and the board is asked once, which is the reload-after-write contract
+   * every other mutation already keeps.
+   *
+   * They go in order rather than at once. Ordering is the reason: a column change sends the
+   * same end-of-column position for every page, so the order they arrive in is the order
+   * they come to rest in, and racing them would shuffle a selection the reader had just
+   * arranged. A handful of cards is what this is for, so the cost of going in turn is small.
+   *
+   * A page that refuses is counted rather than abandoned: the rest of the selection is a
+   * decision the reader already made, and stopping at the first refusal would leave the
+   * board half-changed with no account of where it stopped.
+   */
+  const updatePages = async (ids: string[], input: Record<string, unknown>) => {
+    if (ids.length === 0) return;
+    setBusy(true);
+    setError("");
+    let refused = 0;
+    try {
+      for (const id of ids) {
+        try {
+          await mutate(`/api/pages/${id}`, "PATCH", input);
+        } catch {
+          refused += 1;
+        }
+      }
+      await refreshBoard();
+      if (refused > 0) {
+        setError(
+          refused === ids.length
+            ? "None of the selected pages could be changed"
+            : `${refused} of ${ids.length} selected pages could not be changed`,
+        );
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
   /*
    * Saying something changes the board as well as the page: the tile carries how many threads
    * are still open, so every one of these goes through `perform` and refreshes it. The dialog
@@ -649,6 +692,7 @@ export function App() {
           onRestorePage={restorePage}
           onSurfaceError={setError}
           onUpdate={updatePage}
+          onUpdatePages={updatePages}
           onUpdateIdea={updateIdea}
           onViewChange={changeView}
           projectActions={{

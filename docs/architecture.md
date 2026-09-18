@@ -528,6 +528,24 @@ backwards, so a hand that placed a page somewhere always wins over the robot tha
 tidy it. Auto-moves are audited under the actor "GitHub" - a name, not a member - so the
 log says plainly that the robot did it.
 
+## Selecting several pages
+
+A plain click opens a page, and that does not change. Selection is what a held modifier means, the reading a file list has always given them: a modifier toggles one card, and shift takes the run between the last one and this.
+
+Shift adds its range rather than replacing the selection, which is where this parts company with a file list. The selection here is assembled in order to be acted on rather than browsed, and silently discarding cards someone has already picked out is the more expensive mistake. The anchor stays where the modifier put it, so two shift-clicks from one anchor describe two ranges from the same place instead of walking it along.
+
+A range is measured along one column, or along the backlog list as its filters currently leave it, because a run of cards is a run within one list and not across the board's whole reading order.
+
+The board and the backlog share one selection. The backlog shows the bar over its own list and the board's stands down while it is open, because two bars would be one act with two status voices. Escape belongs to the dialog first, so inside the library it dismisses the library and the selection survives; on the board it puts the selection down.
+
+A modified Enter produces no click at all - the browser suppresses activation - so the tiles and the library rows listen for that key themselves. Without it the feature would be reachable only with a pointer.
+
+Anything that leaves the board leaves the selection: a card filtered away, archived by someone else, or moved to another project is dropped, so the bar never counts work the reader cannot see and the next decision never reaches a page they did not mean.
+
+Bulk writes go out one page at a time with a single reload after them, rather than through the single-page update path. Ordering is the reason: a column change sends the same end-of-column position for every page, so the order they arrive in is the order they come to rest in, and racing them would shuffle a selection that had just been arranged. A page that refuses is counted rather than abandoned, because the rest of the selection is a decision the reader already made and stopping at the first refusal would leave the board half-changed with no account of where it stopped.
+
+Archiving is deliberately not offered here. Its undo lasts eight seconds and is built for a person who has just clicked once; offering it to a selection would put an unbounded number of pages behind that same short window.
+
 ## Reversible actions
 
 Page archive and idea promotion are server-backed reversible operations.

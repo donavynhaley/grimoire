@@ -16,6 +16,7 @@ const AccountDialog = deferComponent<ComponentProps<typeof import("./AccountDial
   { exportName: "AccountDialog", label: "account settings", close: (props) => props.onClose },
 );
 
+import type { PageSelection } from "../hooks/use-page-selection";
 import { type ChapterFilter, NO_CHAPTER } from "../lib/chapter-filter";
 import { ActivityDialog } from "./ActivityDialog";
 import { AgentReviewDialog } from "./AgentReviewDialog";
@@ -59,8 +60,11 @@ type Props = {
   revision: number;
   searchOpen: boolean;
   selectedPage: Page | null;
+  /** Shared with the board, so a page held in the backlog is the same page held outside it. */
+  selection: PageSelection;
   settingsSection: SettingsSection | null;
   onAddMember: (email: string) => Promise<void>;
+  onApplyToSelection: (input: Record<string, unknown>) => Promise<void>;
   onArchive: (id: string) => Promise<void>;
   onAsk: (pageId: string, body: string) => Promise<void>;
   onChangeAvatar: (file: File) => Promise<void>;
@@ -115,8 +119,10 @@ export function BoardDialogs({
   revision,
   searchOpen,
   selectedPage,
+  selection,
   settingsSection,
   onAddMember,
+  onApplyToSelection,
   onArchive,
   onAsk,
   onChangeAvatar,
@@ -233,7 +239,9 @@ export function BoardDialogs({
             onCloseBacklog();
             onSelectPage(id);
           }}
+          onApplyToSelection={onApplyToSelection}
           onSetChapter={(id, value) => onUpdate(id, { chapter: value })}
+          selection={selection}
           targetChapter={chaptersOn && chapter !== NO_CHAPTER ? chapter : null}
         />
       )}
