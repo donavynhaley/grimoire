@@ -2604,6 +2604,50 @@ textarea:hover {
   margin: 0;
   font-size: 1.125rem;
 }
+/* Qualified by the parent, which sets `display: grid` on its own direct children. */
+.dialog-header > .dialog-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/*
+ * Handing the page to an agent: the receipt, and the block to copy by hand when the
+ * clipboard is refused.
+ *
+ * The slot is permanent so `Growing` has a height to travel from, and it carries the
+ * margin, so what appears inside it is measured with the space it pushes down (UI-1).
+ */
+.agent-handoff-slot {
+  display: flex;
+  flex-direction: column;
+}
+.agent-handoff-copied {
+  margin: 0 0 0.875rem;
+  color: var(--accent);
+  font-size: 0.5625rem;
+}
+.agent-handoff {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 0.875rem;
+  padding: 0.75rem;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+.agent-handoff-value {
+  padding: 0.5rem 0.625rem;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  font-size: 0.6875rem;
+  /* Copying by hand is the whole point of this block, so it selects in one gesture. */
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: all;
+}
 
 /* One search over every column, the backlog, the garden, and the archive. */
 .search-backdrop {

@@ -658,6 +658,13 @@ Writes are metered per credential with a token bucket, held in memory.
 The bucket guards the running process against a loop rather than a determined attacker, and persisting it would mean a write on every request in order to limit writes.
 Reads are not metered, because they cost one query and cannot run the disk away.
 
+Handing a page to an agent is a clipboard action and nothing else.
+The only link a person could copy before was the address bar, which is the filtered board: `people=`, `chapter=` and whatever else was on screen ride along with the page id, and the agent has to find `page=` in the noise.
+"Copy for agent" writes the deep link with two parameters and no filters, above the page's id, its project's name, and its title.
+It carries none of the brief - not the notes, not the discussion - because an agent reads those through its own credential against the page that is current, and a copy taken here would fork the brief into a place the discussion cannot follow and would start going stale the moment anyone edited the page.
+The board does nothing when the button is pressed: nothing starts, nothing is assigned, nothing is recorded, and no request is made, because a person copying is a person delegating and the delegation has not happened yet.
+A refused clipboard shows the block to select by hand rather than raising an error, which is the answer the token's own copy already gives.
+
 ## Agent review
 
 The review is a composition, not a new record.
