@@ -6737,6 +6737,15 @@ textarea:hover {
   height: min(64rem, calc(100dvh - 3rem));
   max-height: none;
 }
+/*
+ * The sheet scrolls, which `.drawer-sheet` already asked for and the `overflow: hidden` above
+ * was quietly overriding. Without this the height the floor refuses to give up has nowhere to
+ * go and is simply clipped, which is the same vanished writing by another route.
+ */
+.page-editor.drawer-sheet {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 
 /*
  * The page editor arriving.
@@ -6949,7 +6958,21 @@ textarea:hover {
  */
 .page-editor-split {
   display: grid;
-  min-height: 0;
+  /*
+   * The floor the writing is entitled to, and the other half of the promise the column below
+   * makes.
+   *
+   * `min-height: 0` alone lets flex take this to nothing when the fixed furniture wants more
+   * height than there is - and then the column's own `overflow-y: auto` clips the title and
+   * the notes out of a zero-height box while the history and the footer keep their room. On a
+   * phone that is not a corner case: the sheet is sized to the visual viewport, so every
+   * raised keyboard halves the panel and takes the page's writing off the screen with it.
+   *
+   * The floor is the title plus the notes' own 8rem floor. Past it the panel scrolls, which
+   * is the smaller concession - the column below already says so, and this is what makes it
+   * true rather than only intended.
+   */
+  min-height: 13.5rem;
   flex: 1 1 auto;
   /*
    * The second column meets the writing halfway.
