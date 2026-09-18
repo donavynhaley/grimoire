@@ -105,3 +105,46 @@ test.describe("grimoire in one hand", () => {
     await expect(page.getByLabel("Search pages, notes, ideas, and archived work")).toBeFocused();
   });
 });
+
+/**
+ * The sheet is sized to the *visual* viewport, so a raised keyboard halves it. That is the
+ * ordinary case on a phone, not a corner: the page editor spends most of its life under one.
+ */
+test.describe("the page editor under a raised keyboard", () => {
+  test.skip(({ isMobile }) => !isMobile, "the phone form only");
+
+  test("keeps the title and the notes on screen when the panel is halved", async ({ page }) => {
+    await openBoard(page, [{ title: "Reglaze the lantern", status: "ready" }]);
+    await page.getByText("Reglaze the lantern").tap();
+    await expect(page.getByRole("dialog", { name: "Edit page" })).toBeVisible();
+
+    // What a keyboard does to the sheet, without needing a real one: the Drawer sizes itself
+    // from `visualViewport.height`, so shrinking the window is the same input it would get.
+    const size = page.viewportSize()!;
+    await page.setViewportSize({ width: size.width, height: 340 });
+    await page.waitForTimeout(400);
+
+    // Painted, not merely present: the column used to collapse to nothing and clip both of
+    // these out of a zero-height box while the history and the footer kept their room.
+    const shown = await page.evaluate(() => {
+      const visible = (selector: string) => {
+        const element = document.querySelector(selector);
+        if (!element) return false;
+        const box = element.getBoundingClientRect();
+        if (box.height < 1) return false;
+        const x = Math.min(box.left + box.width / 2, window.innerWidth - 1);
+        const y = Math.min(Math.max(box.top + box.height / 2, 0), window.innerHeight - 1);
+        const top = document.elementFromPoint(x, y);
+        return !!top && (element === top || element.contains(top) || top.contains(element));
+      };
+      return {
+        title: visible('.record-form input[name="title"]'),
+        notes: visible(".markdown-editor"),
+        split: document.querySelector(".page-editor-split")!.getBoundingClientRect().height,
+      };
+    });
+    expect(shown.title).toBe(true);
+    expect(shown.notes).toBe(true);
+    expect(shown.split).toBeGreaterThan(0);
+  });
+});
