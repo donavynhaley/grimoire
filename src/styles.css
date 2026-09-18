@@ -3314,6 +3314,25 @@ textarea:hover {
   font-size: 0.5625rem;
 }
 
+/*
+ * The title is read far more often than it is retyped, so it is set as the page's own
+ * words rather than as a filled-in field. A box drawn tight around one line, sitting
+ * over notes that read as a surface, announces a form where there is only a heading.
+ *
+ * The border stays in the layout as a transparent line rather than being dropped, so the
+ * box never changes size when it comes back (UI-1), and the text under the pointer never
+ * moves. Hover is what brings it back - that is the moment someone is asking what here
+ * can be changed. Focus needs no help: `:focus-visible` already rings every input in the
+ * accent, and drawing a border under that ring would say the same thing twice.
+ */
+.record-form input {
+  background: transparent;
+  border-color: transparent;
+}
+.record-form input:hover {
+  border-color: var(--border-bright);
+}
+
 /* Wide Markdown belongs inside the notes, rather than setting the grid track width. */
 .notes-field {
   display: grid;
