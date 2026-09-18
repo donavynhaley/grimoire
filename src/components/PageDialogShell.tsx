@@ -12,7 +12,7 @@ const PageDialog = deferComponent<EditorProps>(
 );
 
 /** Keep one modal alive across the feature download, editing, and its saved exit. */
-export function PageDialogShell({ onClose, ...props }: Props) {
+export function PageDialogShell({ onClose, onOpenPage, ...props }: Props) {
   const shell = useRef<HTMLDivElement>(null);
   const guard = useRef<(() => Promise<boolean>) | null>(null);
   const pending = useRef(false);
@@ -62,6 +62,34 @@ export function PageDialogShell({ onClose, ...props }: Props) {
         return;
       }
       if (alive.current) setClosing(true);
+    } catch {
+      pending.current = false;
+    }
+  };
+
+  /**
+   * Leaving this page for another one - a blocker followed from the rail.
+   *
+   * It is a close and an open in one gesture, so it takes the same road out the close
+   * button takes: whatever is still unsaved is written first, and a refusal - an emptied
+   * title, a teammate's edit waiting to be settled - keeps this page on screen rather
+   * than discarding the draft on the way to another one. The editor starts a new draft
+   * whenever the record changes and nothing survives that switch, so asking first is the
+   * only thing standing between a half-typed note and silence.
+   *
+   * Arriving is then an ordinary open: the board keys this shell by page, so the one for
+   * the blocker grows out of the blocker's own tile exactly as a click on the board would.
+   */
+  const openPage = async (id: string) => {
+    if (pending.current) return;
+    pending.current = true;
+    try {
+      if (guard.current && !(await guard.current())) {
+        pending.current = false;
+        return;
+      }
+      if (alive.current) onOpenPage(id);
+      else pending.current = false;
     } catch {
       pending.current = false;
     }
@@ -133,6 +161,7 @@ export function PageDialogShell({ onClose, ...props }: Props) {
         </header>
         <PageDialog
           {...props}
+          onOpenPage={(id) => void openPage(id)}
           registerCloseGuard={registerCloseGuard}
           registerFileReceiver={registerFileReceiver}
         />

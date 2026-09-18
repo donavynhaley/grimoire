@@ -178,6 +178,7 @@ export function BoardDialogs({
             onSelectPage(null);
           }}
           onClose={() => onSelectPage(null)}
+          onOpenPage={onSelectPage}
           onLoadActivity={onLoadActivity}
           onLoadDiscussion={onLoadDiscussion}
           onAsk={onAsk}
