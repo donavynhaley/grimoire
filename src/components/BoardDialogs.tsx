@@ -173,7 +173,6 @@ export function BoardDialogs({
           githubRepo={board.project.githubRepo}
           members={board.members}
           projectId={board.project.id}
-          projectName={board.project.name}
           revision={revision}
           onArchive={async () => {
             await onArchive(selectedPage.id);

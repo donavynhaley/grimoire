@@ -1,6 +1,6 @@
 import { type ComponentProps, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePageMotion } from "../hooks/use-page-motion";
-import { agentHandoffText } from "../lib/agent-handoff";
+import { pageLink } from "../lib/page-link";
 import { deferComponent } from "./Deferred";
 import { Drawer } from "./Drawer";
 import { Growing } from "./Growing";
@@ -8,9 +8,8 @@ import { Growing } from "./Growing";
 type EditorProps = ComponentProps<typeof import("./PageDialog")["PageDialog"]>;
 type Props = Omit<EditorProps, "registerCloseGuard" | "registerFileReceiver"> & {
   onClose: () => void;
-  /** Named in the handoff block, so the agent knows which board the page belongs to. */
+  /** The link names the board the page belongs to as well as the page. */
   projectId: string;
-  projectName: string;
 };
 
 const PageDialog = deferComponent<EditorProps>(
@@ -19,7 +18,7 @@ const PageDialog = deferComponent<EditorProps>(
 );
 
 /** Keep one modal alive across the feature download, editing, and its saved exit. */
-export function PageDialogShell({ onClose, projectId, projectName, ...props }: Props) {
+export function PageDialogShell({ onClose, projectId, ...props }: Props) {
   const shell = useRef<HTMLDivElement>(null);
   const guard = useRef<(() => Promise<boolean>) | null>(null);
   const pending = useRef(false);
@@ -30,8 +29,8 @@ export function PageDialogShell({ onClose, projectId, projectName, ...props }: P
   const [acceptsFiles, setAcceptsFiles] = useState(false);
   const [dropActive, setDropActive] = useState(false);
   const dragDepth = useRef(0);
-  /* "" while nothing has been copied; the block itself once the clipboard refused it. */
-  const [handoff, setHandoff] = useState("");
+  /* "" while nothing has been copied; the link itself once the clipboard refused it. */
+  const [fallbackLink, setFallbackLink] = useState("");
   const [copied, setCopied] = useState(false);
   const onCloseRef = useRef(onClose);
   useLayoutEffect(() => {
@@ -64,29 +63,23 @@ export function PageDialogShell({ onClose, projectId, projectName, ...props }: P
   }, []);
 
   /**
-   * Hands the page to an agent, and does nothing else.
+   * Copies the page's own link, and does nothing else.
    *
-   * A person copying is a person delegating: nothing starts, nothing is assigned and nothing
-   * is recorded, so this never reaches the server. When the clipboard is refused - an
-   * insecure origin, a permission denied - the block is shown instead of an error, because
-   * selecting it by hand still works and that is the same answer the agent token's own copy
-   * gives.
+   * A person copying is a person handing the page on: nothing starts, nothing is assigned
+   * and nothing is recorded, so this never reaches the server. When the clipboard is refused
+   * - an insecure origin, a permission denied - the link is shown instead of an error,
+   * because selecting it by hand still works and that is the same answer the agent token's
+   * own copy gives.
    */
-  const copyForAgent = async () => {
-    const text = agentHandoffText({
-      origin: window.location.origin,
-      pageId: props.page.id,
-      projectId,
-      projectName,
-      title: props.page.title,
-    });
+  const copyLink = async () => {
+    const link = pageLink({ origin: window.location.origin, pageId: props.page.id, projectId });
     try {
-      await navigator.clipboard.writeText(text);
-      setHandoff("");
+      await navigator.clipboard.writeText(link);
+      setFallbackLink("");
       setCopied(true);
     } catch {
       setCopied(false);
-      setHandoff(text);
+      setFallbackLink(link);
     }
   };
 
@@ -169,9 +162,9 @@ export function PageDialogShell({ onClose, projectId, projectName, ...props }: P
           </div>
           <div className="dialog-header-actions">
             <button
-              aria-label="Copy for agent"
+              aria-label="Copy link"
               className="icon-button"
-              onClick={() => void copyForAgent()}
+              onClick={() => void copyLink()}
               type="button"
             >
               ⧉
@@ -187,16 +180,16 @@ export function PageDialogShell({ onClose, projectId, projectName, ...props }: P
           </div>
         </header>
         {/* One act, one status voice: the confirmation and the fallback are the same line. */}
-        <Growing className="agent-handoff-slot">
+        <Growing className="page-link-slot">
           {copied && (
-            <p className="agent-handoff-copied" role="status">
-              Copied for agent
+            <p className="page-link-copied" role="status">
+              Link copied
             </p>
           )}
-          {handoff && (
-            <div className="agent-handoff" role="status">
-              <p className="field-label">The clipboard was refused - copy this by hand</p>
-              <code className="agent-handoff-value">{handoff}</code>
+          {fallbackLink && (
+            <div className="page-link" role="status">
+              <p className="field-label">The clipboard was refused - copy the link by hand</p>
+              <code className="page-link-value">{fallbackLink}</code>
             </div>
           )}
         </Growing>

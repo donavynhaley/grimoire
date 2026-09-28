@@ -2618,16 +2618,16 @@ textarea:hover {
  * The slot is permanent so `Growing` has a height to travel from, and it carries the
  * margin, so what appears inside it is measured with the space it pushes down (UI-1).
  */
-.agent-handoff-slot {
+.page-link-slot {
   display: flex;
   flex-direction: column;
 }
-.agent-handoff-copied {
+.page-link-copied {
   margin: 0 0 0.875rem;
   color: var(--accent);
   font-size: 0.5625rem;
 }
-.agent-handoff {
+.page-link {
   display: grid;
   gap: 0.5rem;
   margin-bottom: 0.875rem;
@@ -2636,7 +2636,7 @@ textarea:hover {
   border: 1px solid var(--border);
   border-radius: 0.5rem;
 }
-.agent-handoff-value {
+.page-link-value {
   padding: 0.5rem 0.625rem;
   color: var(--text);
   background: var(--surface);

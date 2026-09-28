@@ -71,11 +71,11 @@ function stubClipboard(writeText: (text: string) => Promise<void>) {
   });
 }
 /**
- * Copying is delegating, and delegating is not starting: the board must do nothing at all
- * when this is pressed, which is as much of the contract as the format itself.
+ * Copying is handing the page on, and handing on is not starting: the board must do nothing
+ * at all when this is pressed, which is as much of the contract as the link itself.
  */
-describe("handing a page to an agent", () => {
-  it("copies the deep link and the page's name, and nothing from the brief", async () => {
+describe("copying a page's link", () => {
+  it("copies the deep link alone, with no filters and nothing from the brief", async () => {
     const user = userEvent.setup();
     const base = boardFixture();
     // The page carries notes, so "the brief is not copied" is a real assertion rather than
@@ -93,24 +93,19 @@ describe("handing a page to an agent", () => {
     await user.click(await screen.findByText(page.title));
     await screen.findByRole("dialog", { name: "Edit page" });
     const before = fetchMock.mock.calls.length;
-    await user.click(screen.getByRole("button", { name: "Copy for agent" }));
+    await user.click(screen.getByRole("button", { name: "Copy link" }));
 
-    expect(written).toEqual([
-      [
-        `Grimoire page ${page.id} in project "${board.project.name}"`,
-        page.title,
-        `${window.location.origin}/?project=${board.project.id}&page=${page.id}`,
-      ].join("\n"),
-    ]);
-    // The notes are read through the agent's own credential against the page that is
-    // current; a copy of them here would fork the brief where the discussion cannot follow.
+    expect(written).toEqual([`${window.location.origin}/?project=${board.project.id}&page=${page.id}`]);
+    // The title and notes are read at the other end against the page that is current; a
+    // copy of them here would start going stale on the next edit.
+    expect(written[0]).not.toContain(page.title);
     expect(written[0]).not.toContain(page.description);
     // Nothing started, nothing was assigned, nothing was recorded.
     expect(fetchMock.mock.calls.length).toBe(before);
-    expect(await screen.findByText("Copied for agent")).toBeInTheDocument();
+    expect(await screen.findByText("Link copied")).toBeInTheDocument();
   });
 
-  it("shows the block to copy by hand when the clipboard is refused", async () => {
+  it("shows the link to copy by hand when the clipboard is refused", async () => {
     const user = userEvent.setup();
     const board = boardFixture();
     const page = board.pages[1]!;
@@ -120,11 +115,13 @@ describe("handing a page to an agent", () => {
 
     await user.click(await screen.findByText(page.title));
     await screen.findByRole("dialog", { name: "Edit page" });
-    await user.click(screen.getByRole("button", { name: "Copy for agent" }));
+    await user.click(screen.getByRole("button", { name: "Copy link" }));
 
-    // A refusal is not an error: selecting the block by hand still does the job.
-    const block = await screen.findByText(`Grimoire page ${page.id}`, { exact: false });
-    expect(block).toHaveTextContent(`${window.location.origin}/?project=${board.project.id}&page=${page.id}`);
-    expect(screen.queryByText("Copied for agent")).toBeNull();
+    // A refusal is not an error: selecting the link by hand still does the job.
+    const link = await screen.findByText(
+      `${window.location.origin}/?project=${board.project.id}&page=${page.id}`,
+    );
+    expect(link.tagName).toBe("CODE");
+    expect(screen.queryByText("Link copied")).toBeNull();
   });
 });
