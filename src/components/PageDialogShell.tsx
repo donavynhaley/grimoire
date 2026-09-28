@@ -1,4 +1,4 @@
-import { type ComponentProps, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type ComponentProps, useCallback, useLayoutEffect, useRef, useState } from "react";
 import { usePageMotion } from "../hooks/use-page-motion";
 import { pageLink } from "../lib/page-link";
 import { deferComponent } from "./Deferred";
@@ -8,6 +8,8 @@ import { Growing } from "./Growing";
 type EditorProps = ComponentProps<typeof import("./PageDialog")["PageDialog"]>;
 type Props = Omit<EditorProps, "registerCloseGuard" | "registerFileReceiver"> & {
   onClose: () => void;
+  /** Says "Link copied" in the board's toast, so the header never moves to say it. */
+  onNotify: (message: string) => void;
   /** The link names the board the page belongs to as well as the page. */
   projectId: string;
 };
@@ -18,7 +20,7 @@ const PageDialog = deferComponent<EditorProps>(
 );
 
 /** Keep one modal alive across the feature download, editing, and its saved exit. */
-export function PageDialogShell({ onClose, projectId, ...props }: Props) {
+export function PageDialogShell({ onClose, onNotify, projectId, ...props }: Props) {
   const shell = useRef<HTMLDivElement>(null);
   const guard = useRef<(() => Promise<boolean>) | null>(null);
   const pending = useRef(false);
@@ -31,7 +33,6 @@ export function PageDialogShell({ onClose, projectId, ...props }: Props) {
   const dragDepth = useRef(0);
   /* "" while nothing has been copied; the link itself once the clipboard refused it. */
   const [fallbackLink, setFallbackLink] = useState("");
-  const [copied, setCopied] = useState(false);
   const onCloseRef = useRef(onClose);
   useLayoutEffect(() => {
     onCloseRef.current = onClose;
@@ -76,20 +77,13 @@ export function PageDialogShell({ onClose, projectId, ...props }: Props) {
     try {
       await navigator.clipboard.writeText(link);
       setFallbackLink("");
-      setCopied(true);
+      // The receipt is the board's toast rather than a line in the header: a line would push
+      // the page down to say something that is over the moment it is read (UI-1).
+      onNotify("Link copied");
     } catch {
-      setCopied(false);
       setFallbackLink(link);
     }
   };
-
-  // The confirmation is a receipt, not a state: it says the copy happened and then gets out
-  // of the header's way.
-  useEffect(() => {
-    if (!copied) return;
-    const timeout = setTimeout(() => setCopied(false), 2400);
-    return () => clearTimeout(timeout);
-  }, [copied]);
 
   const close = async () => {
     if (pending.current) return;
@@ -179,13 +173,8 @@ export function PageDialogShell({ onClose, projectId, ...props }: Props) {
             </button>
           </div>
         </header>
-        {/* One act, one status voice: the confirmation and the fallback are the same line. */}
+        {/* Only a refusal has anything to say here; a success is the toast's to report. */}
         <Growing className="page-link-slot">
-          {copied && (
-            <p className="page-link-copied" role="status">
-              Link copied
-            </p>
-          )}
           {fallbackLink && (
             <div className="page-link" role="status">
               <p className="field-label">The clipboard was refused - copy the link by hand</p>

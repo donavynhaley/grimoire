@@ -102,7 +102,14 @@ describe("copying a page's link", () => {
     expect(written[0]).not.toContain(page.description);
     // Nothing started, nothing was assigned, nothing was recorded.
     expect(fetchMock.mock.calls.length).toBe(before);
-    expect(await screen.findByText("Link copied")).toBeInTheDocument();
+    // The receipt is the board's toast, not a line in the header, and it offers nothing to
+    // undo: a copy is not a change.
+    const receipt = await screen.findByText("Link copied");
+    const toast = receipt.closest(".undo-toast");
+    expect(toast).not.toBeNull();
+    expect([...toast!.querySelectorAll("button")].map((button) => button.getAttribute("aria-label"))).toEqual(
+      ["Dismiss undo"],
+    );
   });
 
   it("shows the link to copy by hand when the clipboard is refused", async () => {

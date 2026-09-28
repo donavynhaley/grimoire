@@ -663,6 +663,7 @@ The only link a person could copy before was the address bar, which is the filte
 "Copy link" in the page dialog's header writes the deep link with two parameters, the project and the page, and no filters.
 It is only the link: the title, the notes and the discussion are read at the other end against the page that is current, and a copy of any of them taken here would start going stale the moment anyone edited the page.
 The board does nothing when the button is pressed: nothing starts, nothing is assigned, nothing is recorded, and no request is made.
+A successful copy is reported in the board's toast, the same voice an undo uses, rather than by a line in the dialog header, because a line there pushes the page down to say something that is over the moment it is read.
 A refused clipboard shows the link to select by hand rather than raising an error, which is the answer the token's own copy already gives.
 
 ## Agent review

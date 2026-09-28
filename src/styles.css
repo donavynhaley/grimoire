@@ -2612,8 +2612,8 @@ textarea:hover {
 }
 
 /*
- * Handing the page to an agent: the receipt, and the block to copy by hand when the
- * clipboard is refused.
+ * The link to copy by hand when the clipboard is refused. A successful copy says nothing
+ * here - the toast reports it - so the header only ever moves for a refusal.
  *
  * The slot is permanent so `Growing` has a height to travel from, and it carries the
  * margin, so what appears inside it is measured with the space it pushes down (UI-1).
@@ -2621,11 +2621,6 @@ textarea:hover {
 .page-link-slot {
   display: flex;
   flex-direction: column;
-}
-.page-link-copied {
-  margin: 0 0 0.875rem;
-  color: var(--accent);
-  font-size: 0.5625rem;
 }
 .page-link {
   display: grid;
