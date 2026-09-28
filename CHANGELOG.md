@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.3.0](https://github.com/donavynhaley/grimoire/compare/v1.2.0...v1.3.0) (2026-09-28)
+
+
+### Features
+
+* **ui:** copy a page's clean link from the dialog header ([#50](https://github.com/donavynhaley/grimoire/issues/50)) ([c0160d6](https://github.com/donavynhaley/grimoire/commit/c0160d68028d67f556bdf45a3f3fba6227677203))
+* **ui:** follow a blocker from the page it is holding up ([#49](https://github.com/donavynhaley/grimoire/issues/49)) ([77fe482](https://github.com/donavynhaley/grimoire/commit/77fe48285606d37b4a496f0b5f251bb6adf142ba))
+
+
+### Bug Fixes
+
+* **ui:** keep the title's border, drop the accent ring on focus ([#48](https://github.com/donavynhaley/grimoire/issues/48)) ([958fac9](https://github.com/donavynhaley/grimoire/commit/958fac92ff95b16f2b28009bbb50280c32535d17))
+
 ## [1.2.0](https://github.com/donavynhaley/grimoire/compare/v1.1.0...v1.2.0) (2026-09-17)
 
 
