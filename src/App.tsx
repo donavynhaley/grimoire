@@ -65,6 +65,14 @@ export function App() {
   const [undoNotice, setUndoNotice] = useState<PendingUndo | null>(null);
   const dismissUndo = useCallback(() => setUndoNotice(null), []);
   /**
+   * A receipt for something that already happened and cannot be undone - a link copied.
+   * It takes the undo toast's place and shape so the board has one voice for "done",
+   * and it never pushes the layout the way an inline line would (UI-1).
+   */
+  const notify = useCallback((message: string) => {
+    setUndoNotice({ duration: 2_400, id: Date.now(), message, run: () => Promise.resolve() });
+  }, []);
+  /**
    * The page the toast has been asked to open, as a request the board answers.
    *
    * The open page is the board's state, not this component's, so opening one from up here
@@ -628,6 +636,7 @@ export function App() {
           onChangePassword={changePassword}
           onRemoveAvatar={removeAvatar}
           onArchive={archivePage}
+          onNotify={notify}
           onCreate={createPage}
           onAddMember={addMember}
           onCreateInvite={createInvite}

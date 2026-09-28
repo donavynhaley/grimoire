@@ -64,6 +64,7 @@ type Props = {
   onCreate: (input: CapturePageInput) => Promise<void>;
   onUpdate: (id: string, input: Record<string, unknown>) => Promise<void>;
   onArchive: (id: string) => Promise<void>;
+  onNotify: (message: string) => void;
   onAddMember: (email: string) => Promise<void>;
   onCreateInvite: () => Promise<string>;
   onCreateIdea: (input: { title: string }) => Promise<void>;
@@ -106,6 +107,7 @@ export function Board({
   onCreate,
   onUpdate,
   onArchive,
+  onNotify,
   onAddMember,
   onCreateInvite,
   onCreateIdea,
@@ -695,6 +697,7 @@ export function Board({
         settingsSection={settingsSection}
         onAddMember={onAddMember}
         onArchive={onArchive}
+        onNotify={onNotify}
         onAsk={onAsk}
         onChangeAvatar={onChangeAvatar}
         onChangeMemberRole={onChangeMemberRole}

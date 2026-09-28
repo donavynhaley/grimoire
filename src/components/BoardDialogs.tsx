@@ -62,6 +62,7 @@ type Props = {
   settingsSection: SettingsSection | null;
   onAddMember: (email: string) => Promise<void>;
   onArchive: (id: string) => Promise<void>;
+  onNotify: (message: string) => void;
   onAsk: (pageId: string, body: string) => Promise<void>;
   onChangeAvatar: (file: File) => Promise<void>;
   onChangeMemberRole: (id: string, role: ProjectRole) => Promise<void>;
@@ -118,6 +119,7 @@ export function BoardDialogs({
   settingsSection,
   onAddMember,
   onArchive,
+  onNotify,
   onAsk,
   onChangeAvatar,
   onChangeMemberRole,
@@ -172,12 +174,14 @@ export function BoardDialogs({
           estimatesEnabled={board.project.estimatesEnabled}
           githubRepo={board.project.githubRepo}
           members={board.members}
+          projectId={board.project.id}
           revision={revision}
           onArchive={async () => {
             await onArchive(selectedPage.id);
             onSelectPage(null);
           }}
           onClose={() => onSelectPage(null)}
+          onNotify={onNotify}
           onOpenPage={onSelectPage}
           onLoadActivity={onLoadActivity}
           onLoadDiscussion={onLoadDiscussion}

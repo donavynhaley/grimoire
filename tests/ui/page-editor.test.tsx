@@ -62,3 +62,73 @@ describe("the page editor's two halves", () => {
     }
   });
 });
+
+/** jsdom exposes `navigator.clipboard` through a getter, so it is redefined rather than set. */
+function stubClipboard(writeText: (text: string) => Promise<void>) {
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: { writeText },
+  });
+}
+/**
+ * Copying is handing the page on, and handing on is not starting: the board must do nothing
+ * at all when this is pressed, which is as much of the contract as the link itself.
+ */
+describe("copying a page's link", () => {
+  it("copies the deep link alone, with no filters and nothing from the brief", async () => {
+    const user = userEvent.setup();
+    const base = boardFixture();
+    // The page carries notes, so "the brief is not copied" is a real assertion rather than
+    // one that passes on an empty string.
+    const page = { ...base.pages[1]!, description: "The workbench holds three reagent slots." };
+    const board = { ...base, pages: [page, ...base.pages.slice(2)] };
+    const written: string[] = [];
+    stubClipboard((text) => {
+      written.push(text);
+      return Promise.resolve();
+    });
+    const { fetchMock } = routeFetch({ board });
+    render(<App />);
+
+    await user.click(await screen.findByText(page.title));
+    await screen.findByRole("dialog", { name: "Edit page" });
+    const before = fetchMock.mock.calls.length;
+    await user.click(screen.getByRole("button", { name: "Copy link" }));
+
+    expect(written).toEqual([`${window.location.origin}/?project=${board.project.id}&page=${page.id}`]);
+    // The title and notes are read at the other end against the page that is current; a
+    // copy of them here would start going stale on the next edit.
+    expect(written[0]).not.toContain(page.title);
+    expect(written[0]).not.toContain(page.description);
+    // Nothing started, nothing was assigned, nothing was recorded.
+    expect(fetchMock.mock.calls.length).toBe(before);
+    // The receipt is the board's toast, not a line in the header, and it offers nothing to
+    // undo: a copy is not a change.
+    const receipt = await screen.findByText("Link copied");
+    const toast = receipt.closest(".undo-toast");
+    expect(toast).not.toBeNull();
+    expect([...toast!.querySelectorAll("button")].map((button) => button.getAttribute("aria-label"))).toEqual(
+      ["Dismiss undo"],
+    );
+  });
+
+  it("shows the link to copy by hand when the clipboard is refused", async () => {
+    const user = userEvent.setup();
+    const board = boardFixture();
+    const page = board.pages[1]!;
+    stubClipboard(() => Promise.reject(new Error("denied")));
+    routeFetch({ board });
+    render(<App />);
+
+    await user.click(await screen.findByText(page.title));
+    await screen.findByRole("dialog", { name: "Edit page" });
+    await user.click(screen.getByRole("button", { name: "Copy link" }));
+
+    // A refusal is not an error: selecting the link by hand still does the job.
+    const link = await screen.findByText(
+      `${window.location.origin}/?project=${board.project.id}&page=${page.id}`,
+    );
+    expect(link.tagName).toBe("CODE");
+    expect(screen.queryByText("Link copied")).toBeNull();
+  });
+});

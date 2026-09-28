@@ -2604,6 +2604,45 @@ textarea:hover {
   margin: 0;
   font-size: 1.125rem;
 }
+/* Qualified by the parent, which sets `display: grid` on its own direct children. */
+.dialog-header > .dialog-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/*
+ * The link to copy by hand when the clipboard is refused. A successful copy says nothing
+ * here - the toast reports it - so the header only ever moves for a refusal.
+ *
+ * The slot is permanent so `Growing` has a height to travel from, and it carries the
+ * margin, so what appears inside it is measured with the space it pushes down (UI-1).
+ */
+.page-link-slot {
+  display: flex;
+  flex-direction: column;
+}
+.page-link {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 0.875rem;
+  padding: 0.75rem;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+.page-link-value {
+  padding: 0.5rem 0.625rem;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  font-size: 0.6875rem;
+  /* Copying by hand is the whole point of this block, so it selects in one gesture. */
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: all;
+}
 
 /* One search over every column, the backlog, the garden, and the archive. */
 .search-backdrop {

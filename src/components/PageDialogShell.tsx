@@ -1,10 +1,18 @@
 import { type ComponentProps, useCallback, useLayoutEffect, useRef, useState } from "react";
 import { usePageMotion } from "../hooks/use-page-motion";
+import { pageLink } from "../lib/page-link";
 import { deferComponent } from "./Deferred";
 import { Drawer } from "./Drawer";
+import { Growing } from "./Growing";
 
 type EditorProps = ComponentProps<typeof import("./PageDialog")["PageDialog"]>;
-type Props = Omit<EditorProps, "registerCloseGuard" | "registerFileReceiver"> & { onClose: () => void };
+type Props = Omit<EditorProps, "registerCloseGuard" | "registerFileReceiver"> & {
+  onClose: () => void;
+  /** Says "Link copied" in the board's toast, so the header never moves to say it. */
+  onNotify: (message: string) => void;
+  /** The link names the board the page belongs to as well as the page. */
+  projectId: string;
+};
 
 const PageDialog = deferComponent<EditorProps>(
   () => import("./PageDialog").then((module) => ({ default: module.PageDialog })),
@@ -12,7 +20,7 @@ const PageDialog = deferComponent<EditorProps>(
 );
 
 /** Keep one modal alive across the feature download, editing, and its saved exit. */
-export function PageDialogShell({ onClose, onOpenPage, ...props }: Props) {
+export function PageDialogShell({ onClose, onNotify, onOpenPage, projectId, ...props }: Props) {
   const shell = useRef<HTMLDivElement>(null);
   const guard = useRef<(() => Promise<boolean>) | null>(null);
   const pending = useRef(false);
@@ -23,6 +31,8 @@ export function PageDialogShell({ onClose, onOpenPage, ...props }: Props) {
   const [acceptsFiles, setAcceptsFiles] = useState(false);
   const [dropActive, setDropActive] = useState(false);
   const dragDepth = useRef(0);
+  /* "" while nothing has been copied; the link itself once the clipboard refused it. */
+  const [fallbackLink, setFallbackLink] = useState("");
   const onCloseRef = useRef(onClose);
   useLayoutEffect(() => {
     onCloseRef.current = onClose;
@@ -52,6 +62,28 @@ export function PageDialogShell({ onClose, onOpenPage, ...props }: Props) {
       dragDepth.current = 0;
     };
   }, []);
+
+  /**
+   * Copies the page's own link, and does nothing else.
+   *
+   * A person copying is a person handing the page on: nothing starts, nothing is assigned
+   * and nothing is recorded, so this never reaches the server. When the clipboard is refused
+   * - an insecure origin, a permission denied - the link is shown instead of an error,
+   * because selecting it by hand still works and that is the same answer the agent token's
+   * own copy gives.
+   */
+  const copyLink = async () => {
+    const link = pageLink({ origin: window.location.origin, pageId: props.page.id, projectId });
+    try {
+      await navigator.clipboard.writeText(link);
+      setFallbackLink("");
+      // The receipt is the board's toast rather than a line in the header: a line would push
+      // the page down to say something that is over the moment it is read (UI-1).
+      onNotify("Link copied");
+    } catch {
+      setFallbackLink(link);
+    }
+  };
 
   const close = async () => {
     if (pending.current) return;
@@ -150,15 +182,34 @@ export function PageDialogShell({ onClose, onOpenPage, ...props }: Props) {
             <p className="eyebrow">page details</p>
             <h2 id="dialog-panel-title">{ready ? "Edit page" : "Opening page editor"}</h2>
           </div>
-          <button
-            aria-label={ready ? "Close page" : "Cancel opening"}
-            className="icon-button"
-            onClick={() => void close()}
-            type="button"
-          >
-            ×
-          </button>
+          <div className="dialog-header-actions">
+            <button
+              aria-label="Copy link"
+              className="icon-button"
+              onClick={() => void copyLink()}
+              type="button"
+            >
+              ⧉
+            </button>
+            <button
+              aria-label={ready ? "Close page" : "Cancel opening"}
+              className="icon-button"
+              onClick={() => void close()}
+              type="button"
+            >
+              ×
+            </button>
+          </div>
         </header>
+        {/* Only a refusal has anything to say here; a success is the toast's to report. */}
+        <Growing className="page-link-slot">
+          {fallbackLink && (
+            <div className="page-link" role="status">
+              <p className="field-label">The clipboard was refused - copy the link by hand</p>
+              <code className="page-link-value">{fallbackLink}</code>
+            </div>
+          )}
+        </Growing>
         <PageDialog
           {...props}
           onOpenPage={(id) => void openPage(id)}

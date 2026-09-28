@@ -1,9 +1,15 @@
 import { useEffect } from "react";
 
 export type UndoNotice = {
-  actionLabel: string;
+  /**
+   * The button's accessible name. Left out, the notice is a receipt - "Link copied" - and
+   * the toast shows the message alone, with nothing to press but dismiss.
+   */
+  actionLabel?: string;
   id: number;
   message: string;
+  /** How long the notice stands, in milliseconds. An undo gets 8 seconds; a receipt needs less. */
+  duration?: number;
   /** The button's word. Most notices offer "undo"; a fresh page offers "open". */
   action?: string;
   /**
@@ -21,11 +27,12 @@ type Props = {
 };
 
 export function UndoToast({ notice, onDismiss, onUndo }: Props) {
+  const duration = notice.duration ?? 8_000;
   // biome-ignore lint/correctness/useExhaustiveDependencies: notice.id is the trigger that restarts the countdown for a new notice; without it a second undo would inherit the first one's remaining time and vanish early
   useEffect(() => {
-    const timer = window.setTimeout(onDismiss, 8_000);
+    const timer = window.setTimeout(onDismiss, duration);
     return () => window.clearTimeout(timer);
-  }, [notice.id, onDismiss]);
+  }, [notice.id, duration, onDismiss]);
 
   /*
    * The key lives exactly as long as the toast: mounted with it, gone with it. The guards
@@ -65,18 +72,25 @@ export function UndoToast({ notice, onDismiss, onUndo }: Props) {
   return (
     <div className="undo-toast">
       <span role="status">{notice.message}</span>
-      <button aria-label={notice.actionLabel} onClick={onUndo} type="button">
-        {notice.action ?? "undo"}
-        {hotkey && (
-          // biome-ignore lint/a11y/noAriaHiddenOnFocusable: a kbd is not focusable; this is a shortcut glyph beside the label inside a focusable button, and hiding it is what keeps the button announcing its name rather than its name and a stray character
-          <kbd aria-hidden="true">{hotkey}</kbd>
-        )}
-      </button>
+      {notice.actionLabel && (
+        <button aria-label={notice.actionLabel} onClick={onUndo} type="button">
+          {notice.action ?? "undo"}
+          {hotkey && (
+            // biome-ignore lint/a11y/noAriaHiddenOnFocusable: a kbd is not focusable; this is a shortcut glyph beside the label inside a focusable button, and hiding it is what keeps the button announcing its name rather than its name and a stray character
+            <kbd aria-hidden="true">{hotkey}</kbd>
+          )}
+        </button>
+      )}
       <button aria-label="Dismiss undo" className="undo-dismiss" onClick={onDismiss} type="button">
         ×
       </button>
       {/* The bar is a CSS animation, and only a new element restarts it for a new notice. */}
-      <span aria-hidden="true" className="undo-timer" key={notice.id} />
+      <span
+        aria-hidden="true"
+        className="undo-timer"
+        key={notice.id}
+        style={{ animationDuration: `${duration}ms` }}
+      />
     </div>
   );
 }
