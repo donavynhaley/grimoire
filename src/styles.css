@@ -3314,6 +3314,19 @@ textarea:hover {
   font-size: 0.5625rem;
 }
 
+/*
+ * The title and the notes are the two things a page is, and they answer focus the same
+ * way. The notes box keeps its border and brightens it on hover and focus, with no
+ * accent ring, because the box already says where focus is. The title's input inherited
+ * the global accent ring on top of its border, which said it twice and in a louder
+ * voice than the notes beside it. It now takes the notes' treatment: border at rest,
+ * brighter on hover (the global input rule) and on focus, and no ring.
+ */
+.record-form input:focus-visible {
+  outline: none;
+  border-color: var(--border-bright);
+}
+
 /* Wide Markdown belongs inside the notes, rather than setting the grid track width. */
 .notes-field {
   display: grid;
