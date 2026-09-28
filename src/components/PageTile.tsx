@@ -1,5 +1,6 @@
 import type { PointerEvent as ReactPointerEvent } from "react";
 import type { Member, Page, ProjectCategory, ProjectField } from "../../shared/types";
+import type { SelectionClick } from "../hooks/use-page-selection";
 import { categoryColorStyle } from "../lib/category-style";
 import { plainTextFromMarkdown } from "../lib/markdown-text";
 import { Avatar } from "./Avatar";
@@ -21,9 +22,12 @@ type Props = {
   moving: boolean;
   /** Changed while the reader was away and not yet opened this visit. */
   unseen: boolean;
+  /** Held as part of a selection, so the next decision reaches this page too. */
+  selected: boolean;
   /** Whether the click now being handled is the tail of a drag; see usePointerDrag. */
   guardClick: () => boolean;
-  onOpen: () => void;
+  /** Takes only the modifiers, because a click and a modified Enter mean the same thing here. */
+  onOpen: (event: SelectionClick) => void;
   onPointerDown: (event: ReactPointerEvent<HTMLElement>) => void;
   onToggleMove: () => void;
 };
@@ -40,6 +44,7 @@ export function PageTile({
   hidden,
   moving,
   unseen,
+  selected,
   guardClick,
   onOpen,
   onPointerDown,
@@ -51,7 +56,7 @@ export function PageTile({
   const preview = page.description ? plainTextFromMarkdown(page.description) : "";
   return (
     <article
-      className={`board-page ${page.category ? "" : "category-none"} ${hidden ? "drag-hidden" : ""} ${unseen ? "unseen" : ""}`}
+      className={`board-page ${page.category ? "" : "category-none"} ${hidden ? "drag-hidden" : ""} ${unseen ? "unseen" : ""} ${selected ? "selected" : ""}`}
       data-flip-id={page.id}
       onPointerDown={onPointerDown}
       style={category ? categoryColorStyle(category.color) : undefined}
@@ -70,10 +75,21 @@ export function PageTile({
         ⠿
       </button>
       <button
-        aria-label={`Open ${page.title}${preview ? `. ${preview}` : ""}. ${categoryLabel}. ${blockers.length ? `Blocked by ${blockers.map((blocker) => blocker.title).join(", ")}. ` : ""}${page.assigneeName ?? "unassigned"}${unseen ? ". Changed while you were away" : ""}`}
+        aria-label={`Open ${page.title}${preview ? `. ${preview}` : ""}. ${categoryLabel}. ${blockers.length ? `Blocked by ${blockers.map((blocker) => blocker.title).join(", ")}. ` : ""}${page.assigneeName ?? "unassigned"}${unseen ? ". Changed while you were away" : ""}${selected ? ". Selected" : ""}`}
         className="page-open"
-        onClick={() => {
-          if (!guardClick()) onOpen();
+        onClick={(event) => {
+          if (!guardClick()) onOpen(event);
+        }}
+        /*
+         * A modified Enter produces no click at all - the browser suppresses activation - so
+         * the gesture a keyboard would reach for has to be heard directly. Plain Enter and
+         * Space are untouched and still open the page through the click above.
+         */
+        onKeyDown={(event) => {
+          if (event.key !== "Enter") return;
+          if (!event.ctrlKey && !event.metaKey && !event.shiftKey) return;
+          event.preventDefault();
+          onOpen(event);
         }}
         type="button"
       >

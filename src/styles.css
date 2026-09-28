@@ -2377,6 +2377,61 @@ textarea:hover {
 .moving-bar strong {
   color: var(--text);
 }
+
+/*
+ * Several cards held at once, and what can be done to them.
+ *
+ * It takes the moving bar's place and its shape because it is the same kind of statement: the
+ * board is in a mode, this is what the mode is for, and this is the way out. One group of
+ * choices opens at a time inside `Growing`, so the bar does not stand three rows tall waiting
+ * to be used, and does not jump to that height when it is (UI-1).
+ */
+.selection-bar {
+  margin: 0.75rem clamp(1rem, 4vw, 2.125rem) 0;
+  padding: 0.625rem 0.875rem;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  border-radius: 0.5rem;
+  font-size: 0.625rem;
+}
+.selection-bar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.selection-count strong {
+  color: var(--text);
+}
+.selection-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  flex-wrap: wrap;
+}
+.selection-bar kbd {
+  color: var(--faint);
+  font: inherit;
+  font-size: 0.5rem;
+}
+.selection-bar .choice-grid {
+  margin-top: 0.625rem;
+}
+
+/*
+ * A held card.
+ *
+ * The accent is already what this interface means by "the thing in hand", so a selection
+ * wears it too. The ring is drawn with an inset shadow rather than a wider border, because a
+ * border that thickens on selection would move every tile beside it.
+ */
+.board-page.selected,
+.library-page.selected {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
 .moving-bar kbd {
   color: var(--faint);
   font: inherit;

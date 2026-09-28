@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
 import type { Chapter, Member, Page, PageCategory, ProjectCategory } from "../../shared/types";
+import type { PageSelection } from "../hooks/use-page-selection";
 import { useTypingFocus } from "../hooks/use-typing-focus";
 import { categoryDisplay, categoryStyle } from "../lib/category-style";
 import { plainTextFromMarkdown } from "../lib/markdown-text";
 import { pageText } from "../lib/page-search";
 import { Drawer } from "./Drawer";
 import { Growing } from "./Growing";
+import { SelectionBar } from "./SelectionBar";
 
 type Props = {
   allPages: Page[];
@@ -16,6 +18,9 @@ type Props = {
   members: Member[];
   /** The chapter the board is looking at, which is the one a pull adds to. */
   targetChapter: string | null;
+  /** Shared with the board, so a page held here is the same page held out there. */
+  selection: PageSelection;
+  onApplyToSelection: (input: Record<string, unknown>) => Promise<void>;
   onClose: () => void;
   onMoveToNext: (id: string) => Promise<void>;
   onOpenPage: (id: string) => void;
@@ -33,6 +38,8 @@ export function BacklogDialog({
   chapters,
   members,
   targetChapter,
+  selection,
+  onApplyToSelection,
   onClose,
   onMoveToNext,
   onOpenPage,
@@ -70,6 +77,8 @@ export function BacklogDialog({
         .sort((left, right) => left.position - right.position),
     [allPages, blockedOnly, pages, category, chapterFilter, normalizedQuery, person],
   );
+  /** The run a shift range walks: this list as the filters currently leave it. */
+  const order = useMemo(() => visiblePages.map((page) => page.id), [visiblePages]);
 
   return (
     <Drawer
@@ -211,14 +220,44 @@ export function BacklogDialog({
         )}
       </div>
 
+      {/* The run a shift range walks: this list as the filters currently leave it. */}
+      {selection.ids.size > 0 && (
+        <SelectionBar
+          busy={busy}
+          categories={categories}
+          count={selection.ids.size}
+          members={members}
+          onApply={onApplyToSelection}
+          onClear={selection.clear}
+        />
+      )}
+
       <div className="library-results" aria-live="polite">
         {visiblePages.map((page) => (
           <article
-            className={`library-page ${page.category ? "" : "category-none"}`}
+            className={`library-page ${page.category ? "" : "category-none"} ${selection.ids.has(page.id) ? "selected" : ""}`}
             key={page.id}
             style={categoryStyle(categories, page.category)}
           >
-            <button className="library-page-main" onClick={() => onOpenPage(page.id)} type="button">
+            <button
+              className="library-page-main"
+              onClick={(event) => {
+                // The same reading the board gives a click: a held modifier selects, and
+                // anything else still opens the page. The run a shift range is measured
+                // along is this list as it currently stands, filters and all.
+                if (selection.select(event, page.id, order)) return;
+                onOpenPage(page.id);
+              }}
+              // A modified Enter produces no click, so the keyboard's version of the same
+              // gesture is heard here. Plain Enter and Space still open the page.
+              onKeyDown={(event) => {
+                if (event.key !== "Enter") return;
+                if (!event.ctrlKey && !event.metaKey && !event.shiftKey) return;
+                event.preventDefault();
+                selection.select(event, page.id, order);
+              }}
+              type="button"
+            >
               <span className="library-page-signals">
                 {page.category && (
                   <span className="category-pill">{categoryDisplay(categories, page.category)}</span>
