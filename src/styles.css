@@ -3851,6 +3851,15 @@ textarea:hover {
 .dependency-search input {
   height: 2.125rem;
 }
+/*
+ * The rail scrolls, and a scroll container clips whatever reaches past its edge. The
+ * input runs the full width of the rail, so the global ring, drawn 0.125rem outside the
+ * box, lost its right side. The ring is drawn inside the box here instead, the way the
+ * editor's drop-active ring already is, so all four sides of it are painted.
+ */
+.dependency-search input:focus-visible {
+  outline-offset: -0.125rem;
+}
 .dependency-results button {
   display: grid;
   min-height: 2.625rem;
