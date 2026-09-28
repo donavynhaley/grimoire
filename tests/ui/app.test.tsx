@@ -1152,6 +1152,27 @@ describe("Grimoire board", () => {
     expect((await screen.findAllByText(blocker.title)).length).toBeGreaterThan(0);
   });
 
+  it("follows a blocker from the rail to the blocking page", async () => {
+    const initial = boardFixture();
+    const page = initial.pages[0]!;
+    const blocker = initial.pages[1]!;
+    const blocked = { ...page, blockedBy: [blocker.id] };
+    const workspace = { ...initial, pages: [blocked, blocker] };
+    routeFetch({ board: () => workspace });
+
+    render(<App />);
+    await openWorkPage(blocked);
+
+    // Naming what holds a page up and then making someone go and look it up themselves is
+    // the gap this closes: the row is the answer, so the row is what gets followed.
+    await userEvent.click(await screen.findByRole("button", { name: `Open ${blocker.title}` }));
+
+    // The editor is keyed by page, so arriving is an ordinary open - and the shared link
+    // the board writes has to name the page actually on screen.
+    await waitFor(() => expect(screen.getByRole("textbox", { name: /title/i })).toHaveValue(blocker.title));
+    expect(new URLSearchParams(window.location.search).get("page")).toBe(blocker.id);
+  });
+
   it("opens a page straight from a shared link", async () => {
     const initial = boardFixture();
     const page = initial.pages[1]!;

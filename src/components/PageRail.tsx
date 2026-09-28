@@ -26,6 +26,8 @@ type Props = {
   estimatesEnabled: boolean;
   members: Member[];
   onUpdate: (input: Record<string, unknown>) => Promise<void>;
+  /** Follows a blocker to its own page, the way a search result is followed. */
+  onOpenPage: (id: string) => void;
 };
 
 /**
@@ -45,6 +47,7 @@ export function PageRail({
   fields,
   members,
   onUpdate,
+  onOpenPage,
 }: Props) {
   /**
    * Category is the only attribute long enough to be worth folding: ten choices against four
@@ -256,16 +259,31 @@ export function PageRail({
                 className={blocker.status === "done" ? "dependency resolved" : "dependency"}
                 key={blocker.id}
               >
-                <span
-                  className={`category-swatch ${blocker.category ? "" : "category-none"}`}
-                  style={categoryStyle(categories, blocker.category)}
-                />
-                <span>
-                  <strong>{blocker.title}</strong>
-                  <small>{blocker.status === "done" ? "resolved" : labels[blocker.status]}</small>
-                </span>
+                {/*
+                  Naming what blocks this page and then refusing to show it is the one place
+                  the board makes you go and look it up yourself. The row reads as the answer
+                  to "what is holding this up", so it is the thing to follow, and it takes the
+                  same shape the add-a-blocker results already use: a bordered row that is a
+                  button, accenting on hover.
+                */}
+                <button
+                  aria-label={`Open ${blocker.title}`}
+                  className="dependency-open"
+                  onClick={() => onOpenPage(blocker.id)}
+                  type="button"
+                >
+                  <span
+                    className={`category-swatch ${blocker.category ? "" : "category-none"}`}
+                    style={categoryStyle(categories, blocker.category)}
+                  />
+                  <span>
+                    <strong>{blocker.title}</strong>
+                    <small>{blocker.status === "done" ? "resolved" : labels[blocker.status]}</small>
+                  </span>
+                </button>
                 <button
                   aria-label={`Remove blocker ${blocker.title}`}
+                  className="dependency-remove"
                   onClick={() => void removeBlocker(blocker.id)}
                   type="button"
                 >
