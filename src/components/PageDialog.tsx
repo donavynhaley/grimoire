@@ -45,6 +45,8 @@ type Props = {
   onSetAnswered: (pageId: string, threadId: string, answered: boolean) => Promise<void>;
   /** Called the moment the conversation is actually looked at, and only then. */
   onSeeDiscussion: (pageId: string) => Promise<void>;
+  /** Leaves this page for another one - today, a blocker followed from the rail. */
+  onOpenPage: (id: string) => void;
 };
 
 /** Editing content inside the persistent PageDialogShell. */
@@ -69,6 +71,7 @@ export function PageDialog({
   onReply,
   onSetAnswered,
   onSeeDiscussion,
+  onOpenPage,
 }: Props) {
   const uploads = usePageUploads(page.id);
   const notes = useRef<import("./NotesField").NotesFieldHandle | null>(null);
@@ -317,6 +320,7 @@ export function PageDialog({
               fields={fields}
               key={page.id}
               members={members}
+              onOpenPage={onOpenPage}
               onUpdate={onUpdate}
               page={page}
               pages={pages}
