@@ -1,0 +1,76 @@
+name: Publish grimoire-mcp
+
+# The MCP package is published from its own release tag rather than by hand.
+#
+# It had drifted: the registry carried 0.3.0 from August while the tree had grown
+# the attachment tools and a second binary, because release-please only versioned
+# the app at the repository root and nothing ever published this package. Release
+# Please now owns its version too, and this runs when the release it cuts for the
+# `grimoire-mcp-v*` tag is published, so the registry follows the tag by itself.
+on:
+  release:
+    types: [published]
+  # So a publish that failed on a transient registry error can be run again
+  # without cutting another version.
+  workflow_dispatch:
+
+permissions: read-all
+
+concurrency:
+  group: publish-grimoire-mcp
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    # Only ever from a grimoire-mcp tag. Releases for the app itself share this
+    # trigger and must not publish the package, and a dispatch from a branch would
+    # publish whatever version that branch happens to carry, which is how an
+    # unreleased version reaches the registry by accident.
+    if: >-
+      github.repository == 'donavynhaley/grimoire' &&
+      (startsWith(github.event.release.tag_name, 'grimoire-mcp-v') ||
+       startsWith(github.ref, 'refs/tags/grimoire-mcp-v'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # npm provenance signs the package against this workflow run.
+      id-token: write
+    defaults:
+      run:
+        working-directory: packages/grimoire-mcp
+    steps:
+      - name: Check out the tagged commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name || github.ref }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Install
+        run: npm ci
+
+      - name: Type check
+        run: npm run check
+
+      # The tag says which version this is; refuse if the package disagrees, so a
+      # mistagged release cannot quietly publish something else.
+      - name: Check the package matches the tag
+        run: |
+          tag="${{ github.event.release.tag_name || github.ref_name }}"
+          expected="${tag#grimoire-mcp-v}"
+          actual="$(node -p "require('./package.json').version")"
+          if [ "$expected" != "$actual" ]; then
+            echo "::error::tag $tag expects $expected but package.json says $actual"
+            exit 1
+          fi
+          echo "publishing grimoire-mcp $actual"
+
+      # `prepublishOnly` builds, so the tarball carries dist/ even though it is not committed.
+      - name: Publish
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

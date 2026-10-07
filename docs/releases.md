@@ -37,6 +37,21 @@ Before merging the release PR:
 4. Complete the public repository's security and visibility checklist.
 5. Merge the release PR only when the version is ready to publish.
 
+## The MCP package
+
+`packages/grimoire-mcp` is versioned separately from the application and published to npm.
+
+It is its own Release Please package, so it takes its version from commits that touch its directory rather than from the application's.
+Its tags carry the component name, `grimoire-mcp-v0.4.0`, while the application's stay bare, `v1.2.0`.
+`bootstrap-sha` records where its managed history begins, because the package existed and was published by hand before Release Please owned it.
+
+Publishing follows the tag rather than a person.
+The Publish grimoire-mcp workflow runs when the GitHub release for a `grimoire-mcp-v*` tag is published, type checks the package, and publishes it with provenance.
+It needs an `NPM_TOKEN` secret with publish rights to `grimoire-mcp`; without it the workflow fails at the publish step and the registry keeps the previous version.
+Releases for the application share the trigger and are filtered out by the tag prefix, so cutting an app release never publishes the package.
+
+This arrangement exists because the two drifted apart: the registry served 0.3.0 from August while the tree had grown the attachment tools and a second binary, and nothing in the repository was responsible for noticing.
+
 Release Please then creates the tag and GitHub release from the merged PR.
 Include the v1.0 promise above in the release description before announcing it.
 The default `GITHUB_TOKEN` does not trigger another workflow from a bot-created PR; close and reopen that PR as a maintainer to start its normal CI checks before merging it.
