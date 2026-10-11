@@ -33,7 +33,7 @@
     "@lezer/highlight": "^1.2.3",
     "@lezer/markdown": "^1.7.2",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "react-dom": "^19.3.0",
     "zod": "^4.5.4"
   },
   "devDependencies": {
@@ -44,7 +44,7 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/node": "^26.1.2",
     "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.2.7",
+    "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^5.0.0",
     "@vitest/coverage-v8": "^4.1.11",
     "concurrently": "^10.0.5",
